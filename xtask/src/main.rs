@@ -16,8 +16,9 @@ commands:
 fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("ci") => ci(),
-        Some("shots") => pnpm(&["run", "shots"]),
-        Some("web") => pnpm(&["install", "--frozen-lockfile"]).and_then(|_| pnpm(&["run", "build"])).and_then(|_| pnpm(&["test"])),
+        // The Playwright tests start `target/debug/tanacraft-cli serve`, so it is built first.
+        Some("shots") => web_prep().and_then(|_| pnpm(&["run", "shots"])),
+        Some("web") => web_prep().and_then(|_| pnpm(&["exec", "playwright", "test", "--project=tests"])),
         Some("parity") => parity(),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -53,6 +54,12 @@ fn ci() -> Result<(), String> {
     cargo(&["fmt", "--all", "--check"])?;
     cargo(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"])?;
     cargo(&["test", "--workspace"])
+}
+
+fn web_prep() -> Result<(), String> {
+    cargo(&["build", "-p", "tanacraft-cli"])?;
+    pnpm(&["install", "--frozen-lockfile"])?;
+    pnpm(&["run", "build"])
 }
 
 fn pnpm(args: &[&str]) -> Result<(), String> {

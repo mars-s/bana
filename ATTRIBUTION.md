@@ -7,7 +7,7 @@ original work by TanaCraft contributors or third-party material under an open li
 other vendors' software are never committed.
 
 Generated-in-code art is original and has no file to list: bullets, chevrons, tag chips and the
-sidebar glyphs are painted by `crates/ui-egui`.
+sidebar glyphs were painted by the egui front end (now `legacy/egui`) and are inline SVGs in `web/src/icons.tsx`.
 
 | Asset | Author | Source | Licence | Notes |
 |---|---|---|---|---|

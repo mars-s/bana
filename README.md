@@ -41,7 +41,7 @@
 </tr>
 </table>
 
-Every screenshot is TanaCraft itself, rendered offscreen by `cargo xtask shots`.
+Every screenshot is TanaCraft itself. These were rendered by the old egui front end (tag `egui-final`); the desktop app is now a Tauri app with a web UI, and its screenshots (`cargo xtask shots`) land in `docs/images/web/`.
 
 ## Why
 
@@ -50,8 +50,8 @@ and it gains a status, a due date and a checkbox; ask a search node for every op
 live. TanaCraft rebuilds that model as open source:
 
 - **Local and yours.** One JSON file per workspace on your disk, saved atomically. No account, no server.
-- **Fast and small.** Pure Rust with an immediate-mode UI; it starts in a blink and never blocks on the network.
-- **Scriptable to the core.** Every action is a command with an id. The keyboard, the command line, the CLI, the MCP server and a JSON control channel all run the same commands, so an agent can do anything you can.
+- **Fast and small.** A Rust engine with a thin web UI (Tauri); it never blocks on the network.
+- **Scriptable to the core.** Every action is a command with an id. The keyboard, the command line, the CLI, the MCP server and the JSON API all run the same commands, so an agent can do anything you can.
 - **Clean room.** Built from public docs and a black-box behaviour spec; see [Clean room](#clean-room).
 
 ## What works today
@@ -87,8 +87,8 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 The outline draws only the rows near the viewport (the rest is blank space of their measured
 height). A row holding an editor (a line being typed, a field value or name, a description) is
 always laid out, on screen or not, and every editor scrolls itself into view when it takes the
-keyboard, so typed text never depends on where a row sits. Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
-`cargo test -p tanacraft-ui-egui --test perf --release -- --nocapture`.
+keyboard, so typed text never depends on where a row sits. Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` (the UI frame
+figures are from the egui front end, now in `legacy/egui`).
 
 A fuzz test runs random sequences of every command (params built from each command's own
 description) and checks after each step that owners and children agree, nothing is orphaned or in a
@@ -103,24 +103,26 @@ while navigating, template copies doubling an outline, a crash on a deep recursi
 widgets that were not drawn, field values typed below the first screen, editors left open on
 another page, a line indented under a search node, keys lost after Shift+Tab out of a field, Cmd+K then Escape, Escape in
 a page title, or egui's own arrow-key focus moving to a button). Longer runs:
-`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
-`UI_FUZZ_SEEDS=500 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
+`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`. The UI fuzz
+invariants are being ported from `legacy/egui` to Playwright tests of the web UI.
 
 ## Quick start
 
 ```sh
-cargo run --release -p tanacraft -- --sample          # the desktop app with the sample graph
-cargo run --release -p tanacraft -- notes.json        # open or create a graph file
+pnpm --dir web install && pnpm --dir web build             # the web UI (once, and after UI changes)
+cargo run --release -p tanacraft-desktop -- --sample       # the desktop app (Tauri) with the sample graph
+cargo run --release -p tanacraft-desktop -- notes.json     # open or create a graph file
+cargo run --release -p tanacraft-cli -- serve --sample     # the same UI in a browser: http://127.0.0.1:8787/
 ```
 
 Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
 **Shift+Cmd+?** for the shortcut sheet.
 
-## For agents: CLI, MCP and the control channel
+## For agents: CLI, MCP and the JSON API
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the control channel. `tanacraft-cli commands` lists all 174 with their parameters.
+server and the JSON API. `tanacraft-cli commands` lists all 174 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params
@@ -131,8 +133,7 @@ tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 
 tanacraft-cli export today                              # Markdown outline
 tanacraft-cli export 2 --format json                    # JSON tree of the Library
 tanacraft-mcp --file graph.json                         # MCP server on stdio (headless)
-tanacraft --control 7991 &                              # app + JSON control channel
-tanacraft-mcp --connect 127.0.0.1:7991                  # MCP driving the running app
+tanacraft-cli serve --port 8787                         # web UI + JSON API (POST /rpc) on 127.0.0.1
 ```
 
 ## Architecture
@@ -142,12 +143,14 @@ tanacraft-mcp --connect 127.0.0.1:7991                  # MCP driving the runnin
 | `crates/core` | Node graph: nodes, supertags, fields, references, queries, views, daily notes, trash, undo/redo, JSON file, export |
 | `crates/commands` | `Session` (graph, focus, panels' navigation) and the command registry (ids, labels, shortcuts, params) |
 | `crates/mcp` | MCP server library and the `tanacraft-mcp` binary |
-| `crates/ui-egui` | egui front end; tests drive it with real keys, clicks and drags; the offscreen `ui_shot` example |
-| `apps/tanacraft` | Desktop app (eframe) with the control channel |
-| `apps/tanacraft-cli` | Command line |
-| `xtask` | `cargo xtask ci`, `cargo xtask shots`, `cargo xtask parity` |
+| `crates/server` | `Host` (the Session plus each panel's navigation), JSON view snapshots, a localhost HTTP server |
+| `apps/tanacraft-desktop` | The desktop app: Tauri 2 around the `Host` |
+| `web/` | The UI (React + TypeScript); runs in the desktop app or a browser |
+| `apps/tanacraft-cli` | Command line, including `serve` |
+| `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity` |
+| `legacy/egui` | The old egui front end, reference only and not built (tag `egui-final`) |
 
-Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::run`.
+The UI holds no data: it runs commands and draws snapshots of the engine.
 
 ## Roadmap
 
@@ -162,7 +165,7 @@ later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 TanaCraft is built from Tana's public documentation and a black-box behaviour spec written by a
 separate team. Nobody on this side opens the Tana app, its files or any reverse-engineering tool. See
-[AGENTS.md](AGENTS.md). Every asset is original; icons are drawn in code.
+[AGENTS.md](AGENTS.md). Every asset is original or openly licensed (see [ATTRIBUTION.md](ATTRIBUTION.md)); icons are our own SVGs.
 
 ## License
 

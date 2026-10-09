@@ -34,23 +34,28 @@ the CLI and MCP is hostile: validate ids, clamp indexes, bound recursion.
 | `crates/core` (`tanacraft-core`) | Node graph model, supertags, fields, references, daily notes, trash, undo/redo, JSON persistence, Markdown/JSON export |
 | `crates/commands` (`tanacraft-commands`) | `Session` (graph + focus/zoom/selection), `CommandSpec` registry: ids, labels, shortcuts, params, `run` |
 | `crates/mcp` (`tanacraft-mcp`) | MCP server (JSON-RPC 2.0 over stdio) exposing the commands; `tanacraft-mcp` binary |
-| `crates/ui-egui` (`tanacraft-ui-egui`) | egui front end; `examples/ui_shot.rs` renders offscreen screenshots |
-| `apps/tanacraft` | Desktop app (eframe) |
-| `apps/tanacraft-cli` | CLI: inspect, add, export, run commands, `mcp` |
-| `xtask` | `cargo xtask ci`, `cargo xtask shots` |
+| `crates/server` (`tanacraft-server`) | `Host`: the Session plus one navigation state per panel; view snapshots as JSON; a std-only localhost HTTP server (`POST /rpc`, `GET /events`, static web UI) |
+| `apps/tanacraft-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
+| `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `tanacraft-cli serve` |
+| `apps/tanacraft-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |
+| `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots` |
+| `legacy/egui` | The old egui front end: **reference only, not built**. Its tests are the porting checklist (`legacy/egui/README.md`); last working version is tag `egui-final` |
 
-Nothing below `ui-egui` depends on egui. **Everything is a command**: new behaviour = a `CommandSpec`
-in `crates/commands/src/cmds.rs` + a test. The UI only calls `Session::run`.
+**Everything is a command**: new behaviour = a `CommandSpec` in `crates/commands/src/cmds.rs` + a
+test. The UI only runs commands (through `Host::handle`) and draws snapshots; the JS side never owns
+data. Every keystroke reaches the engine at once; the engine autosaves within a second.
 
 ## Quality gates
 
-Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests). Commit after each piece
-that builds. No em dashes in any text (code comments, docs, commit messages).
+Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and, for UI changes,
+`cargo xtask web` (typecheck, build, Playwright). Commit after each piece that builds. No em dashes in any text (code comments, docs, commit messages).
 
 ## Looking at the app
 
-- `cargo run -p tanacraft -- --sample` opens the desktop app with the sample graph.
-- `cargo xtask shots` (or `cargo run -p tanacraft-ui-egui --example ui_shot -- script.jsonl`) renders
-  the window offscreen to PNGs in `docs/images/`. For UI work, **look at the PNG** before committing.
+- Desktop app: `pnpm --dir web build && cargo run -p tanacraft-desktop -- --sample`.
+- Browser: `pnpm --dir web build && cargo run -p tanacraft-cli -- serve --sample` then open
+  http://127.0.0.1:8787/ (or `pnpm --dir web dev` on :5173, which proxies to the server).
+- `cargo xtask shots` writes Playwright screenshots to `docs/images/web/`. For UI work, **look at the
+  PNG** next to the spec screenshot before committing (see `.claude/skills/tanacraft-ui`).
 - `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.json`.
 - Parallel agents: use a separate `CARGO_TARGET_DIR`; keep builds to a few jobs (`.cargo/config.toml`).

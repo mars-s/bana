@@ -8,14 +8,16 @@ usage: cargo xtask <command>
 
 commands:
   ci      fmt --check, clippy -D warnings, test (stops at the first failure)
-  shots   render the README screenshots offscreen into docs/images/
+  web     build the web UI and run its Playwright tests (needs pnpm)
+  shots   web UI screenshots (Playwright) into docs/images/web/
   parity  check that docs/parity.md maps every spec file and section; print status counts
 ";
 
 fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("ci") => ci(),
-        Some("shots") => shots(),
+        Some("shots") => pnpm(&["run", "shots"]),
+        Some("web") => pnpm(&["install", "--frozen-lockfile"]).and_then(|_| pnpm(&["run", "build"])).and_then(|_| pnpm(&["test"])),
         Some("parity") => parity(),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -53,9 +55,11 @@ fn ci() -> Result<(), String> {
     cargo(&["test", "--workspace"])
 }
 
-fn shots() -> Result<(), String> {
-    let script = root().join("docs/shots.jsonl");
-    cargo(&["run", "-p", "tanacraft-ui-egui", "--example", "ui_shot", "--", &script.to_string_lossy()])
+fn pnpm(args: &[&str]) -> Result<(), String> {
+    let what = format!("pnpm {}", args.join(" "));
+    eprintln!("$ {what} (in web/)");
+    let status = Command::new("pnpm").args(args).current_dir(root().join("web")).status().map_err(|e| format!("{what}: {e}"))?;
+    if status.success() { Ok(()) } else { Err(format!("{what}: exited with {status}")) }
 }
 
 /// Every screenshot and every `##` section of the spec must appear in docs/parity.md.

@@ -428,7 +428,7 @@ fn nested_groups_and_operators() {
     assert_eq!(names(&g, "(#meeting OR #person) AND NOT Outdoors:Yes"), ["Robin Ash"]);
     assert_eq!(names(&g, "#task AND (DONE OR \"Effort (hours)\">5)"), ["Build four beds", "Order cedar boards"]);
     assert_eq!(names(&g, "IS:TAG AND meet"), ["meeting"]);
-    assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks", "Task board", "Task calendar"]);
+    assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks", "Open tasks", "Task board", "Task calendar"]);
     assert!(names(&g, "HAS:FIELD AND ON:DAY").contains(&"Volunteer meetup".to_string()));
     assert_eq!(names(&g, "DATE:2026-10-12"), ["Ask the hardware store about bulk compost"]);
     assert!(names(&g, "IN:LIBRARY AND seed").contains(&"Seed list".to_string()));
@@ -517,5 +517,9 @@ fn supertag_configuration_behaviours() {
     assert!(g.pinned().contains(&task));
     assert_eq!(g.field_usage(status).1, 2, "task and project");
     assert!(g.tag_set_base_type(task, Some("spaceship")).is_err());
+    let day = g.find_day(Date::new(2026, 10, 10).unwrap()).unwrap();
+    let related = g.related_for(day);
+    assert_eq!(related.len(), 1);
+    assert_eq!(g.name(related[0]), "Open tasks");
     assert_eq!(HideMode::parse("when empty"), Some(HideMode::WhenEmpty));
 }

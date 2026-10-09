@@ -208,6 +208,14 @@ fn daily_notes_navigation() {
     let crumbs: Vec<&str> = s.breadcrumbs().iter().map(|c| s.graph.name(*c)).collect();
     assert_eq!(crumbs, ["Daily notes", "2026", "Week 42"]);
     assert!(!s.graph.can_undo(), "opening a day is not an undo step");
+    let week = s.graph.parent(s.zoom).unwrap();
+    run(&mut s, "nav.open", json!({"node": week.0}));
+    run(&mut s, "nav.calendarStep", json!({"step": 1}));
+    assert_eq!(s.graph.name(s.zoom), "Week 43");
+    let year = s.graph.parent(s.zoom).unwrap();
+    run(&mut s, "nav.open", json!({"node": year.0}));
+    run(&mut s, "nav.calendarStep", json!({"step": -1}));
+    assert_eq!(s.graph.name(s.zoom), "2025");
 }
 
 #[test]

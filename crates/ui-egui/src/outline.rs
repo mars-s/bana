@@ -28,7 +28,9 @@ pub fn page_title(s: &Session, id: NodeId) -> String {
 pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
     let t = app.tokens();
     let width = ui.available_width();
-    let content_w = (width - LEFT - 40.0).clamp(200.0, MAX_W);
+    let side_w = 360.0;
+    let wide = width > LEFT + MAX_W.min(600.0) + side_w + 80.0 && !app.session.graph.related_for(app.session.zoom).is_empty();
+    let content_w = if wide { (width - LEFT - side_w - 70.0).clamp(200.0, MAX_W) } else { (width - LEFT - 40.0).clamp(200.0, MAX_W) };
     ui.add_space(12.0);
     breadcrumbs(app, ui, &t);
     ui.add_space(18.0);
@@ -45,6 +47,14 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.schema {
                 tag_overview(app, ui, &t);
                 return;
+            }
+            if zoom == app.session.graph.sys.journal {
+                journal_root(app, ui, &t);
+            }
+            // Related content: beside the page when there is room, else above the content.
+            let has_related = !app.session.graph.related_for(zoom).is_empty();
+            if has_related && !wide {
+                related(app, ui, &t, zoom);
             }
             if app.session.graph.tag_def(zoom).is_some() {
                 crate::schema_ui::tag_page(app, ui, &t, zoom);
@@ -78,6 +88,15 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             }
             references(app, ui, &t, zoom);
         });
+        if wide {
+            ui.add_space(24.0);
+            ui.vertical(|ui| {
+                ui.set_width(side_w);
+                ui.add_space(70.0);
+                let z = app.session.zoom;
+                related(app, ui, &t, z);
+            });
+        }
     });
     if !app.session.status.is_empty() {
         ui.add_space(16.0);
@@ -256,17 +275,70 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         ui.add_space(2.0);
         ui.label(RichText::new(d).size(14.0).color(t.dim));
     }
-    if let Some(Kind::Day { .. }) = node.map(|n| &n.kind) {
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            for (label, id) in [("<", "nav.previousDay"), (">", "nav.nextDay"), ("Today", "nav.today")] {
-                let b = egui::Button::new(RichText::new(label).size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
-                if ui.add(b).clicked() {
-                    app.acts.push(Act::Run(id.into(), json!({})));
-                }
+    let nav: Option<[(&str, &str, serde_json::Value); 2]> = match node.map(|n| &n.kind) {
+        Some(Kind::Day { .. }) => Some([("<", "nav.previousDay", json!({})), (">", "nav.nextDay", json!({}))]),
+        Some(Kind::Week { .. } | Kind::Year { .. }) => {
+            Some([("<", "nav.calendarStep", json!({"step": -1})), (">", "nav.calendarStep", json!({"step": 1}))])
+        }
+        _ => None,
+    };
+    if let Some(nav) = nav {
+        day_nav(app, ui, t, nav);
+    }
+}
+
+/// The calendar navigation bar: previous, next, Today, and Go to date (spec 06 §4).
+fn day_nav(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, nav: [(&str, &str, serde_json::Value); 2]) {
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
+        for (label, id, params) in nav.into_iter().chain(std::iter::once(("Today", "nav.today", json!({})))) {
+            let b = egui::Button::new(RichText::new(label).size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
+            if ui.add(b).clicked() {
+                app.acts.push(Act::Run(id.into(), params));
+            }
+        }
+        let b = egui::Button::new(RichText::new("Go to date").size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
+        let r = ui.add(b);
+        if r.clicked() {
+            app.acts.push(Act::GoToDate(r.rect.left_bottom() + vec2(0.0, 4.0)));
+        }
+    });
+}
+
+/// Related content cards (e.g. "Open tasks" on day pages): a live list per search.
+pub(crate) fn related(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
+    for r in app.session.graph.related_for(node) {
+        egui::Frame::new().stroke(Stroke::new(1.0, t.line)).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(app.session.graph.name(r)).strong().size(14.0));
+            ui.add_space(4.0);
+            let items: Vec<NodeId> = app.session.graph.view_groups(r).into_iter().flat_map(|g| g.items).take(50).collect();
+            if items.is_empty() {
+                ui.label(RichText::new("Nothing here").size(13.0).color(t.faint));
+            }
+            for i in items {
+                ui.horizontal_wrapped(|ui| crate::views::item_line(app, ui, t, i, true));
             }
         });
+        ui.add_space(8.0);
     }
+}
+
+/// Daily notes root: today's page embedded under the title (spec 06 §5).
+fn journal_root(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    let today = app.session.today;
+    let day = app.session.graph.find_day(today);
+    let r = ui.add(egui::Label::new(RichText::new(format!("Today, {}", today.day_title())).size(20.0).strong()).sense(Sense::click()));
+    if r.clicked() {
+        app.acts.push(Act::Run("nav.today".into(), json!({})));
+    }
+    day_nav(app, ui, t, [("<", "nav.previousDay", json!({})), (">", "nav.nextDay", json!({}))]);
+    ui.add_space(6.0);
+    let kids: Vec<NodeId> = day.map(|d| app.session.graph.children(d).to_vec()).unwrap_or_default();
+    for k in kids.iter().take(300) {
+        ui.horizontal_wrapped(|ui| crate::views::item_line(app, ui, t, *k, true));
+    }
+    ui.add_space(16.0);
 }
 
 pub(crate) fn type_label(ty: FieldType) -> &'static str {

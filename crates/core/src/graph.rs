@@ -1055,6 +1055,24 @@ impl Graph {
         Ok(id)
     }
 
+    /// Adds related content to a supertag: a search shown beside every tagged node's page.
+    pub fn tag_add_related(&mut self, tag: NodeId, name: &str, query: crate::query::Query) -> Result<NodeId> {
+        self.tag_def(tag).ok_or_else(|| Error::Invalid(format!("node {tag} is not a supertag")))?;
+        let id = self.create_search(tag, None, name, query)?;
+        self.tag_def_mut(tag)?.related.push(id);
+        Ok(id)
+    }
+
+    /// Related content shown on `node`'s page (from its supertags).
+    pub fn related_for(&self, node: NodeId) -> Vec<NodeId> {
+        let tags = self.get(self.resolve(node)).map(|n| n.tags.clone()).unwrap_or_default();
+        tags.iter()
+            .flat_map(|t| self.tag_lineage(*t))
+            .flat_map(|t| self.tag_def(t).map(|d| d.related.clone()).unwrap_or_default())
+            .filter(|r| self.get(*r).is_some())
+            .collect()
+    }
+
     pub fn set_pinned(&mut self, id: NodeId, on: bool) -> Result<()> {
         self.node_mut(id)?.pinned = on;
         Ok(())

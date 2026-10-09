@@ -85,6 +85,10 @@ pub struct TagDef {
     /// Search nodes shown as view tabs on the supertag's page (children of the tag node).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub views: Vec<NodeId>,
+    /// Related content: search nodes shown beside the page of every tagged node (the day page's
+    /// "Open tasks" card).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<NodeId>,
 }
 
 /// Base types listed in the spec (03 §5).

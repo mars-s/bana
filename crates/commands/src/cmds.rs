@@ -106,6 +106,9 @@ pub fn registry() -> Registry {
         .pure(),
         C::new("nav.previousDay", "Previous day", "Navigate", |s, _| step_day(s, -1)).pure(),
         C::new("nav.nextDay", "Next day", "Navigate", |s, _| step_day(s, 1)).pure(),
+        C::new("nav.calendarStep", "Previous or next week or year", "Navigate", calendar_step)
+            .params(r#"{"step": -1 | 1}  (on a week or year page)"#)
+            .pure(),
         C::new("nav.home", "Go to Home", "Navigate", |s, _| open_sys(s, s.graph.sys.library)).pure(),
         C::new("nav.supertags", "Go to Supertags", "Navigate", |s, _| open_sys(s, s.graph.sys.schema)).pure(),
         C::new("nav.dailyNotes", "Go to Daily notes", "Navigate", |s, _| open_sys(s, s.graph.sys.journal)).pure(),
@@ -633,6 +636,29 @@ fn open_day(s: &mut Session, date: Date) -> CmdResult {
     let day = s.graph.day(date)?;
     s.open(day)?;
     Ok(json!({"zoom": day.0, "date": date.to_string()}))
+}
+
+/// On a week page, the previous / next week; on a year page, the previous / next year.
+fn calendar_step(s: &mut Session, v: &Value) -> CmdResult {
+    let step = v.get("step").and_then(Value::as_i64).unwrap_or(1).clamp(-520, 520);
+    let target = match s.graph.get(s.zoom).map(|n| n.kind.clone()) {
+        Some(tanacraft_core::Kind::Week { year, week }) => {
+            // Monday of the ISO week: Jan 4 is always in week 1.
+            let jan4 = Date::new(year, 1, 4).ok_or_else(|| CmdError::Failed("bad week".into()))?;
+            let monday = jan4.add_days(-(jan4.weekday() as i64) + (week as i64 - 1) * 7 + step * 7);
+            let day = s.graph.day(monday)?;
+            s.graph.parent(day)
+        }
+        Some(tanacraft_core::Kind::Year { year }) => {
+            let jan4 = Date::new(year.saturating_add(step as i32), 1, 4).ok_or_else(|| CmdError::Failed("bad year".into()))?;
+            let day = s.graph.day(jan4)?;
+            s.graph.parent(day).and_then(|w| s.graph.parent(w))
+        }
+        _ => return Err(CmdError::Failed("open a week or a year first".into())),
+    };
+    let t = target.ok_or_else(|| CmdError::Failed("no calendar node".into()))?;
+    s.open(t)?;
+    Ok(json!({"zoom": t.0, "name": s.graph.name(t)}))
 }
 
 fn step_day(s: &mut Session, step: i64) -> CmdResult {

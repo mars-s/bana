@@ -514,7 +514,12 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
     }
     match pick {
         Some(v) => {
-            if let Err(e) = app.exec("field.set", json!({"node": dp.node.0, "field": dp.field.0, "value": v})) {
+            let r = match dp.field {
+                Some(f) => app.exec("field.set", json!({"node": dp.node.0, "field": f.0, "value": v})),
+                None if !v.trim().is_empty() => app.exec("nav.day", json!({"date": v})),
+                None => Ok(json!({})),
+            };
+            if let Err(e) = r {
                 app.session.status = e;
             }
         }

@@ -446,7 +446,7 @@ fn add_button(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, preset: 
 }
 
 /// One item as a line: bullet in the tag colour, checkbox, text, tag chips. Click opens it.
-fn item_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId, with_chips: bool) {
+pub(crate) fn item_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId, with_chips: bool) {
     let g = &app.session.graph;
     let target = g.resolve(item);
     let color = g

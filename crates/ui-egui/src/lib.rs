@@ -113,6 +113,8 @@ pub(crate) enum Act {
     EditField(NodeId, NodeId, String),
     PickChoice(NodeId, NodeId, egui::Pos2),
     PickDate(NodeId, NodeId, egui::Pos2),
+    /// "Go to date": a month picker that opens the chosen day.
+    GoToDate(egui::Pos2),
     ClosePanel(usize),
 }
 
@@ -120,7 +122,8 @@ pub(crate) enum Act {
 #[derive(Debug, Clone)]
 pub struct DatePick {
     pub node: NodeId,
-    pub field: NodeId,
+    /// The date field to set; `None` = "Go to date" (open the picked day).
+    pub field: Option<NodeId>,
     pub month: (i32, u8),
     pub anchor: egui::Pos2,
     pub buf: String,
@@ -445,6 +448,10 @@ impl TanaApp {
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::ClosePanel(i) => self.close_panel(i),
+                Act::GoToDate(anchor) => {
+                    let d = self.session.today;
+                    self.date_pick = Some(DatePick { node: self.session.zoom, field: None, month: (d.year, d.month), anchor, buf: String::new() });
+                }
                 Act::EditField(node, field, buf) => self.field_edit = Some(FieldEdit { node, field, buf, focus_once: true }),
                 Act::PickChoice(node, field, at) => {
                     self.open_picker(PickMode::Choice, node, at);
@@ -458,8 +465,13 @@ impl TanaApp {
                         _ => None,
                     };
                     let d = current.unwrap_or(self.session.today);
-                    self.date_pick =
-                        Some(DatePick { node, field, month: (d.year, d.month), anchor, buf: current.map(|d| d.to_string()).unwrap_or_default() });
+                    self.date_pick = Some(DatePick {
+                        node,
+                        field: Some(field),
+                        month: (d.year, d.month),
+                        anchor,
+                        buf: current.map(|d| d.to_string()).unwrap_or_default(),
+                    });
                 }
             }
         }

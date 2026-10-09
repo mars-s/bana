@@ -113,5 +113,9 @@ pub fn sample(today: Date) -> Result<Graph> {
     let v = g.view_mut(open)?;
     v.kind = crate::view::ViewKind::Table;
     v.sort = vec![crate::view::Sort { by: crate::view::SortBy::Field(due), desc: false }];
+    // Day pages show open tasks beside the notes (related content of the day supertag).
+    let open_q = crate::query::Query::parse(&g, "#task AND TODO")?;
+    let day_tag = g.sys.day_tag;
+    g.tag_add_related(day_tag, "Open tasks", open_q)?;
     Ok(g)
 }

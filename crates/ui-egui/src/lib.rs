@@ -337,7 +337,12 @@ impl TanaApp {
             "ui.singlePanel" => self.single_panel(),
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => self.dark = !self.dark,
-            "ui.quickAdd" => self.quick_add = Some(vec![String::new()]),
+            "ui.quickAdd" => {
+                // The modal takes the keyboard from the line being edited (DIFFS P1 #5).
+                self.quick_add = Some(vec![String::new()]);
+                self.session.focus = None;
+                self.edit.node = None;
+            }
             "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
             "ui.searchOptions" => self.query_open = !self.query_open,
             "ui.recents" => {

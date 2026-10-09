@@ -57,7 +57,7 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
     for (i, ev) in events.iter().enumerate() {
         // Cmd+C on selected nodes copies them (Markdown to the clipboard); pasting that text back
         // inserts references to the same nodes.
-        if matches!(ev, Event::Copy) && app.session.sel.is_some() && app.session.focus.is_none() {
+        if matches!(ev, Event::Copy) && app.session.sel.is_some() && (app.session.focus.is_none() || app.edit.selection_empty) {
             let ids = app.session.selected();
             let text: String = ids.iter().map(|n| tanacraft_core::export::to_markdown(&app.session.graph, *n, false)).collect();
             ctx.copy_text(text.clone());

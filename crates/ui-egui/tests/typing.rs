@@ -554,3 +554,134 @@ fn bold_with_a_collapsed_caret_carries_on_for_typing() {
     let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
     assert_eq!(h.state().session.graph.name(id), "Note **loud**");
 }
+
+// ---- DIFFS.md round 3, P1 regressions -------------------------------------------------------
+
+fn page_with(h: &mut H<'_>, names: &[&str]) -> Vec<tanacraft_core::NodeId> {
+    let ids: Vec<_> =
+        names.iter().map(|n| tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"name": n})).unwrap()["id"].as_u64().unwrap())).collect();
+    for _ in 0..3 {
+        h.step();
+    }
+    ids
+}
+
+fn focus(h: &mut H<'_>, id: tanacraft_core::NodeId, caret: usize) {
+    h.state_mut().exec("focus.set", json!({"node": id.0, "caret": caret})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+}
+
+const CMD: Modifiers = Modifiers { command: true, mac_cmd: true, alt: false, ctrl: false, shift: false };
+
+#[test]
+fn diffs_p1_cmd_b_at_a_collapsed_caret_keeps_the_text() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["hello"]);
+    focus(&mut h, ids[0], 5);
+    key(&mut h, Key::B, CMD);
+    text(&mut h, "Z");
+    key(&mut h, Key::I, CMD);
+    text(&mut h, "Y");
+    assert_eq!(h.state().session.graph.name(ids[0]), "hello**Z*Y***");
+}
+
+#[test]
+fn diffs_p1_gt_on_an_empty_line_makes_a_field_row() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["x"]);
+    focus(&mut h, ids[0], 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, ">");
+    text(&mut h, "Prio");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    text(&mut h, "High");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(ids[0]), "x", "nothing typed into the line above");
+    let prio = g.find_field("Prio").expect("field created");
+    let owner = g.iter().find(|n| n.fields.iter().any(|e| e.field == prio)).expect("a node has the field");
+    assert_eq!(owner.field_values(prio).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect::<Vec<_>>(), ["High"]);
+}
+
+#[test]
+fn diffs_p1_escape_selects_then_backspace_deletes() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[1], 1);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(h.state().session.sel, Some((ids[1], ids[1])));
+    key(&mut h, Key::Backspace, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    assert!(g.in_trash(ids[1]));
+    // Escape then Shift+Up extends the selection.
+    focus(&mut h, ids[2], 1);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::ArrowUp, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.selected(), [ids[0], ids[2]]);
+}
+
+#[test]
+fn diffs_p1_copy_selected_nodes_fills_the_clipboard() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["B"]);
+    h.state_mut().exec("node.add", json!({"name": "B1", "parent": ids[0].0})).unwrap();
+    focus(&mut h, ids[0], 1);
+    key(&mut h, Key::ArrowUp, Modifiers { shift: true, ..Modifiers::NONE });
+    assert!(h.state().session.sel.is_some());
+    h.input_mut().events.push(Event::Copy);
+    h.step();
+    let out = h.output().platform_output.commands.clone();
+    let copied: Vec<String> = out
+        .iter()
+        .filter_map(|c| match c {
+            egui::OutputCommand::CopyText(t) => Some(t.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(copied.iter().any(|t| t.contains("- B\n") && t.contains("  - B1")), "{copied:?}");
+}
+
+#[test]
+fn diffs_p1_cmd_e_opens_quick_add_while_editing() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["x"]);
+    focus(&mut h, ids[0], 1);
+    key(&mut h, Key::E, CMD);
+    assert!(h.state().quick_add.is_some());
+    text(&mut h, "Quick one");
+    key(&mut h, Key::E, CMD);
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(ids[0]), "x");
+    assert!(
+        g.search("Quick one")
+            .iter()
+            .any(|n| g.ancestors(*n).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(tanacraft_core::Kind::Day { .. }))))
+    );
+}
+
+#[test]
+fn diffs_p2_delete_moves_the_caret_to_the_start_of_the_next_line() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[1], 1);
+    key(&mut h, Key::Backspace, Modifiers { command: true, mac_cmd: true, shift: true, ..Modifiers::NONE });
+    text(&mut h, "X");
+    let g = &h.state().session.graph;
+    assert_eq!((g.name(ids[0]), g.name(ids[2])), ("one", "Xthree"));
+}
+
+#[test]
+fn diffs_p2_hash_then_cmd_enter_creates_and_applies() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Gamma"]);
+    focus(&mut h, ids[0], 5);
+    text(&mut h, " #");
+    text(&mut h, "Zebra");
+    key(&mut h, Key::Enter, CMD);
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(ids[0]), "Gamma");
+    assert_eq!(g.get(ids[0]).unwrap().tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>(), ["Zebra"]);
+}

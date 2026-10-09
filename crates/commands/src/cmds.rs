@@ -544,15 +544,19 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         s.sel = None;
         return Ok(json!({"trashed": ids.iter().map(|i| i.0).collect::<Vec<_>>()}));
     }
-    let id = s.target(v)?;
-    let next_focus = row_neighbour(s, id, -1).or_else(|| row_neighbour(s, id, 1));
+    let id = ids[0];
+    let was_selected = s.sel.is_some();
+    // The caret goes to the start of the next line (outside the deleted subtree), else to the end of
+    // the previous one (spec 02 §4, §8).
+    let rows = s.rows();
+    let at = rows.iter().position(|r| r.id == id);
+    let next = at.and_then(|i| rows[i + 1..].iter().find(|r| !s.graph.is_ancestor_or_self(id, r.id))).map(|r| (r.id, 0));
+    let prev = row_neighbour(s, id, -1).map(|p| (p, len(s, p)));
     s.graph.trash(id)?;
-    if s.focus == Some(id) {
-        match next_focus {
-            Some(f) => {
-                let end = len(s, f);
-                s.set_focus(f, end);
-            }
+    s.sel = None;
+    if s.focus == Some(id) || was_selected {
+        match next.or(prev) {
+            Some((f, caret)) => s.set_focus(f, caret),
             None => s.focus = None,
         }
     }

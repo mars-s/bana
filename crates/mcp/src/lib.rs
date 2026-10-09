@@ -1,0 +1,247 @@
+//! TanaCraft's MCP server (Model Context Protocol, JSON-RPC 2.0, one message per line on stdio).
+//!
+//! Two backends: [`Backend::Local`] edits a graph file in-process (saved after every change);
+//! [`Backend::Remote`] drives a running app through its control channel (`tanacraft --control PORT`).
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+use std::io::{BufRead, BufReader, Write};
+use std::net::TcpStream;
+
+use serde_json::{Value, json};
+use tanacraft_commands::Session;
+use tanacraft_core::PRODUCT_NAME;
+
+pub const PROTOCOL_VERSION: &str = "2025-06-18";
+const SUPPORTED: &[&str] = &[PROTOCOL_VERSION, "2025-03-26", "2024-11-05"];
+
+const INSTRUCTIONS: &str = "An outliner graph: every bullet is a node with an id. Supertags (#task) add fields to \
+nodes; references mirror nodes; day nodes live under Daily notes. Every action is a command: list them with \
+list_commands, run them with execute. Typical flow: execute nav.today, add_node {name}, execute tag.add {node, tag:\"task\"}, \
+execute field.set {node, field:\"Due\", value:\"2026-10-12\"}, view to check, export_markdown to read a subtree.";
+
+pub enum Backend {
+    Local(Box<Session>),
+    Remote { reader: BufReader<TcpStream>, writer: TcpStream },
+}
+
+impl Backend {
+    /// Connects to a running app's control channel (`host:port`).
+    pub fn connect(addr: &str) -> Result<Backend, String> {
+        let writer = TcpStream::connect(addr).map_err(|e| format!("connect {addr}: {e}"))?;
+        let reader = BufReader::new(writer.try_clone().map_err(|e| e.to_string())?);
+        Ok(Backend::Remote { reader, writer })
+    }
+
+    /// Runs a command by id.
+    pub fn run(&mut self, command: &str, params: Value) -> Result<Value, String> {
+        match self {
+            Backend::Local(s) => {
+                let mutates = s.registry.get(command).is_some_and(|c| c.mutates)
+                    || command.starts_with("nav.")
+                    || command == "edit.undo"
+                    || command == "edit.redo";
+                let r = s.run(command, &params).map_err(|e| e.to_string())?;
+                if mutates && s.path.is_some() && s.graph.is_dirty() {
+                    s.run("file.save", &json!({})).map_err(|e| format!("saved nothing: {e}"))?;
+                }
+                Ok(r)
+            }
+            Backend::Remote { .. } => self.remote("command", json!({"command": command, "params": params})),
+        }
+    }
+
+    pub fn commands(&mut self) -> Result<Value, String> {
+        match self {
+            Backend::Local(s) => Ok(s.registry.describe()),
+            Backend::Remote { .. } => self.remote("commands", json!({})),
+        }
+    }
+
+    fn remote(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        let Backend::Remote { reader, writer } = self else { return Err("not connected".into()) };
+        writeln!(writer, "{}", json!({"method": method, "params": params})).map_err(|e| e.to_string())?;
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| e.to_string())?;
+        let v: Value = serde_json::from_str(&line).map_err(|e| format!("bad reply: {e}"))?;
+        match v.get("error") {
+            Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
+            None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
+        }
+    }
+}
+
+/// Tool definitions (MCP `tools/list`).
+pub fn tools() -> Value {
+    let node = json!({"type": ["integer", "string"], "description": "node id"});
+    json!([
+        {"name": "list_commands", "description": "Every command: id, label, shortcut, params, whether it changes the graph.", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "execute", "description": "Run a command by id with its params (see list_commands).", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}, "params": {"type": "object"}}, "required": ["command"]}},
+        {"name": "view", "description": "The page currently open: title and visible bullets (> marks the focused one).", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "inspect", "description": "A node and its subtree as JSON (ids, tags, fields, children). Default: the open page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+        {"name": "search", "description": "Find nodes whose text contains the query.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
+        {"name": "add_node", "description": "Add a node under parent (default: the open page). Optional supertag.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "parent": node, "tag": {"type": "string"}}, "required": ["name"]}},
+        {"name": "export_markdown", "description": "A node and its subtree as a Markdown outline. Default: the open page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+    ])
+}
+
+fn call_tool(b: &mut Backend, name: &str, args: &Value) -> Result<Value, String> {
+    let arg = |k: &str| args.get(k).cloned().unwrap_or(Value::Null);
+    match name {
+        "list_commands" => b.commands(),
+        "execute" => {
+            let id = args.get("command").and_then(Value::as_str).ok_or("missing `command`")?;
+            b.run(id, args.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({})))
+        }
+        "view" => b.run("graph.view", json!({})),
+        "inspect" => b.run("graph.inspect", json!({"node": arg("node")})),
+        "search" => b.run("graph.search", json!({"query": arg("query")})),
+        "export_markdown" => b.run("export.markdown", json!({"node": arg("node")})),
+        "add_node" => {
+            let r = b.run("node.add", json!({"name": arg("name"), "parent": arg("parent")}))?;
+            if let Some(tag) = args.get("tag").and_then(Value::as_str) {
+                b.run("tag.add", json!({"node": r["id"], "tag": tag}))?;
+            }
+            Ok(r)
+        }
+        other => Err(format!("unknown tool `{other}`")),
+    }
+}
+
+/// An MCP server bound to one backend.
+pub struct Server {
+    pub backend: Backend,
+}
+
+fn error(id: Value, code: i64, msg: impl Into<String>) -> Value {
+    json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": msg.into()}})
+}
+
+impl Server {
+    pub fn new(backend: Backend) -> Server {
+        Server { backend }
+    }
+
+    /// Serves newline-delimited JSON-RPC until `input` closes. stdout is the protocol stream.
+    pub fn serve(&mut self, input: impl BufRead, mut output: impl Write) -> std::io::Result<()> {
+        for line in input.lines() {
+            if let Some(reply) = self.handle_line(&line?) {
+                writeln!(output, "{reply}")?;
+                output.flush()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// One message in, at most one reply out (none for notifications).
+    pub fn handle_line(&mut self, line: &str) -> Option<Value> {
+        let line = line.trim();
+        if line.is_empty() {
+            return None;
+        }
+        let msg: Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(e) => return Some(error(Value::Null, -32700, format!("parse error: {e}"))),
+        };
+        let method = msg.get("method").and_then(Value::as_str)?;
+        let id = msg.get("id").cloned()?; // notifications get no reply
+        let params = msg.get("params").cloned().unwrap_or(Value::Null);
+        let result = match method {
+            "initialize" => {
+                let asked = params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL_VERSION);
+                let version = if SUPPORTED.contains(&asked) { asked } else { PROTOCOL_VERSION };
+                json!({
+                    "protocolVersion": version,
+                    "capabilities": {"tools": {}, "resources": {}},
+                    "serverInfo": {"name": PRODUCT_NAME.to_lowercase(), "title": PRODUCT_NAME, "version": env!("CARGO_PKG_VERSION")},
+                    "instructions": INSTRUCTIONS,
+                })
+            }
+            "ping" => json!({}),
+            "tools/list" => json!({"tools": tools()}),
+            "tools/call" => {
+                let name = params.get("name").and_then(Value::as_str).unwrap_or_default();
+                let args = params.get("arguments").cloned().unwrap_or(json!({}));
+                match call_tool(&mut self.backend, name, &args) {
+                    Ok(v) => {
+                        json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}], "structuredContent": wrap(v), "isError": false})
+                    }
+                    Err(e) => json!({"content": [{"type": "text", "text": e}], "isError": true}),
+                }
+            }
+            "resources/list" => json!({"resources": [
+                {"uri": "tanacraft://commands", "name": "commands", "description": "Every command (id, label, shortcut, params)", "mimeType": "application/json"},
+                {"uri": "tanacraft://page", "name": "page", "description": "The open page as a Markdown outline", "mimeType": "text/markdown"},
+            ]}),
+            "resources/read" => {
+                let uri = params.get("uri").and_then(Value::as_str).unwrap_or_default();
+                let (mime, text) = match uri {
+                    "tanacraft://commands" => ("application/json", self.backend.commands().map(|v| v.to_string())),
+                    "tanacraft://page" => (
+                        "text/markdown",
+                        self.backend.run("export.markdown", json!({})).map(|v| v["markdown"].as_str().unwrap_or_default().to_string()),
+                    ),
+                    _ => return Some(error(id, -32002, format!("resource not found: {uri}"))),
+                };
+                match text {
+                    Ok(t) => json!({"contents": [{"uri": uri, "mimeType": mime, "text": t}]}),
+                    Err(e) => return Some(error(id, -32603, e)),
+                }
+            }
+            other => return Some(error(id, -32601, format!("method not found: {other}"))),
+        };
+        Some(json!({"jsonrpc": "2.0", "id": id, "result": result}))
+    }
+}
+
+/// `structuredContent` must be an object.
+fn wrap(v: Value) -> Value {
+    if v.is_object() { v } else { json!({"result": v}) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tanacraft_core::{Date, sample};
+
+    fn server() -> Server {
+        let today = Date::new(2026, 10, 10).unwrap();
+        Server::new(Backend::Local(Box::new(Session::with_today(sample::sample(today).unwrap(), today))))
+    }
+
+    fn call(s: &mut Server, msg: Value) -> Value {
+        s.handle_line(&msg.to_string()).unwrap()
+    }
+
+    #[test]
+    fn lifecycle_tools_and_resources() {
+        let mut s = server();
+        let init = call(&mut s, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}}));
+        assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
+        assert!(s.handle_line(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}).to_string()).is_none());
+        let tools = call(&mut s, json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}));
+        assert!(tools["result"]["tools"].as_array().unwrap().len() >= 6);
+
+        let add = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "add_node", "arguments": {"name": "Buy seeds", "tag": "task"}}}),
+        );
+        assert_eq!(add["result"]["isError"], false, "{add}");
+        let id = add["result"]["structuredContent"]["id"].clone();
+        let md = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "export_markdown", "arguments": {"node": id}}}),
+        );
+        assert!(md["result"]["content"][0]["text"].as_str().unwrap().contains("[ ] Buy seeds #task"));
+
+        let bad = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": "no.such"}}}),
+        );
+        assert_eq!(bad["result"]["isError"], true);
+        let page = call(&mut s, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "tanacraft://page"}}));
+        assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("Community garden"));
+        let unknown = call(&mut s, json!({"jsonrpc": "2.0", "id": 7, "method": "nope"}));
+        assert_eq!(unknown["error"]["code"], -32601);
+        assert_eq!(s.handle_line("{not json").unwrap()["error"]["code"], -32700);
+    }
+}

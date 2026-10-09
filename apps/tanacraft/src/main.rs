@@ -56,7 +56,7 @@ fn main() -> Result<(), String> {
         (f, true) => (sample::sample(today).map_err(|e| e.to_string())?, f.clone()),
         (Some(f), false) => (Graph::new(), Some(f.clone())),
         (None, false) => {
-            let p = default_path();
+            let p = tanacraft_core::default_graph_path();
             if p.exists() { (Graph::load(&p).map_err(|e| e.to_string())?, Some(p)) } else { (Graph::new(), Some(p)) }
         }
     };
@@ -76,11 +76,6 @@ fn main() -> Result<(), String> {
         ..Default::default()
     };
     eframe::run_native(PRODUCT_NAME, options, Box::new(|_cc| Ok(Box::new(App(app))))).map_err(|e| e.to_string())
-}
-
-fn default_path() -> PathBuf {
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_default();
-    home.join(PRODUCT_NAME).join("graph.json")
 }
 
 /// Listens on 127.0.0.1 only. Each line is a JSON request; each reply a JSON line.

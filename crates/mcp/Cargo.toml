@@ -1,0 +1,14 @@
+[package]
+name = "tanacraft-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TanaCraft MCP server (JSON-RPC 2.0 over stdio): every command, headless or driving the running app"
+
+[lints]
+workspace = true
+
+[dependencies]
+tanacraft-core = { workspace = true }
+tanacraft-commands = { workspace = true }
+serde_json = { workspace = true }

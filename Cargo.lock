@@ -2808,6 +2808,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tanacraft-cli"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tanacraft-commands",
+ "tanacraft-core",
+ "tanacraft-mcp",
+]
+
+[[package]]
 name = "tanacraft-commands"
 version = "0.1.0"
 dependencies = [
@@ -2824,6 +2834,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tanacraft-mcp"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tanacraft-commands",
+ "tanacraft-core",
 ]
 
 [[package]]

@@ -199,8 +199,12 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
     let r = match (p.mode, choice) {
         (PickMode::Tag, Choice::Existing(t, _)) => app.exec("tag.add", json!({"node": node.0, "tag": t.0})),
         (PickMode::Tag, Choice::Create(name)) => app.exec("tag.add", json!({"node": node.0, "tag": name, "color": next_color(app)})),
-        (PickMode::Field, Choice::Existing(f, _)) => app.exec("field.add", json!({"node": node.0, "field": f.0})).inspect(|_| app.session.graph.set_expanded(node, true)),
-        (PickMode::Field, Choice::Create(name)) => app.exec("field.add", json!({"node": node.0, "field": name})).inspect(|_| app.session.graph.set_expanded(node, true)),
+        (PickMode::Field, Choice::Existing(f, _)) => {
+            app.exec("field.add", json!({"node": node.0, "field": f.0})).inspect(|_| app.session.graph.set_expanded(node, true))
+        }
+        (PickMode::Field, Choice::Create(name)) => {
+            app.exec("field.add", json!({"node": node.0, "field": name})).inspect(|_| app.session.graph.set_expanded(node, true))
+        }
         (PickMode::Reference, Choice::Existing(target, _)) => app.exec("node.reference", json!({"target": target.0, "replace": node.0})),
         (PickMode::Reference, Choice::Create(_)) => Ok(json!({})),
     };

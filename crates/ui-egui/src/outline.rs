@@ -520,6 +520,28 @@ fn references(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
 }
 
 /// A supertag chip: `# name` on a soft fill of the tag colour.
+/// A chip whose "#" turns into an "x" on hover: returns (open clicked, remove clicked).
+pub(crate) fn tag_chip(ui: &mut Ui, g: &Graph, tag: NodeId, dark: bool) -> (bool, bool) {
+    let resp = chip(ui, g, tag, dark);
+    let x_zone = Rect::from_min_size(resp.rect.min, vec2(18.0, resp.rect.height()));
+    let over_x = ui.ctx().pointer_hover_pos().is_some_and(|p| x_zone.contains(p));
+    if resp.hovered() {
+        let color = g.tag_def(tag).map(|d| d.color.as_str()).unwrap_or("grey");
+        let (strong, soft) = theme::tag_color(color, dark);
+        let r = Rect::from_center_size(resp.rect.left_center() + vec2(10.0, 0.0), vec2(12.0, 12.0));
+        let p = ui.painter();
+        p.rect_filled(r.expand(1.0), 2.0, soft.gamma_multiply(3.0));
+        let st = Stroke::new(1.4, strong);
+        p.line_segment([r.left_top() + vec2(2.0, 2.0), r.right_bottom() - vec2(2.0, 2.0)], st);
+        p.line_segment([r.right_top() + vec2(-2.0, 2.0), r.left_bottom() + vec2(2.0, -2.0)], st);
+    }
+    let remove = resp.clicked() && over_x;
+    if over_x {
+        resp.clone().on_hover_text("Remove tag from item");
+    }
+    (resp.clicked() && !remove, remove)
+}
+
 pub fn chip(ui: &mut Ui, g: &Graph, tag: NodeId, dark: bool) -> egui::Response {
     let color = g.tag_def(tag).map(|d| d.color.as_str()).unwrap_or("grey");
     let (strong, soft) = theme::tag_color(color, dark);
@@ -541,7 +563,8 @@ pub(crate) fn checkbox(ui: &mut Ui, t: &Tokens, done: bool, size: f32) -> egui::
     let b = Rect::from_center_size(rect.center(), vec2(size, size));
     let p = ui.painter();
     if done {
-        p.rect_filled(b, 3.0, t.accent);
+        // Checked: green fill, white check (spec 02 §9).
+        p.rect_filled(b, 3.0, Color32::from_rgb(76, 160, 96));
         let st = Stroke::new(1.8, Color32::WHITE);
         let a = b.left_center() + vec2(size * 0.22, 0.0);
         let m = b.center_bottom() + vec2(-size * 0.08, -size * 0.25);
@@ -620,6 +643,10 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         .map(|d| theme::tag_color(&d.color, app.dark).0);
     let done = g.checkbox(target);
     let focused = app.session.focus == Some(id);
+    let heading = node.as_ref().is_some_and(|n| n.heading);
+    let description = node.as_ref().map(|n| n.description.clone()).unwrap_or_default();
+    // An unfocused empty line shows no bullet (spec 01 §1).
+    let blank = !focused && !is_ref && !has_kids && node.as_ref().is_some_and(|n| n.name.is_empty() && n.tags.is_empty() && n.kind == Kind::Plain);
     let indent = depth as f32 * INDENT;
     let mut center = pos2(0.0, 0.0);
     if selected {
@@ -665,7 +692,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 ui.painter().line_segment([at(a0), at(a1)], Stroke::new(1.2, bullet_color));
             }
             ui.painter().circle_filled(center, 2.2, bullet_color);
-        } else {
+        } else if !blank {
             ui.painter().circle_filled(center, 3.2, bullet_color);
         }
         if resp.hovered() {
@@ -689,7 +716,8 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         if focused && !is_ref {
             edit_row(app, ui, t, id);
         } else {
-            let mut job = rich_job(t, &name, text_color, done == Some(true), theme::FONT);
+            let size = if heading { 20.0 } else { theme::FONT };
+            let mut job = rich_job(t, &name, text_color, false, size);
             if is_ref {
                 for sec in &mut job.sections {
                     sec.format.underline = Stroke::new(1.0, t.dim);
@@ -711,11 +739,15 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 ui.painter().rect_stroke(r.rect.expand(2.0), 3.0, Stroke::new(1.0, t.accent), StrokeKind::Outside);
             }
         }
-        // Tag chips.
+        // Tag chips (hover the "#" to remove).
         if let Some(n) = &node {
             for tag in n.tags.clone() {
-                if chip(ui, &app.session.graph, tag, app.dark).clicked() {
+                let (open, remove) = tag_chip(ui, &app.session.graph, tag, app.dark);
+                if open {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": tag.0})));
+                }
+                if remove {
+                    app.acts.push(Act::Run("tag.remove".into(), json!({"node": target.0, "tag": tag.0})));
                 }
             }
         }
@@ -728,6 +760,12 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             }
         }
     });
+    if !description.is_empty() {
+        ui.horizontal(|ui| {
+            ui.add_space(indent + 26.0);
+            ui.label(RichText::new(description).size(13.0).color(t.dim));
+        });
+    }
     drop_target(app, ui, t, id, center, row.response.rect);
     center
 }
@@ -770,15 +808,17 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         st.store(ui.ctx(), tid);
         ui.ctx().memory_mut(|m| m.request_focus(tid));
     }
-    let galley_w = ui.painter().layout_no_wrap(app.edit.buf.clone(), FontId::proportional(theme::FONT), t.text).size().x;
+    let size = if app.session.graph.get(app.session.graph.resolve(id)).is_some_and(|n| n.heading) { 20.0 } else { theme::FONT };
+    let galley_w = ui.painter().layout_no_wrap(app.edit.buf.clone(), FontId::proportional(size), t.text).size().x;
     let out = egui::TextEdit::singleline(&mut app.edit.buf)
         .id(tid)
         .frame(egui::Frame::NONE)
-        .font(FontId::proportional(theme::FONT))
+        .font(FontId::proportional(size))
+        .hint_text(RichText::new("Type, or # for a supertag, @ for a reference, > for a field").color(t.faint))
         .text_color(t.text)
         .margin(egui::Margin::ZERO)
         .lock_focus(true)
-        .desired_width((galley_w + 24.0).max(60.0))
+        .desired_width(if galley_w < 1.0 { 420.0 } else { (galley_w + 24.0).max(60.0) })
         .show(ui);
     if let Some(cr) = out.cursor_range {
         app.session.caret = cr.primary.index.0;

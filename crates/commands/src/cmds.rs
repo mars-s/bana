@@ -33,6 +33,9 @@ pub fn registry() -> Registry {
             .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),
         C::new("trash.empty", "Empty trash", "Node", empty_trash),
+        C::new("node.joinNext", "Join with the next node", "Node", join_next).key("Delete").params(r#"{"node"?: id}"#),
+        C::new("node.paste", "Paste as nodes", "Node", paste).params(r#"{"node"?: id, "text": string}"#),
+        C::new("node.toggleHeading", "Toggle heading", "Node", toggle_heading).params(r#"{"node"?: id}"#),
         C::new("node.insert", "Insert node", "Node", insert).key("Shift+Enter").params(r#"{"node"?: id}"#),
         C::new("node.quickAdd", "Quick add to today", "Node", quick_add).params(r#"{"name": string, "tag"?: string}"#),
         // Inline formatting (marks in the text; see core::format).
@@ -226,8 +229,9 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
         let new = s.graph.create(id, Some(0), "")?;
         s.set_focus(new, 0);
     } else if caret == 0 && n > 0 && !is_ref {
-        s.graph.create(parent, Some(at), "")?;
-        s.set_focus(id, 0);
+        // An empty node above; the caret goes into it (spec 02 §2).
+        let new = s.graph.create(parent, Some(at), "")?;
+        s.set_focus(new, 0);
     } else if is_ref {
         let new = s.graph.create(parent, Some(at + 1), "")?;
         s.set_focus(new, 0);
@@ -263,27 +267,101 @@ fn outdent(s: &mut Session, v: &Value) -> CmdResult {
 /// above. Nodes with supertags or fields are not merged (that would lose them).
 fn backspace(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
-    let prev = row_neighbour(s, id, -1);
     let node = s.graph.node(id)?.clone();
     let is_ref = node.reference_target().is_some();
-    if !is_ref && (!node.tags.is_empty() || !node.fields.is_empty()) {
-        return Err(CmdError::Failed("remove the supertags and fields before merging this node".into()));
+    // An empty line (or a reference) goes away; the caret lands at the end of the line above.
+    if is_ref || (node.name.is_empty() && node.children.is_empty() && node.fields.is_empty()) {
+        let prev = row_neighbour(s, id, -1).ok_or_else(|| CmdError::Failed("nothing above".into()))?;
+        s.graph.delete_permanently(id)?;
+        let end = len(s, prev);
+        s.set_focus(prev, end);
+        return Ok(s.focus_json());
     }
-    let empty_leaf = is_ref || (node.name.is_empty() && node.children.is_empty());
-    match prev {
-        Some(prev) if empty_leaf => {
-            s.graph.delete_permanently(id)?;
-            let end = len(s, prev);
-            s.set_focus(prev, end);
-        }
-        Some(prev) if s.graph.get(prev).is_some_and(|p| p.reference_target().is_none()) => {
-            let caret = s.graph.merge_into(id, prev)?;
-            s.set_focus(prev, caret);
-        }
-        Some(_) => return Err(CmdError::Failed("cannot merge into a reference".into())),
-        None => return Err(CmdError::Failed("nothing above to merge with".into())),
+    // A non-empty leaf merges into its previous sibling (not the visual row above). Nodes with
+    // children, supertags or fields stay as they are (spec 02 §4).
+    if !node.children.is_empty() || !node.tags.is_empty() || !node.fields.is_empty() {
+        return Ok(s.focus_json());
     }
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+    let at = s.graph.index_in_parent(id).unwrap_or(0);
+    let Some(prev) = at.checked_sub(1).and_then(|i| s.graph.children(parent).get(i).copied()) else {
+        return Ok(s.focus_json());
+    };
+    if s.graph.get(prev).is_some_and(|p| p.reference_target().is_some()) {
+        return Ok(s.focus_json());
+    }
+    let caret = s.graph.merge_into(id, prev)?;
+    s.set_focus(prev, caret);
     Ok(s.focus_json())
+}
+
+/// Delete at the end of a line pulls the next sibling's text (and children) into this node.
+fn join_next(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+    let at = s.graph.index_in_parent(id).unwrap_or(0);
+    let Some(next) = s.graph.children(parent).get(at + 1).copied() else { return Ok(s.focus_json()) };
+    let nn = s.graph.node(next)?;
+    if nn.reference_target().is_some()
+        || !nn.tags.is_empty()
+        || !nn.fields.is_empty()
+        || s.graph.get(id).is_some_and(|n| n.reference_target().is_some())
+    {
+        return Ok(s.focus_json());
+    }
+    let caret = s.graph.merge_into(next, id)?;
+    s.set_focus(id, caret);
+    Ok(s.focus_json())
+}
+
+/// Pastes text: Markdown bullets ("- a", "  - b") nest; other lines become siblings. Into an empty
+/// focused node the first line goes into that node.
+fn paste(s: &mut Session, v: &Value) -> CmdResult {
+    let text = p::req_str(v, "text")?;
+    let id = s.target(v)?;
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+    let mut at = s.graph.index_in_parent(id).unwrap_or(0);
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(10_000).collect();
+    let bulleted = lines.iter().any(|l| {
+        let t = l.trim_start();
+        t.starts_with("- ") || t.starts_with("* ")
+    });
+    // (indent width, node) of the last node created at each depth.
+    let mut stack: Vec<(usize, NodeId)> = Vec::new();
+    let mut last = id;
+    let mut first = true;
+    for line in lines {
+        let indent = if bulleted { line.len() - line.trim_start().len() } else { 0 };
+        let mut t = line.trim();
+        if bulleted {
+            t = t.strip_prefix("- ").or_else(|| t.strip_prefix("* ")).unwrap_or(t);
+        }
+        while stack.last().is_some_and(|(w, _)| *w >= indent) {
+            stack.pop();
+        }
+        let node = if first && s.graph.name(id).is_empty() && s.graph.children(id).is_empty() {
+            s.graph.set_name(id, t)?;
+            id
+        } else if let Some((_, p)) = stack.last() {
+            s.graph.set_expanded(*p, true);
+            s.graph.create(*p, None, t)?
+        } else {
+            at += 1;
+            s.graph.create(parent, Some(at), t)?
+        };
+        first = false;
+        stack.push((indent, node));
+        last = node;
+    }
+    s.set_focus(last, usize::MAX);
+    Ok(json!({"last": last.0}))
+}
+
+fn toggle_heading(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.graph.resolve(s.target(v)?);
+    let on = !s.graph.node(id)?.heading;
+    s.graph.set_heading(id, on)?;
+    Ok(json!({"node": id.0, "heading": on}))
 }
 
 fn move_sibling(s: &mut Session, v: &Value, up: bool) -> CmdResult {
@@ -342,7 +420,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 fn duplicate(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let copy = s.graph.duplicate(id)?;
-    s.set_focus(copy, usize::MAX);
+    // The caret stays in the original (spec 02 §15).
     Ok(json!({"id": copy.0}))
 }
 
@@ -463,12 +541,12 @@ fn focus_step(s: &mut Session, step: isize) -> CmdResult {
 
 /// Shift+Up/Down: starts a selection at the focused bullet (leaving text editing) or grows it.
 fn select_step(s: &mut Session, step: isize) -> CmdResult {
+    // The first press selects the current node; later presses extend (spec 02 §5).
     let (anchor, head) = match (s.sel, s.focus) {
-        (Some(sel), _) => sel,
+        (Some((a, h)), _) => (a, row_neighbour(s, h, step).unwrap_or(h)),
         (None, Some(f)) => (f, f),
         (None, None) => return Err(CmdError::Failed("focus a bullet first".into())),
     };
-    let head = row_neighbour(s, head, step).unwrap_or(head);
     s.sel = Some((anchor, head));
     s.focus = None;
     Ok(json!({"selected": s.selected().iter().map(|i| i.0).collect::<Vec<_>>()}))
@@ -540,6 +618,10 @@ fn tag_add(s: &mut Session, v: &Value) -> CmdResult {
     let ids = s.targets(v)?;
     let tag = tag_param(s, v, "tag", true)?;
     for id in &ids {
+        let name = s.graph.name(*id).to_string();
+        if name.trim_end() != name {
+            s.graph.set_name(*id, name.trim_end())?;
+        }
         s.graph.add_tag(*id, tag)?;
     }
     Ok(json!({"node": ids.first().map(|i| i.0), "count": ids.len(), "tag": tag.0}))

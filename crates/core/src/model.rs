@@ -210,6 +210,9 @@ pub struct Node {
     pub done: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_from: Option<TrashedFrom>,
+    /// Shown as a heading (bigger, bold).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub heading: bool,
     /// How the node shows its items (list when absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<crate::view::ViewDef>,
@@ -237,6 +240,7 @@ impl Node {
             done: None,
             trashed_from: None,
             view: None,
+            heading: false,
             created,
         }
     }

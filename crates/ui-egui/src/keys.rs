@@ -54,6 +54,19 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
     let events = ctx.input(|i| i.events.clone());
     let mut used = Vec::new();
     for (i, ev) in events.iter().enumerate() {
+        // Multi-line paste into a bullet becomes nodes (spec 02 §12).
+        if let Event::Paste(text) = ev
+            && app.session.focus.is_some()
+            && app.picker.is_none()
+            && app.palette.is_none()
+            && text.contains('\n')
+        {
+            if let Err(e) = app.exec("node.paste", json!({"text": text})) {
+                app.session.status = e;
+            }
+            used.push(i);
+            continue;
+        }
         if let Event::Key { key, pressed: true, modifiers, .. } = ev
             && on_key(app, ctx, shortcut(*key, *modifiers, app.mac))
         {
@@ -115,6 +128,22 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             app.session.sel = None;
             return true;
         }
+        // With nodes selected: Enter adds a sibling below, Backspace/Delete delete (spec 02 §8).
+        "Enter" if selecting => {
+            let head = app.session.sel.map(|s| s.1);
+            app.session.sel = None;
+            if let Some(h) = head {
+                app.exec("node.insert", json!({"node": h.0})).ok();
+            }
+            return true;
+        }
+        "Backspace" | "Delete" if selecting => {
+            if let Err(e) = app.exec("node.delete", json!({})) {
+                app.session.status = e;
+            }
+            app.session.sel = None;
+            return true;
+        }
         "Up" | "Down" if selecting => {
             let head = app.session.sel.map(|s| s.1);
             app.session.sel = None;
@@ -123,8 +152,25 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             }
             return true;
         }
+        // Escape leaves text editing and selects the node; Escape again clears.
         "Escape" if editing => {
+            if let Some(f) = app.session.focus {
+                app.exec("select.set", json!({"from": f.0})).ok();
+            }
+            return true;
+        }
+        "Delete" if editing => {
+            let len = app.session.focus.map(|f| app.session.graph.name(f).chars().count()).unwrap_or(0);
+            if app.session.caret >= len && app.edit.selection_empty {
+                app.exec("node.joinNext", json!({})).ok();
+                return true;
+            }
+            return false;
+        }
+        // Up from the first bullet goes into the page title (spec 02 §5).
+        "Up" if editing && app.session.rows().first().map(|r| r.id) == app.session.focus => {
             app.session.focus = None;
+            ctx.memory_mut(|m| m.request_focus(egui::Id::new("page-title")));
             return true;
         }
         "Enter" if editing => {

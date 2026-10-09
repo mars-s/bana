@@ -476,6 +476,12 @@ impl Graph {
         Ok(())
     }
 
+    pub fn set_heading(&mut self, id: NodeId, on: bool) -> Result<()> {
+        let target = self.resolve(id);
+        self.node_mut(target)?.heading = on;
+        Ok(())
+    }
+
     pub fn set_description(&mut self, id: NodeId, text: &str) -> Result<()> {
         let target = self.resolve(id);
         self.node_mut(target)?.description = text.to_string();
@@ -515,13 +521,33 @@ impl Graph {
     }
 
     /// Swaps `id` with its previous (`up`) or next sibling.
+    /// Moves `id` one place up or down among its siblings. At the edge it crosses into the
+    /// neighbouring branch: the first child moving up becomes the last child of its parent's previous
+    /// sibling; the last child moving down becomes the first child of its parent's next sibling.
     pub fn move_sibling(&mut self, id: NodeId, up: bool) -> Result<()> {
         let parent = self.parent(id).ok_or(Error::NoNode(id))?;
         let at = self.index_in_parent(id).ok_or(Error::NoNode(id))?;
         let len = self.node(parent)?.children.len();
         let to = if up { at.checked_sub(1) } else { (at + 1 < len).then_some(at + 1) };
-        let to = to.ok_or_else(|| Error::Invalid(if up { "already first" } else { "already last" }.into()))?;
-        self.node_mut(parent)?.children.swap(at, to);
+        if let Some(to) = to {
+            self.node_mut(parent)?.children.swap(at, to);
+            return Ok(());
+        }
+        let edge = || Error::Invalid(if up { "already first" } else { "already last" }.into());
+        if self.is_system(parent) {
+            return Err(edge());
+        }
+        let grand = self.parent(parent).ok_or_else(edge)?;
+        let pat = self.index_in_parent(parent).ok_or_else(edge)?;
+        let uncles = self.node(grand)?.children.clone();
+        let neighbour = if up { pat.checked_sub(1).and_then(|i| uncles.get(i)) } else { uncles.get(pat + 1) };
+        let n = *neighbour.ok_or_else(edge)?;
+        if up {
+            self.move_to(id, n, None)?;
+        } else {
+            self.move_to(id, n, Some(0))?;
+        }
+        self.set_expanded(n, true);
         Ok(())
     }
 

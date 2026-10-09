@@ -69,7 +69,7 @@ fn enter_splits_at_the_caret() {
     // At the start: an empty node above, focus stays.
     let b = s.focus.unwrap();
     run(&mut s, "node.enter", json!({"node": b.0, "caret": 0}));
-    assert_eq!(lines(&mut s), ["  - Hello", "  - ", "> -  world"]);
+    assert_eq!(lines(&mut s), ["  - Hello", "> - ", "  -  world"]);
 }
 
 #[test]
@@ -93,7 +93,67 @@ fn backspace_merges_and_deletes() {
     run(&mut s, "node.enter", json!({"caret": 11}));
     run(&mut s, "node.backspace", json!({}));
     assert_eq!(lines(&mut s), ["> - Hello there"]);
-    assert!(s.run("node.backspace", &json!({})).is_err(), "nothing above the first node");
+    run(&mut s, "node.backspace", json!({}));
+    assert_eq!(lines(&mut s), ["> - Hello there"], "first node: nothing to merge into");
+}
+
+/// Spec 02 §4: Backspace merges into the previous *sibling*, even when an expanded child of that
+/// sibling is the row above; a node with children does not merge; Delete at the end joins the next.
+#[test]
+fn backspace_and_delete_follow_siblings() {
+    let mut s = blank();
+    let beta = id(&run(&mut s, "node.add", json!({"name": "Beta"})), "id");
+    run(&mut s, "node.add", json!({"name": "child one", "parent": beta.0}));
+    run(&mut s, "node.expand", json!({"node": beta.0}));
+    let two = id(&run(&mut s, "node.add", json!({"name": "child two"})), "id");
+    run(&mut s, "node.backspace", json!({"node": two.0}));
+    assert_eq!(lines(&mut s), ["> - Betachild two", "    - child one"]);
+    assert_eq!(s.caret, 4);
+    run(&mut s, "node.backspace", json!({"node": beta.0}));
+    assert_eq!(lines(&mut s)[0], "> - Betachild two", "a node with children does not merge");
+    let x = id(&run(&mut s, "node.add", json!({"name": "two"})), "id");
+    run(&mut s, "node.add", json!({"name": "three"}));
+    run(&mut s, "node.joinNext", json!({"node": x.0}));
+    assert_eq!(lines(&mut s)[2], "> - twothree");
+    assert_eq!(s.caret, 3);
+}
+
+/// Spec 02 §6: moving the first child up crosses into the previous branch; the page top stops.
+#[test]
+fn move_up_crosses_into_previous_branch() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "A"})), "id");
+    let b = id(&run(&mut s, "node.add", json!({"name": "B"})), "id");
+    run(&mut s, "node.add", json!({"name": "a1", "parent": a.0}));
+    let b1 = id(&run(&mut s, "node.add", json!({"name": "b1", "parent": b.0})), "id");
+    run(&mut s, "node.expand", json!({"node": b.0}));
+    run(&mut s, "node.moveUp", json!({"node": b1.0}));
+    assert_eq!(s.graph.children(a).len(), 2);
+    assert_eq!(s.graph.name(s.graph.children(a)[1]), "b1");
+    run(&mut s, "node.moveDown", json!({"node": b1.0}));
+    assert_eq!(s.graph.children(b), &[b1], "and back down into the next branch");
+    assert!(s.run("node.moveUp", &json!({"node": a.0})).is_err(), "first top-level node stays");
+}
+
+#[test]
+fn enter_at_start_paste_duplicate_heading() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "text"})), "id");
+    run(&mut s, "node.enter", json!({"node": a.0, "caret": 0}));
+    assert_eq!(lines(&mut s), ["> - ", "  - text"], "caret goes into the new line above");
+    run(&mut s, "node.paste", json!({"text": "- one\n  - one a\n- two"}));
+    assert_eq!(lines(&mut s), ["  - one", "    - one a", "> - two", "  - text"]);
+    run(&mut s, "node.paste", json!({"node": a.0, "text": "x\ny"}));
+    assert_eq!(lines(&mut s)[3..], ["  - text".to_string(), "  - x".to_string(), "> - y".to_string()]);
+    run(&mut s, "focus.set", json!({"node": a.0}));
+    run(&mut s, "node.duplicate", json!({}));
+    assert_eq!(s.focus, Some(a), "duplicate keeps the caret in the original");
+    run(&mut s, "node.toggleHeading", json!({}));
+    assert!(s.graph.get(a).unwrap().heading);
+    // Trailing spaces go when a tag is applied.
+    run(&mut s, "node.setName", json!({"node": a.0, "name": "Gamma "}));
+    run(&mut s, "tag.add", json!({"node": a.0, "tag": "task"}));
+    assert_eq!(s.graph.name(a), "Gamma");
 }
 
 #[test]
@@ -330,6 +390,8 @@ fn multi_select_moves_indents_tags_and_deletes_together() {
     let mut s = blank();
     let ids: Vec<NodeId> = ["a", "b", "c", "d"].iter().map(|n| id(&run(&mut s, "node.add", json!({"name": n})), "id")).collect();
     run(&mut s, "focus.set", json!({"node": ids[1].0}));
+    run(&mut s, "select.down", json!({}));
+    assert_eq!(s.selected(), vec![ids[1]], "first press selects the current node");
     run(&mut s, "select.down", json!({}));
     assert_eq!(s.selected(), vec![ids[1], ids[2]]);
     assert_eq!(s.focus, None, "selecting leaves text editing");

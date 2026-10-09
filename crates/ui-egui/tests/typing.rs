@@ -65,14 +65,14 @@ fn typing_an_outline_with_the_keyboard() {
     key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(lines(&mut h), ["  - Groceries", "    - Milk", "    - Bread", "> - Call mum"]);
 
-    // Backspace at the start merges into the node above.
+    // Backspace at the start merges into the previous sibling (spec 02 §4), not the row above.
     key(&mut h, Key::Home, Modifiers::NONE);
     key(&mut h, Key::Backspace, Modifiers::NONE);
-    assert_eq!(lines(&mut h), ["  - Groceries", "    - Milk", ">   - BreadCall mum"]);
+    assert_eq!(lines(&mut h), ["> - GroceriesCall mum", "    - Milk", "    - Bread"]);
 
     // Cmd+Z undoes the merge; Cmd+Shift+Up moves a node.
     key(&mut h, Key::Z, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
-    assert_eq!(lines(&mut h)[2], ">   - Bread");
+    assert_eq!(lines(&mut h)[2..], ["    - Bread".to_string(), "  - Call mum".to_string()]);
     let bread = h.state().session.graph.search("Bread")[0].0;
     h.state_mut().exec("focus.set", json!({"node": bread})).unwrap();
     key(&mut h, Key::ArrowUp, Modifiers { command: true, mac_cmd: true, shift: true, ..Modifiers::NONE });
@@ -191,6 +191,8 @@ fn shift_down_selects_and_tab_indents_the_selection() {
     let two = h.state().session.graph.search("two")[0].0;
     h.state_mut().exec("focus.set", json!({"node": two})).unwrap();
     h.step();
+    key(&mut h, Key::ArrowDown, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.selected().len(), 1, "first press selects the current node");
     key(&mut h, Key::ArrowDown, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(h.state().session.selected().len(), 2);
     key(&mut h, Key::Tab, Modifiers::NONE);

@@ -707,7 +707,7 @@ fn diffs_p2_board_ends_with_a_not_set_column_without_counts() {
         h.step();
     }
     h.get_by_label("Status not set");
-    h.get_by_label("Done");
+    assert!(h.query_all_by_label("Done").count() >= 2, "the Done column (and the builder's Done button)");
 }
 
 #[test]
@@ -752,4 +752,26 @@ fn diffs_p2_configure_supertag_opens_in_its_own_panel() {
     h.step();
     assert_eq!(h.state().panel_count(), 1);
     assert!(!h.state().session.config_view);
+}
+
+#[test]
+fn diffs_p2_query_builder_adds_nested_groups() {
+    let mut h = harness();
+    let lib = h.state().session.graph.sys.library.0;
+    h.state_mut().exec("tag.create", json!({"name": "task"})).unwrap();
+    let q = h.state_mut().exec("search.create", json!({"query": "#task", "parent": lib})).unwrap()["id"].as_u64().unwrap();
+    h.state_mut().exec("nav.open", json!({"node": q})).unwrap();
+    h.state_mut().query_open = true;
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("+ OR").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    let g = &h.state().session.graph;
+    let desc = g.query(tanacraft_core::NodeId(q)).unwrap().describe(g);
+    assert_eq!(desc, "#task AND ()");
+    h.get_by_label("Done");
+    h.get_by_label("Run once");
 }

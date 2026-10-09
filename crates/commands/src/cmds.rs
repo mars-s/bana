@@ -5,7 +5,7 @@
 
 use serde_json::{Value, json};
 use tanacraft_core::format::Mark;
-use tanacraft_core::query::{Clause, Query};
+use tanacraft_core::query::{Clause, ClauseKind, Query};
 use tanacraft_core::{Date, FieldType, GroupBy, NodeId, Sort, SortBy, TAG_COLORS, ViewKind, export};
 
 const FMT: &str = r#"{"node"?: id, "start"?: chars, "end"?: chars}  (default: the selection, or the whole text)"#;
@@ -58,9 +58,14 @@ pub fn registry() -> Registry {
         C::new("search.create", "New search node", "Search", search_create)
             .params(r#"{"query": string, "name"?: string, "parent"?: id}  (query syntax: see core::query)"#),
         C::new("search.setQuery", "Set search query", "Search", search_set_query).params(r#"{"node"?: id, "query": string}"#),
-        C::new("search.addClause", "Add search condition", "Search", search_add_clause).params(r#"{"node"?: id, "clause": string, "not"?: bool}"#),
-        C::new("search.removeClause", "Remove search condition", "Search", search_remove_clause).params(r#"{"node"?: id, "index": number}"#),
-        C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not).params(r#"{"node"?: id, "index": number}"#),
+        C::new("search.addClause", "Add search condition", "Search", search_add_clause)
+            .params(r#"{"node"?: id, "clause": string, "not"?: bool, "path"?: [number]}  (path: indexes of nested groups)"#),
+        C::new("search.addGroup", "Add AND / OR / NOT group", "Search", search_add_group)
+            .params(r#"{"node"?: id, "kind": "and|or|not", "path"?: [number]}"#),
+        C::new("search.removeClause", "Remove search condition", "Search", search_remove_clause)
+            .params(r#"{"node"?: id, "index": number, "path"?: [number]}"#),
+        C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not)
+            .params(r#"{"node"?: id, "index": number, "path"?: [number]}"#),
         C::new("search.toPlainList", "Convert search node to plain list", "Search", |s, v| {
             let id = search_target(s, v)?;
             let n = s.graph.search_to_plain(id)?;
@@ -77,7 +82,7 @@ pub fn registry() -> Registry {
         })
         .key("Mod+A")
         .pure(),
-        C::new("search.setMode", "Match all or any", "Search", search_set_mode).params(r#"{"node"?: id, "any": bool}"#),
+        C::new("search.setMode", "Match all or any", "Search", search_set_mode).params(r#"{"node"?: id, "any": bool, "path"?: [number]}"#),
         // Views.
         C::new("view.set", "View as", "Views", view_set)
             .params(r#"{"node"?: id, "kind": "outline|table|cards|board|lanes|list|side_menu|tabs|calendar"}"#),
@@ -1149,11 +1154,42 @@ fn edit_query(s: &mut Session, v: &Value, f: impl FnOnce(&mut Query) -> Result<(
     query_result(s, id)
 }
 
+/// The group a clause command acts on: `path` lists clause indexes of nested groups from the top
+/// (empty or absent: the top level).
+fn group_at<'a>(q: &'a mut Query, v: &Value) -> Result<&'a mut Query, CmdError> {
+    let path: Vec<usize> = match v.get("path") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(a)) => a.iter().take(32).map(|x| x.as_u64().map(|n| n as usize)).collect::<Option<_>>().unwrap_or_default(),
+        Some(_) => return Err(CmdError::Params("`path` must be an array of condition indexes".into())),
+    };
+    let mut cur = q;
+    for i in path {
+        cur = match cur.clauses.get_mut(i).map(|c| &mut c.kind) {
+            Some(ClauseKind::Group { query }) => query,
+            _ => return Err(CmdError::Params("`path` must lead to a group".into())),
+        };
+    }
+    Ok(cur)
+}
+
 fn search_add_clause(s: &mut Session, v: &Value) -> CmdResult {
     let parsed = parse_query(s, p::req_str(v, "clause")?)?;
     let not = p::bool(v, "not").unwrap_or(false);
     edit_query(s, v, |q| {
-        q.clauses.extend(parsed.clauses.into_iter().map(|c| Clause { not: c.not != not, kind: c.kind }));
+        group_at(q, v)?.clauses.extend(parsed.clauses.into_iter().map(|c| Clause { not: c.not != not, kind: c.kind }));
+        Ok(())
+    })
+}
+
+/// Adds an AND, OR or NOT group (spec 05 §2): a NOT group negates what it holds.
+fn search_add_group(s: &mut Session, v: &Value) -> CmdResult {
+    let kind = p::str(v, "kind").unwrap_or("and").to_ascii_lowercase();
+    if !matches!(kind.as_str(), "and" | "or" | "not") {
+        return Err(CmdError::Params("`kind` is and, or or not".into()));
+    }
+    edit_query(s, v, |q| {
+        let g = group_at(q, v)?;
+        g.clauses.push(Clause { not: kind == "not", kind: ClauseKind::Group { query: Query { any: kind == "or", clauses: Vec::new() } } });
         Ok(())
     })
 }
@@ -1164,16 +1200,18 @@ fn clause_index(v: &Value, q: &Query) -> Result<usize, CmdError> {
 
 fn search_remove_clause(s: &mut Session, v: &Value) -> CmdResult {
     edit_query(s, v, |q| {
-        let i = clause_index(v, q)?;
-        q.clauses.remove(i);
+        let g = group_at(q, v)?;
+        let i = clause_index(v, g)?;
+        g.clauses.remove(i);
         Ok(())
     })
 }
 
 fn search_toggle_not(s: &mut Session, v: &Value) -> CmdResult {
     edit_query(s, v, |q| {
-        let i = clause_index(v, q)?;
-        if let Some(c) = q.clauses.get_mut(i) {
+        let g = group_at(q, v)?;
+        let i = clause_index(v, g)?;
+        if let Some(c) = g.clauses.get_mut(i) {
             c.not = !c.not;
         }
         Ok(())
@@ -1183,7 +1221,7 @@ fn search_toggle_not(s: &mut Session, v: &Value) -> CmdResult {
 fn search_set_mode(s: &mut Session, v: &Value) -> CmdResult {
     let any = p::bool(v, "any").ok_or_else(|| CmdError::Params("`any` (bool) is required".into()))?;
     edit_query(s, v, |q| {
-        q.any = any;
+        group_at(q, v)?.any = any;
         Ok(())
     })
 }

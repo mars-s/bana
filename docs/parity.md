@@ -104,7 +104,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Section | Status | Notes |
 |---|---|---|
 | 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
-| 2. Query builder | partial | Conditions panel: AND/OR, NOT, nested groups (text form with parentheses), operators (TODO, DONE, DONE/CREATED/EDITED last N days, HAS TAG/FIELD, IS TAG/FIELD/SEARCH/CALENDAR, IN LIBRARY, ON DAY, DATE, LINKS, UNDER), field comparisons. Results are live; no visual nested group boxes. |
+| 2. Query builder | partial | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group to type a condition, Search operators menu, the query as text, Run once and Done. Results stay live while editing. Missing: Tag fields / System fields / Field values / Tag types menus, workspace scope. |
 | 3. Command line (Cmd+K) | partial | Searches nodes and commands; node commands first when a node is focused; shortcuts shown. Two-step commands missing. |
 | 4. Search and open (Cmd+S, sidebar magnifier) | partial | Recently viewed, fuzzy search with breadcrumbs, new-tab variant (Cmd+T). Content snippets missing. |
 | 5. Quick add (Cmd+E) | done | Modal with yellow bar, several lines, Cmd+E saves to the end of today, Escape cancels. |

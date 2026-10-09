@@ -196,7 +196,6 @@ pub struct TanaApp {
     desc_focus: bool,
     /// Search pages: the condition editor is open.
     pub query_open: bool,
-    clause_buf: String,
     tag_filter: String,
     /// Group headers the person collapsed, per view node.
     closed_groups: std::collections::HashSet<(NodeId, String)>,
@@ -261,7 +260,6 @@ impl TanaApp {
             desc_edit: None,
             desc_focus: false,
             query_open: true,
-            clause_buf: String::new(),
             tag_filter: String::new(),
             closed_groups: Default::default(),
             pin_open: Default::default(),

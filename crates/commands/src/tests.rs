@@ -666,3 +666,23 @@ fn supertag_title_expression_optional_and_pinned_fields() {
     run(&mut s, "tag.removeRelated", json!({"tag": "project", "node": r.0}));
     assert!(s.graph.related_for(n).is_empty());
 }
+
+#[test]
+fn query_groups_nest_and_or_and_not() {
+    let mut s = blank();
+    let lib = s.graph.sys.library.0;
+    for n in ["Gamma one", "Delta two", "Gamma three"] {
+        let x = id(&run(&mut s, "node.add", json!({"name": n})), "id");
+        run(&mut s, "tag.add", json!({"node": x.0, "tag": "task"}));
+    }
+    let q = id(&run(&mut s, "search.create", json!({"query": "#task", "parent": lib})), "id");
+    // #task AND ( "one" OR NOT "Gamma" )
+    run(&mut s, "search.addGroup", json!({"node": q.0, "kind": "or"}));
+    run(&mut s, "search.addClause", json!({"node": q.0, "path": [1], "clause": "one"}));
+    run(&mut s, "search.addGroup", json!({"node": q.0, "path": [1], "kind": "not"}));
+    let v = run(&mut s, "search.addClause", json!({"node": q.0, "path": [1, 1], "clause": "Gamma"}));
+    assert_eq!(v["results"], json!(2), "{v}");
+    let names: Vec<String> = s.graph.view_items(q).iter().map(|n| s.graph.name(*n).to_string()).collect();
+    assert_eq!(names, ["Gamma one", "Delta two"]);
+    assert!(s.run("search.addClause", &json!({"node": q.0, "path": [0], "clause": "x"})).is_err(), "path must lead to a group");
+}

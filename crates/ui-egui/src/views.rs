@@ -33,7 +33,9 @@ fn clause_text(g: &tanacraft_core::Graph, c: &Clause) -> String {
 
 // ---- condition editor ---------------------------------------------------------------------------
 
-/// The search conditions of a search node: chips (click NOT to negate, x to remove), AND/OR, add.
+/// The query builder of a search node (spec 05 §2): a group box per AND / OR / NOT group, rows
+/// for conditions, nested groups inside, an "Empty" line per group to type a condition, then
+/// "+ AND / + OR / + NOT", operators, the query as text, Run once and Done.
 pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
     let Some(q) = app.session.graph.query(node).cloned() else { return };
     egui::Frame::new().fill(t.field_bg).stroke(Stroke::new(1.0, t.line)).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(
@@ -41,8 +43,8 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
         |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Search conditions").strong().size(14.0));
-                ui.label(RichText::new("#tag, words, DONE, TODO, Field:value, Field>value, CREATED:7, ( ... OR ... )").size(12.0).color(t.faint));
+                ui.label(RichText::new("Query builder").strong().size(14.0));
+                ui.label(RichText::new("Type words, #tag, DONE, TODO, Field:value, Field>value, CREATED:7").size(12.0).color(t.faint));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.add(egui::Label::new(RichText::new("x").color(t.dim)).sense(Sense::click())).on_hover_text("Close").clicked() {
                         app.acts.push(Act::Ui("ui.searchOptions"));
@@ -50,63 +52,15 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 });
             });
             ui.add_space(6.0);
-            ui.horizontal_wrapped(|ui| {
-                let mode = if q.any { "Any of (OR)" } else { "All of (AND)" };
-                if small_button(ui, t, mode, true).on_hover_text("Switch between AND and OR").clicked() {
-                    app.acts.push(Act::Run("search.setMode".into(), json!({"node": node.0, "any": !q.any})));
-                }
-                for (i, c) in q.clauses.iter().enumerate() {
-                    let g = &app.session.graph;
-                    let (label, color) = match &c.kind {
-                        ClauseKind::Tagged { tag } => {
-                            let col = g.tag_def(*tag).map(|d| theme::tag_color(&d.color, app.dark).0).unwrap_or(t.text);
-                            (format!("#{}", g.name(*tag)), col)
-                        }
-                        _ => (clause_text(g, c), t.text),
-                    };
-                    egui::Frame::new().fill(t.panel).corner_radius(5.0).inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let not = ui.add(
-                                egui::Label::new(RichText::new("NOT").size(11.5).color(if c.not {
-                                    Color32::from_rgb(232, 128, 96)
-                                } else {
-                                    t.faint
-                                }))
-                                .sense(Sense::click()),
-                            );
-                            if not.on_hover_text("Negate").clicked() {
-                                app.acts.push(Act::Run("search.toggleNot".into(), json!({"node": node.0, "index": i})));
-                            }
-                            ui.label(RichText::new(label).size(13.5).color(color));
-                            if ui
-                                .add(egui::Label::new(RichText::new("x").size(12.0).color(t.faint)).sense(Sense::click()))
-                                .on_hover_text("Remove")
-                                .clicked()
-                            {
-                                app.acts.push(Act::Run("search.removeClause".into(), json!({"node": node.0, "index": i})));
-                            }
-                        });
-                    });
-                }
-            });
+            group_box(app, ui, t, node, &q, false, &[]);
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                let r = ui.add(
-                    egui::TextEdit::singleline(&mut app.clause_buf)
-                        .id(egui::Id::new((app.panel_ix, "clause-input")))
-                        .hint_text("Add a condition, then Enter")
-                        .desired_width(260.0),
-                );
-                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.clause_buf.trim().is_empty() {
-                    let clause = std::mem::take(&mut app.clause_buf);
-                    app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": clause})));
-                }
                 if small_button(ui, t, "+ Supertag", false).clicked() {
                     app.acts.push(Act::Pick(PickMode::SearchTag, node, ui.min_rect().left_bottom()));
                 }
-                ui.menu_button(RichText::new("Operators").size(13.0).color(t.dim), |ui| {
+                ui.menu_button(RichText::new("Search operators").size(13.0).color(t.dim), |ui| {
                     for (label, clause) in [
-                        ("TODO (not done)", "TODO"),
+                        ("TODO", "TODO"),
                         ("DONE", "DONE"),
                         ("DONE LAST 7 DAYS", "DONE:7"),
                         ("CREATED LAST 7 DAYS", "CREATED:7"),
@@ -128,12 +82,127 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     }
                 });
             });
-            ui.add_space(4.0);
-            let n = app.session.graph.view_items(node).len();
-            ui.label(RichText::new(format!("({})  {n} results", q.describe(&app.session.graph))).size(12.5).color(t.faint));
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let n = app.session.graph.view_items(node).len();
+                ui.label(RichText::new(format!("{}   {n} results", q.describe(&app.session.graph))).size(12.5).color(t.faint));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Results follow every edit; Done also closes the builder.
+                    if small_button(ui, t, "Done", true).clicked() {
+                        app.acts.push(Act::Ui("ui.searchOptions"));
+                    }
+                    if small_button(ui, t, "Run once", false).on_hover_text("Results are live; this refreshes them").clicked() {
+                        app.acts.push(Act::Run("search.setQuery".into(), json!({"node": node.0, "query": q.describe(&app.session.graph)})));
+                    }
+                });
+            });
         },
     );
     ui.add_space(8.0);
+}
+
+/// One group: a strip on the left naming how its conditions combine, its rows on the right.
+fn group_box(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, q: &Query, not: bool, path: &[usize]) {
+    let label = if not {
+        "NOT"
+    } else if q.any {
+        "OR"
+    } else {
+        "AND"
+    };
+    ui.horizontal_top(|ui| {
+        let strip = ui.allocate_exact_size(vec2(34.0, 24.0), Sense::click());
+        let color = if not { Color32::from_rgb(232, 128, 96) } else { t.accent };
+        ui.painter().text(strip.0.center(), Align2::CENTER_CENTER, label, FontId::proportional(12.0), color);
+        if !not && strip.1.on_hover_text("Switch between AND and OR").clicked() {
+            app.acts.push(Act::Run("search.setMode".into(), json!({"node": node.0, "any": !q.any, "path": path})));
+        }
+        let body = ui.vertical(|ui| {
+            for (i, c) in q.clauses.iter().enumerate() {
+                let mut here = path.to_vec();
+                here.push(i);
+                match &c.kind {
+                    ClauseKind::Group { query } => {
+                        egui::Frame::new().stroke(Stroke::new(1.0, t.line)).corner_radius(6.0).inner_margin(6.0).show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (word, help) = if c.not {
+                                    ("NOT", "reverses what it holds")
+                                } else if query.any {
+                                    ("OR", "any one condition must be true")
+                                } else {
+                                    ("AND", "every condition must be true")
+                                };
+                                ui.label(RichText::new(word).strong().size(13.0));
+                                ui.label(RichText::new(help).size(12.0).color(t.faint));
+                                remove_button(app, ui, t, node, path, i);
+                            });
+                            group_box(app, ui, t, node, query, c.not, &here);
+                        });
+                    }
+                    _ => {
+                        let row = ui.horizontal(|ui| {
+                            let g = &app.session.graph;
+                            let (text, color) = match &c.kind {
+                                ClauseKind::Tagged { tag } => {
+                                    (format!("#{}", g.name(*tag)), g.tag_def(*tag).map(|d| theme::tag_color(&d.color, app.dark).0).unwrap_or(t.text))
+                                }
+                                _ => (clause_text(g, c), t.text),
+                            };
+                            if c.not {
+                                ui.label(RichText::new("NOT").size(11.5).color(Color32::from_rgb(232, 128, 96)));
+                            }
+                            ui.label(RichText::new(text).size(13.5).color(color));
+                            let hovered = ui.rect_contains_pointer(ui.max_rect());
+                            let neg = ui.add(
+                                egui::Label::new(RichText::new(if c.not { "un-NOT" } else { "NOT" }).size(11.0).color(if hovered {
+                                    t.faint
+                                } else {
+                                    Color32::TRANSPARENT
+                                }))
+                                .sense(Sense::click()),
+                            );
+                            if neg.on_hover_text("Negate this condition").clicked() {
+                                app.acts.push(Act::Run("search.toggleNot".into(), json!({"node": node.0, "index": i, "path": path})));
+                            }
+                            remove_button(app, ui, t, node, path, i);
+                        });
+                        let _ = row;
+                    }
+                }
+            }
+            // The "Empty" line of this group: type a condition, Enter adds it here.
+            let key = egui::Id::new((app.panel_ix, "clause-input", node.0, path.to_vec()));
+            let mut buf = ui.data_mut(|d| d.get_temp::<String>(key)).unwrap_or_default();
+            let r = ui.add(egui::TextEdit::singleline(&mut buf).frame(egui::Frame::NONE).hint_text("Empty").desired_width(260.0));
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
+                app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": buf, "path": path})));
+                buf.clear();
+                r.request_focus();
+            }
+            ui.data_mut(|d| d.insert_temp(key, buf));
+            ui.horizontal(|ui| {
+                for kind in ["and", "or", "not"] {
+                    let label = format!("+ {}", kind.to_uppercase());
+                    if ui
+                        .add(egui::Label::new(RichText::new(label).size(12.0).color(t.dim)).sense(Sense::click()))
+                        .on_hover_text("Add a group here")
+                        .clicked()
+                    {
+                        app.acts.push(Act::Run("search.addGroup".into(), json!({"node": node.0, "kind": kind, "path": path})));
+                    }
+                }
+            });
+        });
+        // The strip runs down the group's left edge.
+        let r = body.response.rect;
+        ui.painter().line_segment([pos2(r.left() - 8.0, r.top() + 4.0), pos2(r.left() - 8.0, r.bottom() - 4.0)], Stroke::new(1.0, t.line));
+    });
+}
+
+fn remove_button(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, path: &[usize], index: usize) {
+    if ui.add(egui::Label::new(RichText::new("x").size(12.0).color(t.faint)).sense(Sense::click())).on_hover_text("Remove").clicked() {
+        app.acts.push(Act::Run("search.removeClause".into(), json!({"node": node.0, "index": index, "path": path})));
+    }
 }
 
 // ---- toolbar ------------------------------------------------------------------------------------

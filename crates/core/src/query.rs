@@ -236,11 +236,13 @@ impl Query {
 
     /// Whether node `id` matches. An empty query matches nothing (a search must ask for something).
     pub fn matches(&self, g: &Graph, id: NodeId) -> bool {
-        if self.clauses.is_empty() {
+        // A group still waiting for its first condition does not count yet.
+        let live = || self.clauses.iter().filter(|c| !matches!(&c.kind, ClauseKind::Group { query } if query.clauses.is_empty()));
+        if live().next().is_none() {
             return false;
         }
         let one = |c: &Clause| clause_matches(g, id, &c.kind) != c.not;
-        if self.any { self.clauses.iter().any(one) } else { self.clauses.iter().all(one) }
+        if self.any { live().any(one) } else { live().all(one) }
     }
 
     /// Like [`Query::matches`], but an empty query matches everything (view filters).

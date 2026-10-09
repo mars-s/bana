@@ -148,9 +148,9 @@ Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::ru
 
 Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel), views, the editing
 rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
-Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 5:
-fields saved as typed, keyboard never lost, notes outlines on references, formatted HTML on the
-clipboard, menu bar with keys and clipboard items). Next: an open-licence UI font with real bold and,
+Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 6:
+fields saved as typed and on quit, no typed key ever dropped, notes outlines on references and in
+exports, formatted HTML on the clipboard, menu bar with keys and clipboard items). Next: an open-licence UI font with real bold and,
 later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room

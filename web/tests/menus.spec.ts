@@ -72,3 +72,18 @@ test('pasting several lines makes nodes; copied lines paste back as references',
   await app.keyboard.press('Meta+v')
   await expect.poll(async () => (await tree(server, page)).children.at(-1).ref).toBe(ids[0])
 })
+
+test('deleting a node used elsewhere asks first (N20)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['shared', 'holder'])
+  await server.run('node.reference', { target: ids[0], parent: ids[1] })
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Backspace')
+  await expect(app.locator('.dialog.confirm')).toBeVisible()
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.dialog.confirm')).toHaveCount(0)
+  expect(((await tree(server, page)).children ?? []).map((c: any) => c.name)).toContain('shared')
+  await app.keyboard.press('Backspace')
+  await app.locator('.dialog.confirm .btn', { hasText: 'Delete anyway' }).click()
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).not.toContain('shared')
+})

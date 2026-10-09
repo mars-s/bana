@@ -91,6 +91,15 @@ export function noteSynced(node: number, caret: number) {
 
 /** Runs a command that may move the caret; keys typed meanwhile wait and are replayed after. */
 export async function exec(command: string, params: Json = {}, panel = getState().activePanel): Promise<Json> {
+  // Deleting a node that is used in other places asks first (DIFFS N20).
+  if (command === 'node.delete' && !params.force) {
+    const nodes = params.node != null ? [params.node] : undefined
+    const used = await call('usedElsewhere', { panel, ...(nodes ? { nodes } : {}) })
+    if (used?.count > 0) {
+      setState({ overlay: { kind: 'confirm', panel, params: { ...params, nodes: used.nodes }, name: used.name, count: used.count } })
+      return { result: { confirm: true } }
+    }
+  }
   barrier++
   // Going anywhere leaves a Settings, Recents or Help page.
   if (command.startsWith('nav.') && getState().special[panel]) setState((s) => ({ special: { ...s.special, [panel]: undefined } }))

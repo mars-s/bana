@@ -211,6 +211,48 @@ function QuickAdd() {
   )
 }
 
+/** "Used elsewhere" question before a delete (DIFFS N20). */
+function ConfirmDelete({ o }: { o: Json }) {
+  const del = () => {
+    close()
+    void exec('node.delete', { ...o.params, force: true }, o.panel)
+  }
+  const show = () => {
+    close()
+    const first = o.params.nodes?.[0]
+    if (first != null) void exec('nav.open', { node: first }, o.panel)
+  }
+  return (
+    <div
+      className="dialog confirm"
+      role="alertdialog"
+      aria-label="Delete a node used elsewhere"
+      tabIndex={-1}
+      ref={(el) => el?.focus()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') del()
+        else if (e.key === 'Escape') close()
+      }}
+    >
+      <p className="confirm-text">
+        <b>{o.name || 'This node'}</b> is used in {o.count} {o.count === 1 ? 'other place' : 'other places'}. Deleting it removes it there too.
+      </p>
+      <div className="confirm-actions">
+        <button className="btn regular" onClick={close}>
+          Cancel
+        </button>
+        <button className="btn regular" onClick={show}>
+          Show where it is used
+        </button>
+        <button className="btn regular danger" onClick={del}>
+          Delete anyway
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Shortcuts() {
   const commands = useStore((s) => s.commands)
   const on = useStore((s) => s.shortcuts)
@@ -415,6 +457,7 @@ export function Overlays() {
           {o.kind === 'palette' && <Palette />}
           {o.kind === 'search' && <SearchOpen />}
           {o.kind === 'quickadd' && <QuickAdd />}
+          {o.kind === 'confirm' && <ConfirmDelete o={o} />}
         </div>
       )}
     </>

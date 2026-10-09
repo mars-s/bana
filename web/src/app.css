@@ -2504,3 +2504,27 @@ kbd {
 .btn.confirm {
   color: var(--c-confirm);
 }
+
+.dialog.confirm {
+  width: 460px;
+  padding: var(--q6) var(--q8);
+  border-radius: var(--r-lg);
+  outline: none;
+}
+
+.confirm-text {
+  margin: 0 0 var(--q4);
+  font-size: var(--fs-dense);
+  line-height: var(--lh-dense);
+  color: var(--c-secondary);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--q2);
+}
+
+.btn.danger {
+  color: var(--c-danger);
+}

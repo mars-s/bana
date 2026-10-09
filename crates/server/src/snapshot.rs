@@ -617,3 +617,20 @@ pub fn tags(s: &Session) -> Value {
         g.workspaces().into_iter().map(|w| json!({"id": w.0, "name": if g.name(w).is_empty() { "Workspace" } else { g.name(w) }})).collect();
     json!({"tags": tags, "workspaces": workspaces})
 }
+
+/// How many places outside `nodes` (default: the selection, else the focused line) point at them:
+/// deleting such nodes asks first (DIFFS N20). Also returns the first node's name.
+pub fn used_elsewhere(s: &Session, params: &Value) -> Value {
+    let g = &s.graph;
+    let ids: Vec<NodeId> = match params.get("nodes").and_then(Value::as_array) {
+        Some(a) => a.iter().filter_map(|v| v.as_u64()).map(NodeId).filter(|n| g.get(*n).is_some()).collect(),
+        None => {
+            let sel = s.selected();
+            if sel.is_empty() { s.focus.into_iter().collect() } else { sel }
+        }
+    };
+    let inside = |r: NodeId| ids.iter().any(|d| g.is_ancestor_or_self(*d, r));
+    let used: std::collections::BTreeSet<NodeId> =
+        ids.iter().filter(|i| g.resolve(**i) == **i).flat_map(|i| g.references_to(*i)).filter(|r| !inside(*r)).collect();
+    json!({"count": used.len(), "name": ids.first().map(|i| g.name(*i)).unwrap_or_default(), "nodes": ids.iter().map(|i| i.0).collect::<Vec<_>>()})
+}

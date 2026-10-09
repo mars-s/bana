@@ -1948,13 +1948,29 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
     }
     // A reference's own note for this place (Alt+Cmd+Down), under the line.
     if is_ref {
-        let note = app.session.graph.get(id).map(|n| n.description.clone()).unwrap_or_default();
-        if !note.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == id) {
+        let g = &app.session.graph;
+        let note = g.get(id).map(|n| n.description.clone()).unwrap_or_default();
+        // Fields set for this place only (`node.contextField`).
+        let ctx_fields: Vec<String> = g
+            .get(id)
+            .map(|n| {
+                n.fields
+                    .iter()
+                    .map(|e| format!("{}: {}", g.name(e.field), e.values().map(|v| export::shown_value(g, v)).collect::<Vec<_>>().join(", ")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !note.is_empty() || !ctx_fields.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == id) {
             ui.add_space(-6.0);
             ui.horizontal(|ui| {
                 ui.add_space(indent + 26.0);
                 ui.label(RichText::new("In this context:").size(12.0).color(t.faint));
-                description_line(app, ui, t, id, &note, 13.0);
+                for f in &ctx_fields {
+                    ui.label(RichText::new(f).size(13.0).color(t.dim));
+                }
+                if !note.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == id) {
+                    description_line(app, ui, t, id, &note, 13.0);
+                }
             });
         }
     }

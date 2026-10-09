@@ -146,6 +146,15 @@ pub fn registry() -> Registry {
         })
         .key("Mod+Alt+Down")
         .params(r#"{"node"?: id, "text"?: string}  (a note on this reference only; without text: read it)"#),
+        C::new("node.contextField", "Field for this context", "Node", |s, v| {
+            let id = s.target(v)?;
+            let f = field_param(s, v, true)?;
+            s.graph.set_context_field(id, f, p::str(v, "value").unwrap_or(""))?;
+            let vals: Vec<String> =
+                s.graph.get(id).map(|n| n.field_values(f).into_iter().map(|x| export::display_value(&s.graph, x)).collect()).unwrap_or_default();
+            Ok(json!({"node": id.0, "field": f.0, "values": vals}))
+        })
+        .params(r#"{"node"?: id, "field": name | id, "value": string}  (on a reference only; empty removes it)"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

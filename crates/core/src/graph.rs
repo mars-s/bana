@@ -786,6 +786,22 @@ impl Graph {
         Ok(())
     }
 
+    /// A field value for this place only, on a reference node (spec 01 §3, "Notes and fields for
+    /// this context"). Empty text removes it.
+    pub fn set_context_field(&mut self, reference: NodeId, field: NodeId, text: &str) -> Result<()> {
+        if self.node(reference)?.reference_target().is_none() {
+            return Err(Error::Invalid("context fields belong to references".into()));
+        }
+        self.field_def(field).ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
+        let value = if text.trim().is_empty() { None } else { Some(self.parse_field_text(field, text)?) };
+        let n = self.node_mut(reference)?;
+        n.fields.retain(|e| e.field != field);
+        if let Some(v) = value {
+            n.fields.push(FieldEntry::new(field, Some(v)));
+        }
+        Ok(())
+    }
+
     /// `Some(done)` shows a checkbox, `None` hides it.
     pub fn set_done(&mut self, id: NodeId, done: Option<bool>) -> Result<()> {
         let target = self.resolve(id);

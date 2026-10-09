@@ -1064,3 +1064,18 @@ fn command_nodes_run_their_steps_as_one_undo_step() {
     let nested = id(&run(&mut s, "commandNode.create", json!({"name": "Loop", "steps": ["commandNode.run {\"command\": \"Loop\"}"]})), "id");
     assert!(s.run("commandNode.run", &json!({"command": nested.0, "node": n.0})).is_err(), "no nesting");
 }
+
+#[test]
+fn context_fields_live_on_the_reference() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Ada"})), "id");
+    let b = id(&run(&mut s, "node.add", json!({"name": "Team"})), "id");
+    let r = id(&run(&mut s, "node.reference", json!({"target": a.0, "parent": b.0})), "id");
+    run(&mut s, "node.contextField", json!({"node": r.0, "field": "Role", "value": "Lead"}));
+    let role = s.graph.find_field("Role").unwrap();
+    assert_eq!(s.graph.get(r).unwrap().field_values(role).len(), 1);
+    assert!(s.graph.get(a).unwrap().fields.is_empty(), "the person is untouched");
+    run(&mut s, "node.contextField", json!({"node": r.0, "field": "Role", "value": ""}));
+    assert!(s.graph.get(r).unwrap().fields.is_empty());
+    assert!(s.run("node.contextField", &json!({"node": a.0, "field": "Role", "value": "x"})).is_err());
+}

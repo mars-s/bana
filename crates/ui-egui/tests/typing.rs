@@ -1590,3 +1590,16 @@ fn command_line_runs_a_command_node_on_the_focused_node() {
     let g = &h.state().session.graph;
     assert_eq!(g.get(ids[0]).unwrap().tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>(), ["urgent"]);
 }
+
+#[test]
+fn context_fields_show_under_the_reference() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Ada", "Team"]);
+    let r = h.state_mut().exec("node.reference", json!({"target": ids[0].0, "parent": ids[1].0})).unwrap();
+    h.state_mut().exec("node.contextField", json!({"node": r["id"], "field": "Role", "value": "Lead"})).unwrap();
+    h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Role: Lead");
+}

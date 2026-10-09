@@ -708,7 +708,16 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         }
         _ => None,
     };
-    description_line(app, ui, t, target, &description, 14.0);
+    // Supertag and field pages invite a description (spec 03 §5, §6).
+    let invite = description.is_empty() && matches!(node.map(|n| &n.kind), Some(Kind::Tag(_) | Kind::Field(_)));
+    if invite && app.desc_edit.as_ref().is_none_or(|d| d.0 != target) {
+        if ui.add(egui::Label::new(RichText::new("Add description").size(14.0).color(t.faint)).sense(Sense::click())).clicked() {
+            app.desc_edit = Some((target, String::new()));
+            app.desc_focus = true;
+        }
+    } else {
+        description_line(app, ui, t, target, &description, 14.0);
+    }
     if let Some(nav) = nav {
         day_nav(app, ui, t, nav);
     }

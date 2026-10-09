@@ -110,6 +110,12 @@ pub struct TagDef {
     /// Builds tagged nodes' titles from fields: `${name}` then text and `${Field}` placeholders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title_expr: Option<String>,
+    /// Building block: suggested first in the `#` menu on nodes of these base types (spec 03 §5).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub promote_for: Vec<String>,
+    /// Building block: left out of searches and menus.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
 }
 
 /// Base types listed in the spec (03 §5).

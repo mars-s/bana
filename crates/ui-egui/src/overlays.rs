@@ -231,9 +231,9 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
         PickMode::Tag | PickMode::SearchTag => g
-            .tags()
+            .menu_tags(p.node)
             .into_iter()
-            .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
+            .filter(|t| g.name(*t).to_lowercase().contains(&q))
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
         PickMode::Field | PickMode::Column | PickMode::TemplateField | PickMode::OptionalField => g

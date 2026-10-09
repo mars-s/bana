@@ -948,3 +948,23 @@ fn settings_change_time_format_week_start_and_survive_save() {
     run(&mut s, "settings.set", json!({"key": "week_start", "value": "monday"}));
     assert_eq!(s.graph.week_start(sat), Date::new(2026, 10, 5).unwrap());
 }
+
+#[test]
+fn building_blocks_are_promoted_or_hidden_in_menus() {
+    // Spec 03 §5 Advanced options, building block.
+    let mut s = blank();
+    run(&mut s, "tag.create", json!({"name": "alpha"}));
+    run(&mut s, "tag.create", json!({"name": "meeting"}));
+    run(&mut s, "tag.setBaseType", json!({"tag": "meeting", "base": "meeting"}));
+    run(&mut s, "tag.create", json!({"name": "agenda item"}));
+    run(&mut s, "tag.create", json!({"name": "internal"}));
+    let n = id(&run(&mut s, "node.add", json!({"name": "Standup"})), "id");
+    run(&mut s, "tag.add", json!({"node": n.0, "tag": "meeting"}));
+    run(&mut s, "tag.setBuildingBlock", json!({"tag": "agenda item", "promoteFor": ["meeting"]}));
+    run(&mut s, "tag.setBuildingBlock", json!({"tag": "internal", "hide": true}));
+    let names: Vec<String> = s.graph.menu_tags(n).iter().map(|t| s.graph.name(*t).to_string()).collect();
+    assert_eq!(names.first().map(String::as_str), Some("agenda item"));
+    assert!(!names.contains(&"internal".to_string()));
+    assert!(s.graph.fuzzy("internal", 5).is_empty(), "hidden from Search and open");
+    assert!(s.run("tag.setBuildingBlock", &json!({"tag": "alpha", "promoteFor": ["spaceship"]})).is_err());
+}

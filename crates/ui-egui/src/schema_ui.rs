@@ -332,62 +332,91 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
             }
         }
     });
-    section(app, ui, t, "advanced", "Advanced options", "Title expression, default child supertag, related content, shortcuts", |app, ui| {
-        let g = &app.session.graph;
-        row(ui, t, "Build title from fields", |ui| {
-            let id = egui::Id::new(("title-expr", tag.0));
-            let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| def.title_expr.clone().unwrap_or_default());
-            let r =
-                ui.add(egui::TextEdit::singleline(&mut buf).font(egui::TextStyle::Monospace).hint_text("${name} (${Field})").desired_width(300.0));
-            if r.lost_focus() {
-                acts.push(Act::Run("tag.setTitleExpression".into(), json!({"tag": tag.0, "expression": buf})));
-                ui.data_mut(|d| d.remove::<String>(id));
-            } else if r.has_focus() {
-                ui.data_mut(|d| d.insert_temp(id, buf));
-            }
-        });
-        row(ui, t, "Default child supertag", |ui| {
-            let current = def.child_tag.map(|c| format!("#{}", g.name(c))).unwrap_or_else(|| "Select supertag for children".into());
-            egui::ComboBox::from_id_salt(("child", tag.0)).selected_text(current).show_ui(ui, |ui| {
-                if ui.selectable_label(def.child_tag.is_none(), "None").clicked() {
-                    acts.push(Act::Run("tag.setChildTag".into(), json!({"tag": tag.0, "child": "none"})));
+    section(
+        app,
+        ui,
+        t,
+        "advanced",
+        "Advanced options",
+        "Title expression, default child supertag, related content, building block, shortcuts",
+        |app, ui| {
+            let g = &app.session.graph;
+            row(ui, t, "Build title from fields", |ui| {
+                let id = egui::Id::new(("title-expr", tag.0));
+                let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| def.title_expr.clone().unwrap_or_default());
+                let r = ui
+                    .add(egui::TextEdit::singleline(&mut buf).font(egui::TextStyle::Monospace).hint_text("${name} (${Field})").desired_width(300.0));
+                if r.lost_focus() {
+                    acts.push(Act::Run("tag.setTitleExpression".into(), json!({"tag": tag.0, "expression": buf})));
+                    ui.data_mut(|d| d.remove::<String>(id));
+                } else if r.has_focus() {
+                    ui.data_mut(|d| d.insert_temp(id, buf));
                 }
-                for other in g.tags() {
-                    if other != g.sys.day_tag && ui.selectable_label(def.child_tag == Some(other), format!("#{}", g.name(other))).clicked() {
-                        acts.push(Act::Run("tag.setChildTag".into(), json!({"tag": tag.0, "child": other.0})));
+            });
+            row(ui, t, "Default child supertag", |ui| {
+                let current = def.child_tag.map(|c| format!("#{}", g.name(c))).unwrap_or_else(|| "Select supertag for children".into());
+                egui::ComboBox::from_id_salt(("child", tag.0)).selected_text(current).show_ui(ui, |ui| {
+                    if ui.selectable_label(def.child_tag.is_none(), "None").clicked() {
+                        acts.push(Act::Run("tag.setChildTag".into(), json!({"tag": tag.0, "child": "none"})));
                     }
-                }
-            });
-        });
-        row(ui, t, "Related content", |ui| {
-            ui.vertical(|ui| {
-                for r in def.related.iter().filter(|r| g.get(**r).is_some()) {
-                    ui.horizontal(|ui| {
-                        ui.label(g.name(*r));
-                        if ui.small_button("x").on_hover_text("Remove related content").clicked() {
-                            acts.push(Act::Run("tag.removeRelated".into(), json!({"tag": tag.0, "node": r.0})));
+                    for other in g.tags() {
+                        if other != g.sys.day_tag && ui.selectable_label(def.child_tag == Some(other), format!("#{}", g.name(other))).clicked() {
+                            acts.push(Act::Run("tag.setChildTag".into(), json!({"tag": tag.0, "child": other.0})));
                         }
-                    });
-                }
-                let id = egui::Id::new(("related-buf", tag.0));
-                let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
-                let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("Add a search (e.g. #task AND TODO), Enter").desired_width(300.0));
-                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
-                    acts.push(Act::Run("tag.addRelated".into(), json!({"tag": tag.0, "query": buf})));
-                    buf.clear();
-                }
-                ui.data_mut(|d| d.insert_temp(id, buf));
+                    }
+                });
             });
-        });
-        row(ui, t, "Shortcuts", |ui| {
-            let views: Vec<String> = def.views.iter().filter(|v| g.get(**v).is_some()).map(|v| g.name(*v).to_string()).collect();
-            ui.label(
-                RichText::new(if views.is_empty() { "The tag page's view tabs (add with + Add view)".into() } else { views.join(", ") })
-                    .size(13.0)
-                    .color(t.dim),
-            );
-        });
-    });
+            row(ui, t, "Related content", |ui| {
+                ui.vertical(|ui| {
+                    for r in def.related.iter().filter(|r| g.get(**r).is_some()) {
+                        ui.horizontal(|ui| {
+                            ui.label(g.name(*r));
+                            if ui.small_button("x").on_hover_text("Remove related content").clicked() {
+                                acts.push(Act::Run("tag.removeRelated".into(), json!({"tag": tag.0, "node": r.0})));
+                            }
+                        });
+                    }
+                    let id = egui::Id::new(("related-buf", tag.0));
+                    let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
+                    let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("Add a search (e.g. #task AND TODO), Enter").desired_width(300.0));
+                    if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
+                        acts.push(Act::Run("tag.addRelated".into(), json!({"tag": tag.0, "query": buf})));
+                        buf.clear();
+                    }
+                    ui.data_mut(|d| d.insert_temp(id, buf));
+                });
+            });
+            // Building block: base types it is suggested first for, and hiding it (spec 03 §5).
+            row(ui, t, "Building block: promote for", |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for b in BASE_TYPES {
+                        let on = def.promote_for.iter().any(|p| p == b);
+                        if ui.selectable_label(on, b).clicked() {
+                            let mut list: Vec<String> = def.promote_for.iter().filter(|p| *p != b).cloned().collect();
+                            if !on {
+                                list.push(b.to_string());
+                            }
+                            acts.push(Act::Run("tag.setBuildingBlock".into(), json!({"tag": tag.0, "promoteFor": list})));
+                        }
+                    }
+                });
+            });
+            row(ui, t, "Hide from searches and menus", |ui| {
+                let mut hide = def.hidden;
+                if ui.checkbox(&mut hide, "").changed() {
+                    acts.push(Act::Run("tag.setBuildingBlock".into(), json!({"tag": tag.0, "hide": hide})));
+                }
+            });
+            row(ui, t, "Shortcuts", |ui| {
+                let views: Vec<String> = def.views.iter().filter(|v| g.get(**v).is_some()).map(|v| g.name(*v).to_string()).collect();
+                ui.label(
+                    RichText::new(if views.is_empty() { "The tag page's view tabs (add with + Add view)".into() } else { views.join(", ") })
+                        .size(13.0)
+                        .color(t.dim),
+                );
+            });
+        },
+    );
     let g = &app.session.graph;
     ui.horizontal(|ui| {
         ui.label(RichText::new(format!("Used {} times", g.tagged(tag).len())).size(12.5).color(t.faint));

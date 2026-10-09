@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 70 | 19 | 4 | 2 |
-| Screenshots (160) | 134 | 20 | 5 | 1 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 71 | 18 | 4 | 2 |
+| Screenshots (160) | 135 | 19 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
@@ -34,7 +34,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields (several values), checkbox, heading, icon and banner, view settings, created/edited/done times, expansion, bullet states. Missing: edited-by (one local editor), per-place expansion. |
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference. Missing: per-context notes and fields (Alt+Cmd+Down), warn when editing referenced nodes. |
-| 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
+| 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Building block: promote for base types (first in the # menu), hide from searches and menus (`tag.setBuildingBlock`). Missing: AI settings (out of scope). |
 | 5. Fields | done | Nine types (plain, options, options from supertag, date with optional time range, number, URL, e-mail, checkbox, user), required, hide modes, auto-initialize, number range, option sources, auto-collect, used in; several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Tested. |
 | 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
 | 7. Workspaces | partial | All workspaces live in one graph, side by side: the main one is the root (Library, Schema, Daily notes, Inbox made on first use, Trash); further ones (`workspace.create`) have their own Library; nodes know their workspace (`WORKSPACE:` query condition). Missing (spec-gap): per-workspace Schema, Daily notes and Trash; members. |
@@ -62,7 +62,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
-| 16. Context menu on a node | partial | Open, expand, add tag/field/checkbox/description, heading, progress bar, pin, view as, duplicate, move to (also leaving a reference, top, bottom, move target), copy node link (pastes as an inline reference), move, indent, convert search, delete/restore. Missing: publish, edit log. |
+| 16. Context menu on a node | done | Open, expand, add tag/field/checkbox/description, heading, progress bar, pin, view as, duplicate, move to (also leaving a reference, top, bottom, move target), copy node link (pastes as an inline reference), move, indent, convert search, delete/restore, edit log (`node.editLog`). Publish is left out with sharing (no server). |
 
 ## `03-supertags-fields.md`
 
@@ -72,8 +72,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Tag page | done | Schema breadcrumb, coloured # badge and checkbox square, header glow, view tabs (Everything tagged, own views, + Add view), + Create new, help button, Configure, table by default. |
 | 3. Creating tags | done | # then Enter or Cmd+Enter creates and applies with an auto colour; Convert to supertag (`node.convertToSupertag`: children become template content, the node moves to the Schema and a reference stays). Tested. |
 | 4. Applying and removing tags | done | # menu, node menu, command; chip x removes. |
-| 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Missing: AI and Commands, Voice chat, building-block promotion, tag description. |
-| 6. Field definition panel | partial | Type, pre-determined options as a small outline (dashed rings, Empty line to add), sources of options (nodes whose children become options), auto-collect toggle, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows, field description. |
+| 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Building block promote-for chips and hide checkbox; Add description on the page. Missing: AI and Commands, Voice chat (AI, out of scope). |
+| 6. Field definition panel | partial | Type, pre-determined options as a small outline (dashed rings, Empty line to add), sources of options (nodes whose children become options), auto-collect toggle, source tag, min/max, auto-initialize, required, hide, used in. Add description on the page. Fields always live in Schema here, so they are discoverable from the start (spec-gap: no local fields). Missing: AI rows (out of scope). |
 | 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
 | 8. Field value pickers | partial | Options picker (other options, auto-collected values, create), options-from-supertag picker listing tagged nodes (Tag as #X to create), date picker with ISO week numbers, today circle, selected day, time range and OK (day click alone no longer commits; the opening click no longer closes it), number, checkbox, URL/email as plain text. User fields pick from known names. Missing: date ranges across days. Tested. |
 | 9. Required, hidden, pinned and invalid fields | done | Empty required fields show an amber ?; invalid URL and e-mail values are kept and get the same ? (Not a valid value); hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows; pinned fields come first in view menus. Tested. |
@@ -179,7 +179,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `15-configure-supertag-task.png` | partial | Configure panel to the right with colour row and collapsible cards; no AI or voice sections. |
 | `16-supertag-content-template.png` | partial | Content template with fields and nodes. |
 | `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
-| `18-supertag-advanced.png` | partial | Default child supertag only. |
+| `18-supertag-advanced.png` | done | Advanced options: title expression, default child supertag, related content, building block (promote for, hide), shortcuts. Tested. |
 | `19-field-config-options.png` | partial | Field page options. |
 | `20-field-type-dropdown.png` | done | Field types including User. |
 | `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |

@@ -391,6 +391,18 @@ pub fn registry() -> Registry {
         C::new("tag.addRelated", "Add related content", "Supertag", tag_add_related)
             .params(r#"{"tag": name | id, "query": string, "name"?: string}"#),
         C::new("tag.removeRelated", "Remove related content", "Supertag", tag_remove_related).params(r#"{"tag": name | id, "node": id}"#),
+        C::new("tag.setBuildingBlock", "Building block options", "Supertag", |s, v| {
+            let tag = tag_param(s, v, "tag", false)?;
+            let promote = match v.get("promoteFor") {
+                None | Some(Value::Null) => None,
+                Some(Value::Array(a)) => Some(a.iter().filter_map(Value::as_str).map(|b| b.trim().to_lowercase()).collect()),
+                Some(_) => return Err(CmdError::Params("`promoteFor` is a list of base types".into())),
+            };
+            s.graph.tag_set_building_block(tag, promote, p::bool(v, "hide"))?;
+            let d = s.graph.tag_def(tag).cloned().unwrap_or_default();
+            Ok(json!({"tag": tag.0, "promoteFor": d.promote_for, "hide": d.hidden}))
+        })
+        .params(r#"{"tag": name | id, "promoteFor"?: [string], "hide"?: bool}  (promoteFor: base types this supertag is suggested first for; hide: leave it out of searches and menus)"#),
         C::new("tag.setChildTag", "Default child supertag", "Supertag", tag_set_child_tag).params(r#"{"tag": name | id, "child"?: name | id}"#),
         C::new("tag.setBaseType", "Base type", "Supertag", tag_set_base_type).params(r#"{"tag": name | id, "base"?: "task|meeting|person|..."}"#),
         C::new("tag.addTemplateNode", "Add template content", "Supertag", tag_add_template_node).params(r#"{"tag": name | id, "name": string}"#),

@@ -336,9 +336,10 @@ pub fn searchable(g: &Graph, id: NodeId) -> bool {
     }
 }
 
-/// Any node a type operator may find: not built-in, not a reference, not trashed.
+/// Any node a type operator may find: not built-in, not a reference, not trashed, not a hidden
+/// building block.
 fn candidate(g: &Graph, id: NodeId) -> bool {
-    g.get(id).is_some_and(|n| n.reference_target().is_none()) && !g.is_system(id) && !g.in_trash(id)
+    g.get(id).is_some_and(|n| n.reference_target().is_none()) && !g.is_system(id) && !g.in_trash(id) && !g.tag_def(id).is_some_and(|d| d.hidden)
 }
 
 fn within(t: u64, days: u32) -> bool {

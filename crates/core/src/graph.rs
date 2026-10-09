@@ -310,7 +310,9 @@ impl Graph {
         let mut hits: Vec<(i64, NodeId)> = self
             .nodes
             .values()
-            .filter(|n| n.reference_target().is_none() && !self.is_system(n.id) && !self.in_trash(n.id))
+            .filter(|n| {
+                n.reference_target().is_none() && !self.is_system(n.id) && !self.in_trash(n.id) && !self.tag_def(n.id).is_some_and(|d| d.hidden)
+            })
             .filter_map(|n| fuzzy_score(&q, &self.text(n.id).to_lowercase()).map(|s| (s, n.id)))
             .collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
@@ -460,6 +462,36 @@ impl Graph {
         } else {
             ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         }
+    }
+
+    /// Supertags offered in the `#` menu for `node`: hidden building blocks left out, the ones
+    /// promoted for the base types of the node's supertags first (spec 03 §5).
+    pub fn menu_tags(&self, node: NodeId) -> Vec<NodeId> {
+        let bases: Vec<String> = self
+            .get(self.resolve(node))
+            .map(|n| n.tags.iter().flat_map(|t| self.tag_lineage(*t)).filter_map(|t| self.tag_def(t).and_then(|d| d.base_type.clone())).collect())
+            .unwrap_or_default();
+        let mut tags: Vec<NodeId> =
+            self.tags().into_iter().filter(|t| *t != self.sys.day_tag && self.tag_def(*t).is_some_and(|d| !d.hidden)).collect();
+        // Stable: promoted ones move to the front, the rest keep their order.
+        tags.sort_by_key(|t| !self.tag_def(*t).is_some_and(|d| d.promote_for.iter().any(|b| bases.contains(b))));
+        tags
+    }
+
+    pub fn tag_set_building_block(&mut self, tag: NodeId, promote_for: Option<Vec<String>>, hidden: Option<bool>) -> Result<()> {
+        if let Some(p) = &promote_for
+            && let Some(bad) = p.iter().find(|b| !BASE_TYPES.contains(&b.as_str()))
+        {
+            return Err(Error::Invalid(format!("`{bad}` is not a base type ({})", BASE_TYPES.join(", "))));
+        }
+        let d = self.tag_def_mut(tag)?;
+        if let Some(p) = promote_for {
+            d.promote_for = p;
+        }
+        if let Some(h) = hidden {
+            d.hidden = h;
+        }
+        Ok(())
     }
 
     /// Changing settings is a change to save (not an undo step).

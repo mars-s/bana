@@ -1458,3 +1458,32 @@ fn settings_sub_pages_change_time_format_and_sidebar() {
     assert!(h.query_by_label("Recents").is_none(), "hidden from the sidebar");
     h.get_by_label("Show Recents in sidebar");
 }
+
+#[test]
+fn tag_and_field_pages_take_a_description_and_tags_have_building_block_options() {
+    // Spec 03 §5 and §6.
+    let mut h = harness();
+    h.state_mut().exec("field.create", json!({"name": "Budget", "type": "number"})).unwrap();
+    let fid = h.state().session.graph.find_field("Budget").unwrap();
+    h.state_mut().exec("nav.open", json!({"node": fid.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Add description").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, "How much it may cost");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert_eq!(h.state().session.graph.get(fid).unwrap().description, "How much it may cost");
+    h.state_mut().exec("tag.create", json!({"name": "agenda"})).unwrap();
+    let tag = h.state().session.graph.find_tag("agenda").unwrap();
+    h.state_mut().exec("nav.open", json!({"node": tag.0})).unwrap();
+    h.state_mut().exec("ui.configureSupertag", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.query_all_by_label("Add description").count() >= 1);
+    h.get_by_label("Hide from searches and menus");
+    h.get_by_label("Building block: promote for");
+}

@@ -252,7 +252,7 @@ fn run_on(graph: Graph, seed: u64, steps: usize) {
                 assert_eq!(snapshot(&s.graph), after, "{}: redo did not restore the graph", ctx());
             }
         }
-        if step % 20 == 0 || step + 1 == steps {
+        if step % 20 == 0 || step + 1 == steps || std::env::var("FUZZ_EVERY").is_ok() {
             let text = s.graph.to_json().unwrap_or_else(|e| panic!("{}: save: {e}", ctx()));
             let back = Graph::from_json(&text).unwrap_or_else(|e| panic!("{}: load: {e}", ctx()));
             // (Saving drops empty format marks, DIFFS N19.)
@@ -268,6 +268,12 @@ fn run_on(graph: Graph, seed: u64, steps: usize) {
             if again != text {
                 panic!("{}: save/load is not stable\n{}", ctx(), first_diff(&text, &again));
             }
+            // The Loro document (the real file format), written incrementally since the last
+            // save, holds the same graph.
+            let bytes = s.graph.to_snapshot().unwrap_or_else(|e| panic!("{}: snapshot: {e}", ctx()));
+            let doc = Graph::from_snapshot(&bytes).unwrap_or_else(|e| panic!("{}: from snapshot: {e}", ctx()));
+            let z = serde_json::to_string_pretty(&snapshot(&doc)).unwrap_or_default();
+            assert!(x == z, "{}: the Loro document differs from the graph\n{}", ctx(), first_diff(&x, &z));
         }
     }
     // Undoing everything never breaks the graph either.

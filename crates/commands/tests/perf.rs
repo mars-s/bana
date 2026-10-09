@@ -51,6 +51,18 @@ fn fifty_thousand_nodes_stay_fast() {
     let save = time(2, || s.graph.to_json().unwrap_or_else(|e| panic!("{e}")));
     let json = s.graph.to_json().unwrap_or_else(|e| panic!("{e}"));
     let load = time(2, || Graph::from_json(&json).unwrap_or_else(|e| panic!("{e}")));
+    // The real file: the Loro document. The first write puts in every node; later ones only what
+    // changed (autosave while typing).
+    let t = Instant::now();
+    let doc = s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}"));
+    let first_doc = t.elapsed();
+    let mut text = s.graph.name(item).to_string();
+    let doc_save = time(5, || {
+        text.push('y');
+        s.run("node.setName", &json!({"node": item.0, "name": text})).unwrap_or_else(|e| panic!("{e}"));
+        s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}")).len()
+    });
+    let doc_load = time(1, || Graph::from_snapshot(&doc).unwrap_or_else(|e| panic!("{e}")));
 
     println!("generated {nodes} nodes in {}; {rows} visible rows", ms(build));
     println!("rows (whole expanded outline): {}", ms(rows_t));
@@ -62,6 +74,9 @@ fn fifty_thousand_nodes_stay_fast() {
     println!("search (fuzzy, Search and open): {}", ms(fuzzy));
     println!("save to JSON:                  {}", ms(save));
     println!("load from JSON:                {}", ms(load));
+    println!("first Loro write (all nodes):  {} ({} KB)", ms(first_doc), doc.len() / 1024);
+    println!("autosave (type, then save):    {}", ms(doc_save));
+    println!("load the Loro document:        {}", ms(doc_load));
 
     assert!(nodes >= 50_000);
     // Generous budgets so a debug build passes; release is far under them.

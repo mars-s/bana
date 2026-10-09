@@ -103,6 +103,10 @@ pub struct Graph {
     undo: Vec<Step>,
     redo: Vec<Step>,
     dirty: bool,
+    /// The durable, mergeable copy (a Loro document). Written from `changed` on save and export.
+    store: crate::store::Store,
+    /// Nodes changed (or gone) since the store was last written.
+    changed: BTreeSet<NodeId>,
 }
 
 impl Default for Graph {
@@ -134,6 +138,8 @@ impl Graph {
             undo: Vec::new(),
             redo: Vec::new(),
             dirty: false,
+            store: crate::store::Store::new(),
+            changed: BTreeSet::new(),
         };
         let mut root = Node::new(ids.root, "Workspace", None);
         root.children = vec![ids.library, ids.journal, ids.schema, ids.trash];
@@ -147,6 +153,7 @@ impl Graph {
         if let Some(s) = g.nodes.get_mut(&ids.schema) {
             s.children.push(ids.day_tag);
         }
+        g.changed = g.nodes.keys().copied().collect();
         g
     }
 
@@ -715,6 +722,7 @@ impl Graph {
     fn apply(&mut self, images: PreImages) -> PreImages {
         let mut before = PreImages::new();
         for (id, img) in images {
+            self.changed.insert(id);
             let old = match img {
                 Some(n) => self.nodes.insert(id, n),
                 None => self.nodes.remove(&id),
@@ -728,6 +736,7 @@ impl Graph {
         if let Some(t) = self.txn.as_mut() {
             t.entry(id).or_insert_with(|| self.nodes.get(&id).cloned());
         }
+        self.changed.insert(id);
         self.dirty = true;
     }
 
@@ -1927,8 +1936,11 @@ impl Graph {
             undo: Vec::new(),
             redo: Vec::new(),
             dirty: false,
+            store: crate::store::Store::new(),
+            changed: BTreeSet::new(),
         };
         g.rehome_unreachable();
+        g.changed = g.nodes.keys().copied().collect();
         Ok(g)
     }
 
@@ -1976,19 +1988,144 @@ impl Graph {
         }
     }
 
-    /// Saves atomically (write a temp file, then rename).
+    /// Saves atomically (write a temp file, then rename). The file is the Loro document (see
+    /// [`crate::store`]); [`Graph::to_json`] stays as an export.
     pub fn save(&mut self, path: &std::path::Path) -> Result<()> {
-        let text = self.to_json()?;
+        let bytes = self.to_snapshot()?;
         let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, text).map_err(|e| Error::Io(e.to_string()))?;
+        std::fs::write(&tmp, bytes).map_err(|e| Error::Io(e.to_string()))?;
         std::fs::rename(&tmp, path).map_err(|e| Error::Io(e.to_string()))?;
         self.dirty = false;
         Ok(())
     }
 
+    /// Loads a graph file: a Loro document, or (once, from older versions) a JSON graph file. A JSON
+    /// file is copied to `<name>.json-backup` first; the next save writes the new format.
     pub fn load(path: &std::path::Path) -> Result<Graph> {
-        let text = std::fs::read_to_string(path).map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
-        Graph::from_json(&text)
+        let bytes = std::fs::read(path).map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
+        if crate::store::Store::is_ours(&bytes) {
+            return Graph::from_snapshot(&bytes);
+        }
+        let text = String::from_utf8(bytes).map_err(|e| Error::Format(e.to_string()))?;
+        let g = Graph::from_json(&text)?;
+        let backup = path.with_extension("json-backup");
+        if !backup.exists() {
+            std::fs::write(&backup, &text).map_err(|e| Error::Io(format!("{}: {e}", backup.display())))?;
+        }
+        Ok(g)
+    }
+
+    // ---- the Loro document: snapshots and merging ----------------------------------------------
+
+    /// Writes every change into the document.
+    fn flush(&mut self) -> Result<()> {
+        // (Inside a transaction is fine: an abort puts nodes back through `apply`, which marks them
+        // changed again.)
+        let meta = crate::store::Meta {
+            sys: serde_json::to_value(self.sys).map_err(|e| Error::Format(e.to_string()))?,
+            settings: serde_json::to_value(&self.settings).map_err(|e| Error::Format(e.to_string()))?,
+            expanded: self.expanded.iter().copied().collect(),
+        };
+        // Empty format marks of a line still being typed are not saved (DIFFS N19).
+        let changed = std::mem::take(&mut self.changed);
+        let mut view: BTreeMap<NodeId, Node> = BTreeMap::new();
+        let nodes: &BTreeMap<NodeId, Node> = if changed.iter().any(|c| self.nodes.get(c).is_some_and(|n| n.name.contains(['*', '_', '=', '`']))) {
+            view = self.nodes.clone();
+            for c in &changed {
+                if let Some(n) = view.get_mut(c) {
+                    n.name = crate::format::strip_empty(&n.name, 0).0;
+                }
+            }
+            &view
+        } else {
+            &self.nodes
+        };
+        let r = self.store.flush(nodes, &changed, Some(&meta));
+        drop(view);
+        if r.is_err() {
+            self.changed.extend(changed);
+        }
+        r
+    }
+
+    /// The whole graph as a Loro snapshot (what [`Graph::save`] writes).
+    pub fn to_snapshot(&mut self) -> Result<Vec<u8>> {
+        self.flush()?;
+        self.store.snapshot()
+    }
+
+    /// A graph from a Loro snapshot (or updates), repaired like a loaded file.
+    pub fn from_snapshot(bytes: &[u8]) -> Result<Graph> {
+        let store = crate::store::Store::from_bytes(bytes)?;
+        let mut g = Graph::new();
+        g.store = store;
+        g.reload_from_store()?;
+        Ok(g)
+    }
+
+    /// The document's version: pass it to [`Graph::updates_since`] on another copy.
+    pub fn version(&mut self) -> Result<loro::VersionVector> {
+        self.flush()?;
+        Ok(self.store.version())
+    }
+
+    /// This copy's changes since `since` (another copy's [`Graph::version`]).
+    pub fn updates_since(&mut self, since: &loro::VersionVector) -> Result<Vec<u8>> {
+        self.flush()?;
+        self.store.updates_since(since)
+    }
+
+    /// Merges another copy's changes (a snapshot or updates) into this graph. Undo history is
+    /// cleared: it would otherwise undo the other copy's edits too.
+    pub fn merge(&mut self, bytes: &[u8]) -> Result<()> {
+        self.flush()?;
+        self.store.import(bytes)?;
+        self.reload_from_store()?;
+        self.undo.clear();
+        self.redo.clear();
+        self.dirty = true;
+        Ok(())
+    }
+
+    /// Rebuilds the nodes from the document, then repairs them like a loaded file.
+    fn reload_from_store(&mut self) -> Result<()> {
+        let block = crate::store::id_block(self.store.peer());
+        let mut next = self.next_id.max(block + 1);
+        let max_existing = std::cell::Cell::new(0u64);
+        let (nodes, meta, _renamed) = {
+            let mut fresh = || {
+                let id = NodeId(next.max(max_existing.get() + 1));
+                next = id.0 + 1;
+                id
+            };
+            self.store.read(&mut fresh)?
+        };
+        let Some(meta) = meta else { return Err(Error::Format("not a TanaCraft document".into())) };
+        let file = GraphFile {
+            format: FORMAT.to_string(),
+            version: 1,
+            next_id: 0,
+            system: serde_json::from_value(meta.sys).map_err(|e| Error::Format(e.to_string()))?,
+            expanded: meta.expanded,
+            settings: serde_json::from_value(meta.settings).unwrap_or_default(),
+            nodes: nodes.values().cloned().collect(),
+        };
+        let text = serde_json::to_string(&file).map_err(|e| Error::Format(e.to_string()))?;
+        let mut g = Graph::from_json(&text)?;
+        // New ids go in this copy's own block (two copies edited apart never collide).
+        let in_block = g.nodes.keys().map(|k| k.0).filter(|k| (block..block + (1 << 32)).contains(k)).max();
+        g.next_id = in_block.map_or(block + 1, |m| m + 1).max(next);
+        // Only what the repair changed needs writing back.
+        let store = std::mem::take(&mut self.store);
+        let fresh_nodes = std::mem::take(&mut g.nodes);
+        g.changed.clear();
+        *self = Graph { store, nodes: fresh_nodes, ..g };
+        // What the repair changed (if anything) is written back.
+        self.changed = self.nodes.iter().filter(|(id, n)| nodes.get(id) != Some(n)).map(|(id, _)| *id).collect();
+        self.changed.extend(nodes.keys().filter(|id| !self.nodes.contains_key(id)));
+        self.flush()?;
+        self.dirty = false;
+        Ok(())
     }
 }
 

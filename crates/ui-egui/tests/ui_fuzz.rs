@@ -153,3 +153,46 @@ fn random_keys_never_crash_the_ui() {
         run_seed(seed, events);
     }
 }
+
+/// A file with broken links (references to nothing, views naming missing fields) opens and every
+/// view draws without a panic.
+#[test]
+fn damaged_files_draw_in_every_view() {
+    let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
+    let g = sample::sample(today).unwrap_or_else(|e| panic!("{e}"));
+    let mut file: serde_json::Value = serde_json::from_str(&g.to_json().unwrap_or_default()).unwrap_or_default();
+    let lib = g.sys.library.0;
+    if let Some(nodes) = file["nodes"].as_array_mut() {
+        for n in nodes.iter_mut() {
+            if n["id"] == lib {
+                n["view"] = json!({"kind": "table", "columns": [999_994, 3], "date_field": 3, "sort": [{"by": {"by": "field", "field": 999_993}}], "group": {"by": "field", "field": 999_992}});
+            }
+        }
+        let broken = json!({"id": 990_001, "name": "", "kind": {"type": "reference", "target": 999_997}, "parent": lib});
+        nodes.push(broken);
+        if let Some(c) = nodes.iter_mut().find(|n| n["id"] == lib).and_then(|l| l["children"].as_array_mut()) {
+            c.push(json!(990_001));
+        }
+    }
+    let graph = Graph::from_json(&file.to_string()).unwrap_or_else(|e| panic!("{e}"));
+    let s = Session::with_today(graph, today);
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().exec("nav.open", json!({"node": lib})).ok();
+    for kind in ["table", "cards", "board", "lanes", "list", "side_menu", "tabs", "calendar", "outline"] {
+        h.state_mut().exec("view.set", json!({"node": lib, "kind": kind})).ok();
+        for _ in 0..3 {
+            h.step();
+        }
+    }
+    h.state_mut().exec("view.expandAll", json!({})).ok();
+    h.step();
+}

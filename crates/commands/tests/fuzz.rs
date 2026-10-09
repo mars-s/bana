@@ -204,9 +204,14 @@ fn snapshot(g: &Graph) -> Value {
 }
 
 fn run_seed(seed: u64, steps: usize) {
-    let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
     let graph = if seed.is_multiple_of(3) { Graph::new() } else { sample::sample(today).unwrap_or_else(|e| panic!("sample: {e}")) };
+    run_on(graph, seed, steps);
+}
+
+fn run_on(graph: Graph, seed: u64, steps: usize) {
+    let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
+    let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
     let mut s = Session::with_today(graph, today);
     let specs: Vec<(&'static str, &'static str, bool)> =
         s.registry.all().iter().filter(|c| !SKIP.contains(&c.id)).map(|c| (c.id, c.params, c.mutates)).collect();
@@ -221,6 +226,7 @@ fn run_seed(seed: u64, steps: usize) {
         }
         if let Ok(dir) = std::env::var("FUZZ_DUMP")
             && env("FUZZ_DUMP_STEP", u64::MAX) == step as u64
+            && env("FUZZ_DUMP_SEED", seed) == seed
         {
             let _ = std::fs::write(format!("{dir}/graph.json"), s.graph.to_json().unwrap_or_default());
             let _ = std::fs::write(format!("{dir}/cmd.txt"), format!("{id}={v}"));
@@ -285,7 +291,7 @@ fn random_command_sequences_keep_the_graph_sound() {
 #[test]
 fn damaged_files_load_into_a_sound_graph() {
     let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
-    for seed in 1..200u64 {
+    for seed in 1..env("FUZZ_DAMAGED", 200) {
         let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
         let g = sample::sample(today).unwrap_or_else(|e| panic!("sample: {e}"));
         let mut file: Value = serde_json::from_str(&g.to_json().unwrap_or_default()).unwrap_or_default();
@@ -294,9 +300,17 @@ fn damaged_files_load_into_a_sound_graph() {
             let i = r.below(nodes.len());
             let j = r.below(nodes.len());
             let other = nodes[j]["id"].clone();
-            match r.below(3) {
+            match r.below(7) {
                 0 => nodes[i]["children"] = json!([other, 999_999]),
                 1 => nodes[i]["parent"] = other,
+                // Links to nodes that are not there, or are the wrong kind.
+                2 => nodes[i]["tags"] = json!([other, 999_998]),
+                3 => nodes[i]["kind"] = json!({"type": "reference", "target": 999_997}),
+                4 => nodes[i]["fields"] = json!([{"field": other, "value": {"type": "node", "value": 999_996}}, {"field": 999_995, "value": null}]),
+                5 => {
+                    nodes[i]["view"] =
+                        json!({"kind": "calendar", "columns": [999_994], "date_field": other, "sort": [{"by": {"by": "field", "field": 999_993}}]})
+                }
                 _ => {
                     let me = nodes[i]["id"].clone();
                     nodes[j]["children"] = json!([me.clone()]);
@@ -307,6 +321,8 @@ fn damaged_files_load_into_a_sound_graph() {
         let text = file.to_string();
         if let Ok(g) = Graph::from_json(&text) {
             check_invariants(&g, &format!("damaged file seed {seed}"));
+            // And the app keeps working on it: random commands, no crash, sound after each.
+            run_on(g, seed, 120);
         }
     }
 }

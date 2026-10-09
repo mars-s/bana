@@ -981,6 +981,36 @@ impl Graph {
             }
             self.remove(n);
         }
+        // A supertag or field that is gone leaves no tags, field entries or template slots behind.
+        let gone: Vec<NodeId> = seen.into_iter().collect();
+        let users: Vec<NodeId> = self
+            .nodes
+            .values()
+            .filter(|n| {
+                n.tags.iter().any(|t| gone.contains(t))
+                    || n.fields.iter().any(|e| gone.contains(&e.field))
+                    || matches!(&n.kind, Kind::Tag(d) if d.extends.iter().chain(&d.fields).chain(&d.optional).chain(&d.pinned_fields).any(|x| gone.contains(x))
+                        || d.child_tag.is_some_and(|c| gone.contains(&c))
+                        || d.done_map.as_ref().is_some_and(|m| gone.contains(&m.field)))
+            })
+            .map(|n| n.id)
+            .collect();
+        for u in users {
+            let n = self.node_mut(u)?;
+            n.tags.retain(|t| !gone.contains(t));
+            n.fields.retain(|e| !gone.contains(&e.field));
+            if let Kind::Tag(d) = &mut n.kind {
+                for list in [&mut d.extends, &mut d.fields, &mut d.optional, &mut d.pinned_fields] {
+                    list.retain(|x| !gone.contains(x));
+                }
+                if d.child_tag.is_some_and(|c| gone.contains(&c)) {
+                    d.child_tag = None;
+                }
+                if d.done_map.as_ref().is_some_and(|m| gone.contains(&m.field)) {
+                    d.done_map = None;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1005,6 +1035,10 @@ impl Graph {
     pub fn merge_into(&mut self, src: NodeId, dst: NodeId) -> Result<usize> {
         if src == dst || self.is_ancestor_or_self(src, dst) {
             return Err(Error::Invalid("cannot merge a node into itself".into()));
+        }
+        // Only content merges: a supertag, field, search or calendar node is not text to join.
+        if self.is_system(src) || !matches!(self.node(src)?.kind, Kind::Plain | Kind::Reference { .. }) {
+            return Err(Error::Invalid("only a plain node can be merged into another".into()));
         }
         let dst_t = self.resolve(dst);
         let caret = self.node(dst_t)?.name.chars().count();
@@ -1250,8 +1284,11 @@ impl Graph {
     }
 
     fn ensure_fields(&mut self, node: NodeId, fields: &[NodeId]) -> Result<()> {
-        let missing: Vec<NodeId> =
-            fields.iter().copied().filter(|f| self.get(node).is_some_and(|n| !n.fields.iter().any(|e| e.field == *f))).collect();
+        let missing: Vec<NodeId> = fields
+            .iter()
+            .copied()
+            .filter(|f| self.field_def(*f).is_some() && self.get(node).is_some_and(|n| !n.fields.iter().any(|e| e.field == *f)))
+            .collect();
         for f in missing {
             let value = self.field_def(f).and_then(|d| d.default.clone());
             self.node_mut(node)?.fields.push(FieldEntry::new(f, value));
@@ -1769,6 +1806,39 @@ impl Graph {
         for id in [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag] {
             if !nodes.contains_key(&id) {
                 return Err(Error::Format(format!("built-in node {id} is missing")));
+            }
+        }
+        // Repair kinds and links: built-in nodes keep their kind, a reference points at a node and
+        // owns nothing (else it becomes a plain node holding what it had), tags are supertags and
+        // fields are fields.
+        let kinds: BTreeMap<NodeId, (bool, bool)> =
+            nodes.values().map(|n| (n.id, (matches!(n.kind, Kind::Tag(_)), matches!(n.kind, Kind::Field(_))))).collect();
+        for n in nodes.values_mut() {
+            let builtin = [s.root, s.library, s.journal, s.schema, s.trash].contains(&n.id);
+            if builtin && n.kind != Kind::Plain {
+                n.kind = Kind::Plain;
+            }
+            if n.id == s.day_tag && !matches!(n.kind, Kind::Tag(_)) {
+                n.kind = Kind::Tag(TagDef { color: "grey".into(), ..TagDef::default() });
+            }
+            // (A reference to a node that is gone stays, shown as broken.)
+            if let Kind::Reference { target } = n.kind
+                && (target == n.id || !n.children.is_empty() || !n.tags.is_empty())
+            {
+                n.kind = Kind::Plain;
+            }
+            let is_tag = |t: &NodeId| kinds.get(t).is_some_and(|k| k.0);
+            let is_field = |f: &NodeId| kinds.get(f).is_some_and(|k| k.1);
+            n.tags.retain(is_tag);
+            n.tags.dedup();
+            n.fields.retain(|e| is_field(&e.field));
+            if let Kind::Tag(d) = &mut n.kind {
+                d.extends.retain(is_tag);
+                for list in [&mut d.fields, &mut d.optional, &mut d.pinned_fields] {
+                    list.retain(is_field);
+                }
+                d.child_tag = d.child_tag.filter(is_tag);
+                d.done_map = d.done_map.take().filter(|m| is_field(&m.field));
             }
         }
         // Repair: children must exist and point back; each node listed by one parent at most.

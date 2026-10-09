@@ -1,0 +1,6 @@
+[alias]
+xtask = "run --package xtask --"
+
+[build]
+# Keep CPU use reasonable on a shared dev machine.
+jobs = 6

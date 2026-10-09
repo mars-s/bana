@@ -54,6 +54,7 @@ fn main() {
     for l in lines {
         if let Some(t) = l.get("theme").and_then(Value::as_str) {
             h.state_mut().dark = t != "light";
+            h.state_mut().system_theme = false;
         } else if let Some(id) = l.get("cmd").and_then(Value::as_str) {
             let params = l.get("params").cloned().unwrap_or(json!({}));
             let r = h.state_mut().exec(id, params);

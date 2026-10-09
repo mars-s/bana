@@ -266,6 +266,8 @@ pub struct TanaApp {
     /// Control-channel requests, handled once per frame.
     pub control: Option<std::sync::mpsc::Receiver<ControlRequest>>,
     pub dark: bool,
+    /// Follow the system's light or dark appearance (Settings > Preferences, DIFFS N23).
+    pub system_theme: bool,
     /// 0 = full, 1 = mini (icons), 2 = hidden. Mod+\\ cycles (spec 07 §1).
     pub sidebar: u8,
     pub tabs: Vec<Tab>,
@@ -336,8 +338,8 @@ pub struct TanaApp {
     pub settings_tab: usize,
     /// Window requests from commands, carried out in `logic` where the context is at hand.
     pub(crate) window_cmds: Vec<WindowCmd>,
-    /// Workspaces folded in the sidebar (all start open).
-    ws_closed: std::collections::HashSet<NodeId>,
+    /// Workspaces unfolded in the sidebar (they start folded, DIFFS N24).
+    ws_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
     /// Content width: 0 auto, 1 medium, 2 full (spec 07 §5).
     pub content_width: u8,
@@ -410,9 +412,10 @@ impl TanaApp {
             tag_filter: String::new(),
             closed_groups: Default::default(),
             pin_open: Default::default(),
-            ws_closed: Default::default(),
+            ws_open: Default::default(),
             window_cmds: Vec::new(),
             settings_tab: 0,
+            system_theme: true,
             warned_for: None,
             rich_clipboard: None,
             nav_title: None,
@@ -753,7 +756,7 @@ impl TanaApp {
             }
             "ui.singlePanel" => self.single_panel(),
             "ui.shortcuts" => self.help = !self.help,
-            "ui.toggleTheme" => self.dark = !self.dark,
+            "ui.toggleTheme" => (self.dark, self.system_theme) = (!self.dark, false),
             "ui.quit" => self.window_cmds.push(WindowCmd::Close),
             "ui.fullScreen" => self.window_cmds.push(WindowCmd::FullScreen),
             "ui.minimize" => self.window_cmds.push(WindowCmd::Minimize),
@@ -840,6 +843,11 @@ impl TanaApp {
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        if self.system_theme
+            && let Some(theme) = ctx.system_theme()
+        {
+            self.dark = theme == egui::Theme::Dark;
+        }
         // Arrow keys belong to the outline. egui's own arrow-key focus moving would carry the
         // keyboard off to a nearby button while typing (DIFFS N16), so it is cancelled.
         let arrows = ctx.input(|i| {
@@ -1380,7 +1388,26 @@ impl TanaApp {
         for ws in all {
             let g = &self.session.graph;
             let name = g.name(ws).to_string();
-            let open = !self.ws_closed.contains(&ws);
+            // Several workspaces: each row folds; open it shows Daily notes (the main one) and the
+            // workspace's pinned nodes, nothing for an empty one (DIFFS N24). The name opens its
+            // Library. One workspace keeps its Library, Daily notes and Trash rows.
+            let items: Vec<(Icon, String, NodeId)> = if several {
+                let mut v = Vec::new();
+                if ws == g.sys.root && g.settings.shows("daily_notes") {
+                    v.push((Icon::Calendar, "Daily notes".to_string(), g.sys.journal));
+                }
+                v.extend(g.pinned().into_iter().filter(|p| g.workspace_of(*p) == ws).map(|p| (Icon::Pin, g.name(p).to_string(), p)));
+                v
+            } else {
+                let mut v = vec![
+                    (Icon::Home, "Library".to_string(), g.sys.library),
+                    (Icon::Calendar, "Daily notes".to_string(), g.sys.journal),
+                    (Icon::Trash, "Trash".to_string(), g.sys.trash),
+                ];
+                v.retain(|(_, l, _)| l != "Daily notes" || g.settings.shows("daily_notes"));
+                v
+            };
+            let open = !several || self.ws_open.contains(&ws);
             let head = ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
                 ui.painter().circle_filled(r.center(), 9.0, avatar_color(&name, &t));
@@ -1390,41 +1417,37 @@ impl TanaApp {
             });
             let head = ui.interact(head.response.rect, egui::Id::new(("ws-head", ws.0)), Sense::click());
             if several {
-                // Chevron in the left gutter, as on pinned rows.
-                let chev = egui::Rect::from_center_size(head.rect.left_center() - vec2(8.0, 0.0), vec2(10.0, 20.0));
-                let c = ui.interact(chev, egui::Id::new(("ws-chev", ws.0)), Sense::click());
-                let m = chev.center();
-                let pts = if open {
-                    vec![m + vec2(-3.0, -1.5), m + vec2(3.0, -1.5), m + vec2(0.0, 2.5)]
-                } else {
-                    vec![m + vec2(-1.5, -3.0), m + vec2(2.5, 0.0), m + vec2(-1.5, 3.0)]
-                };
-                ui.painter().add(egui::Shape::convex_polygon(pts, t.faint, egui::Stroke::NONE));
-                if c.clicked() || head.clicked() {
-                    toggle_ws = Some(ws);
+                if head.clicked() {
+                    acts.push(Act::Run("nav.open".into(), json!({"node": g.workspace_library(ws).0})));
+                }
+                // Chevron in the left gutter, as on pinned rows; none when there is nothing inside.
+                if !items.is_empty() {
+                    let chev = egui::Rect::from_center_size(head.rect.left_center() - vec2(8.0, 0.0), vec2(10.0, 20.0));
+                    let c = ui.interact(chev, egui::Id::new(("ws-chev", ws.0)), Sense::click());
+                    let m = chev.center();
+                    let pts = if open {
+                        vec![m + vec2(-3.0, -1.5), m + vec2(3.0, -1.5), m + vec2(0.0, 2.5)]
+                    } else {
+                        vec![m + vec2(-1.5, -3.0), m + vec2(2.5, 0.0), m + vec2(-1.5, 3.0)]
+                    };
+                    ui.painter().add(egui::Shape::convex_polygon(pts, t.faint, egui::Stroke::NONE));
+                    if c.clicked() {
+                        toggle_ws = Some(ws);
+                    }
                 }
             } else {
                 egui::Popup::menu(&head).show(|ui| self.workspace_menu(ui, &mut acts));
             }
-            if !open && several {
+            if !open {
                 continue;
             }
             ui.add_space(2.0);
-            let g = &self.session.graph;
-            let items: Vec<(Icon, &str, NodeId)> = if ws == g.sys.root {
-                let mut v =
-                    vec![(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)];
-                v.retain(|(_, l, _)| *l != "Daily notes" || g.settings.shows("daily_notes"));
-                v
-            } else {
-                vec![(Icon::Home, "Library", g.workspace_library(ws)), (Icon::Trash, "Trash", g.workspace_trash(ws))]
-            };
             for (icon, label, id) in items {
                 ui.horizontal(|ui| {
                     if several {
                         ui.add_space(8.0);
                     }
-                    if side_item(ui, &t, icon, label, zoom == id).clicked() {
+                    if side_item(ui, &t, icon, &label, zoom == id).clicked() {
                         acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
                     }
                 });
@@ -1432,9 +1455,9 @@ impl TanaApp {
             ui.add_space(4.0);
         }
         if let Some(ws) = toggle_ws
-            && !self.ws_closed.remove(&ws)
+            && !self.ws_open.remove(&ws)
         {
-            self.ws_closed.insert(ws);
+            self.ws_open.insert(ws);
         }
         let manage = side_item(ui, &t, Icon::Building, "Manage workspaces", false);
         egui::Popup::menu(&manage).show(|ui| self.workspace_menu(ui, &mut acts));

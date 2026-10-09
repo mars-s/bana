@@ -273,7 +273,13 @@ pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     // Left nav of sub-pages, the form on the right (spec 07 §8, `66-settings-page.png`).
     const PAGES: [&str; 5] = ["Preferences", "Date and time", "Journaling", "Move targets", "Keybindings"];
+    // A breadcrumb like other pages (DIFFS N23); the page reopens on the section used last.
     ui.add_space(12.0);
+    ui.horizontal(|ui| {
+        ui.add_space(20.0);
+        ui.label(RichText::new("Settings").size(13.0).color(t.dim));
+    });
+    ui.add_space(6.0);
     ui.horizontal_top(|ui| {
         ui.add_space(LEFT * 0.5);
         ui.vertical(|ui| {
@@ -328,8 +334,13 @@ fn pref_row(ui: &mut Ui, t: &Tokens, label: &str, help: &str, on: &mut bool) -> 
 }
 
 fn preferences(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    let mut system = app.system_theme;
+    pref_row(ui, t, "Use system theme", "Light or dark as the system is set.", &mut system);
+    app.system_theme = system;
     let mut dark = app.dark;
-    pref_row(ui, t, "Dark mode", "Use the dark theme.", &mut dark);
+    if pref_row(ui, t, "Dark mode", "Use the dark theme (turns off the system theme).", &mut dark) {
+        app.system_theme = false;
+    }
     app.dark = dark;
     let mut full = app.sidebar == 0;
     if pref_row(ui, t, "Show sidebar", "Show the full sidebar (Cmd+\\ cycles full, mini, hidden).", &mut full) {

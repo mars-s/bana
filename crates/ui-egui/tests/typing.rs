@@ -913,6 +913,23 @@ fn diffs_n6_n14_workspaces_side_by_side_and_no_inbox_row() {
     h.get_by_label("Second");
     h.get_by_label("Workspace");
     h.get_by_label("Manage workspaces");
+    // DIFFS N24: workspace rows start folded and hold no Library or Trash rows of their own.
+    assert_eq!(h.query_all_by_label("Trash").count(), 0);
+}
+
+#[test]
+fn diffs_n23_settings_defaults_and_system_theme() {
+    let mut h = harness();
+    let st = &h.state().session.graph.settings;
+    assert!(st.warn_referenced && st.url_embeds, "both on by default");
+    h.state_mut().exec("ui.settings", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Use system theme");
+    assert!(h.query_all_by_label("Settings").count() >= 2, "breadcrumb and heading");
+    h.state_mut().exec("ui.toggleTheme", json!({})).unwrap();
+    assert!(!h.state().system_theme, "picking a theme stops following the system");
 }
 
 #[test]
@@ -1618,12 +1635,13 @@ fn context_fields_show_under_the_reference() {
 fn url_embeds_show_a_site_card_when_the_setting_is_on() {
     let mut h = harness();
     page_with(&mut h, &["https://www.example.org/garden/plan"]);
-    assert!(h.query_by_label("example.org").is_none());
-    h.state_mut().exec("settings.set", json!({"key": "url_embeds", "value": true})).unwrap();
+    // On by default (DIFFS N23); off hides the card.
+    h.get_by_label("example.org");
+    h.state_mut().exec("settings.set", json!({"key": "url_embeds", "value": false})).unwrap();
     for _ in 0..3 {
         h.step();
     }
-    h.get_by_label("example.org");
+    assert!(h.query_by_label("example.org").is_none());
 }
 
 #[test]

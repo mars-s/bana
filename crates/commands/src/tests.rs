@@ -937,7 +937,7 @@ fn settings_change_time_format_week_start_and_survive_save() {
     run(&mut s, "settings.set", json!({"key": "show_recents", "value": false}));
     let all = run(&mut s, "settings.set", json!({"key": "url_embeds", "value": true}));
     assert_eq!(all["url_embeds"], true);
-    assert_eq!(all["warn_referenced"], false);
+    assert_eq!(all["warn_referenced"], true, "on by default (DIFFS N23)");
     assert_eq!(s.graph.fmt_time(14 * 60 + 5), "2:05 PM");
     assert_eq!(s.graph.fmt_time(0), "12:00 AM");
     let sat = Date::new(2026, 10, 10).unwrap();

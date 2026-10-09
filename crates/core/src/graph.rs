@@ -48,7 +48,7 @@ struct Step {
 }
 
 /// Settings saved with the graph (Settings > Date/Time and Preferences, spec 07 §8). Not undoable.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Settings {
     /// Times read "2:30 PM" instead of "14:30".
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -60,12 +60,23 @@ pub struct Settings {
     /// `help`, `shortcuts`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden: Vec<String>,
-    /// Warn on the first edit of a node that is referenced elsewhere (spec 01 §3).
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// Warn on the first edit of a node that is referenced elsewhere (spec 01 §3). On by default
+    /// (DIFFS N23).
+    #[serde(default = "yes")]
     pub warn_referenced: bool,
-    /// A node that is just a link shows a card under it (spec 08: URL embeds).
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    /// A node that is just a link shows a card under it (spec 08: URL embeds). On by default.
+    #[serde(default = "yes")]
     pub url_embeds: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings { time_12h: false, week_starts_sunday: false, hidden: Vec::new(), warn_referenced: true, url_embeds: true }
+    }
 }
 
 impl Settings {

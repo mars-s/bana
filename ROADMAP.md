@@ -8,8 +8,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 172 engine commands, plus 28 window commands |
-| Tests | 173 (core 46, commands 54 incl. a fuzz test of random command sequences, damaged-file loading and a 50k-node timed test, UI 71 driving the real UI with keys, pointer drags, clicks and panels plus a UI fuzz test and a 50k-node frame-time test, MCP 1, CLI 1) |
+| Commands (every action; CLI, MCP and control channel can run them) | 174 engine commands, plus 28 window commands |
+| Tests | 177 (core 46, commands 56 incl. fuzz tests of random command sequences and of damaged files, and a 50k-node timed test, UI 73 driving the real UI with keys, pointer drags, clicks and panels plus UI fuzz tests (random keys, text, clicks; damaged files in every view) and a 50k-node frame-time test, MCP 1, CLI 1) |
 | Spec sections (`docs/parity.md`) | 95 mapped: 77 done, 13 partial, 3 missing, 2 notes |
 | Spec screenshots | 160 mapped: 140 done, 14 partial, 5 missing, 1 not behaviour |
 

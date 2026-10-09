@@ -91,7 +91,9 @@ height). Reproduce: `cargo test -p tanacraft-commands --test perf --release -- -
 A fuzz test runs random sequences of every command (params built from each command's own
 description) and checks after each step that owners and children agree, nothing is orphaned or in a
 loop, every change undoes and redoes exactly, and save/load round-trips; damaged files (loops, double
-owners, dangling ids) load into a sound graph. Longer runs:
+owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
+random commands. A UI fuzz test types random keys and text and clicks random points in the real UI;
+it must never panic. Longer runs:
 `FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`.
 
 ## Quick start
@@ -108,7 +110,7 @@ Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** 
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the control channel. `tanacraft-cli commands` lists all 172 with their parameters.
+server and the control channel. `tanacraft-cli commands` lists all 174 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params

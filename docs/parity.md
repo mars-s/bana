@@ -46,7 +46,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Editing model | partial | One line edits at a time, placeholder hint, title Enter makes the first child. Long text does not wrap while editing. |
+| 1. Editing model | done | One line edits at a time, placeholder hint, title Enter makes the first child. Long text wraps (shown and while editing) with the first line level with the bullet; no line breaks inside a node; Home/End go to the node's start/end. Tested. |
 | 2. Enter, Shift+Enter | done | Split, first child when expanded, empty line above at position 0, Shift+Enter inserts below. Tested. |
 | 3. Tab / Shift+Tab | done | Indent under previous sibling (expands it), outdent after parent, stops at the page. Tab inside field rows missing. |
 | 4. Backspace / Delete | done | Merge into previous sibling, no merge with children, empty line deletes, Delete joins next, deletes selections. Tested. |
@@ -58,7 +58,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 10. Inline formatting | partial | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. Formatting does not carry on for new typing; links not rendered. |
 | 11. Trigger characters | partial | #, @ (empty line: reference node; mid-sentence: inline reference), > and / menus. Missing: Space for AI, Cmd+Enter create in menus. |
 | 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste. Missing: rich HTML on the clipboard, paste as code. |
-| 13. Description | partial | Ctrl+I edits a description (in a small dialog, not inline); shown under the line. |
+| 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
 | 16. Context menu on a node | partial | Open, expand, add tag/field/checkbox/description, heading, progress bar, pin, view as, duplicate, move to, move, indent, convert search, delete/restore. Missing: copy link, publish, edit log. |

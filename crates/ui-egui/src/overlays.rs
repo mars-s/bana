@@ -1,5 +1,5 @@
 //! Overlays: the command line (commands and nodes), the `#`/`>`/`@` pickers, the shortcuts panel and
-//! the description editor.
+//! the shortcut sheet.
 
 use egui::{Align2, FontId, Order, RichText, Sense, Ui, vec2};
 use serde_json::json;
@@ -476,26 +476,6 @@ pub fn help_panel(app: &mut TanaApp, ui: &mut Ui) {
             });
         }
     });
-}
-
-pub fn description(app: &mut TanaApp, ctx: &egui::Context) {
-    let Some((node, mut text)) = app.desc_edit.take() else { return };
-    let t = app.tokens();
-    let mut done = false;
-    let mut cancel = false;
-    egui::Window::new("Description").collapsible(false).resizable(false).anchor(Align2::CENTER_TOP, vec2(0.0, 120.0)).show(ctx, |ui| {
-        ui.label(RichText::new(app.session.graph.name(node)).color(t.dim));
-        ui.add(egui::TextEdit::multiline(&mut text).desired_width(420.0).desired_rows(3));
-        ui.horizontal(|ui| {
-            done = ui.button("Save").clicked();
-            cancel = ui.button("Cancel").clicked();
-        });
-    });
-    if done {
-        let _ = app.exec("node.setDescription", json!({"node": node.0, "text": text}));
-    } else if !cancel {
-        app.desc_edit = Some((node, text));
-    }
 }
 
 // ---- date picker and quick add ------------------------------------------------------------------

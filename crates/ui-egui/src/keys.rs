@@ -140,10 +140,21 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
     if app.quick_add.is_some() || app.date_pick.is_some() {
         return false; // the overlay reads Enter and Escape itself
     }
-    if app.field_edit.is_some() || app.desc_edit.is_some() {
+    if let Some((node, text)) = app.desc_edit.clone() {
+        // Escape and Up leave the description (keeping it); Up goes back to the name.
+        if k == "Escape" || k == "Up" {
+            app.desc_edit = None;
+            app.exec("node.setDescription", json!({"node": node.0, "text": text})).ok();
+            if k == "Up" {
+                app.exec("focus.set", json!({"node": node.0, "caret": usize::MAX})).ok();
+            }
+            return true;
+        }
+        return false;
+    }
+    if app.field_edit.is_some() {
         if k == "Escape" {
             app.field_edit = None;
-            app.desc_edit = None;
             return true;
         }
         return false;
@@ -234,6 +245,14 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             }
             return false;
         }
+        // Home / End: start / end of the whole node, also when its text wraps (spec 02 §5).
+        "Home" | "End" | "Shift+Home" | "Shift+End" if editing => {
+            let to = if k.ends_with("Home") { 0 } else { app.edit.buf.chars().count() };
+            let anchor = if k.starts_with("Shift+") { app.session.anchor } else { to };
+            app.edit.set_cursor = Some((anchor, to));
+            app.session.caret = to;
+            return true;
+        }
         // Cmd+A selects the text first, then (all text already selected) every bullet.
         "Mod+A" if editing => {
             let len = app.session.focus.map(|f| app.session.graph.name(f).chars().count()).unwrap_or(0);
@@ -260,6 +279,17 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
                 return true;
             }
             return false;
+        }
+        // Down from a name with a description enters the description (spec 02 §13).
+        "Down"
+            if editing
+                && app
+                    .session
+                    .focus
+                    .is_some_and(|f| app.session.graph.get(app.session.graph.resolve(f)).is_some_and(|n| !n.description.is_empty())) =>
+        {
+            app.exec("ui.editDescription", json!({})).ok();
+            return true;
         }
         "Up" | "Down" => {
             let id = if k == "Up" { "focus.up" } else { "focus.down" };

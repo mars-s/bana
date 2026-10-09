@@ -410,10 +410,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     }
-    if let Some(d) = node.map(|n| n.description.as_str()).filter(|d| !d.is_empty()) {
-        ui.add_space(2.0);
-        ui.label(RichText::new(d).size(14.0).color(t.dim));
-    }
+    let description = node.map(|n| n.description.clone()).unwrap_or_default();
     let nav: Option<[(&str, &str, serde_json::Value); 2]> = match node.map(|n| &n.kind) {
         Some(Kind::Day { .. }) => Some([("<", "nav.previousDay", json!({})), (">", "nav.nextDay", json!({}))]),
         Some(Kind::Week { .. } | Kind::Year { .. }) => {
@@ -421,6 +418,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         }
         _ => None,
     };
+    description_line(app, ui, t, target, &description, 14.0);
     if let Some(nav) = nav {
         day_nav(app, ui, t, nav);
     }
@@ -883,7 +881,18 @@ pub(crate) fn rich_job(g: &Graph, t: &Tokens, text: &str, color: Color32, strike
 /// A clickable label with marks, inline references and links. Returns the response and, when the
 /// click landed on a reference or link, its target.
 pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Option<LinkTarget>]) -> (egui::Response, Option<LinkTarget>) {
-    let (pos, galley, resp) = egui::Label::new(job).sense(Sense::click()).layout_in_ui(ui);
+    // Laid out here rather than by `Label`, which would replace the job's wrap width.
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
+    let resp = if galley.rows.len() > 1 {
+        // Wrapped: the first line sits where a one-line label would, the rest hangs below.
+        let h0 = galley.rows[0].rect().height();
+        let top = ui.cursor().top() + ((theme::ROW_H - h0) / 2.0).max(0.0);
+        let rect = Rect::from_min_size(pos2(ui.cursor().left(), top), galley.size());
+        ui.allocate_rect(rect, Sense::click())
+    } else {
+        ui.allocate_exact_size(galley.size(), Sense::click()).1
+    };
+    let pos = resp.rect.min;
     ui.painter().galley(pos, galley.clone(), Color32::WHITE);
     // Keep the text visible to accessibility (and to UI tests).
     let text = galley.text().to_string();
@@ -1238,6 +1247,8 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                     sec.format.underline = Stroke::new(1.0, t.dim);
                 }
             }
+            // Long text wraps, leaving room for the tag chips (spec 02 §1).
+            job.wrap.max_width = (ui.available_width() - chips_width(&app.session.graph, id)).max(120.0);
             let (r, hit) = link_label(ui, job, &targets);
             let link_hit = hit.is_some();
             match hit {
@@ -1285,10 +1296,11 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             }
         }
     });
-    if !description.is_empty() {
+    if !description.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == target) {
+        ui.add_space(-6.0);
         ui.horizontal(|ui| {
             ui.add_space(indent + 26.0);
-            ui.label(RichText::new(description).size(13.0).color(t.dim));
+            description_line(app, ui, t, target, &description, 13.0);
         });
     }
     // Progress bar of checkbox children, under the name (spec screenshot 152).
@@ -1320,6 +1332,50 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         selection_toolbar(app, ui, t, id, row.response.rect);
     }
     center
+}
+
+/// A node's description under its name: grey text, edited in place (Ctrl+I, or Down from the
+/// name; spec 02 §13). Enter or Up goes back to the name; clicking elsewhere keeps the text.
+fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, text: &str, size: f32) {
+    let editing = app.desc_edit.as_ref().is_some_and(|d| d.0 == node);
+    if !editing {
+        if !text.is_empty() {
+            let r = ui.add(egui::Label::new(RichText::new(text).size(size).color(t.dim)).sense(Sense::click()));
+            if r.clicked() {
+                app.desc_edit = Some((node, text.to_string()));
+                app.desc_focus = true;
+            }
+        }
+        return;
+    }
+    let id = egui::Id::new((app.panel_ix, "desc-edit", node.0));
+    let Some((_, buf)) = app.desc_edit.as_mut() else { return };
+    let resp = ui.add(
+        egui::TextEdit::singleline(buf)
+            .id(id)
+            .frame(egui::Frame::NONE)
+            .font(FontId::proportional(size))
+            .text_color(t.dim)
+            .hint_text("Description")
+            .margin(egui::Margin::ZERO)
+            .desired_width(ui.available_width()),
+    );
+    if app.desc_focus {
+        resp.request_focus();
+        app.desc_focus = false;
+    } else if resp.lost_focus() {
+        let text = buf.clone();
+        app.desc_edit = None;
+        app.acts.push(Act::Run("node.setDescription".into(), json!({"node": node.0, "text": text})));
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            app.acts.push(Act::Run("focus.set".into(), json!({"node": node.0, "caret": usize::MAX})));
+        }
+    }
+}
+
+/// Rough width of a row's tag chips, so wrapped text leaves room for them.
+fn chips_width(g: &Graph, id: NodeId) -> f32 {
+    g.get(g.resolve(id)).map(|n| n.tags.iter().map(|t| g.name(*t).chars().count() as f32 * 8.0 + 34.0).sum()).unwrap_or(0.0)
 }
 
 /// The floating toolbar above one selected node (spec 02 §8).
@@ -1390,7 +1446,20 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
     }
     let size = if app.session.graph.get(app.session.graph.resolve(id)).is_some_and(|n| n.heading) { 20.0 } else { theme::FONT };
     let galley_w = ui.painter().layout_no_wrap(app.edit.buf.clone(), FontId::proportional(size), t.text).size().x;
-    let out = egui::TextEdit::singleline(&mut app.edit.buf)
+    // Long text wraps while editing (spec 02 §1); keys never insert line breaks (Enter is a command).
+    let room = (ui.available_width() - chips_width(&app.session.graph, id)).max(120.0);
+    // Wrapped text: keep the first line level with the bullet (as for labels).
+    let w = if galley_w < 1.0 { 420.0f32.min(room) } else { (galley_w + 24.0).clamp(60.0, room) };
+    let lines = ui.painter().layout(app.edit.buf.clone(), FontId::proportional(size), t.text, w - 4.0).rows.len();
+    let mut child = None;
+    if lines > 1 {
+        let top = ui.cursor().top() + ((theme::ROW_H - size * 1.3) / 2.0).max(0.0);
+        let r = Rect::from_min_size(pos2(ui.cursor().left(), top), vec2(w, 2000.0));
+        child = Some(ui.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::top_down(egui::Align::Min))));
+    }
+    let edit_ui = child.as_mut().unwrap_or(ui);
+    let out = egui::TextEdit::multiline(&mut app.edit.buf)
+        .desired_rows(1)
         .id(tid)
         .frame(egui::Frame::NONE)
         .font(FontId::proportional(size))
@@ -1398,14 +1467,20 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         .text_color(t.text)
         .margin(egui::Margin::ZERO)
         .lock_focus(true)
-        .desired_width(if galley_w < 1.0 { 420.0 } else { (galley_w + 24.0).max(60.0) })
-        .show(ui);
+        .desired_width(w)
+        .show(edit_ui);
+    if let Some(c) = child {
+        ui.allocate_rect(c.min_rect(), Sense::hover());
+    }
     if let Some(cr) = out.cursor_range {
         app.session.caret = cr.primary.index.0;
         app.session.anchor = cr.secondary.index.0;
         app.edit.selection_empty = cr.primary == cr.secondary;
     }
     if out.response.changed() {
+        if app.edit.buf.contains('\n') {
+            app.edit.buf = app.edit.buf.replace('\n', " ");
+        }
         let buf = app.edit.buf.clone();
         let caret = app.session.caret;
         let anchor = out.response.rect.left_bottom() + vec2(0.0, 4.0);

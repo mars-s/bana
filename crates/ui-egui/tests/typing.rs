@@ -407,3 +407,50 @@ fn create_new_recents_settings_and_copy_paste_references() {
     h.step();
     assert_eq!(h.state().session.graph.references_to(tanacraft_core::NodeId(ideas)).len(), 1, "duplicates are skipped");
 }
+
+#[test]
+fn long_lines_wrap_and_typing_never_adds_line_breaks() {
+    let mut h = harness();
+    let long = "word ".repeat(80);
+    let r = h.state_mut().exec("node.add", json!({"name": long.trim()})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let label = h.get_by_label(long.trim());
+    let rect = label.rect();
+    assert!(rect.height() > 40.0 && rect.width() < 1000.0, "wrapped label {rect:?}");
+    // Editing: Enter is a command (new sibling), never a line break inside the node.
+    h.state_mut().exec("focus.set", json!({"node": r["id"], "caret": 4})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    key(&mut h, Key::End, Modifiers::NONE);
+    text(&mut h, "end");
+    key(&mut h, Key::Enter, Modifiers { shift: true, ..Modifiers::NONE });
+    let names: Vec<String> = h.state().session.graph.iter().map(|n| n.name.clone()).collect();
+    assert!(names.iter().all(|n| !n.contains('\n')), "{names:?}");
+    assert!(names.iter().any(|n| n.ends_with("wordend")), "{names:?}");
+}
+
+#[test]
+fn descriptions_are_edited_in_place() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": "Plan"})).unwrap();
+    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    h.state_mut().exec("focus.set", json!({"node": id.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    // Ctrl+I opens the description editor under the name; Enter keeps it and returns to the name.
+    key(&mut h, Key::I, Modifiers { ctrl: true, ..Modifiers::NONE });
+    text(&mut h, "Why we do this");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert_eq!(h.state().session.graph.get(id).unwrap().description, "Why we do this");
+    assert_eq!(h.state().session.focus, Some(id));
+    // Down from the name enters the description; Up goes back.
+    key(&mut h, Key::ArrowDown, Modifiers::NONE);
+    text(&mut h, "!");
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(h.state().session.graph.get(id).unwrap().description, "Why we do this!");
+    assert_eq!(h.state().session.focus, Some(id));
+}

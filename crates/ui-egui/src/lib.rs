@@ -186,6 +186,8 @@ pub struct TanaApp {
     field_edit: Option<FieldEdit>,
     title_buf: (Option<NodeId>, String),
     desc_edit: Option<(NodeId, String)>,
+    /// Give the description editor keyboard focus on the next frame.
+    desc_focus: bool,
     /// Search pages: the condition editor is open.
     pub query_open: bool,
     clause_buf: String,
@@ -250,6 +252,7 @@ impl TanaApp {
             field_edit: None,
             title_buf: (None, String::new()),
             desc_edit: None,
+            desc_focus: false,
             query_open: true,
             clause_buf: String::new(),
             tag_filter: String::new(),
@@ -354,6 +357,8 @@ impl TanaApp {
                     let t = self.session.graph.resolve(f);
                     let text = self.session.graph.get(t).map(|n| n.description.clone()).unwrap_or_default();
                     self.desc_edit = Some((t, text));
+                    self.desc_focus = true;
+                    self.session.focus = None;
                 }
             }
             _ => {}
@@ -494,7 +499,6 @@ impl TanaApp {
         let ctx = ui.ctx().clone();
         overlays::palette(self, &ctx);
         overlays::picker(self, &ctx);
-        overlays::description(self, &ctx);
         overlays::date_picker(self, &ctx);
         overlays::quick_add(self, &ctx);
         overlays::search_open(self, &ctx);

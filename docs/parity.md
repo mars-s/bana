@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (95 rows, spec files 00 to 09 and INDEX) | 74 | 15 | 4 | 2 |
-| Screenshots (160) | 136 | 18 | 5 | 1 |
+| Screenshots (160) | 139 | 15 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
@@ -177,10 +177,10 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `13-tag-task-list.png` | done | Tag list view. |
 | `14-node-menu.jpg` | partial | Node menu: open, open in new panel, view as, toolbar, duplicate, moves, copy link, tag/field/checkbox/description, heading, progress, pin, edit log, more commands, convert to supertag, delete / hard delete / remove reference. No AI, publish or appearance. |
 | `15-configure-supertag-task.png` | partial | Configure panel to the right with colour row and collapsible cards; no AI or voice sections. |
-| `16-supertag-content-template.png` | partial | Content template with fields and nodes. |
-| `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
+| `16-supertag-content-template.png` | done | Content template: field rows with type icon, default value, pinned checkbox and remove; template nodes; New field / Insert existing field. Tested. |
+| `17-supertag-config-lower.png` | done | Optional fields, show checkbox, map checkbox to field with checked and unchecked values. Tested. |
 | `18-supertag-advanced.png` | done | Advanced options: title expression, default child supertag, related content, building block (promote for, hide), shortcuts. Tested. |
-| `19-field-config-options.png` | partial | Field page options. |
+| `19-field-config-options.png` | done | Field page: type, pre-determined options outline, sources of options, auto-collect, auto-initialize, required, hide field, used in, Delete, Add description. AI rows left out. |
 | `20-field-type-dropdown.png` | done | Field types including User. |
 | `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |
 | `22-options-picker.png` | done | Options picker lists the other options. |

@@ -591,6 +591,12 @@ pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
         row(ui, t, "Used in", |ui| {
             ui.label(format!("{nodes} nodes, {tags} supertag(s)"));
         });
+        // Fields live in Schema from the start, so there is no "Make discoverable" step.
+        row(ui, t, "Actions", |ui| {
+            if ui.add(egui::Button::new(RichText::new("Delete").color(Color32::from_rgb(232, 110, 96))).fill(t.field_bg)).clicked() {
+                acts.push(Act::Run("node.delete".into(), json!({"node": field.0})));
+            }
+        });
     });
     app.acts.extend(acts);
 }

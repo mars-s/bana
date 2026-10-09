@@ -735,3 +735,31 @@ fn inbox_capture_and_workspaces() {
     assert!(s.run("workspace.create", &json!({"name": "Work Projects"})).is_err(), "exists");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn clone_reference_makes_an_independent_copy() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Recipe"})), "id");
+    run(&mut s, "node.add", json!({"name": "Flour", "parent": a.0}));
+    let other = id(&run(&mut s, "node.add", json!({"name": "Plan"})), "id");
+    let r = id(&run(&mut s, "node.reference", json!({"target": a.0, "parent": other.0})), "id");
+    let c = id(&run(&mut s, "node.cloneReference", json!({"node": r.0})), "id");
+    assert_ne!(c, a);
+    assert_eq!(s.graph.children(other), [c]);
+    assert_eq!(s.graph.name(s.graph.children(c)[0]), "Flour");
+    assert!(s.graph.get(r).is_none());
+    assert!(s.run("node.cloneReference", &json!({"node": a.0})).is_err());
+}
+
+#[test]
+fn insert_date_links_the_day_at_the_caret() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Due "})), "id");
+    run(&mut s, "focus.set", json!({"node": n.0, "caret": 4}));
+    run(&mut s, "edit.insertDate", json!({"date": "2026-10-12"}));
+    let day = s.graph.find_day(Date::new(2026, 10, 12).unwrap()).unwrap();
+    assert_eq!(s.graph.name(n), format!("Due [[id:{}]]", day.0));
+    assert_eq!(s.graph.references_to(day), [n], "the day lists the node in its references");
+    run(&mut s, "edit.insertTime", json!({"node": n.0, "caret": 0}));
+    assert!(s.graph.name(n).chars().nth(2) == Some(':'), "{}", s.graph.name(n));
+}

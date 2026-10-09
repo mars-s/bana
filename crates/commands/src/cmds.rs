@@ -24,7 +24,27 @@ pub fn registry() -> Registry {
         C::new("node.toggleDone", "Toggle checkbox", "Node", toggle_done).key("Mod+Enter").params(r#"{"node"?: id}"#),
         C::new("node.delete", "Delete (move to trash)", "Node", delete).key("Mod+Shift+Backspace").params(r#"{"node"?: id}"#),
         C::new("node.duplicate", "Duplicate", "Node", duplicate).key("Mod+Shift+D").params(r#"{"node"?: id}"#),
-        C::new("node.createNew", "Create new", "Node", create_new).key("Mod+N"),
+        C::new("node.createNew", "Create new", "Node", create_new).key("Mod+N / Ctrl+N"),
+        C::new("edit.insertDate", "Insert date", "Edit", |s, v| {
+            let d = match p::str(v, "date") {
+                Some(t) => Date::parse(t).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?,
+                None => s.today,
+            };
+            let day = s.graph.day(d)?;
+            insert_text(s, v, &tanacraft_core::format::ref_token(day.0))
+        })
+        .params(r#"{"node"?: id, "caret"?: number, "date"?: "YYYY-MM-DD | today | ..."}  (an inline link to the day)"#),
+        C::new("edit.insertNow", "Insert current date and time", "Edit", |s, v| {
+            let day = s.graph.day(s.today)?;
+            let text = format!("{} {}", tanacraft_core::format::ref_token(day.0), tanacraft_core::fmt_hm(Date::now_minutes()));
+            insert_text(s, v, &text)
+        })
+        .params(r#"{"node"?: id, "caret"?: number}"#),
+        C::new("edit.insertTime", "Insert current time", "Edit", |s, v| insert_text(s, v, &tanacraft_core::fmt_hm(Date::now_minutes())))
+            .params(r#"{"node"?: id, "caret"?: number}"#),
+        C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
+            .key("Mod+Shift+C")
+            .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),
         C::new("node.add", "Add node", "Node", add).params(r#"{"name": string, "parent"?: id, "index"?: number}"#),
         C::new("node.setName", "Rename node", "Node", set_name).params(r#"{"node"?: id, "name": string, "caret"?: chars}"#),
         C::new("node.setDescription", "Set description", "Node", set_description).params(r#"{"node"?: id, "text": string}"#),
@@ -605,6 +625,33 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         }
     }
     Ok(json!({"trashed": id.0}))
+}
+
+/// Inserts `text` into a node's name at the caret (default: the focused node's caret, else the end).
+fn insert_text(s: &mut Session, v: &Value, text: &str) -> CmdResult {
+    let id = s.target(v)?;
+    let name: Vec<char> = s.graph.name(id).chars().collect();
+    let at = p::usize(v, "caret").or((s.focus == Some(id)).then_some(s.caret)).unwrap_or(name.len()).min(name.len());
+    let new: String = name[..at].iter().copied().chain(text.chars()).chain(name[at..].iter().copied()).collect();
+    s.graph.set_name(id, &new)?;
+    if s.focus == Some(id) {
+        s.set_focus(id, at + text.chars().count());
+    }
+    Ok(json!({"node": id.0, "name": new}))
+}
+
+fn clone_reference(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let target = s.graph.node(id)?.reference_target().ok_or_else(|| CmdError::Failed("not a reference".into()))?;
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+    let at = s.graph.index_in_parent(id).unwrap_or(0);
+    // The copy goes where the reference was; the reference goes away.
+    let copy = s.graph.copy_into(target, parent, at)?;
+    s.graph.delete_permanently(id)?;
+    if s.focus == Some(id) {
+        s.set_focus(copy, 0);
+    }
+    Ok(json!({"id": copy.0}))
 }
 
 fn duplicate(s: &mut Session, v: &Value) -> CmdResult {

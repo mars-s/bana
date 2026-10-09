@@ -734,6 +734,14 @@ impl Graph {
         Ok(copy)
     }
 
+    /// A deep copy of `id` placed under `parent` at `index`.
+    pub fn copy_into(&mut self, id: NodeId, parent: NodeId, index: usize) -> Result<NodeId> {
+        let copy = self.copy_subtree(id, parent, 0)?;
+        let kids = &mut self.node_mut(parent)?.children;
+        kids.insert(index.min(kids.len()), copy);
+        Ok(copy)
+    }
+
     fn copy_subtree(&mut self, id: NodeId, parent: NodeId, depth: usize) -> Result<NodeId> {
         if depth > 1000 {
             return Err(Error::Invalid("outline too deep to copy".into()));

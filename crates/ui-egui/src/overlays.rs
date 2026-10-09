@@ -700,6 +700,10 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
         Some(v) => {
             let r = match dp.field {
                 Some(f) => app.exec("field.set", json!({"node": dp.node.0, "field": f.0, "index": dp.index, "value": v})),
+                None if dp.insert.is_some() => {
+                    let (node, caret) = dp.insert.unwrap_or((dp.node, 0));
+                    app.exec("edit.insertDate", json!({"node": node.0, "caret": caret, "date": v}))
+                }
                 None if !v.trim().is_empty() => app.exec("nav.day", json!({"date": v})),
                 None => Ok(json!({})),
             };

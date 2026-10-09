@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 52 | 40 | 5 | 2 |
+| Spec sections (99) | 56 | 36 | 5 | 2 |
 | Screenshots (153) | 96 | 35 | 21 | 1 |
 
 ## `00-overview.md`
@@ -19,7 +19,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. The big picture | done | Single window: top bar, sidebar, panel area; every line is a node; any node opens as a page. |
 | 2. Top bar (full window width, ~44 px tall) | partial | Sidebar button, back/forward, tab strip with +, keyboard-shortcuts toggle. Missing: help, credits, account menu. |
-| 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Search, Create new, Pinned (expandable), workspace items. Missing: AI chats, workspace avatar row, Manage workspaces. |
+| 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Create new with a square Search button, Pinned (expandable), workspace avatar and name (menu: switch, new, rename), Library, Daily notes, Inbox, Trash. Missing: AI chats. |
 | 4. Panel area | partial | Breadcrumbs, title, tag chips, ... menu, content column, related-content side card, References. Missing: icon/banner, breadcrumb collapse, AI button, dock button. |
 | 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight. Own palette; default egui font (no Inter); no flash on new live results. |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Search and open, Create new, pinned, workspace items. Recents and AI chats pages missing. |
@@ -35,7 +35,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks. Missing: reference counter, clone reference, per-context notes. |
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
 | 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. Several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Missing: user type. |
-| 6. Search nodes | partial | Live, editable results, magnifier bullet, views. Missing: convert to plain list. |
+| 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
 | 7. Workspaces | partial | Each workspace is its own graph file in one folder: list, create, switch (saves first), rename (`workspace.*`); sidebar avatar and name open the workspace menu. Library, Schema, Daily notes, Inbox (made on first use; `node.capture`, `tanacraft-cli capture`), Trash. Missing: tags grouped by several workspaces in one overview, cross-workspace search. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
 | 9. Trash | done | Delete to trash, restore, banner, empty trash. |
@@ -105,7 +105,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
 | 2. Query builder | partial | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group to type a condition, Search operators menu, the query as text, Run once and Done. Results stay live while editing. Missing: Tag fields / System fields / Field values / Tag types menus, workspace scope. |
-| 3. Command line (Cmd+K) | partial | Searches nodes and commands; node commands first when a node is focused; shortcuts shown. Two-step commands missing. |
+| 3. Command line (Cmd+K) | done | Enter command...: steps for the focused node first (Add tag >, Remove tag, Set <field> >, Move to >, Move and leave reference to >, View as), then commands with shortcuts; steps marked > open a second picker. No node search. Tested. |
 | 4. Search and open (Cmd+S, sidebar magnifier) | partial | Recently viewed, fuzzy search with breadcrumbs, new-tab variant (Cmd+T). Content snippets missing. |
 | 5. Quick add (Cmd+E) | done | Modal with yellow bar, several lines, Cmd+E saves to the end of today, Escape cancels. |
 
@@ -121,7 +121,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 6. Week page (`79-week-node.png`) | partial | Previous/next week, day nodes. Schedule card missing. |
 | 7. Year page (`80-year-node.png`) | done | Previous/next year, weeks newest first. |
 | 8. Adding to today | done | Typing, quick add, Create new (untitled page on today with suggested tags and Create search node), tag-page Create new. |
-| 9. Dates elsewhere | partial | Date values link to day nodes and show in their References. Inline dates and Insert date commands missing. |
+| 9. Dates elsewhere | done | Date values (also timed) link to day nodes and show in their References; Insert date... (picker), Insert current date and time, Insert current time put a day link (and time) at the caret. Tested. |
 
 ## `07-sidebar-navigation.md`
 
@@ -151,10 +151,10 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| Navigating | partial | All bindings except Shift+Cmd+? (ours: Cmd+/) and Ctrl+Shift+PageUp/PageDown (move tab). |
+| Navigating | done | All bindings, including Shift+Cmd+? for the sheet and Ctrl+Shift+PageUp/PageDown to move tabs. Tested. |
 | Editing | done | Undo, redo, move, mark done, insert node, duplicate, delete, description, > @ #, create new. |
 | Formatting | done | Cmd+B, Cmd+I, Cmd+U, Ctrl+H, backticks. |
-| Other keys observed (not in the sheet) | partial | Enter, Backspace, Delete, Up/Down, Shift+Up/Down, Escape, selection keys, /, Cmd+S, Cmd+E, paste. Missing: Left/Right line jumps, Space AI, Alt+Cmd+Down, Shift+Cmd+C. |
+| Other keys observed (not in the sheet) | partial | Enter, Backspace, Delete, Up/Down, Left/Right line jumps, Shift+Up/Down, Escape, selection keys, /, Cmd+S, Cmd+E, paste, Cmd+A, Shift+click, Tab in field names, Shift+Cmd+C clone reference. Missing: Space AI, Alt+Cmd+Down (per-context notes). |
 
 ## `INDEX.md`
 

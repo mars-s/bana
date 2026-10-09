@@ -34,7 +34,9 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.prevTab", "Previous tab", "Ctrl+Shift+Tab"),
     ("ui.openInPanel", "Open in new panel", "Mod+M"),
     ("ui.singlePanel", "Single panel", "Ctrl+Mod+M"),
-    ("ui.shortcuts", "Keyboard shortcuts", "Mod+/"),
+    ("ui.shortcuts", "Keyboard shortcuts", "Mod+/ / Mod+Shift+/ / Mod+Shift+?"),
+    ("ui.moveTabLeft", "Move tab left", "Ctrl+Shift+PageUp"),
+    ("ui.moveTabRight", "Move tab right", "Ctrl+Shift+PageDown"),
     ("ui.toggleTheme", "Switch light or dark theme", ""),
     ("ui.editDescription", "Add description", "Ctrl+I"),
     ("ui.quickAdd", "Quick add", "Mod+E"),
@@ -43,6 +45,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.recents", "Open recents", ""),
     ("ui.settings", "Open settings", ""),
     ("ui.searchOptions", "Show or hide search conditions", ""),
+    ("ui.insertDate", "Insert date...", ""),
 ];
 
 /// The `#`, `>` and `@` pickers.
@@ -151,6 +154,8 @@ pub struct DatePick {
     pub field: Option<NodeId>,
     /// Which of the field's values (the count adds one).
     pub index: usize,
+    /// "Insert date": the picked day goes into the focused line as a link.
+    pub insert: Option<(NodeId, usize)>,
     pub month: (i32, u8),
     pub anchor: egui::Pos2,
     pub buf: String,
@@ -347,6 +352,28 @@ impl TanaApp {
                 self.search_open = Some(Palette { focus_once: true, ..Palette::default() });
             }
             "ui.closeTab" => self.close_tab(self.tab),
+            "ui.insertDate" => {
+                // A month picker; the chosen day goes in at the caret of the focused line.
+                if let Some(f) = self.session.focus {
+                    let d = self.session.today;
+                    self.date_pick = Some(DatePick {
+                        node: f,
+                        field: None,
+                        index: 0,
+                        insert: Some((f, self.session.caret)),
+                        month: (d.year, d.month),
+                        anchor: egui::pos2(380.0, 160.0),
+                        buf: String::new(),
+                    });
+                }
+            }
+            "ui.moveTabLeft" | "ui.moveTabRight" => {
+                let to = if id == "ui.moveTabLeft" { self.tab.checked_sub(1) } else { Some(self.tab + 1).filter(|i| *i < self.tabs.len()) };
+                if let Some(to) = to {
+                    self.tabs.swap(self.tab, to);
+                    self.tab = to;
+                }
+            }
             "ui.nextTab" => self.switch_tab((self.tab + 1) % self.tabs.len().max(1)),
             "ui.prevTab" => self.switch_tab((self.tab + self.tabs.len().max(1) - 1) % self.tabs.len().max(1)),
             "ui.openInPanel" => {
@@ -592,8 +619,15 @@ impl TanaApp {
                 }
                 Act::GoToDate(anchor) => {
                     let d = self.session.today;
-                    self.date_pick =
-                        Some(DatePick { node: self.session.zoom, field: None, index: 0, month: (d.year, d.month), anchor, buf: String::new() });
+                    self.date_pick = Some(DatePick {
+                        node: self.session.zoom,
+                        field: None,
+                        index: 0,
+                        insert: None,
+                        month: (d.year, d.month),
+                        anchor,
+                        buf: String::new(),
+                    });
                 }
                 Act::EditField(node, field, index, buf) => self.field_edit = Some(FieldEdit { node, field, index, buf, focus_once: true }),
                 Act::PickChoice(node, field, index, at) => {
@@ -613,6 +647,7 @@ impl TanaApp {
                         node,
                         field: Some(field),
                         index,
+                        insert: None,
                         month: (d.year, d.month),
                         anchor,
                         buf: current.map(|d| d.to_string()).unwrap_or_default(),

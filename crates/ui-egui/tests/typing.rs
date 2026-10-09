@@ -909,3 +909,17 @@ fn switching_workspace_resets_tabs_and_shows_inbox_in_the_sidebar() {
     h.get_by_label("Second");
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn ctrl_shift_page_keys_move_the_tab() {
+    let mut h = harness();
+    let lib = h.state().session.graph.sys.library;
+    h.state_mut().new_tab(lib);
+    h.step();
+    assert_eq!(h.state().tab, 1);
+    key(&mut h, Key::PageUp, Modifiers { ctrl: true, shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().tab, 0, "the active tab moved left");
+    assert_eq!(h.state().tabs[0].panels[0].zoom, lib);
+    key(&mut h, Key::PageDown, Modifiers { ctrl: true, shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().tab, 1);
+}

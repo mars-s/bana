@@ -40,6 +40,8 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.quickAdd", "Quick add", "Mod+E"),
     ("ui.searchOpen", "Search and open", "Mod+S"),
     ("ui.configureSupertag", "Configure supertag", ""),
+    ("ui.recents", "Open recents", ""),
+    ("ui.settings", "Open settings", ""),
     ("ui.searchOptions", "Show or hide search conditions", ""),
 ];
 
@@ -183,6 +185,14 @@ pub struct TanaApp {
     tag_filter: String,
     /// Group headers the person collapsed, per view node.
     closed_groups: std::collections::HashSet<(NodeId, String)>,
+    /// The Recents and Settings pages (they are views, not nodes).
+    pub recents_page: bool,
+    pub settings_page: bool,
+    recents_selected: Option<NodeId>,
+    /// Put the caret in the page title on the next frame.
+    pub(crate) focus_title: bool,
+    /// The last nodes copied with Cmd+C and the text that went to the clipboard.
+    node_clip: Option<(String, Vec<NodeId>)>,
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
@@ -234,6 +244,11 @@ impl TanaApp {
             tag_filter: String::new(),
             closed_groups: Default::default(),
             pin_open: Default::default(),
+            recents_page: false,
+            settings_page: false,
+            recents_selected: None,
+            focus_title: false,
+            node_clip: None,
             config_open: Default::default(),
             tag_tab: Default::default(),
             template_buf: String::new(),
@@ -267,7 +282,14 @@ impl TanaApp {
             return Ok(json!({}));
         }
         let before = (self.session.focus, self.session.caret);
+        if id.starts_with("nav.") || id == "node.createNew" {
+            self.recents_page = false;
+            self.settings_page = false;
+        }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
+        if id == "node.createNew" && r.is_ok() {
+            self.focus_title = true;
+        }
         if (self.session.focus, self.session.caret) != before || id != "node.setName" {
             self.edit.node = None; // reload text and caret on the next frame
         }
@@ -295,6 +317,14 @@ impl TanaApp {
             "ui.quickAdd" => self.quick_add = Some(vec![String::new()]),
             "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
             "ui.searchOptions" => self.query_open = !self.query_open,
+            "ui.recents" => {
+                self.recents_page = true;
+                self.settings_page = false;
+            }
+            "ui.settings" => {
+                self.settings_page = true;
+                self.recents_page = false;
+            }
             "ui.configureSupertag" => {
                 let z = self.session.zoom;
                 if self.session.graph.tag_def(z).is_some() && !self.config_open.remove(&z) {
@@ -518,6 +548,15 @@ impl TanaApp {
                 if icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
                     self.acts.push(Act::Ui("ui.shortcuts"));
                 }
+                if ui
+                    .add(
+                        egui::Label::new(RichText::new("Settings").size(12.5).color(if self.settings_page { t.text } else { t.dim }))
+                            .sense(Sense::click()),
+                    )
+                    .clicked()
+                {
+                    self.acts.push(Act::Ui("ui.settings"));
+                }
                 let dirty = if self.session.graph.is_dirty() && self.session.path.is_some() { " (unsaved)" } else { "" };
                 ui.label(RichText::new(format!("{PRODUCT_NAME}{dirty}")).size(12.0).color(t.faint));
             });
@@ -554,6 +593,9 @@ impl TanaApp {
         }
         if side_item(ui, &t, Icon::Tag, "Supertags", zoom == g.sys.schema).clicked() {
             acts.push(Act::Run("nav.supertags".into(), json!({})));
+        }
+        if side_item(ui, &t, Icon::Recent, "Recents", self.recents_page).clicked() {
+            acts.push(Act::Ui("ui.recents"));
         }
         if side_item(ui, &t, Icon::Search, "Search", self.search_open.is_some()).clicked() {
             acts.push(Act::Ui("ui.searchOpen"));
@@ -639,17 +681,6 @@ impl TanaApp {
         {
             if side_item(ui, &t, icon, label, zoom == id).clicked() {
                 acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
-            }
-        }
-        let recents: Vec<NodeId> = self.session.recents.iter().copied().filter(|r| g.get(*r).is_some() && !g.is_system(*r)).take(6).collect();
-        if !recents.is_empty() {
-            ui.add_space(14.0);
-            section(ui, &t, "Recents");
-            for r in recents {
-                let name = outline::page_title(&self.session, r);
-                if side_item(ui, &t, Icon::Recent, &name, zoom == r).clicked() {
-                    acts.push(Act::Run("nav.open".into(), json!({"node": r.0})));
-                }
             }
         }
         self.acts.extend(acts);

@@ -57,6 +57,11 @@
 {"shot": "docs/images/quick-add.png"}
 {"key": "E", "mod": true}
 {"cmd": "node.add", "params": {"name": "Format **bold**, *italic*, ==highlight== and `code` in any node"}}
+{"cmd": "ui.recents"}
+{"shot": "docs/images/recents.png"}
+{"cmd": "ui.settings"}
+{"shot": "docs/images/settings.png"}
+{"cmd": "nav.today"}
 {"theme": "light"}
 {"open": "Community garden"}
 {"cmd": "ui.shortcuts"}

@@ -299,7 +299,14 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
         }
         (PickMode::SearchCreate, Choice::Existing(t, _)) => {
             let name = app.session.graph.name(t).to_string();
-            app.exec("search.create", json!({"query": format!("#\"{name}\""), "name": format!("List of {name}"), "replace": node.0}))
+            let mut p = json!({"query": format!("#\"{name}\""), "name": format!("List of {name}")});
+            // On a page itself (empty-page action) the search goes inside; on an empty line it replaces it.
+            if node == app.session.zoom {
+                p["parent"] = json!(node.0);
+            } else {
+                p["replace"] = json!(node.0);
+            }
+            app.exec("search.create", p)
         }
         (PickMode::Slash | PickMode::SearchCreate | PickMode::Extend, Choice::Create(_)) => Ok(json!({})),
         (PickMode::InlineRef, choice) => {
@@ -542,6 +549,10 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                             t.faint
                         };
                         ui.painter().text(r.center(), Align2::CENTER_CENTER, d.day.to_string(), FontId::proportional(13.0), color);
+                        // Go to date marks days that already have notes (spec 06 §4).
+                        if dp.field.is_none() && app.session.graph.find_day(d).is_some_and(|n| !app.session.graph.children(n).is_empty()) {
+                            ui.painter().circle_filled(r.center_bottom() - vec2(0.0, 4.0), 2.0, t.accent);
+                        }
                         if resp.clicked() {
                             pick = Some(d.to_string());
                         }

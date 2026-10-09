@@ -354,3 +354,51 @@ fn dragging_a_selected_bullet_moves_the_selection() {
     }
     assert_eq!(lines(&mut h), ["  - three", "  - four", "  - one", "  - two"]);
 }
+
+#[test]
+fn create_new_recents_settings_and_copy_paste_references() {
+    let today = Date::new(2026, 10, 10).unwrap();
+    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.step();
+    // Create new: an untitled page on today, caret in the title.
+    h.state_mut().exec("node.createNew", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, "Shed inventory");
+    let zoom = h.state().session.zoom;
+    assert_eq!(h.state().session.graph.name(zoom), "Shed inventory");
+    // Recents and Settings are pages; navigating leaves them.
+    h.state_mut().exec("ui.recents", json!({})).unwrap();
+    h.step();
+    assert!(h.state().recents_page);
+    h.state_mut().exec("nav.today", json!({})).unwrap();
+    assert!(!h.state().recents_page);
+    h.state_mut().exec("ui.settings", json!({})).unwrap();
+    h.step();
+    assert!(h.state().settings_page);
+    h.state_mut().exec("nav.home", json!({})).unwrap();
+    // Copy a selected node, paste it after another: a reference to the same node.
+    let g = &h.state().session.graph;
+    let (ideas, reading) = (g.search("Ideas")[0].0, g.search("Reading notes")[0].0);
+    h.state_mut().exec("select.set", json!({"from": ideas})).unwrap();
+    h.input_mut().events.push(Event::Copy);
+    h.step();
+    let clip = tanacraft_core::export::to_markdown(&h.state().session.graph, tanacraft_core::NodeId(ideas), false);
+    h.state_mut().exec("focus.set", json!({"node": reading})).unwrap();
+    h.step();
+    h.input_mut().events.push(Event::Paste(clip));
+    h.step();
+    let g = &h.state().session.graph;
+    assert_eq!(g.references_to(tanacraft_core::NodeId(ideas)).len(), 1);
+}

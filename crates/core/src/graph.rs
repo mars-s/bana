@@ -1117,6 +1117,19 @@ impl Graph {
             .collect()
     }
 
+    pub fn set_progress(&mut self, id: NodeId, on: bool) -> Result<()> {
+        let id = self.resolve(id);
+        self.node_mut(id)?.progress = on;
+        Ok(())
+    }
+
+    /// Checked and total checkbox children (for the progress bar).
+    pub fn progress(&self, id: NodeId) -> (usize, usize) {
+        let kids = self.children(id);
+        let boxes: Vec<bool> = kids.iter().filter_map(|c| self.checkbox(*c)).collect();
+        (boxes.iter().filter(|b| **b).count(), boxes.len())
+    }
+
     pub fn set_pinned(&mut self, id: NodeId, on: bool) -> Result<()> {
         self.node_mut(id)?.pinned = on;
         Ok(())

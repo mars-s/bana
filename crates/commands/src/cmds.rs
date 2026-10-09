@@ -164,6 +164,13 @@ pub fn registry() -> Registry {
         C::new("tag.removeField", "Remove field from supertag", "Supertag", tag_remove_field).params(r#"{"tag": name | id, "field": name | id}"#),
         C::new("tag.addView", "Add view to supertag", "Supertag", tag_add_view)
             .params(r#"{"tag": name | id, "kind": "outline|table|cards|calendar|..."}"#),
+        C::new("node.toggleProgress", "Show progress bar", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v).or_else(|_| Ok::<NodeId, CmdError>(s.zoom))?);
+            let on = !s.graph.node(id)?.progress;
+            s.graph.set_progress(id, on)?;
+            Ok(json!({"node": id.0, "progress": on}))
+        })
+        .params(r#"{"node"?: id}"#),
         C::new("node.togglePin", "Pin or unpin in sidebar", "Node", toggle_pin).params(r#"{"node"?: id}"#),
         // Fields.
         C::new("field.setType", "Field type", "Field", field_set_type).params(r#"{"field": name | id, "type": string}"#),
@@ -490,13 +497,11 @@ fn duplicate(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": copy.0}))
 }
 
-/// A new empty node at the end of today's page, focused.
-// spec-gap: where "Create new" puts the node; today's page is our choice.
+/// "Create new" (spec 06 §8): an untitled node at the end of today's page, opened as a page.
 fn create_new(s: &mut Session, _: &Value) -> CmdResult {
     let day = s.graph.day(s.today)?;
     let id = s.graph.create(day, None, "")?;
-    s.open(day)?;
-    s.set_focus(id, 0);
+    s.open(id)?;
     Ok(json!({"id": id.0}))
 }
 

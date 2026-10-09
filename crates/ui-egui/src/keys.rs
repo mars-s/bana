@@ -54,6 +54,39 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
     let events = ctx.input(|i| i.events.clone());
     let mut used = Vec::new();
     for (i, ev) in events.iter().enumerate() {
+        // Cmd+C on selected nodes copies them (Markdown to the clipboard); pasting that text back
+        // inserts references to the same nodes.
+        if matches!(ev, Event::Copy) && app.session.sel.is_some() && app.session.focus.is_none() {
+            let ids = app.session.selected();
+            let text: String = ids.iter().map(|n| tanacraft_core::export::to_markdown(&app.session.graph, *n, false)).collect();
+            ctx.copy_text(text.clone());
+            app.node_clip = Some((text, ids));
+            used.push(i);
+            continue;
+        }
+        if let Event::Paste(text) = ev
+            && let Some((clip, ids)) = app.node_clip.clone()
+            && clip.trim() == text.trim()
+            && app.picker.is_none()
+            && app.palette.is_none()
+        {
+            let anchor = app.session.focus.or(app.session.sel.map(|s| s.1));
+            if let Some(a) = anchor {
+                let parent = app.session.graph.parent(a);
+                let mut index = app.session.graph.index_in_parent(a).map(|i| i + 1);
+                for n in ids {
+                    if let Some(p) = parent {
+                        let r = app.exec("node.reference", json!({"target": n.0, "parent": p.0, "index": index}));
+                        index = index.map(|i| i + 1);
+                        if let Err(e) = r {
+                            app.session.status = e;
+                        }
+                    }
+                }
+            }
+            used.push(i);
+            continue;
+        }
         // Multi-line paste into a bullet becomes nodes (spec 02 §12).
         if let Event::Paste(text) = ev
             && app.session.focus.is_some()

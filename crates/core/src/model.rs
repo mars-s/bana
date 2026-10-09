@@ -306,6 +306,9 @@ pub struct Node {
     pub done: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_from: Option<TrashedFrom>,
+    /// Shows a done/total progress bar of its checkbox children.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub progress: bool,
     /// Pinned to the sidebar.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
@@ -356,6 +359,7 @@ impl Node {
             view: None,
             heading: false,
             pinned: false,
+            progress: false,
             created,
             edited: created,
             done_at: None,

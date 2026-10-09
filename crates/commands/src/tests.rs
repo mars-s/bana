@@ -267,8 +267,16 @@ fn duplicate_reference_replace_and_create_new() {
     assert_eq!(s.focus, Some(r));
     assert_eq!(s.graph.index_in_parent(r), Some(2));
     run(&mut s, "node.createNew", json!({}));
-    assert_eq!(s.graph.name(s.zoom), "Sat, 10 Oct");
-    assert!(s.focus.is_some());
+    assert_eq!(s.graph.name(s.graph.parent(s.zoom).unwrap()), "Sat, 10 Oct", "an untitled page on today");
+    assert_eq!(s.graph.name(s.zoom), "");
+    let beds = run(&mut s, "node.add", json!({"name": "List"}));
+    let list = id(&beds, "id");
+    for (n, d) in [("x", true), ("y", false)] {
+        let c = id(&run(&mut s, "node.add", json!({"name": n, "parent": list.0})), "id");
+        run(&mut s, "node.setDone", json!({"node": c.0, "done": d}));
+    }
+    run(&mut s, "node.toggleProgress", json!({"node": list.0}));
+    assert_eq!(s.graph.progress(list), (1, 2));
 }
 
 #[test]

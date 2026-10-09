@@ -27,6 +27,14 @@ pub fn page_title(s: &Session, id: NodeId) -> String {
 
 pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
     let t = app.tokens();
+    if app.recents_page {
+        recents_page(app, ui, &t);
+        return;
+    }
+    if app.settings_page {
+        settings_page(app, ui, &t);
+        return;
+    }
     let width = ui.available_width();
     let side_w = 360.0;
     let wide = width > LEFT + MAX_W.min(600.0) + side_w + 80.0 && !app.session.graph.related_for(app.session.zoom).is_empty();
@@ -47,6 +55,12 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.schema {
                 tag_overview(app, ui, &t);
                 return;
+            }
+            let empty_page = app.session.graph.get(zoom).is_some_and(|n| {
+                n.kind == Kind::Plain && n.name.is_empty() && n.children.is_empty() && n.tags.is_empty() && !app.session.graph.is_system(zoom)
+            });
+            if empty_page {
+                empty_page_suggestions(app, ui, &t, zoom);
             }
             if zoom == app.session.graph.sys.journal {
                 journal_root(app, ui, &t);
@@ -106,6 +120,110 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
         });
     }
     ui.add_space(80.0);
+}
+
+/// A new, empty page (spec 06 §8): suggested supertags and "Create search node".
+fn empty_page_suggestions(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, page: NodeId) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Suggested tags").size(12.5).color(t.faint));
+        let g = &app.session.graph;
+        for tag in g.tags().into_iter().filter(|x| *x != g.sys.day_tag && g.name(*x) != "week").take(6) {
+            if chip(ui, g, tag, app.dark).clicked() {
+                app.acts.push(Act::Run("tag.add".into(), json!({"node": page.0, "tag": tag.0})));
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        if ui.add(egui::Button::new(RichText::new("Create search node").size(13.0)).fill(t.field_bg)).clicked() {
+            app.acts.push(Act::Pick(PickMode::SearchCreate, page, ui.min_rect().left_bottom()));
+        }
+    });
+    ui.add_space(8.0);
+}
+
+/// The Recents page (spec 07 §3): recently opened nodes beside the selected one.
+pub(crate) fn recents_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.add_space(12.0);
+    let recents: Vec<NodeId> = app.session.recents.iter().copied().filter(|r| app.session.graph.get(*r).is_some()).collect();
+    let selected = app.recents_selected.filter(|r| recents.contains(r)).or_else(|| recents.first().copied());
+    ui.horizontal_top(|ui| {
+        ui.add_space(20.0);
+        ui.vertical(|ui| {
+            ui.set_width(300.0);
+            ui.label(RichText::new("Recents").size(22.0).strong());
+            ui.label(RichText::new("Today").size(12.5).color(t.faint));
+            for r in &recents {
+                let on = Some(*r) == selected;
+                let name = page_title(&app.session, *r);
+                let b = egui::Button::new(RichText::new(if name.is_empty() { "Untitled".to_string() } else { name }).size(14.0).color(if on {
+                    t.text
+                } else {
+                    t.dim
+                }))
+                .fill(if on { t.hover } else { Color32::TRANSPARENT })
+                .corner_radius(5.0);
+                if ui.add(b).clicked() {
+                    app.recents_selected = Some(*r);
+                }
+            }
+        });
+        ui.separator();
+        ui.vertical(|ui| {
+            if let Some(s) = selected {
+                let r = ui.add(egui::Label::new(RichText::new(page_title(&app.session, s)).size(24.0).strong()).sense(Sense::click()));
+                if r.on_hover_text("Open").clicked() {
+                    app.acts.push(Act::Run("nav.open".into(), json!({"node": s.0})));
+                }
+                fields(app, ui, t, s, 0.0);
+                let kids: Vec<NodeId> = app.session.graph.children(s).to_vec();
+                for k in kids.iter().take(200) {
+                    ui.horizontal_wrapped(|ui| crate::views::item_line(app, ui, t, *k, true));
+                }
+            } else {
+                ui.label(RichText::new("Nothing opened yet").color(t.faint));
+            }
+        });
+    });
+}
+
+/// The Settings page (spec 07 §8): the preferences this app has.
+pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.add_space(12.0);
+    ui.horizontal(|ui| {
+        ui.add_space(LEFT);
+        ui.vertical(|ui| {
+            ui.set_width(MAX_W.min(ui.available_width() - 40.0));
+            ui.label(RichText::new("Settings").size(30.0).strong());
+            ui.add_space(10.0);
+            let pref = |ui: &mut Ui, label: &str, help: &str, on: &mut bool| {
+                egui::Frame::new().fill(t.field_bg).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| {
+                            ui.label(RichText::new(label).strong());
+                            ui.label(RichText::new(help).size(12.5).color(t.dim));
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.checkbox(on, ""));
+                    });
+                });
+                ui.add_space(6.0);
+            };
+            let mut dark = app.dark;
+            pref(ui, "Dark mode", "Use the dark theme.", &mut dark);
+            app.dark = dark;
+            let mut full = app.sidebar == 0;
+            pref(ui, "Show sidebar", "Show the full sidebar (Cmd+\\ cycles full, mini, hidden).", &mut full);
+            if full != (app.sidebar == 0) {
+                app.sidebar = if full { 0 } else { 2 };
+            }
+            let mut autosave = app.autosave;
+            pref(ui, "Save automatically", "Write the graph file a second after each change.", &mut autosave);
+            app.autosave = autosave;
+            let path =
+                app.session.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "Not saved to a file (sample or scratch graph)".into());
+            ui.label(RichText::new(format!("Graph file: {path}")).size(12.5).color(t.faint));
+        });
+    });
 }
 
 /// The Supertags overview (spec 03 §1): a filter box and a grid of supertag tiles, then fields.
@@ -258,6 +376,10 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         if editable {
             if app.title_buf.0 != Some(target) || (!ui.ctx().memory(|m| m.has_focus(title_id)) && app.title_buf.1 != g.name(target)) {
                 app.title_buf = (Some(target), g.name(target).to_string());
+            }
+            if app.focus_title && !app.drawing_other_panel {
+                ui.ctx().memory_mut(|m| m.request_focus(title_id));
+                app.focus_title = false;
             }
             let out = egui::TextEdit::singleline(&mut app.title_buf.1)
                 .id(title_id)
@@ -692,6 +814,18 @@ pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &To
     resp.clone().on_hover_text("Open")
 }
 
+/// "3 minutes ago"-style time.
+pub(crate) fn ago(secs: u64) -> String {
+    let now = tanacraft_core::now_secs();
+    let d = now.saturating_sub(secs);
+    match d {
+        0..=59 => "just now".into(),
+        60..=3599 => format!("{} minutes ago", d / 60),
+        3600..=86_399 => format!("{} hours ago", d / 3600),
+        _ => format!("{} days ago", d / 86_400),
+    }
+}
+
 /// The node menu (right-click a bullet, or "..." on a page).
 pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>) {
     let n = json!({"node": id.0});
@@ -711,6 +845,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     item(ui, if g.checkbox(id).is_some() { "Toggle done" } else { "Add checkbox" }, run("node.toggleDone"));
     item(ui, "Add description", Act::Ui("ui.editDescription"));
     item(ui, "Toggle heading", run("node.toggleHeading"));
+    item(ui, "Show progress bar", run("node.toggleProgress"));
     let pinned = g.get(g.resolve(id)).is_some_and(|n| n.pinned);
     item(ui, if pinned { "Unpin from sidebar" } else { "Pin to sidebar" }, run("node.togglePin"));
     ui.separator();
@@ -958,6 +1093,13 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
+        // Hover card: when the node was edited and created.
+        let resp = match node.as_ref() {
+            Some(n) => {
+                resp.on_hover_text(format!("{}\nEdited {}, created {}", app.session.graph.text(target), ago(n.edited.max(n.created)), ago(n.created)))
+            }
+            None => resp,
+        };
         let mut menu_acts = Vec::new();
         resp.context_menu(|ui| node_menu(ui, &app.session.graph, id, &mut menu_acts));
         app.acts.extend(menu_acts);
@@ -1004,6 +1146,18 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             if focused && is_ref {
                 ui.painter().rect_stroke(r.rect.expand(2.0), 3.0, Stroke::new(1.0, t.accent), StrokeKind::Outside);
             }
+        }
+        // Progress bar of checkbox children.
+        if node.as_ref().is_some_and(|n| n.progress) {
+            let (done_n, total) = app.session.graph.progress(target);
+            let (r, _) = ui.allocate_exact_size(vec2(64.0, ROW_H), Sense::hover());
+            let bar = Rect::from_min_size(r.left_center() - vec2(0.0, 2.0), vec2(56.0, 4.0));
+            ui.painter().rect_filled(bar, 2.0, t.line);
+            if total > 0 {
+                let w = bar.width() * done_n as f32 / total as f32;
+                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, Color32::from_rgb(76, 160, 96));
+            }
+            ui.label(RichText::new(format!("{done_n}/{total}")).size(12.0).color(t.faint));
         }
         // Tag chips (hover the "#" to remove).
         if let Some(n) = &node {

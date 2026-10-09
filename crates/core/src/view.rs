@@ -267,7 +267,7 @@ impl Graph {
         let mut groups: Vec<Group> = Vec::new();
         // Every option of an options field gets a group, even an empty one (spec 04 §12).
         if let GroupBy::Field(f) = group {
-            for o in self.field_def(f).map(|d| d.options.clone()).unwrap_or_default() {
+            for o in self.field_options(f) {
                 groups.push(Group { label: o, items: Vec::new() });
             }
         }
@@ -280,7 +280,7 @@ impl Graph {
         }
         // Options fields keep their option order; everything else is alphabetical. "No value" last.
         let order: Vec<String> = match group {
-            GroupBy::Field(f) => self.field_def(f).map(|d| d.options.clone()).unwrap_or_default(),
+            GroupBy::Field(f) => self.field_options(f),
             GroupBy::Done => vec!["Not done".into(), "Done".into()],
             GroupBy::Tags | GroupBy::Owner | GroupBy::Created | GroupBy::Edited => Vec::new(),
         };

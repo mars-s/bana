@@ -398,7 +398,7 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 }
             });
             for (f, name, ty) in &field_names {
-                let opts = g.field_def(*f).map(|d| d.options.clone()).unwrap_or_default();
+                let opts = g.field_options(*f);
                 ui.menu_button(name, |ui| {
                     if ui.button("Has a value").clicked() {
                         acts.push(Act::Run("view.addFilter".into(), json!({"node": node.0, "clause": format!("\"{name}\":*")})));

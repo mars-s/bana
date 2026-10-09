@@ -67,6 +67,8 @@ pub enum PickMode {
     TemplateField,
     /// `@` mid-sentence: an inline reference inserted at `Picker::caret`.
     InlineRef,
+    /// A source of options for `node` (a field): any node.
+    OptionSource,
     /// An optional field for `node` (a supertag).
     OptionalField,
     /// "Move and leave reference to": like `MoveTo`, a reference stays behind.

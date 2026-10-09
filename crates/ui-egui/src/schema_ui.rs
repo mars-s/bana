@@ -396,6 +396,15 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
     app.acts.extend(acts);
 }
 
+fn dashed_ring(p: &egui::Painter, c: egui::Pos2, color: Color32) {
+    for i in 0..12 {
+        let a0 = i as f32 / 12.0 * std::f32::consts::TAU;
+        let a1 = a0 + std::f32::consts::TAU / 24.0;
+        let at = |a: f32| c + vec2(a.cos(), a.sin()) * 5.5;
+        p.line_segment([at(a0), at(a1)], Stroke::new(1.2, color));
+    }
+}
+
 /// A field definition's page: type, options, range, auto-initialize, required, hide, usage.
 pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
     let g = &app.session.graph;
@@ -414,22 +423,62 @@ pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
         });
         match def.field_type {
             FieldType::Options => {
-                row(ui, t, "Options", |ui| {
+                // Options as a small outline: a dashed-ring bullet per option, x on hover, an
+                // Empty line to add one (spec 03 §6).
+                row(ui, t, "Pre-determined options", |ui| {
                     ui.vertical(|ui| {
                         for o in &def.options {
-                            ui.horizontal(|ui| {
+                            let row = ui.horizontal(|ui| {
+                                let (r, _) = ui.allocate_exact_size(vec2(16.0, 22.0), Sense::hover());
+                                dashed_ring(ui.painter(), r.center(), t.dim);
                                 ui.label(o);
-                                if ui.small_button("x").clicked() {
+                            });
+                            if ui.rect_contains_pointer(row.response.rect.expand2(vec2(40.0, 0.0))) {
+                                let at = row.response.rect.right_center() + vec2(8.0, 0.0);
+                                let x = ui.interact(
+                                    egui::Rect::from_center_size(at, vec2(14.0, 14.0)),
+                                    egui::Id::new(("opt-x", field.0, o.as_str())),
+                                    Sense::click(),
+                                );
+                                ui.painter().text(at, egui::Align2::CENTER_CENTER, "x", egui::FontId::proportional(12.0), t.faint);
+                                if x.on_hover_text("Remove option").clicked() {
                                     acts.push(Act::Run("field.removeOption".into(), json!({"field": f, "option": o})));
+                                }
+                            }
+                        }
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            let r = ui.add(
+                                egui::TextEdit::singleline(&mut app.option_buf).frame(egui::Frame::NONE).hint_text("Empty").desired_width(220.0),
+                            );
+                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.option_buf.trim().is_empty() {
+                                let o = std::mem::take(&mut app.option_buf);
+                                acts.push(Act::Run("field.addOption".into(), json!({"field": f, "option": o})));
+                                r.request_focus();
+                            }
+                        });
+                    });
+                });
+                row(ui, t, "Sources of options", |ui| {
+                    ui.vertical(|ui| {
+                        for src in def.sources.iter().filter(|x| g.get(**x).is_some()) {
+                            ui.horizontal(|ui| {
+                                ui.label(g.name(*src));
+                                if ui.small_button("x").on_hover_text("Remove source").clicked() {
+                                    acts.push(Act::Run("field.removeSource".into(), json!({"field": f, "node": src.0})));
                                 }
                             });
                         }
-                        let r = ui.add(egui::TextEdit::singleline(&mut app.option_buf).hint_text("Add an option, Enter").desired_width(220.0));
-                        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.option_buf.trim().is_empty() {
-                            let o = std::mem::take(&mut app.option_buf);
-                            acts.push(Act::Run("field.addOption".into(), json!({"field": f, "option": o})));
+                        if ui.button("Add source").on_hover_text("A node whose children become options").clicked() {
+                            acts.push(Act::Pick(PickMode::OptionSource, field, ui.min_rect().left_bottom()));
                         }
                     });
+                });
+                row(ui, t, "Auto-collect values", |ui| {
+                    let mut on = !def.no_auto_collect;
+                    if ui.checkbox(&mut on, "Include typed values as options").changed() {
+                        acts.push(Act::Run("field.setAutoCollect".into(), json!({"field": f, "on": on})));
+                    }
                 });
             }
             FieldType::OptionsFromTag => {

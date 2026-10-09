@@ -248,12 +248,11 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
                 .and_then(|f| Some(g.get(p.node)?.field_values(f).into_iter().map(|v| export::display_value(g, v)).collect()))
                 .unwrap_or_default();
             p.field
-                .and_then(|f| g.field_def(f))
-                .map(|d| {
-                    d.options
-                        .iter()
+                .map(|f| {
+                    g.field_options(f)
+                        .into_iter()
                         .filter(|o| !current.contains(o) && o.to_lowercase().contains(&q))
-                        .map(|o| Choice::Existing(NodeId(0), o.clone()))
+                        .map(|o| Choice::Existing(NodeId(0), o))
                         .collect()
                 })
                 .unwrap_or_default()
@@ -269,7 +268,7 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
-        PickMode::InlineRef | PickMode::MoveTo | PickMode::MoveLeaveRef if q.is_empty() => app
+        PickMode::InlineRef | PickMode::MoveTo | PickMode::MoveLeaveRef | PickMode::OptionSource if q.is_empty() => app
             .session
             .recents
             .iter()
@@ -278,7 +277,9 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .take(8)
             .map(|n| Choice::Existing(n, export::node_line(g, n)))
             .collect(),
-        PickMode::InlineRef => g.fuzzy(&q, 10).into_iter().filter(|n| *n != p.node).map(|n| Choice::Existing(n, export::node_line(g, n))).collect(),
+        PickMode::InlineRef | PickMode::OptionSource => {
+            g.fuzzy(&q, 10).into_iter().filter(|n| *n != p.node).map(|n| Choice::Existing(n, export::node_line(g, n))).collect()
+        }
         PickMode::MoveTo | PickMode::MoveLeaveRef => {
             let mut v: Vec<Choice> = [g.sys.library, g.sys.journal]
                 .into_iter()
@@ -393,7 +394,8 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
         (PickMode::MoveLeaveRef, Choice::Existing(dest, _)) => {
             app.exec("node.move", json!({"node": node.0, "parent": dest.0, "leaveReference": true}))
         }
-        (PickMode::MoveTo | PickMode::MoveLeaveRef, Choice::Create(_)) => Ok(json!({})),
+        (PickMode::MoveTo | PickMode::MoveLeaveRef | PickMode::OptionSource, Choice::Create(_)) => Ok(json!({})),
+        (PickMode::OptionSource, Choice::Existing(src, _)) => app.exec("field.addSource", json!({"field": node.0, "node": src.0})),
         (PickMode::Extend, Choice::Existing(base, _)) => app.exec("tag.extend", json!({"tag": node.0, "base": base.0})),
         (PickMode::TemplateField, Choice::Existing(f, _)) => app.exec("tag.addField", json!({"tag": node.0, "field": f.0})),
         (PickMode::TemplateField, Choice::Create(name)) => app.exec("tag.addField", json!({"tag": node.0, "field": name})),
@@ -484,6 +486,7 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::InlineRef => "Reference a node inline",
         PickMode::MoveTo => "Move to",
         PickMode::MoveLeaveRef => "Move and leave reference to",
+        PickMode::OptionSource => "Source of options",
     };
     egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(p.anchor).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {

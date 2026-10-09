@@ -241,6 +241,12 @@ pub struct FieldDef {
     pub max: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_init: Option<AutoInit>,
+    /// Sources of options: nodes whose children are offered as options too.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<NodeId>,
+    /// New typed values are not added to the options ("Auto-collect values" off).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub no_auto_collect: bool,
 }
 
 fn is_never(h: &HideMode) -> bool {

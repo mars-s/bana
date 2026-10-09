@@ -686,3 +686,23 @@ fn query_groups_nest_and_or_and_not() {
     assert_eq!(names, ["Gamma one", "Delta two"]);
     assert!(s.run("search.addClause", &json!({"node": q.0, "path": [0], "clause": "x"})).is_err(), "path must lead to a group");
 }
+
+#[test]
+fn option_sources_and_auto_collect() {
+    let mut s = blank();
+    run(&mut s, "field.create", json!({"name": "Colour", "type": "options"}));
+    let list = id(&run(&mut s, "node.add", json!({"name": "Palette"})), "id");
+    for c in ["Red", "Blue"] {
+        run(&mut s, "node.add", json!({"name": c, "parent": list.0}));
+    }
+    let v = run(&mut s, "field.addSource", json!({"field": "Colour", "node": list.0}));
+    assert_eq!(v["options"], json!(["Red", "Blue"]));
+    run(&mut s, "field.setAutoCollect", json!({"field": "Colour", "on": false}));
+    let n = id(&run(&mut s, "node.add", json!({"name": "Car"})), "id");
+    run(&mut s, "field.add", json!({"node": n.0, "field": "Colour", "value": "Green"}));
+    let f = s.graph.find_field("Colour").unwrap();
+    assert_eq!(s.graph.field_options(f), ["Red", "Blue"], "Green is stored but not collected");
+    run(&mut s, "field.setAutoCollect", json!({"field": "Colour", "on": true}));
+    run(&mut s, "field.set", json!({"node": n.0, "field": "Colour", "value": "Teal"}));
+    assert_eq!(s.graph.field_options(f), ["Teal", "Red", "Blue"]);
+}

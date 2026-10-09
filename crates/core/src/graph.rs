@@ -1026,11 +1026,27 @@ impl Graph {
             return Err(Error::Invalid(format!("{x} is outside the allowed range ({range})")));
         }
         if let FieldValue::Choice(c) = &value
-            && !def.options.iter().any(|o| o == c)
+            && !def.no_auto_collect
+            && !self.field_options(field).iter().any(|o| o == c)
         {
             self.field_def_mut(field)?.options.push(c.clone());
         }
         Ok(value)
+    }
+
+    /// Every option of an options field: its own, then the children of its sources.
+    pub fn field_options(&self, field: NodeId) -> Vec<String> {
+        let Some(d) = self.field_def(field) else { return Vec::new() };
+        let mut out = d.options.clone();
+        for s in &d.sources {
+            for c in self.children(self.resolve(*s)) {
+                let name = self.text(*c);
+                if !name.is_empty() && !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+        }
+        out
     }
 
     /// Removes the field entry entirely.

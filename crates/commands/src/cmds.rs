@@ -258,6 +258,17 @@ pub fn registry() -> Registry {
         C::new("field.setSourceTag", "Options from supertag", "Field", field_set_source_tag).params(r#"{"field": name | id, "tag": name | id}"#),
         C::new("field.addOption", "Add option", "Field", field_add_option).params(r#"{"field": name | id, "option": string}"#),
         C::new("field.removeOption", "Remove option", "Field", field_remove_option).params(r#"{"field": name | id, "option": string}"#),
+        C::new("field.addSource", "Add source of options", "Field", |s, v| field_source(s, v, true))
+            .params(r#"{"field": name | id, "node": id}  (the node's children become options)"#),
+        C::new("field.removeSource", "Remove source of options", "Field", |s, v| field_source(s, v, false))
+            .params(r#"{"field": name | id, "node": id}"#),
+        C::new("field.setAutoCollect", "Auto-collect values", "Field", |s, v| {
+            let f = field_param(s, v, false)?;
+            let on = p::bool(v, "on").ok_or_else(|| CmdError::Params("`on` (bool) is required".into()))?;
+            s.graph.field_def_mut(f)?.no_auto_collect = !on;
+            Ok(json!({"field": f.0, "on": on}))
+        })
+        .params(r#"{"field": name | id, "on": bool}"#),
         C::new("field.add", "Add field", "Field", field_add)
             .key(">")
             .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string}"#),
@@ -880,6 +891,18 @@ fn tag_set_checkbox(s: &mut Session, v: &Value) -> CmdResult {
     let on = p::bool(v, "on").ok_or_else(|| CmdError::Params("`on` (bool) is required".into()))?;
     s.graph.set_tag_checkbox(tag, on)?;
     Ok(json!({"tag": tag.0, "checkbox": on}))
+}
+
+fn field_source(s: &mut Session, v: &Value, add: bool) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let node = p::node(v, "node")?.ok_or_else(|| CmdError::Params("`node` is required".into()))?;
+    s.graph.node(node)?;
+    let d = s.graph.field_def_mut(f)?;
+    d.sources.retain(|x| *x != node);
+    if add {
+        d.sources.push(node);
+    }
+    Ok(json!({"field": f.0, "options": s.graph.field_options(f)}))
 }
 
 fn field_add(s: &mut Session, v: &Value) -> CmdResult {

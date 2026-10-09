@@ -96,8 +96,20 @@ pub fn registry() -> Registry {
             view_json(s, id)
         })
         .params(r#"{"node"?: id, "field": "Created time|Last edited time|Done time|Owner node|Tags|Number of references"}"#),
+        C::new("view.toggleGroupHidden", "Hide or show a group", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let label = p::req_str(v, "group")?.to_string();
+            let view = s.graph.view_mut(id)?;
+            if view.hidden_groups.contains(&label) {
+                view.hidden_groups.retain(|g| *g != label);
+            } else {
+                view.hidden_groups.push(label);
+            }
+            view_json(s, id)
+        })
+        .params(r#"{"node"?: id, "group": string}"#),
         C::new("view.toggleToolbar", "Show or hide view toolbar", "Views", view_toggle_toolbar).params(r#"{"node"?: id}"#),
-        C::new("view.calendarMode", "Calendar week or month", "Views", view_calendar_mode).params(r#"{"mode": "week|month"}"#).pure(),
+        C::new("view.calendarMode", "Calendar week or month", "Views", view_calendar_mode).params(r#"{"mode": "day|week|month"}"#).pure(),
         C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|owner|created|edited|<field>"}"#),
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
@@ -165,7 +177,7 @@ pub fn registry() -> Registry {
         C::new("tag.addView", "Add view to supertag", "Supertag", tag_add_view)
             .params(r#"{"tag": name | id, "kind": "outline|table|cards|calendar|..."}"#),
         C::new("node.toggleProgress", "Show progress bar", "Node", |s, v| {
-            let id = s.graph.resolve(s.target(v).or_else(|_| Ok::<NodeId, CmdError>(s.zoom))?);
+            let id = s.graph.resolve(s.target(v).unwrap_or(s.zoom));
             let on = !s.graph.node(id)?.progress;
             s.graph.set_progress(id, on)?;
             Ok(json!({"node": id.0, "progress": on}))
@@ -1146,10 +1158,11 @@ fn view_toggle_toolbar(s: &mut Session, v: &Value) -> CmdResult {
 
 fn view_calendar_mode(s: &mut Session, v: &Value) -> CmdResult {
     let mode = p::req_str(v, "mode")?;
-    s.calendar_week = match mode {
-        "week" => true,
-        "month" => false,
-        other => return Err(CmdError::Params(format!("mode must be week or month, not `{other}`"))),
+    s.calendar_mode = match mode {
+        "month" => 0,
+        "week" => 1,
+        "day" => 2,
+        other => return Err(CmdError::Params(format!("mode must be day, week or month, not `{other}`"))),
     };
     Ok(json!({"mode": mode}))
 }

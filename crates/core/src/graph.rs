@@ -1048,6 +1048,11 @@ impl Graph {
         self.tag_def(tag).ok_or_else(|| Error::Invalid(format!("node {tag} is not a supertag")))?;
         let id = self.create(tag, None, name)?;
         self.tag_def_mut(tag)?.template.push(id);
+        // Template edits reach nodes tagged earlier (spec 03 §10).
+        for n in self.nodes_with_lineage(tag) {
+            let copy = self.copy_subtree(id, n, 0)?;
+            self.node_mut(n)?.children.push(copy);
+        }
         Ok(id)
     }
 

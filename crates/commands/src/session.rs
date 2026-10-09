@@ -52,8 +52,8 @@ pub struct Session {
     pub sel: Option<(NodeId, NodeId)>,
     /// The month a calendar view shows (year, month); `None` = the month of `today`.
     pub calendar_month: Option<(i32, u8)>,
-    /// Calendar views show a week (true) or a month.
-    pub calendar_week: bool,
+    /// Calendar views show a month (0), a week (1) or a day (2).
+    pub calendar_mode: u8,
     /// The item a navigation view (list, side menu, tabs) shows, per view node.
     pub nav_selected: std::collections::HashMap<NodeId, NodeId>,
     back: Vec<NodeId>,
@@ -81,7 +81,7 @@ impl Session {
             caret: 0,
             anchor: 0,
             calendar_month: None,
-            calendar_week: false,
+            calendar_mode: 0,
             nav_selected: Default::default(),
             sel: None,
             back: Vec::new(),

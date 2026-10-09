@@ -368,6 +368,12 @@ fn search_nodes_and_views_by_command() {
     assert!(s.run("view.set", &json!({"kind": "pie"})).is_err());
     assert!(s.run("view.sort", &json!({"by": "nosuchfield"})).is_err());
     assert!(s.run("view.dateField", &json!({"field": "Status"})).is_err());
+    run(&mut s, "view.toggleGroupHidden", json!({"group": "Done"}));
+    run(&mut s, "view.group", json!({"by": "Status"}));
+    assert!(s.graph.view_groups(search).iter().all(|g| g.label != "Done"), "hidden group");
+    run(&mut s, "view.group", json!({"by": "none"}));
+    run(&mut s, "view.calendarMode", json!({"mode": "day"}));
+    assert_eq!(s.calendar_mode, 2);
     run(&mut s, "view.dateField", json!({"field": "Due"}));
     run(&mut s, "view.month", json!({"month": "2026-12"}));
     assert_eq!(run(&mut s, "view.month", json!({"step": 1}))["month"], "2027-01");

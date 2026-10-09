@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95) | 42 | 41 | 12 | 0 |
-| Screenshots (142) | 77 | 35 | 29 | 1 |
+| Spec sections (95) | 43 | 44 | 8 | 0 |
+| Screenshots (148) | 82 | 37 | 28 | 1 |
 
 ## `00-overview.md`
 
@@ -57,7 +57,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
 | 10. Inline formatting | partial | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. Formatting does not carry on for new typing; links not rendered. |
 | 11. Trigger characters | partial | #, @ (empty line: reference node; mid-sentence: inline reference), > and / menus. Missing: Space for AI, Cmd+Enter create in menus. |
-| 12. Copy and paste | missing | Not reviewed yet. |
+| 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste. Missing: rich HTML on the clipboard, paste as code. |
 | 13. Description | partial | Ctrl+I edits a description (in a small dialog, not inline); shown under the line. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
@@ -75,9 +75,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 6. Field definition panel | partial | Type, options, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows. |
 | 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
 | 8. Field value pickers | partial | Options picker (other options, create), date picker, number, checkbox, URL/email text. Missing: week numbers, time, date ranges in the date picker; user picker. |
-| 9. Required, hidden, pinned and invalid fields | missing | Not reviewed yet. |
-| 10. Template behaviour and inheritance | missing | Not reviewed yet. |
-| 11. Adding fields | missing | Not reviewed yet. |
+| 9. Required, hidden, pinned and invalid fields | partial | Empty required fields show an amber ?; hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows. Missing: pinned-field flag; invalid values are refused with a status message instead of a warning icon. |
+| 10. Template behaviour and inheritance | done | Template fields and nodes are copied, later template additions reach existing tagged nodes, extended supertags pass on fields and nodes and match the parent's searches, mixed views title the first column Title. |
+| 11. Adding fields | partial | > on a line, template New field / Insert existing, table + Add field adds to the supertag template. AI suggested fields missing. |
 
 ## `04-views.md`
 
@@ -295,20 +295,26 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `132-mini-sidebar-pinned-flyout.jpg` | missing | Mini sidebar flyout for pinned items. |
 | `133-mini-sidebar-workspace-flyout.jpg` | missing | Mini sidebar workspace flyout. |
 | `134-manage-workspaces.png` | missing | Manage workspaces. |
-| `135-create-workspace.png` | missing | New, not reviewed yet. |
-| `136-new-workspace.png` | missing | New, not reviewed yet. |
-| `137-workspace-invite-step.jpg` | missing | New, not reviewed yet. |
-| `138-sidebar-two-workspaces.png` | missing | New, not reviewed yet. |
-| `139-workspace-home.png` | missing | New, not reviewed yet. |
-| `140-workspace-settings-other-ws.jpg` | missing | New, not reviewed yet. |
-| `141-settings-api-keys.png` | missing | New, not reviewed yet. |
-| `142-invalid-value-warning.jpg` | missing | New, not reviewed yet. |
-| `143-board-column-add.png` | missing | New, not reviewed yet. |
-| `144-board-hidden-column.png` | missing | New, not reviewed yet. |
-| `145-group-menu-hidden-groups.png` | missing | New, not reviewed yet. |
-| `146-field-name-autocomplete.jpg` | missing | New, not reviewed yet. |
-| `147-auto-collected-option.png` | missing | New, not reviewed yet. |
-| `148-calendar-day-view.png` | missing | New, not reviewed yet. |
+| `135-create-workspace.png` | missing | Create workspace. |
+| `136-new-workspace.png` | missing | New workspace. |
+| `137-workspace-invite-step.jpg` | missing | Workspace invite. |
+| `138-sidebar-two-workspaces.png` | missing | Two workspaces in the sidebar. |
+| `139-workspace-home.png` | missing | Workspace home. |
+| `140-workspace-settings-other-ws.jpg` | missing | Workspace settings. |
+| `141-settings-api-keys.png` | missing | API keys settings. |
+| `142-invalid-value-warning.jpg` | partial | Invalid values are refused with a message, no warning icon. |
+| `143-board-column-add.png` | done | Board column + Add. |
+| `144-board-hidden-column.png` | done | Hidden board column. |
+| `145-group-menu-hidden-groups.png` | done | Group menu lists hidden groups. |
+| `146-field-name-autocomplete.jpg` | done | Field name autocomplete. |
+| `147-auto-collected-option.png` | done | Auto-collected option. |
+| `148-calendar-day-view.png` | partial | Calendar day view as a list (no time grid). |
+| `149-multi-select-indent.png` | missing | New, not reviewed yet. |
+| `150-bang-heading.jpg` | missing | New, not reviewed yet. |
+| `151-heading-with-child.jpg` | missing | New, not reviewed yet. |
+| `152-checklist-inserted.jpg` | missing | New, not reviewed yet. |
+| `153-checklist-progress.png` | missing | New, not reviewed yet. |
+| `154-table-column-resize.jpg` | missing | New, not reviewed yet. |
 
 ## Beyond the spec
 

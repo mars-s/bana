@@ -548,7 +548,11 @@ fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Color32) {
 /// Field rows of `node` (its own and its supertags'), indented by `indent`.
 pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32) {
     let target = app.session.graph.resolve(node);
+    // In an outline an empty "hide when empty" field folds into a "+ Field" button; on the node's
+    // own page it stays a row (spec 03 §9).
+    let zoomed = target == app.session.graph.resolve(app.session.zoom);
     let entries = app.session.graph.get(target).map(|n| n.fields.clone()).unwrap_or_default();
+    let mut folded: Vec<(NodeId, String)> = Vec::new();
     for e in entries {
         let g = &app.session.graph;
         let Some(def) = g.field_def(e.field).cloned() else { continue };
@@ -560,30 +564,72 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
         let is_default = def.default.is_some() && e.value == def.default;
         let hidden = match def.hide {
             tanacraft_core::HideMode::Never => false,
-            tanacraft_core::HideMode::WhenEmpty => empty,
+            tanacraft_core::HideMode::WhenEmpty => empty && !zoomed,
             tanacraft_core::HideMode::WhenNotEmpty => !empty,
             tanacraft_core::HideMode::WhenDefault => is_default,
             tanacraft_core::HideMode::Always => true,
         };
         if hidden && !editing {
+            if def.hide == tanacraft_core::HideMode::WhenEmpty {
+                folded.push((e.field, name));
+            }
             continue;
         }
         let missing = def.required && empty;
+        // Narrow panels stack the name above the value (spec 03 §9).
+        let narrow = ui.available_width() - indent < 420.0;
         ui.horizontal(|ui| {
             ui.add_space(indent);
             ui.vertical(|ui| {
-                field_frame(ui, t, |ui| {
+                let body = |ui: &mut Ui, app: &mut TanaApp| {
                     field_label(ui, t, &name, def.field_type);
-                    field_value(app, ui, t, target, e.field, &def, e.value.as_ref(), value_text, editing);
+                    if narrow {
+                        ui.end_row();
+                    }
+                    field_value(app, ui, t, target, e.field, &def, e.value.as_ref(), value_text.clone(), editing);
                     if missing {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.label(RichText::new("Required").size(12.0).color(Color32::from_rgb(232, 128, 96)));
+                            let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                            let amber = Color32::from_rgb(224, 176, 48);
+                            ui.painter().circle_stroke(r.center(), 7.0, Stroke::new(1.4, amber));
+                            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "?", FontId::proportional(11.0), amber);
+                            resp.on_hover_text("Required");
                         });
                     }
-                });
+                };
+                if narrow {
+                    egui::Frame::new().fill(t.field_bg).corner_radius(6.0).inner_margin(egui::Margin::symmetric(10, 5)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.horizontal_wrapped(|ui| body(ui, app));
+                    });
+                    ui.add_space(3.0);
+                } else {
+                    field_frame_mut(ui, t, app, body);
+                }
             });
         });
     }
+    if !folded.is_empty() {
+        ui.horizontal(|ui| {
+            ui.add_space(indent + 4.0);
+            for (f, name) in folded {
+                if ui.add(egui::Label::new(RichText::new(format!("+ {name}")).size(12.5).color(t.faint)).sense(Sense::click())).clicked() {
+                    app.acts.push(Act::EditField(target, f, String::new()));
+                }
+            }
+        });
+    }
+}
+
+fn field_frame_mut(ui: &mut Ui, t: &Tokens, app: &mut TanaApp, add: impl FnOnce(&mut Ui, &mut TanaApp)) {
+    egui::Frame::new().fill(t.field_bg).corner_radius(6.0).inner_margin(egui::Margin::symmetric(10, 5)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.set_min_height(22.0);
+            add(ui, app)
+        });
+    });
+    ui.add_space(3.0);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -812,6 +858,12 @@ pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &To
     }
     // The link handled the click; the caller should not also act on it.
     resp.clone().on_hover_text("Open")
+}
+
+/// The whole text is one link.
+fn is_link_only(name: &str) -> bool {
+    let sp = tanacraft_core::format::spans(name.trim());
+    sp.len() == 1 && sp.first().is_some_and(|x| x.url.is_some())
 }
 
 /// "3 minutes ago"-style time.
@@ -1087,6 +1139,12 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 ui.painter().line_segment([at(a0), at(a1)], Stroke::new(1.2, bullet_color));
             }
             ui.painter().circle_filled(center, 2.2, bullet_color);
+        } else if node.as_ref().is_some_and(|n| is_link_only(&n.name)) {
+            // A node that is just a URL is a link node: the bullet becomes a link glyph (spec 02 §12).
+            let st = Stroke::new(1.3, t.link);
+            let b = Rect::from_center_size(center, vec2(9.0, 9.0));
+            ui.painter().rect_stroke(b, 1.5, st, StrokeKind::Middle);
+            ui.painter().line_segment([b.center(), b.right_top() + vec2(2.0, -2.0)], st);
         } else if !blank {
             ui.painter().circle_filled(center, 3.2, bullet_color);
         }

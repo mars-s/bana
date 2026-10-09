@@ -390,7 +390,7 @@ fn create_new_recents_settings_and_copy_paste_references() {
     h.state_mut().exec("nav.home", json!({})).unwrap();
     // Copy a selected node, paste it after another: a reference to the same node.
     let g = &h.state().session.graph;
-    let (ideas, reading) = (g.search("Ideas")[0].0, g.search("Reading notes")[0].0);
+    let (ideas, reading) = (g.search("Ideas")[0].0, g.search("Seed list")[0].0);
     h.state_mut().exec("select.set", json!({"from": ideas})).unwrap();
     h.input_mut().events.push(Event::Copy);
     h.step();
@@ -401,4 +401,9 @@ fn create_new_recents_settings_and_copy_paste_references() {
     h.step();
     let g = &h.state().session.graph;
     assert_eq!(g.references_to(tanacraft_core::NodeId(ideas)).len(), 1);
+    // Pasting again next to it skips the duplicate.
+    let again = tanacraft_core::export::to_markdown(&h.state().session.graph, tanacraft_core::NodeId(ideas), false);
+    h.input_mut().events.push(Event::Paste(again));
+    h.step();
+    assert_eq!(h.state().session.graph.references_to(tanacraft_core::NodeId(ideas)).len(), 1, "duplicates are skipped");
 }

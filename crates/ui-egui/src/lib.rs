@@ -191,6 +191,8 @@ pub struct TanaApp {
     recents_selected: Option<NodeId>,
     /// Put the caret in the page title on the next frame.
     pub(crate) focus_title: bool,
+    /// A short notice in the top-right corner, and when it appeared.
+    toast_msg: Option<(String, f64)>,
     /// The last nodes copied with Cmd+C and the text that went to the clipboard.
     node_clip: Option<(String, Vec<NodeId>)>,
     /// Pinned sidebar rows shown expanded.
@@ -249,6 +251,7 @@ impl TanaApp {
             recents_selected: None,
             focus_title: false,
             node_clip: None,
+            toast_msg: None,
             config_open: Default::default(),
             tag_tab: Default::default(),
             template_buf: String::new(),
@@ -264,6 +267,11 @@ impl TanaApp {
         };
         app.tabs.push(first);
         app
+    }
+
+    /// Shows a short notice for a few seconds.
+    pub fn toast(&mut self, msg: String) {
+        self.toast_msg = Some((msg, f64::NAN));
     }
 
     /// Forget the text field state (another panel or tab is now active).
@@ -480,7 +488,34 @@ impl TanaApp {
         overlays::date_picker(self, &ctx);
         overlays::quick_add(self, &ctx);
         overlays::search_open(self, &ctx);
+        self.toast_ui(&ctx);
         self.flush();
+    }
+
+    fn toast_ui(&mut self, ctx: &egui::Context) {
+        let Some((msg, since)) = self.toast_msg.clone() else { return };
+        let now = ctx.input(|i| i.time);
+        let since = if since.is_nan() { now } else { since };
+        if now - since > 4.0 {
+            self.toast_msg = None;
+            return;
+        }
+        self.toast_msg = Some((msg.clone(), since));
+        let t = self.tokens();
+        let screen = ctx.content_rect();
+        egui::Area::new(egui::Id::new("toast"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(egui::pos2(screen.right() - 380.0, screen.top() + 52.0))
+            .show(ctx, |ui| {
+                Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(10.0).show(ui, |ui| {
+                    ui.set_width(340.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("!").strong().color(egui::Color32::from_rgb(224, 176, 48)));
+                        ui.label(RichText::new(msg).size(13.5));
+                    });
+                });
+            });
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
     }
 
     pub(crate) fn flush(&mut self) {

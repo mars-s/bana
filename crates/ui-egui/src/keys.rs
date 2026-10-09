@@ -3,6 +3,7 @@
 
 use egui::{Event, Key, Modifiers};
 use serde_json::json;
+use tanacraft_core::NodeId;
 
 use crate::TanaApp;
 
@@ -74,7 +75,14 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
             if let Some(a) = anchor {
                 let parent = app.session.graph.parent(a);
                 let mut index = app.session.graph.index_in_parent(a).map(|i| i + 1);
-                for n in ids {
+                // Nodes already in this list are skipped, with a notice (spec 02 §12).
+                let present: Vec<NodeId> =
+                    parent.map(|p| app.session.graph.children(p).iter().map(|c| app.session.graph.resolve(*c)).collect()).unwrap_or_default();
+                let skipped = ids.iter().filter(|n| present.contains(n)).count();
+                if skipped > 0 {
+                    app.toast(format!("{skipped} node(s) were already here and were skipped"));
+                }
+                for n in ids.into_iter().filter(|n| !present.contains(n)) {
                     if let Some(p) = parent {
                         let r = app.exec("node.reference", json!({"target": n.0, "parent": p.0, "index": index}));
                         index = index.map(|i| i + 1);

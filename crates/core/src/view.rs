@@ -170,6 +170,9 @@ pub struct ViewDef {
     /// with none shows every field the items have.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub columns: Vec<NodeId>,
+    /// Groups (board columns) the person hid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_groups: Vec<String>,
     /// The view toolbar is hidden.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hide_toolbar: bool,
@@ -254,6 +257,7 @@ impl Graph {
         let Some(group) = v.group else {
             return vec![Group { label: String::new(), items }];
         };
+        let hidden = v.hidden_groups.clone();
         let mut groups: Vec<Group> = Vec::new();
         // Every option of an options field gets a group, even an empty one (spec 04 §12).
         if let GroupBy::Field(f) = group {
@@ -279,6 +283,7 @@ impl Graph {
             let pos = order.iter().position(|o| *o == g.label).unwrap_or(usize::MAX);
             (none, pos, g.label.to_lowercase())
         });
+        groups.retain(|g| !hidden.contains(&g.label));
         groups
     }
 

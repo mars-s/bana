@@ -497,6 +497,8 @@ fn supertag_configuration_behaviours() {
     g.add_tag(m, meeting).unwrap();
     let kids: Vec<&str> = g.children(m).iter().map(|c| g.name(*c)).collect();
     assert_eq!(kids, ["Agenda", "Notes"]);
+    g.tag_add_template_node(meeting, "Decisions").unwrap();
+    assert_eq!(g.children(m).len(), 3, "template changes reach nodes tagged earlier");
     g.tag_set_child_tag(meeting, Some(task)).unwrap();
     let c = g.create(m, None, "Action item").unwrap();
     assert!(g.get(c).unwrap().tags.contains(&task));

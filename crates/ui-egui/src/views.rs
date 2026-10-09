@@ -238,6 +238,12 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             };
             ui.menu_button(RichText::new(group_label).size(13.0).color(t.dim), |ui| {
                 ui.label(RichText::new("Group by").size(12.0).color(t.faint));
+                for hidden in &def.hidden_groups {
+                    if ui.button(format!("Show hidden group: {hidden}")).clicked() {
+                        acts.push(Act::Run("view.toggleGroupHidden".into(), json!({"node": node.0, "group": hidden})));
+                        ui.close();
+                    }
+                }
                 for (label, by) in [
                     ("None", "none".to_string()),
                     ("Tags", "tags".into()),
@@ -562,7 +568,17 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
     let tag_color = app.session.graph.tag_def(node).map(|d| theme::tag_color(&d.color, app.dark).0);
     let header = ui.horizontal(|ui| {
         ui.set_min_height(26.0);
-        let name_label = if app.session.graph.tag_def(node).is_some() { format!("# {}", app.session.graph.name(node)) } else { "Name".to_string() };
+        let g = &app.session.graph;
+        // One supertag across the items: "# tag"; mixed: "Title" (spec 03 §10).
+        let first_tags: std::collections::BTreeSet<NodeId> =
+            groups.iter().flat_map(|gr| gr.items.iter()).filter_map(|i| g.get(g.resolve(*i)).and_then(|n| n.tags.first().copied())).collect();
+        let name_label = if g.tag_def(node).is_some() {
+            format!("# {}", g.name(node))
+        } else if first_tags.len() == 1 {
+            first_tags.iter().next().map(|t| format!("# {}", g.name(*t))).unwrap_or_default()
+        } else {
+            "Title".to_string()
+        };
         let (r, resp) = ui.allocate_exact_size(vec2(name_w, 24.0), Sense::click());
         ui.painter().text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, name_label, FontId::proportional(13.5), tag_color.unwrap_or(t.dim));
         if let Some(c) = tag_color {
@@ -721,6 +737,13 @@ fn board(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                         ui.label(RichText::new(g.items.len().to_string()).size(12.5).color(t.faint));
                         let preset = group.filter(|_| g.label != NO_VALUE).map(|gb| (gb, g.label.clone()));
                         add_button(app, ui, t, node, preset);
+                        if ui
+                            .add(egui::Label::new(RichText::new("Hide").size(12.0).color(t.faint)).sense(Sense::click()))
+                            .on_hover_text("Hide column")
+                            .clicked()
+                        {
+                            app.acts.push(Act::Run("view.toggleGroupHidden".into(), json!({"node": node.0, "group": g.label})));
+                        }
                     });
                     ui.add_space(4.0);
                     for i in g.items.iter().take(300) {
@@ -856,14 +879,18 @@ fn detail(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId) {
 
 fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Group]) {
     let today = app.session.today;
-    let week_mode = app.session.calendar_week;
+    let mode = app.session.calendar_mode;
+    let week_mode = mode == 1;
+    let day_mode = mode == 2;
     let (y, m) = app.session.calendar_month.unwrap_or((today.year, today.month));
     let Some(first) = Date::new(y, m, 1) else { return };
     let field = app.session.graph.calendar_field(node);
     let anchor = app.calendar_week_anchor.unwrap_or(today);
     let week_start = anchor.add_days(-(anchor.weekday() as i64));
     ui.horizontal(|ui| {
-        let title = if week_mode {
+        let title = if day_mode {
+            format!("{}, {}", anchor.day_title(), anchor.year)
+        } else if week_mode {
             let (wy, wk) = week_start.iso_week();
             format!("Week {wk}, {wy}")
         } else {
@@ -873,10 +900,12 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             for label in [">", "Today", "<"] {
                 if small_button(ui, t, label, false).clicked() {
-                    if week_mode {
+                    if week_mode || day_mode {
+                        let step = if day_mode { 1 } else { 7 };
+                        let base = if day_mode { anchor } else { week_start };
                         app.calendar_week_anchor = match label {
-                            ">" => Some(week_start.add_days(7)),
-                            "<" => Some(week_start.add_days(-7)),
+                            ">" => Some(base.add_days(step)),
+                            "<" => Some(base.add_days(-step)),
                             _ => None,
                         };
                     } else {
@@ -890,9 +919,9 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                 }
             }
             ui.add_space(8.0);
-            for (label, mode) in [("Month", "month"), ("Week", "week")] {
-                if small_button(ui, t, label, (mode == "week") == week_mode).clicked() {
-                    app.acts.push(Act::Run("view.calendarMode".into(), json!({"mode": mode})));
+            for (label, name, m) in [("Month", "month", 0u8), ("Week", "week", 1), ("Day", "day", 2)] {
+                if small_button(ui, t, label, mode == m).clicked() {
+                    app.acts.push(Act::Run("view.calendarMode".into(), json!({"mode": name})));
                 }
             }
             if let Some(f) = field {
@@ -904,6 +933,21 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     let items: Vec<NodeId> = groups.iter().flat_map(|g| g.items.iter().copied()).collect();
     let dated: Vec<(Date, NodeId)> = items.iter().filter_map(|i| app.session.graph.item_date(*i, field).map(|d| (d, *i))).collect();
     let undated = items.len() - dated.len();
+    if day_mode {
+        // Day view: the day's items as a list (no time grid yet).
+        let day_items: Vec<NodeId> = dated.iter().filter(|(d, _)| *d == anchor).map(|(_, i)| *i).collect();
+        egui::Frame::new().stroke(Stroke::new(1.0, t.line)).corner_radius(8.0).inner_margin(12.0).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("All day").size(12.5).color(t.faint));
+            if day_items.is_empty() {
+                ui.label(RichText::new("Nothing on this day").color(t.faint));
+            }
+            for i in day_items {
+                ui.horizontal(|ui| item_line(app, ui, t, i, true));
+            }
+        });
+        return;
+    }
     let w = ui.available_width();
     let col_w = (w / 7.0).floor();
     let painter = ui.painter().clone();

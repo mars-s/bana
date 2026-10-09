@@ -107,6 +107,12 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         }
         return false;
     }
+    // Mod+1..8 go to tab N, Mod+9 to the last tab (spec 09).
+    if let Some(d) = k.strip_prefix("Mod+").and_then(|d| d.parse::<usize>().ok()).filter(|d| (1..=9).contains(d)) {
+        let i = if d == 9 { app.tabs.len().saturating_sub(1) } else { d - 1 };
+        app.switch_tab(i);
+        return true;
+    }
     for (id, _, sc) in crate::UI_COMMANDS {
         if matches(sc, &k, app.mac) {
             app.exec(id, json!({})).ok();
@@ -114,11 +120,11 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         }
     }
     let editing = app.session.focus.is_some();
-    let title_focused = ctx.memory(|m| m.focused()) == Some(egui::Id::new("page-title"));
+    let title_focused = ctx.memory(|m| m.focused()) == Some(app.title_id);
     if title_focused {
         if k == "Enter" || k == "Down" {
             app.exec("node.enter", json!({"node": app.session.zoom.0})).ok();
-            ctx.memory_mut(|m| m.surrender_focus(egui::Id::new("page-title")));
+            ctx.memory_mut(|m| m.surrender_focus(app.title_id));
             return true;
         }
         if !k.contains("Mod+") {
@@ -173,7 +179,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         // Up from the first bullet goes into the page title (spec 02 §5).
         "Up" if editing && app.session.rows().first().map(|r| r.id) == app.session.focus => {
             app.session.focus = None;
-            ctx.memory_mut(|m| m.request_focus(egui::Id::new("page-title")));
+            ctx.memory_mut(|m| m.request_focus(app.title_id));
             return true;
         }
         "Enter" if editing => {

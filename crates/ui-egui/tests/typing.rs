@@ -241,3 +241,51 @@ fn search_and_open_and_slash_search_node() {
     assert_eq!(list.len(), 1);
     assert_eq!(g.view_items(list[0]).len(), 4);
 }
+
+#[test]
+fn tabs_and_panels_keep_their_own_pages() {
+    let today = Date::new(2026, 10, 10).unwrap();
+    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.step();
+    let lib = h.state().session.graph.sys.library;
+    let garden = h.state().session.graph.search("Community garden")[0];
+    h.state_mut().exec("nav.open", json!({"node": lib.0})).unwrap();
+    // A second panel on the garden; the first panel keeps Library.
+    h.state_mut().exec("focus.set", json!({"node": garden.0})).unwrap();
+    key(&mut h, Key::M, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert_eq!(h.state().panel_count(), 2);
+    assert_eq!(h.state().session.zoom, garden);
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.zoom, garden, "drawing other panels leaves the active one alone");
+    assert_eq!(h.state().tabs[0].panels[0].zoom, lib);
+    h.state_mut().single_panel();
+    assert_eq!(h.state().panel_count(), 1);
+    // A new tab on today; Mod+1 goes back.
+    let day = h.state().session.graph.find_day(today).unwrap();
+    h.state_mut().new_tab(day);
+    assert_eq!(h.state().tabs.len(), 2);
+    assert_eq!(h.state().session.zoom, day);
+    key(&mut h, Key::Num1, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert_eq!(h.state().tab, 0);
+    assert_eq!(h.state().session.zoom, garden);
+    key(&mut h, Key::W, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert_eq!(h.state().tabs.len(), 1);
+    assert_eq!(h.state().session.zoom, day);
+    // Sidebar cycles full, mini, hidden.
+    for want in [1, 2, 0] {
+        key(&mut h, Key::Backslash, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+        assert_eq!(h.state().sidebar, want);
+    }
+}

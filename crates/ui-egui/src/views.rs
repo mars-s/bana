@@ -93,7 +93,7 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             ui.horizontal(|ui| {
                 let r = ui.add(
                     egui::TextEdit::singleline(&mut app.clause_buf)
-                        .id(egui::Id::new("clause-input"))
+                        .id(egui::Id::new((app.panel_ix, "clause-input")))
                         .hint_text("Add a condition, then Enter")
                         .desired_width(260.0),
                 );
@@ -642,7 +642,7 @@ fn card(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, item: NodeId, 
             },
         );
     if draggable {
-        let resp = ui.interact(frame.response.rect, egui::Id::new(("card", node.0, item.0)), Sense::drag());
+        let resp = ui.interact(frame.response.rect, egui::Id::new((app.panel_ix, "card", node.0, item.0)), Sense::drag());
         if resp.drag_started() {
             resp.dnd_set_drag_payload(CardDrag(target));
         }
@@ -678,7 +678,7 @@ fn board(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                     }
                     ui.allocate_space(vec2(290.0, 40.0));
                 });
-                let zone = ui.interact(col.response.rect, egui::Id::new(("board-col", node.0, g.label.as_str())), Sense::hover());
+                let zone = ui.interact(col.response.rect, egui::Id::new((app.panel_ix, "board-col", node.0, g.label.as_str())), Sense::hover());
                 if zone.dnd_hover_payload::<CardDrag>().is_some() {
                     ui.painter().rect_stroke(col.response.rect.expand(4.0), 8.0, Stroke::new(1.5, t.accent), StrokeKind::Outside);
                 }
@@ -928,7 +928,7 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                     FontId::proportional(12.5),
                     if done { t.dim } else { t.text },
                 );
-                let resp = ui.interact(r, egui::Id::new(("cal-item", node.0, item.0, d.to_days())), Sense::click());
+                let resp = ui.interact(r, egui::Id::new((app.panel_ix, "cal-item", node.0, item.0, d.to_days())), Sense::click());
                 if resp.clicked() {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
                 }

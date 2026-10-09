@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-pub use session::{Row, Session};
+pub use session::{NavState, Row, Session};
 pub use tanacraft_core as core;
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]

@@ -191,6 +191,11 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let target = g.resolve(zoom);
     let editable = !g.is_system(zoom) && !matches!(g.get(zoom).map(|n| &n.kind), Some(Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }));
     let title_font = FontId::proportional(30.0);
+    // Per panel, so two panels never share a title editor (stored for the keyboard handler).
+    let title_id = egui::Id::new((app.panel_ix, "page-title"));
+    if !app.drawing_other_panel {
+        app.title_id = title_id;
+    }
     let mut menu_acts = Vec::new();
     ui.horizontal(|ui| {
         if !g.is_system(zoom) {
@@ -215,13 +220,11 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             ui.add_space(4.0);
         }
         if editable {
-            if app.title_buf.0 != Some(target)
-                || (!ui.ctx().memory(|m| m.has_focus(egui::Id::new("page-title"))) && app.title_buf.1 != g.name(target))
-            {
+            if app.title_buf.0 != Some(target) || (!ui.ctx().memory(|m| m.has_focus(title_id)) && app.title_buf.1 != g.name(target)) {
                 app.title_buf = (Some(target), g.name(target).to_string());
             }
             let out = egui::TextEdit::singleline(&mut app.title_buf.1)
-                .id(egui::Id::new("page-title"))
+                .id(title_id)
                 .font(title_font.clone())
                 .text_color(t.text)
                 .frame(egui::Frame::NONE)
@@ -440,7 +443,7 @@ pub(crate) fn field_value(
         }
         _ if editing => {
             let Some(fe) = app.field_edit.as_mut() else { return };
-            let id = egui::Id::new(("field-edit", node.0, field.0));
+            let id = egui::Id::new((app.panel_ix, "field-edit", node.0, field.0));
             let resp = ui.add(
                 egui::TextEdit::singleline(&mut fe.buf)
                     .id(id)
@@ -751,7 +754,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         let row_hovered = ui.rect_contains_pointer(Rect::from_min_size(rect.left_top() - vec2(24.0, 0.0), vec2(ui.available_width() + 44.0, ROW_H)));
         if has_kids && (row_hovered || focused) {
             let chev = Rect::from_center_size(center - vec2(18.0, 0.0), vec2(14.0, ROW_H));
-            let cresp = ui.interact(chev, egui::Id::new(("chev", id.0)), Sense::click());
+            let cresp = ui.interact(chev, egui::Id::new((app.panel_ix, "chev", id.0)), Sense::click());
             let c = chev.center();
             let pts = if expanded {
                 vec![c + vec2(-4.0, -2.0), c + vec2(4.0, -2.0), c + vec2(0.0, 3.0)]
@@ -840,7 +843,11 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         // Click on the empty part of the row focuses it.
         let rest = ui.available_rect_before_wrap();
         if rest.width() > 4.0 && (!focused || is_ref) {
-            let r = ui.interact(Rect::from_min_size(rest.min, vec2(rest.width(), ROW_H)), egui::Id::new(("row-rest", id.0)), Sense::click());
+            let r = ui.interact(
+                Rect::from_min_size(rest.min, vec2(rest.width(), ROW_H)),
+                egui::Id::new((app.panel_ix, "row-rest", id.0)),
+                Sense::click(),
+            );
             if r.clicked() {
                 app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0})));
             }
@@ -868,7 +875,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
 /// Drag and drop: a bullet dropped on a row lands after it; dropped right of the row's bullet
 /// (one indent further), it becomes the row's first child.
 fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: egui::Pos2, rect: Rect) {
-    let resp = ui.interact(rect, egui::Id::new(("drop", id.0)), Sense::hover());
+    let resp = ui.interact(rect, egui::Id::new((app.panel_ix, "drop", id.0)), Sense::hover());
     let Some(dragged) = resp.dnd_hover_payload::<NodeId>() else { return };
     if *dragged == id {
         return;
@@ -896,7 +903,7 @@ fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: e
 /// The focused bullet's text field. Typing `#` opens the supertag picker; `>` or `@` on an empty
 /// bullet opens the field or reference picker.
 fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
-    let tid = egui::Id::new(("node-edit", id.0));
+    let tid = egui::Id::new((app.panel_ix, "node-edit", id.0));
     if let Some((a, c)) = app.edit.set_cursor.take() {
         let mut st = egui::text_edit::TextEditState::load(ui.ctx(), tid).unwrap_or_default();
         st.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(a), CCursor::new(c))));

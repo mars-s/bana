@@ -20,6 +20,19 @@ pub struct Row {
     pub depth: usize,
 }
 
+/// Where one panel is: its page, caret, selection and history. Tabs and panels each keep one; the
+/// session holds the active panel's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NavState {
+    pub zoom: NodeId,
+    pub focus: Option<NodeId>,
+    pub caret: usize,
+    pub anchor: usize,
+    pub sel: Option<(NodeId, NodeId)>,
+    pub back: Vec<NodeId>,
+    pub forward: Vec<NodeId>,
+}
+
 pub struct Session {
     pub graph: Graph,
     pub registry: Arc<Registry>,
@@ -155,6 +168,36 @@ impl Session {
                 path.pop();
             }
         }
+    }
+
+    /// The active panel's navigation state.
+    pub fn nav_state(&self) -> NavState {
+        NavState {
+            zoom: self.zoom,
+            focus: self.focus,
+            caret: self.caret,
+            anchor: self.anchor,
+            sel: self.sel,
+            back: self.back.clone(),
+            forward: self.forward.clone(),
+        }
+    }
+
+    /// Switches to another panel's navigation state.
+    pub fn set_nav_state(&mut self, n: NavState) {
+        self.zoom = n.zoom;
+        self.focus = n.focus;
+        self.caret = n.caret;
+        self.anchor = n.anchor;
+        self.sel = n.sel;
+        self.back = n.back;
+        self.forward = n.forward;
+        self.fix_view();
+    }
+
+    /// A fresh panel on `id` (no history).
+    pub fn new_nav(&self, id: NodeId) -> NavState {
+        NavState { zoom: id, focus: None, caret: 0, anchor: 0, sel: None, back: Vec::new(), forward: Vec::new() }
     }
 
     /// What a bullet shows when expanded: its children, or a search node's results, after the

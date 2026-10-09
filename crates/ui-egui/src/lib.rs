@@ -10,7 +10,10 @@ mod keys;
 mod outline;
 mod overlays;
 mod schema_ui;
+mod tabs;
 pub mod theme;
+
+pub use tabs::Tab;
 mod views;
 
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Ui, vec2};
@@ -24,7 +27,13 @@ use crate::theme::Tokens;
 /// UI-only commands (no graph change), listed with the engine's in the command line and help.
 pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.commandLine", "Command line", "Mod+K"),
-    ("ui.toggleSidebar", "Toggle sidebar", "Mod+\\"),
+    ("ui.toggleSidebar", "Toggle sidebar (full, mini, hidden)", "Mod+\\"),
+    ("ui.newTab", "New tab", "Mod+T"),
+    ("ui.closeTab", "Close tab", "Mod+W"),
+    ("ui.nextTab", "Next tab", "Ctrl+Tab"),
+    ("ui.prevTab", "Previous tab", "Ctrl+Shift+Tab"),
+    ("ui.openInPanel", "Open in new panel", "Mod+M"),
+    ("ui.singlePanel", "Single panel", "Ctrl+Mod+M"),
     ("ui.shortcuts", "Keyboard shortcuts", "Mod+/"),
     ("ui.toggleTheme", "Switch light or dark theme", ""),
     ("ui.editDescription", "Add description", "Ctrl+I"),
@@ -104,6 +113,7 @@ pub(crate) enum Act {
     EditField(NodeId, NodeId, String),
     PickChoice(NodeId, NodeId, egui::Pos2),
     PickDate(NodeId, NodeId, egui::Pos2),
+    ClosePanel(usize),
 }
 
 /// The date picker of a date field.
@@ -128,7 +138,19 @@ pub struct TanaApp {
     /// Control-channel requests, handled once per frame.
     pub control: Option<std::sync::mpsc::Receiver<ControlRequest>>,
     pub dark: bool,
-    pub sidebar: bool,
+    /// 0 = full, 1 = mini (icons), 2 = hidden. Mod+\\ cycles (spec 07 §1).
+    pub sidebar: u8,
+    pub tabs: Vec<Tab>,
+    /// The active tab.
+    pub tab: usize,
+    /// "Search and open" opens its pick in a new tab.
+    search_new_tab: bool,
+    /// The active panel's title editor (for the keyboard handler).
+    pub(crate) title_id: egui::Id,
+    /// True while a non-active panel is drawn.
+    pub(crate) drawing_other_panel: bool,
+    /// Index of the panel being drawn (keeps widget ids apart between panels).
+    pub(crate) panel_ix: usize,
     pub help: bool,
     pub palette: Option<Palette>,
     pub picker: Option<Picker>,
@@ -168,11 +190,18 @@ pub struct TanaApp {
 
 impl TanaApp {
     pub fn new(session: Session) -> TanaApp {
-        TanaApp {
+        let first = Tab { panels: vec![session.nav_state()], active: 0 };
+        let mut app = TanaApp {
             session,
             control: None,
             dark: true,
-            sidebar: true,
+            sidebar: 0,
+            tabs: Vec::new(),
+            tab: 0,
+            search_new_tab: false,
+            title_id: egui::Id::new("page-title"),
+            drawing_other_panel: false,
+            panel_ix: 0,
             help: false,
             palette: None,
             picker: None,
@@ -200,7 +229,14 @@ impl TanaApp {
             show_undated: Default::default(),
             dirty_since: None,
             acts: Vec::new(),
-        }
+        };
+        app.tabs.push(first);
+        app
+    }
+
+    /// Forget the text field state (another panel or tab is now active).
+    pub(crate) fn edit_reset(&mut self) {
+        self.edit.node = None;
     }
 
     pub fn tokens(&self) -> Tokens {
@@ -224,7 +260,19 @@ impl TanaApp {
     fn ui_command(&mut self, id: &str) {
         match id {
             "ui.commandLine" => self.palette = Some(Palette { focus_once: true, ..Palette::default() }),
-            "ui.toggleSidebar" => self.sidebar = !self.sidebar,
+            "ui.toggleSidebar" => self.sidebar = (self.sidebar + 1) % 3,
+            "ui.newTab" => {
+                self.search_new_tab = true;
+                self.search_open = Some(Palette { focus_once: true, ..Palette::default() });
+            }
+            "ui.closeTab" => self.close_tab(self.tab),
+            "ui.nextTab" => self.switch_tab((self.tab + 1) % self.tabs.len().max(1)),
+            "ui.prevTab" => self.switch_tab((self.tab + self.tabs.len().max(1) - 1) % self.tabs.len().max(1)),
+            "ui.openInPanel" => {
+                let n = self.session.focus.unwrap_or(self.session.zoom);
+                self.open_in_panel(self.session.graph.resolve(n));
+            }
+            "ui.singlePanel" => self.single_panel(),
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => self.dark = !self.dark,
             "ui.quickAdd" => self.quick_add = Some(vec![String::new()]),
@@ -351,7 +399,15 @@ impl TanaApp {
             .exact_size(40.0)
             .frame(Frame::new().fill(t.sidebar).inner_margin(Margin::symmetric(10, 6)))
             .show(ui, |ui| self.top_bar(ui));
-        if self.sidebar {
+        if self.sidebar == 1 {
+            egui::Panel::left("sidebar-mini")
+                .exact_size(48.0)
+                .resizable(false)
+                .show_separator_line(false)
+                .frame(Frame::new().fill(t.sidebar).inner_margin(Margin::symmetric(8, 6)))
+                .show(ui, |ui| self.mini_sidebar(ui));
+        }
+        if self.sidebar == 0 {
             egui::Panel::left("sidebar")
                 .exact_size(236.0)
                 .resizable(false)
@@ -368,10 +424,8 @@ impl TanaApp {
                 .show(ui, |ui| overlays::help_panel(self, ui));
         }
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(t.panel).corner_radius(CornerRadius::same(10)).outer_margin(Margin { left: 0, right: 8, top: 0, bottom: 8 }))
-            .show(ui, |ui| {
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| outline::panel(self, ui));
-            });
+            .frame(Frame::new().fill(t.bg).outer_margin(Margin { left: 0, right: 8, top: 0, bottom: 8 }))
+            .show(ui, |ui| self.panels_ui(ui));
         let ctx = ui.ctx().clone();
         overlays::palette(self, &ctx);
         overlays::picker(self, &ctx);
@@ -390,6 +444,7 @@ impl TanaApp {
                 }
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
+                Act::ClosePanel(i) => self.close_panel(i),
                 Act::EditField(node, field, buf) => self.field_edit = Some(FieldEdit { node, field, buf, focus_once: true }),
                 Act::PickChoice(node, field, at) => {
                     self.open_picker(PickMode::Choice, node, at);
@@ -426,11 +481,7 @@ impl TanaApp {
                 self.acts.push(Act::Run("nav.forward".into(), json!({})));
             }
             ui.add_space(6.0);
-            let title = outline::page_title(&self.session, self.session.zoom);
-            Frame::new().fill(t.panel).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(10, 4)).show(ui, |ui| {
-                ui.set_width(180.0);
-                ui.add(egui::Label::new(RichText::new(title).size(13.0).color(t.text)).truncate());
-            });
+            self.tabs_ui(ui);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
                     self.acts.push(Act::Ui("ui.shortcuts"));
@@ -439,6 +490,24 @@ impl TanaApp {
                 ui.label(RichText::new(format!("{PRODUCT_NAME}{dirty}")).size(12.0).color(t.faint));
             });
         });
+    }
+
+    fn mini_sidebar(&mut self, ui: &mut Ui) {
+        let t = self.tokens();
+        for (icon, tip, act) in [
+            (Icon::Today, "Today", Act::Run("nav.today".into(), json!({}))),
+            (Icon::Tag, "Supertags", Act::Run("nav.supertags".into(), json!({}))),
+            (Icon::Plus, "Create new", Act::Run("node.createNew".into(), json!({}))),
+            (Icon::Search, "Search", Act::Ui("ui.searchOpen")),
+            (Icon::Home, "Library", Act::Run("nav.home".into(), json!({}))),
+            (Icon::Calendar, "Daily notes", Act::Run("nav.dailyNotes".into(), json!({}))),
+            (Icon::Trash, "Trash", Act::Run("nav.trash".into(), json!({}))),
+        ] {
+            if icon_button(ui, icon, t.dim, tip).clicked() {
+                self.acts.push(act);
+            }
+            ui.add_space(4.0);
+        }
     }
 
     fn sidebar_ui(&mut self, ui: &mut Ui) {

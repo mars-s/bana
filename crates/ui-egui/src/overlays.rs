@@ -615,10 +615,22 @@ pub fn search_open_items(app: &TanaApp, query: &str) -> Vec<NodeId> {
     if query.trim().is_empty() { app.session.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(10).collect() } else { g.fuzzy(query, 12) }
 }
 
+/// Opens a "Search and open" pick here, or in a new tab (Mod+T).
+fn open_choice(app: &mut TanaApp, id: NodeId) {
+    if std::mem::take(&mut app.search_new_tab) {
+        app.new_tab(id);
+    } else {
+        let _ = app.exec("nav.open", json!({"node": id.0}));
+    }
+}
+
 pub fn search_open_key(app: &mut TanaApp, k: &str) -> bool {
     let Some(p) = app.search_open.as_mut() else { return false };
     match k {
-        "Escape" => app.search_open = None,
+        "Escape" => {
+            app.search_open = None;
+            app.search_new_tab = false;
+        }
         "Up" => p.selected = p.selected.saturating_sub(1),
         "Down" => p.selected += 1,
         "Enter" => {
@@ -627,7 +639,7 @@ pub fn search_open_key(app: &mut TanaApp, k: &str) -> bool {
             let items = search_open_items(app, &q);
             app.search_open = None;
             if let Some(id) = items.get(sel.min(items.len().saturating_sub(1))) {
-                let _ = app.exec("nav.open", json!({"node": id.0}));
+                open_choice(app, *id);
             }
         }
         _ => return false,
@@ -655,7 +667,7 @@ pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(12.0).show(ui, |ui| {
                 ui.set_width(w);
-                ui.label(RichText::new("Search and open").size(15.0).strong());
+                ui.label(RichText::new(if app.search_new_tab { "Search and open in a new tab" } else { "Search and open" }).size(15.0).strong());
                 let r =
                     ui.add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("search-open-query")).hint_text("Search...").desired_width(w));
                 if p.focus_once {
@@ -687,8 +699,10 @@ pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
             });
         });
     if let Some(id) = chosen {
-        let _ = app.exec("nav.open", json!({"node": id.0}));
+        open_choice(app, id);
     } else if !close {
         app.search_open = Some(p);
+    } else {
+        app.search_new_tab = false;
     }
 }

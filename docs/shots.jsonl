@@ -4,6 +4,11 @@
 {"open": "Community garden"}
 {"focus": "Build four beds"}
 {"shot": "docs/images/outline.png"}
+{"cmd": "ui.openInPanel"}
+{"cmd": "ui.newTab"}
+{"key": "Escape"}
+{"shot": "docs/images/two-panels.png"}
+{"cmd": "ui.singlePanel"}
 {"cmd": "nav.supertags"}
 {"shot": "docs/images/supertags-overview.png"}
 {"open": "task"}

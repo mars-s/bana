@@ -69,6 +69,14 @@ pub fn registry() -> Registry {
         C::new("view.collapseAll", "Collapse all", "View", |s, _| expand_all(s, false)).key("Ctrl+Mod+Up").pure(),
         C::new("focus.up", "Focus previous node", "View", |s, _| focus_step(s, -1)).key("Up").pure(),
         C::new("focus.down", "Focus next node", "View", |s, _| focus_step(s, 1)).key("Down").pure(),
+        C::new("select.up", "Extend selection up", "View", |s, _| select_step(s, -1)).key("Shift+Up").pure(),
+        C::new("select.down", "Extend selection down", "View", |s, _| select_step(s, 1)).key("Shift+Down").pure(),
+        C::new("select.set", "Select nodes", "View", select_set).params(r#"{"from": id, "to"?: id}  (rows between, inclusive)"#).pure(),
+        C::new("select.clear", "Clear selection", "View", |s, _| {
+            s.sel = None;
+            Ok(json!({}))
+        })
+        .pure(),
         C::new("focus.set", "Focus node", "View", focus_set).params(r#"{"node": id, "caret"?: chars}"#).pure(),
         // Navigation.
         C::new("nav.zoomIn", "Zoom in", "Navigate", zoom_in).key("Mod+.").params(r#"{"node"?: id}"#).pure(),
@@ -232,18 +240,22 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
     Ok(s.focus_json())
 }
 
+// Selections: indent and move-up go top-down, outdent and move-down bottom-up, so the selected
+// nodes keep their order.
 fn indent(s: &mut Session, v: &Value) -> CmdResult {
-    let id = s.target(v)?;
-    s.graph.indent(id)?;
+    for id in s.targets(v)? {
+        s.graph.indent(id)?;
+    }
     Ok(s.focus_json())
 }
 
 fn outdent(s: &mut Session, v: &Value) -> CmdResult {
-    let id = s.target(v)?;
-    if s.graph.parent(id) == Some(s.graph.resolve(s.zoom)) {
-        return Err(CmdError::Failed("already at the top of this view".into()));
+    for id in s.targets(v)?.into_iter().rev() {
+        if s.graph.parent(id) == Some(s.graph.resolve(s.zoom)) {
+            return Err(CmdError::Failed("already at the top of this view".into()));
+        }
+        s.graph.outdent(id)?;
     }
-    s.graph.outdent(id)?;
     Ok(s.focus_json())
 }
 
@@ -275,27 +287,43 @@ fn backspace(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn move_sibling(s: &mut Session, v: &Value, up: bool) -> CmdResult {
-    let id = s.target(v)?;
-    s.graph.move_sibling(id, up)?;
+    let mut ids = s.targets(v)?;
+    if !up {
+        ids.reverse();
+    }
+    for id in ids {
+        s.graph.move_sibling(id, up)?;
+    }
     Ok(s.focus_json())
 }
 
 /// No checkbox, then unchecked, then checked, then back (to unchecked when a supertag asks for a
 /// checkbox, else to none).
 fn toggle_done(s: &mut Session, v: &Value) -> CmdResult {
-    let id = s.graph.resolve(s.target(v)?);
-    s.graph.node(id)?;
-    let next = match s.graph.checkbox(id) {
+    let ids: Vec<NodeId> = s.targets(v)?.into_iter().map(|i| s.graph.resolve(i)).collect();
+    // A selection toggles together, following the first node.
+    let first = ids.first().copied().ok_or_else(|| CmdError::Params("no node".into()))?;
+    let next = match s.graph.checkbox(first) {
         None => Some(false),
         Some(false) => Some(true),
-        Some(true) if s.graph.tag_wants_checkbox(id) => Some(false),
+        Some(true) if s.graph.tag_wants_checkbox(first) => Some(false),
         Some(true) => None,
     };
-    s.graph.set_done(id, next)?;
-    Ok(json!({"node": id.0, "done": next}))
+    for id in &ids {
+        s.graph.set_done(*id, next)?;
+    }
+    Ok(json!({"node": first.0, "count": ids.len(), "done": next}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
+    let ids = s.targets(v)?;
+    if ids.len() > 1 {
+        for id in &ids {
+            s.graph.trash(*id)?;
+        }
+        s.sel = None;
+        return Ok(json!({"trashed": ids.iter().map(|i| i.0).collect::<Vec<_>>()}));
+    }
     let id = s.target(v)?;
     let next_focus = row_neighbour(s, id, -1).or_else(|| row_neighbour(s, id, 1));
     s.graph.trash(id)?;
@@ -433,6 +461,30 @@ fn focus_step(s: &mut Session, step: isize) -> CmdResult {
     Ok(s.focus_json())
 }
 
+/// Shift+Up/Down: starts a selection at the focused bullet (leaving text editing) or grows it.
+fn select_step(s: &mut Session, step: isize) -> CmdResult {
+    let (anchor, head) = match (s.sel, s.focus) {
+        (Some(sel), _) => sel,
+        (None, Some(f)) => (f, f),
+        (None, None) => return Err(CmdError::Failed("focus a bullet first".into())),
+    };
+    let head = row_neighbour(s, head, step).unwrap_or(head);
+    s.sel = Some((anchor, head));
+    s.focus = None;
+    Ok(json!({"selected": s.selected().iter().map(|i| i.0).collect::<Vec<_>>()}))
+}
+
+fn select_set(s: &mut Session, v: &Value) -> CmdResult {
+    let from = p::node(v, "from")?.ok_or_else(|| CmdError::Params("`from` is required".into()))?;
+    let to = p::node(v, "to")?.unwrap_or(from);
+    if !s.rows().iter().any(|r| r.id == from) || !s.rows().iter().any(|r| r.id == to) {
+        return Err(CmdError::Params("both ends must be visible bullets".into()));
+    }
+    s.sel = Some((from, to));
+    s.focus = None;
+    Ok(json!({"selected": s.selected().iter().map(|i| i.0).collect::<Vec<_>>()}))
+}
+
 fn focus_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let caret = p::usize(v, "caret").unwrap_or(usize::MAX);
@@ -485,10 +537,12 @@ fn step_day(s: &mut Session, step: i64) -> CmdResult {
 // ---- supertags and fields -----------------------------------------------------------------------
 
 fn tag_add(s: &mut Session, v: &Value) -> CmdResult {
-    let id = s.target(v)?;
+    let ids = s.targets(v)?;
     let tag = tag_param(s, v, "tag", true)?;
-    s.graph.add_tag(id, tag)?;
-    Ok(json!({"node": id.0, "tag": tag.0}))
+    for id in &ids {
+        s.graph.add_tag(*id, tag)?;
+    }
+    Ok(json!({"node": ids.first().map(|i| i.0), "count": ids.len(), "tag": tag.0}))
 }
 
 fn tag_remove(s: &mut Session, v: &Value) -> CmdResult {

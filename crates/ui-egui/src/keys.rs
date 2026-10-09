@@ -109,7 +109,20 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             return false;
         }
     }
+    let selecting = app.session.sel.is_some();
     match k.as_str() {
+        "Escape" if selecting => {
+            app.session.sel = None;
+            return true;
+        }
+        "Up" | "Down" if selecting => {
+            let head = app.session.sel.map(|s| s.1);
+            app.session.sel = None;
+            if let Some(h) = head {
+                app.exec("focus.set", json!({"node": h.0})).ok();
+            }
+            return true;
+        }
         "Escape" if editing => {
             app.session.focus = None;
             return true;
@@ -145,7 +158,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             // Editing keys need a focused bullet; leave Tab alone otherwise (egui focus traversal).
             let needs_focus =
                 matches!(id, "node.indent" | "node.outdent" | "node.enter" | "node.backspace" | "node.insert") || id.starts_with("format.");
-            if needs_focus && !editing {
+            if needs_focus && !editing && !selecting {
                 return false;
             }
             if let Err(e) = app.exec(id, json!({})) {

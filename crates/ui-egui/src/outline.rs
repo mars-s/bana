@@ -560,8 +560,15 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let rows = app.session.rows();
     let mut bullets: Vec<(usize, egui::Pos2)> = Vec::with_capacity(rows.len());
     let mut bottoms: Vec<f32> = Vec::with_capacity(rows.len());
-    for row in &rows {
-        let center = row_ui(app, ui, t, row.id, row.depth);
+    // Rows inside the selection (anchor..head) are highlighted, children included.
+    let sel_range = app.session.sel.and_then(|(a, h)| {
+        let i = rows.iter().position(|r| r.id == a)?;
+        let j = rows.iter().position(|r| r.id == h)?;
+        Some(i.min(j)..=i.max(j))
+    });
+    for (ri, row) in rows.iter().enumerate() {
+        let selected = sel_range.as_ref().is_some_and(|r| r.contains(&ri));
+        let center = row_ui(app, ui, t, row.id, row.depth, selected);
         bullets.push((row.depth, center));
         let expanded = app.session.graph.is_expanded(row.id);
         if expanded {
@@ -599,7 +606,7 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 }
 
 /// One bullet row. Returns the bullet centre.
-fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) -> egui::Pos2 {
+fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, selected: bool) -> egui::Pos2 {
     let g = &app.session.graph;
     let target = g.resolve(id);
     let is_ref = target != id;
@@ -615,12 +622,19 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
     let focused = app.session.focus == Some(id);
     let indent = depth as f32 * INDENT;
     let mut center = pos2(0.0, 0.0);
-    ui.horizontal(|ui| {
+    if selected {
+        let r = Rect::from_min_size(ui.cursor().min + vec2(indent - 4.0, 0.0), vec2(ui.available_width() - indent + 4.0, ROW_H));
+        ui.painter().rect_filled(r, 4.0, t.accent.gamma_multiply(0.18));
+    }
+    let row = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
         ui.add_space(indent);
-        // Chevron + bullet.
-        let (rect, resp) = ui.allocate_exact_size(vec2(20.0, ROW_H), Sense::click());
+        // Chevron + bullet (drag the bullet to move the node).
+        let (rect, resp) = ui.allocate_exact_size(vec2(20.0, ROW_H), Sense::click_and_drag());
         center = rect.center();
+        if resp.drag_started() {
+            resp.dnd_set_drag_payload(id);
+        }
         let row_hovered = ui.rect_contains_pointer(Rect::from_min_size(rect.left_top() - vec2(24.0, 0.0), vec2(ui.available_width() + 44.0, ROW_H)));
         if has_kids && (row_hovered || focused) {
             let chev = Rect::from_center_size(center - vec2(18.0, 0.0), vec2(14.0, ROW_H));
@@ -685,7 +699,11 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
             if r.clicked() {
                 if is_ref {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+                } else if ui.input(|i| i.modifiers.shift) {
+                    let from = app.session.sel.map(|s| s.0).or(app.session.focus).unwrap_or(id);
+                    app.acts.push(Act::Run("select.set".into(), json!({"from": from.0, "to": id.0})));
                 } else {
+                    app.acts.push(Act::Run("select.clear".into(), json!({})));
                     app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0})));
                 }
             }
@@ -710,7 +728,36 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
             }
         }
     });
+    drop_target(app, ui, t, id, center, row.response.rect);
     center
+}
+
+/// Drag and drop: a bullet dropped on a row lands after it; dropped right of the row's bullet
+/// (one indent further), it becomes the row's first child.
+fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: egui::Pos2, rect: Rect) {
+    let resp = ui.interact(rect, egui::Id::new(("drop", id.0)), Sense::hover());
+    let Some(dragged) = resp.dnd_hover_payload::<NodeId>() else { return };
+    if *dragged == id {
+        return;
+    }
+    let as_child = ui.ctx().pointer_hover_pos().is_some_and(|p| p.x > bullet.x + INDENT);
+    let x = if as_child { bullet.x + INDENT - 8.0 } else { bullet.x - 8.0 };
+    ui.painter().line_segment([pos2(x, rect.bottom()), pos2(rect.right(), rect.bottom())], Stroke::new(2.0, t.accent));
+    if let Some(dragged) = resp.dnd_release_payload::<NodeId>() {
+        let g = &app.session.graph;
+        let params = if as_child {
+            json!({"node": dragged.0, "parent": g.resolve(id).0, "index": 0})
+        } else {
+            match (g.parent(id), g.index_in_parent(id)) {
+                (Some(p), Some(i)) => json!({"node": dragged.0, "parent": p.0, "index": i + 1}),
+                _ => return,
+            }
+        };
+        if as_child {
+            app.acts.push(Act::Run("node.expand".into(), json!({"node": id.0})));
+        }
+        app.acts.push(Act::Run("node.move".into(), params));
+    }
 }
 
 /// The focused bullet's text field. Typing `#` opens the supertag picker; `>` or `@` on an empty

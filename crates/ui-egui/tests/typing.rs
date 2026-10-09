@@ -1,6 +1,7 @@
 //! Drives the real UI with key and text events (headless, no renderer).
 
 use egui::{Event, Key, Modifiers};
+use egui_kittest::kittest::Queryable;
 use serde_json::json;
 use tanacraft_commands::Session;
 use tanacraft_core::{Date, Graph};
@@ -148,4 +149,52 @@ fn shift_enter_and_bold_shortcut() {
     assert_eq!(h.state().session.graph.name(tanacraft_core::NodeId(r["id"].as_u64().unwrap())), "**make bold**");
     key(&mut h, Key::Enter, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(lines(&mut h), ["  - **make bold**", "> - "]);
+}
+
+#[test]
+fn drag_a_bullet_onto_another_row() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    for n in ["alpha", "beta", "gamma"] {
+        h.state_mut().exec("node.add", json!({"name": n})).unwrap();
+    }
+    for _ in 0..3 {
+        h.step();
+    }
+    let alpha = h.get_by_label("alpha").rect();
+    let gamma = h.get_by_label("gamma").rect();
+    let from = Pos2::new(alpha.left() - 12.0, alpha.center().y); // the bullet
+    let to = Pos2::new(gamma.left() + 4.0, gamma.center().y);
+    let ev = |h: &mut H<'_>, e: Event| {
+        h.input_mut().events.push(e);
+        h.step();
+    };
+    ev(&mut h, Event::PointerMoved(from));
+    ev(&mut h, Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    for k in 1..=10 {
+        let p = from + (to - from) * (k as f32 / 10.0);
+        ev(&mut h, Event::PointerMoved(p));
+    }
+    ev(&mut h, Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(lines(&mut h), ["  - beta", "  - gamma", "  - alpha"]);
+}
+
+#[test]
+fn shift_down_selects_and_tab_indents_the_selection() {
+    let mut h = harness();
+    for n in ["one", "two", "three"] {
+        h.state_mut().exec("node.add", json!({"name": n})).unwrap();
+    }
+    let two = h.state().session.graph.search("two")[0].0;
+    h.state_mut().exec("focus.set", json!({"node": two})).unwrap();
+    h.step();
+    key(&mut h, Key::ArrowDown, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.selected().len(), 2);
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    assert_eq!(lines(&mut h), ["  - one", "    - two", "    - three"]);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert!(h.state().session.sel.is_none());
 }

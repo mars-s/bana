@@ -35,6 +35,8 @@ pub struct Session {
     pub caret: usize,
     /// The other end of the text selection in the focused bullet (== caret when nothing is selected).
     pub anchor: usize,
+    /// Multi-selection of bullets: (anchor, head) rows; everything between is selected.
+    pub sel: Option<(NodeId, NodeId)>,
     /// The month a calendar view shows (year, month); `None` = the month of `today`.
     pub calendar_month: Option<(i32, u8)>,
     back: Vec<NodeId>,
@@ -62,6 +64,7 @@ impl Session {
             caret: 0,
             anchor: 0,
             calendar_month: None,
+            sel: None,
             back: Vec::new(),
             forward: Vec::new(),
             recents: Vec::new(),
@@ -204,6 +207,36 @@ impl Session {
         self.focus = Some(id);
         self.caret = caret.min(self.graph.name(id).chars().count());
         self.anchor = self.caret;
+    }
+
+    /// The selected bullets in row order, without any whose ancestor is also selected (moving a
+    /// parent moves its children).
+    pub fn selected(&self) -> Vec<NodeId> {
+        let Some((a, h)) = self.sel else { return Vec::new() };
+        let rows = self.rows();
+        let (Some(i), Some(j)) = (rows.iter().position(|r| r.id == a), rows.iter().position(|r| r.id == h)) else { return Vec::new() };
+        let picked: Vec<NodeId> = rows.get(i.min(j)..=i.max(j)).unwrap_or(&[]).iter().map(|r| r.id).collect();
+        picked.iter().copied().filter(|n| !picked.iter().any(|p| p != n && self.graph.is_ancestor_or_self(*p, *n))).collect()
+    }
+
+    /// The nodes a command acts on: `nodes` (array), else `node`, else the selection, else focus.
+    pub fn targets(&self, params: &Value) -> Result<Vec<NodeId>, CmdError> {
+        if let Some(arr) = params.get("nodes").and_then(Value::as_array) {
+            let mut out = Vec::new();
+            for v in arr.iter().take(10_000) {
+                let id = crate::p::node(&json!({"n": v}), "n")?.ok_or_else(|| CmdError::Params("`nodes` must hold node ids".into()))?;
+                self.graph.node(id)?;
+                out.push(id);
+            }
+            return Ok(out);
+        }
+        if params.get("node").is_none() {
+            let sel = self.selected();
+            if !sel.is_empty() {
+                return Ok(sel);
+            }
+        }
+        Ok(vec![self.target(params)?])
     }
 
     /// The target node of a command: the `node` param, else the focused bullet.

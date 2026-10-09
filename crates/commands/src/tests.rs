@@ -324,3 +324,42 @@ fn insert_quick_add_and_formatting() {
     assert_eq!((s.anchor, s.caret), (2, 7));
     assert_eq!(s.graph.search("hello world"), vec![a], "search ignores marks");
 }
+
+#[test]
+fn multi_select_moves_indents_tags_and_deletes_together() {
+    let mut s = blank();
+    let ids: Vec<NodeId> = ["a", "b", "c", "d"].iter().map(|n| id(&run(&mut s, "node.add", json!({"name": n})), "id")).collect();
+    run(&mut s, "focus.set", json!({"node": ids[1].0}));
+    run(&mut s, "select.down", json!({}));
+    assert_eq!(s.selected(), vec![ids[1], ids[2]]);
+    assert_eq!(s.focus, None, "selecting leaves text editing");
+    run(&mut s, "node.indent", json!({}));
+    assert_eq!(lines(&mut s), ["  - a", "    - b", "    - c", "  - d"]);
+    run(&mut s, "node.outdent", json!({}));
+    assert_eq!(lines(&mut s), ["  - a", "  - b", "  - c", "  - d"]);
+    run(&mut s, "node.moveDown", json!({}));
+    assert_eq!(lines(&mut s), ["  - a", "  - d", "  - b", "  - c"]);
+    run(&mut s, "node.moveUp", json!({}));
+    run(&mut s, "node.moveUp", json!({}));
+    assert_eq!(lines(&mut s), ["  - b", "  - c", "  - a", "  - d"]);
+    assert!(s.run("node.moveUp", &json!({})).is_err(), "first already at the top");
+    assert_eq!(lines(&mut s), ["  - b", "  - c", "  - a", "  - d"], "a failed move changes nothing");
+    run(&mut s, "tag.add", json!({"tag": "chore"}));
+    run(&mut s, "node.toggleDone", json!({}));
+    assert_eq!(lines(&mut s)[..2], ["  - [ ] b #chore".to_string(), "  - [ ] c #chore".to_string()]);
+    // One undo step per command, even for a selection.
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(lines(&mut s)[0], "  - b");
+    run(&mut s, "node.delete", json!({}));
+    assert_eq!(lines(&mut s), ["  - a", "  - d"]);
+    assert_eq!(s.sel, None);
+    // Explicit node lists work too (CLI, MCP).
+    run(&mut s, "node.toggleDone", json!({"nodes": [ids[0].0, ids[3].0]}));
+    assert_eq!(lines(&mut s), ["  - [ ] a", "  - [ ] d"]);
+    // Selecting a parent and its child acts on the parent only.
+    run(&mut s, "node.indent", json!({"node": ids[3].0}));
+    run(&mut s, "node.expand", json!({"node": ids[0].0}));
+    run(&mut s, "select.set", json!({"from": ids[0].0, "to": ids[3].0}));
+    assert_eq!(s.selected(), vec![ids[0]]);
+}

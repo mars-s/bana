@@ -145,14 +145,19 @@ pub fn to_opml(g: &Graph, ids: &[NodeId], title: &str) -> String {
 fn write_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     let pad = "  ".repeat(depth);
     let text = crate::export::node_line(g, id);
-    let note = g.get(g.resolve(id)).map(|n| n.description.clone()).unwrap_or_default();
-    let note = if note.is_empty() { String::new() } else { format!(" _note=\"{}\"", escape(&note)) };
     let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
-    let kids = if is_ref || depth > MAX_DEPTH { &[][..] } else { g.children(id) };
-    // Field values as `Field:: value` lines, one per value, as the Markdown export writes them.
-    let fields: Vec<String> = if is_ref {
+    // A reference carries its own note, fields and notes outline for this place (spec 01 §3).
+    let note = g.get(if is_ref { id } else { g.resolve(id) }).map(|n| n.description.clone()).unwrap_or_default();
+    let note = if note.is_empty() { String::new() } else { format!(" _note=\"{}\"", escape(&note)) };
+    let kids = if depth > MAX_DEPTH {
         Vec::new()
+    } else if is_ref {
+        crate::export::context_notes(g, id)
     } else {
+        g.children(id).to_vec()
+    };
+    // Field values as `Field:: value` lines, one per value, as the Markdown export writes them.
+    let fields: Vec<String> = {
         g.get(id)
             .map(|n| {
                 n.fields
@@ -175,7 +180,7 @@ fn write_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
         out.push_str(&format!("{pad}  <outline text=\"{}\"/>\n", escape(&f)));
     }
     for c in kids {
-        write_node(g, *c, depth + 1, out);
+        write_node(g, c, depth + 1, out);
     }
     out.push_str(&format!("{pad}</outline>\n"));
 }

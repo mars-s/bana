@@ -1168,6 +1168,33 @@ fn a_line_shown_through_a_reference_does_not_move_off_the_page() {
 }
 
 #[test]
+fn exports_keep_a_references_notes_for_this_place() {
+    // DIFFS clone notes: Markdown, OPML and inspect dropped a reference's context notes.
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Robin Ash"})), "id");
+    let plan = id(&run(&mut s, "node.add", json!({"name": "Plan"})), "id");
+    let r = id(&run(&mut s, "node.reference", json!({"target": a.0, "parent": plan.0})), "id");
+    run(&mut s, "node.contextNote", json!({"node": r.0, "text": "one line note"}));
+    run(&mut s, "node.contextField", json!({"node": r.0, "field": "Mood", "value": "calm"}));
+    let line = id(&run(&mut s, "node.contextNote", json!({"node": r.0})), "line");
+    run(&mut s, "node.setName", json!({"node": line.0, "name": "brings the key"}));
+    let md = run(&mut s, "export.markdown", json!({"node": plan.0}));
+    let md = md["markdown"].as_str().or(md["text"].as_str()).unwrap().to_string();
+    for want in ["[[Robin Ash]]", "one line note", "Mood:: calm", "brings the key"] {
+        assert!(md.contains(want), "{want} in {md}");
+    }
+    let opml = run(&mut s, "export.opml", json!({"node": plan.0}));
+    let opml = opml["opml"].as_str().or(opml["text"].as_str()).unwrap().to_string();
+    for want in ["_note=\"one line note\"", "Mood:: calm", "brings the key"] {
+        assert!(opml.contains(want), "{want} in {opml}");
+    }
+    let tree = run(&mut s, "graph.inspect", json!({"node": plan.0})).to_string();
+    for want in ["one line note", "calm", "brings the key"] {
+        assert!(tree.contains(want), "{want} in {tree}");
+    }
+}
+
+#[test]
 fn diffs_n29_line_after_a_tagged_task_is_plain() {
     // The checkbox of a #task node comes from the tag: the next line gets none, checked or not.
     let mut s = blank();

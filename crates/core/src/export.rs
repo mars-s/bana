@@ -92,20 +92,28 @@ fn md_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     }
     let pad = "  ".repeat(depth);
     out.push_str(&format!("{pad}- {}\n", node_line(g, id)));
+    // A reference's content is exported where it lives; its notes and fields for this place
+    // (spec 01 §3) are exported here, as its children.
     let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
-    if is_ref {
-        return; // a reference's content is exported where it lives
-    }
     if let Some(n) = g.get(id) {
+        if is_ref && !n.description.is_empty() {
+            out.push_str(&format!("{pad}  - {}\n", n.description));
+        }
         for f in &n.fields {
             let v = entry_text(g, f);
             let v = if v.is_empty() { v } else { format!(" {v}") };
             out.push_str(&format!("{pad}  - {}::{v}\n", g.name(f.field)));
         }
     }
-    for c in g.children(id) {
-        md_node(g, *c, depth + 1, out);
+    let kids = if is_ref { context_notes(g, id) } else { g.children(id).to_vec() };
+    for c in kids {
+        md_node(g, c, depth + 1, out);
     }
+}
+
+/// The lines of a reference's notes for this place (empty for anything else).
+pub fn context_notes(g: &Graph, reference: NodeId) -> Vec<NodeId> {
+    g.context_of(reference).map(|h| g.children(h).to_vec()).unwrap_or_default()
 }
 
 /// The rich clipboard flavour (spec 02 §12, DIFFS N21): each copied node is a paragraph with its
@@ -227,18 +235,8 @@ pub fn to_json_tree(g: &Graph, id: NodeId) -> Value {
 
 fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
     let Some(n) = g.get(id) else { return Value::Null };
-    if let Some(t) = n.reference_target() {
-        return json!({"id": id.0, "ref": t.0, "name": g.name(t)});
-    }
-    let mut v = json!({"id": id.0, "name": n.name});
-    if !n.description.is_empty() {
-        v["description"] = json!(n.description);
-    }
-    if !n.tags.is_empty() {
-        v["tags"] = json!(n.tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>());
-    }
-    if !n.fields.is_empty() {
-        let fields: serde_json::Map<String, Value> = n
+    let fields = || -> Value {
+        let map: serde_json::Map<String, Value> = n
             .fields
             .iter()
             .map(|f| {
@@ -251,7 +249,32 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
                 (g.name(f.field).to_string(), v)
             })
             .collect();
-        v["fields"] = Value::Object(fields);
+        Value::Object(map)
+    };
+    if let Some(t) = n.reference_target() {
+        // A reference's notes and fields for this place (spec 01 §3) go with it.
+        let mut v = json!({"id": id.0, "ref": t.0, "name": g.name(t)});
+        if !n.description.is_empty() {
+            v["note"] = json!(n.description);
+        }
+        if !n.fields.is_empty() {
+            v["fields"] = fields();
+        }
+        let notes = context_notes(g, id);
+        if !notes.is_empty() && depth < MAX_EXPORT_DEPTH {
+            v["notes"] = Value::Array(notes.iter().map(|c| json_node(g, *c, depth + 1)).collect());
+        }
+        return v;
+    }
+    let mut v = json!({"id": id.0, "name": n.name});
+    if !n.description.is_empty() {
+        v["description"] = json!(n.description);
+    }
+    if !n.tags.is_empty() {
+        v["tags"] = json!(n.tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>());
+    }
+    if !n.fields.is_empty() {
+        v["fields"] = fields();
     }
     if let Some(d) = n.done {
         v["done"] = json!(d);

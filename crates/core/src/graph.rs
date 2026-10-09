@@ -185,6 +185,12 @@ impl Graph {
         }
         let root = self.sys.root;
         let at = self.node(root)?.children.iter().position(|c| *c == self.sys.trash);
+        // After an undo removed it, the inbox comes back under the same id, so redo stays exact.
+        if let Some(i) = self.sys.inbox {
+            self.put(Node::new(i, "Inbox", None));
+            self.attach(i, root, at)?;
+            return Ok(i);
+        }
         let id = self.create(root, at, "Inbox")?;
         self.sys.inbox = Some(id);
         Ok(id)
@@ -411,6 +417,37 @@ impl Graph {
         }
         self.redo.clear();
         self.dirty = true;
+    }
+
+    /// Closes the open step without making it an undo step: structure made while looking around
+    /// (today's day node, the inbox) counts as having always been there. Older undo and redo steps
+    /// learn about it, so undoing them later does not cut it out again.
+    pub fn commit_silent(&mut self) {
+        let Some(pre) = self.txn.take() else { return };
+        // New nodes hung under a node that some step makes or removes go and come back with it.
+        let made: BTreeSet<NodeId> = pre.iter().filter(|(id, b)| b.is_none() && self.nodes.contains_key(id)).map(|(id, _)| *id).collect();
+        for n in &made {
+            let mut anchor = *n;
+            while made.contains(&anchor) {
+                match self.parent(anchor) {
+                    Some(p) => anchor = p,
+                    None => break,
+                }
+            }
+            for step in self.undo.iter_mut().chain(self.redo.iter_mut()) {
+                if matches!(step.nodes.get(&anchor), Some(None)) {
+                    step.nodes.entry(*n).or_insert(None);
+                }
+            }
+        }
+        for (id, before) in &pre {
+            let (Some(before), Some(after)) = (before, self.nodes.get(id)) else { continue };
+            for step in self.undo.iter_mut().chain(self.redo.iter_mut()) {
+                if let Some(Some(old)) = step.nodes.get_mut(id) {
+                    rebase(old, before, after);
+                }
+            }
+        }
     }
 
     /// Rolls the open step back (used when a command fails halfway).
@@ -765,8 +802,20 @@ impl Graph {
     pub fn create_reference(&mut self, parent: NodeId, index: Option<usize>, target: NodeId) -> Result<NodeId> {
         let target = self.resolve(target);
         self.node(target)?;
-        let id = self.create(parent, index, "")?;
-        self.node_mut(id)?.kind = Kind::Reference { target };
+        // Not `create`: a reference carries no tags, fields or children of its own (a parent's
+        // default child supertag would otherwise land on it).
+        self.create_raw(parent, index, "", Kind::Reference { target })
+    }
+
+    /// Creates a node of `kind` without applying the parent's default child supertag.
+    fn create_raw(&mut self, parent: NodeId, index: Option<usize>, name: &str, kind: Kind) -> Result<NodeId> {
+        let parent = self.resolve(parent);
+        self.node(parent)?;
+        let id = self.alloc();
+        let mut n = Node::new(id, clean_name(name), Some(parent));
+        n.kind = kind;
+        self.put(n);
+        self.attach(id, parent, index)?;
         Ok(id)
     }
 
@@ -926,7 +975,11 @@ impl Graph {
 
     /// Nodes tagged with `tag` or with a supertag that extends it.
     fn nodes_with_lineage(&self, tag: NodeId) -> Vec<NodeId> {
-        self.nodes.values().filter(|n| n.tags.iter().any(|t| self.tag_lineage(*t).contains(&tag))).map(|n| n.id).collect()
+        self.nodes
+            .values()
+            .filter(|n| n.reference_target().is_none() && n.tags.iter().any(|t| self.tag_lineage(*t).contains(&tag)))
+            .map(|n| n.id)
+            .collect()
     }
 
     fn ensure_fields(&mut self, node: NodeId, fields: &[NodeId]) -> Result<()> {
@@ -1391,9 +1444,9 @@ impl Graph {
             .iter()
             .position(|c| self.get(*c).and_then(|n| calendar_key(&n.kind)).map(|k| if n_kind_week(&kind) { -k } else { k }).is_some_and(|k| k > key))
             .unwrap_or(kids.len());
-        let id = self.create(parent, Some(at), name)?;
-        self.node_mut(id)?.kind = kind;
-        Ok(id)
+        // Raw: tagging it first (a week's default child supertag) could ask for this very day
+        // again before it knows it is one.
+        self.create_raw(parent, Some(at), name, kind)
     }
 
     // ---- persistence --------------------------------------------------------------------------
@@ -1434,17 +1487,22 @@ impl Graph {
         // Repair: children must exist and point back; each node listed by one parent at most.
         let ids: BTreeSet<NodeId> = nodes.keys().copied().collect();
         let mut owner: BTreeMap<NodeId, NodeId> = BTreeMap::new();
+        let root = s.root;
         for n in nodes.values_mut() {
             let me = n.id;
-            n.children.retain(|c| ids.contains(c) && *c != me && owner.insert(*c, me).is_none());
+            n.children.retain(|c| {
+                let ok = ids.contains(c) && *c != me && *c != root && !owner.contains_key(c);
+                if ok {
+                    owner.insert(*c, me);
+                }
+                ok
+            });
         }
         for n in nodes.values_mut() {
             n.parent = owner.get(&n.id).copied();
         }
-        let mut s = s;
-        if s.inbox.is_some_and(|i| !nodes.contains_key(&i)) {
-            s.inbox = None;
-        }
+        // A missing inbox is remade under its id on first use (after an undo removed it).
+        let max = max.max(s.inbox.map_or(0, |i| i.0));
         let mut g = Graph {
             nodes,
             next_id: file.next_id.max(max + 1),
@@ -1455,17 +1513,52 @@ impl Graph {
             redo: Vec::new(),
             dirty: false,
         };
-        // Orphans (no owner, not the root) are kept in Home rather than lost.
-        let orphans: Vec<NodeId> = g.nodes.values().filter(|n| n.parent.is_none() && n.id != s.root).map(|n| n.id).collect();
-        for o in orphans {
-            if let Some(lib) = g.nodes.get_mut(&s.library) {
-                lib.children.push(o);
-            }
-            if let Some(n) = g.nodes.get_mut(&o) {
-                n.parent = Some(s.library);
-            }
-        }
+        g.rehome_unreachable();
         Ok(g)
+    }
+
+    /// Nodes the root cannot reach (no owner, or owners in a loop) are kept in the Library rather
+    /// than lost: the top of each stray branch moves there.
+    fn rehome_unreachable(&mut self) {
+        let (root, library) = (self.sys.root, self.sys.library);
+        let mut seen = BTreeSet::new();
+        let mark = |g: &Graph, from: NodeId, seen: &mut BTreeSet<NodeId>| {
+            let mut stack = vec![from];
+            while let Some(x) = stack.pop() {
+                if seen.insert(x) {
+                    stack.extend(g.nodes.get(&x).map(|n| n.children.clone()).unwrap_or_default());
+                }
+            }
+        };
+        mark(self, root, &mut seen);
+        if !seen.contains(&library) {
+            // The Library itself was lost: put it back under the root first.
+            self.reparent_raw(library, root);
+            mark(self, library, &mut seen);
+        }
+        while let Some(stray) = self.nodes.keys().find(|k| !seen.contains(k)).copied() {
+            // Climb to the top of the stray branch (a node with no owner, or where the loop closes).
+            let mut top = stray;
+            let mut path = BTreeSet::from([stray]);
+            while let Some(p) = self.parent(top).filter(|p| !seen.contains(p) && path.insert(*p)) {
+                top = p;
+            }
+            self.reparent_raw(top, library);
+            mark(self, top, &mut seen);
+        }
+    }
+
+    /// Moves `id` under `parent` outside the journal (file repair only).
+    fn reparent_raw(&mut self, id: NodeId, parent: NodeId) {
+        if let Some(old) = self.parent(id).and_then(|p| self.nodes.get_mut(&p)) {
+            old.children.retain(|c| *c != id);
+        }
+        if let Some(p) = self.nodes.get_mut(&parent) {
+            p.children.push(id);
+        }
+        if let Some(n) = self.nodes.get_mut(&id) {
+            n.parent = Some(parent);
+        }
     }
 
     /// Saves atomically (write a temp file, then rename).
@@ -1507,6 +1600,29 @@ fn calendar_key(k: &Kind) -> Option<i64> {
         Kind::Week { week, .. } => Some(*week as i64),
         Kind::Day { date } => Some(date.to_days()),
         _ => None,
+    }
+}
+
+/// Carries the additions `before` -> `after` (children, tags, fields, a checkbox) over to `old`, an
+/// earlier image of the same node.
+fn rebase(old: &mut Node, before: &Node, after: &Node) {
+    for (i, c) in after.children.iter().enumerate() {
+        if !before.children.contains(c) && !old.children.contains(c) {
+            old.children.insert(i.min(old.children.len()), *c);
+        }
+    }
+    for t in &after.tags {
+        if !before.tags.contains(t) && !old.tags.contains(t) {
+            old.tags.push(*t);
+        }
+    }
+    for e in &after.fields {
+        if !before.fields.iter().any(|b| b.field == e.field) && !old.fields.iter().any(|o| o.field == e.field) {
+            old.fields.push(e.clone());
+        }
+    }
+    if before.done.is_none() && old.done.is_none() {
+        old.done = after.done;
     }
 }
 

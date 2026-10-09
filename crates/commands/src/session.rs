@@ -100,27 +100,27 @@ impl Session {
         }
     }
 
-    /// Runs a command by id. Mutating commands are one undo step; a failing command leaves the
-    /// graph untouched, and so does a panic (last-resort guard, not a licence).
+    /// Runs a command by id. A mutating command is one undo step; a failing command leaves the graph
+    /// untouched, and so does a panic (last-resort guard, not a licence).
     pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
         let spec = self.registry.get(id).cloned().ok_or_else(|| CmdError::Unknown(id.to_string()))?;
-        if spec.mutates {
-            self.graph.begin();
-        }
+        // Every command is a transaction: "pure" ones can still make built-in structure (today's
+        // day node, the inbox). That is not an undo step, but history must learn about it, or a
+        // later undo would cut the new day out of its week.
+        self.graph.begin();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (spec.run)(self, params)))
             .unwrap_or_else(|_| Err(CmdError::Failed(format!("`{id}` crashed; nothing was changed"))));
-        if spec.mutates {
-            match &result {
-                Ok(_) => {
-                    // Typing into one bullet is one undo step, until any other command runs.
-                    let key = (id == "node.setName").then(|| {
-                        let node = crate::p::node(params, "node").ok().flatten().or(self.focus);
-                        format!("rename:{node:?}:{}", self.command_count)
-                    });
-                    self.graph.commit_keyed(spec.label, key);
-                }
-                Err(_) => self.graph.abort(),
+        match &result {
+            Ok(_) if !spec.mutates => self.graph.commit_silent(),
+            Ok(_) => {
+                // Typing into one bullet is one undo step, until any other command runs.
+                let key = (id == "node.setName").then(|| {
+                    let node = crate::p::node(params, "node").ok().flatten().or(self.focus);
+                    format!("rename:{node:?}:{}", self.command_count)
+                });
+                self.graph.commit_keyed(spec.label, key);
             }
+            Err(_) => self.graph.abort(),
         }
         if id != "node.setName" {
             self.command_count += 1;

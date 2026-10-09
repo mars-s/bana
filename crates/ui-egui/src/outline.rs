@@ -347,6 +347,10 @@ fn preferences(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             app.acts.push(Act::Run("settings.set".into(), json!({"key": format!("show_{key}"), "value": on})));
         }
     }
+    let mut warn = app.session.graph.settings.warn_referenced;
+    if pref_row(ui, t, "Warn when editing referenced nodes", "Say so on the first edit of a node that appears in other places.", &mut warn) {
+        app.acts.push(Act::Run("settings.set".into(), json!({"key": "warn_referenced", "value": warn})));
+    }
     let mut counter = app.ref_counter;
     pref_row(ui, t, "Reference counter", "Show how many places reference a node, next to it.", &mut counter);
     app.ref_counter = counter;

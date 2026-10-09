@@ -1487,3 +1487,17 @@ fn tag_and_field_pages_take_a_description_and_tags_have_building_block_options()
     h.get_by_label("Hide from searches and menus");
     h.get_by_label("Building block: promote for");
 }
+
+#[test]
+fn editing_a_referenced_node_warns_once_when_the_setting_is_on() {
+    // Spec 01 §3: a setting flags edits of nodes referenced elsewhere.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Shared", "Other"]);
+    h.state_mut().exec("node.reference", json!({"target": ids[0].0, "parent": ids[1].0})).unwrap();
+    h.state_mut().exec("settings.set", json!({"key": "warn_referenced", "value": true})).unwrap();
+    focus(&mut h, ids[0], 6);
+    text(&mut h, "!");
+    let msg = "This node also appears in 1 other place(s); the edit shows everywhere";
+    h.get_by_label(msg);
+    assert_eq!(h.state().session.graph.name(ids[0]), "Shared!");
+}

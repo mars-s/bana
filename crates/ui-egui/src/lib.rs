@@ -311,6 +311,8 @@ pub struct TanaApp {
     /// Puts (html, plain text) on the system clipboard; set by the desktop app. Without it, copying
     /// nodes puts plain text only (egui's clipboard).
     pub rich_clipboard: Option<RichClipboard>,
+    /// The node the "referenced elsewhere" warning was last given for.
+    warned_for: Option<NodeId>,
     /// The open Settings sub-page.
     pub settings_tab: usize,
     /// Window requests from commands, carried out in `logic` where the context is at hand.
@@ -390,6 +392,7 @@ impl TanaApp {
             ws_closed: Default::default(),
             window_cmds: Vec::new(),
             settings_tab: 0,
+            warned_for: None,
             rich_clipboard: None,
             nav_title: None,
             recents_page: false,
@@ -433,7 +436,6 @@ impl TanaApp {
         self.toast_msg = Some((msg, f64::NAN));
     }
 
-    /// Forget the text field state (another panel or tab is now active).
     /// Starts typing into a field value. One caret at a time: the bullet being edited lets go, or
     /// it would take the keyboard back and the next keys would land in it (DIFFS N1).
     pub(crate) fn start_field_edit(&mut self, fe: FieldEdit) {
@@ -442,6 +444,7 @@ impl TanaApp {
         self.field_edit = Some(fe);
     }
 
+    /// Forget the text field state (another panel or tab is now active).
     pub(crate) fn edit_reset(&mut self) {
         self.edit.node = None;
     }
@@ -464,6 +467,18 @@ impl TanaApp {
             self.recents_page = false;
             self.settings_page = false;
             self.help_page = false;
+        }
+        // Settings > warn when editing referenced nodes: the first edit of such a node says so.
+        if id == "node.setName" && self.session.graph.settings.warn_referenced {
+            let node = params.get("node").and_then(Value::as_u64).map(NodeId).or(self.session.focus);
+            if let Some(n) = node.filter(|n| self.warned_for != Some(*n)) {
+                self.warned_for = Some(n);
+                let target = self.session.graph.resolve(n);
+                let elsewhere = self.session.graph.references_to(target).into_iter().filter(|r| *r != n).count() + usize::from(target != n);
+                if elsewhere > 0 {
+                    self.toast(format!("This node also appears in {elsewhere} other place(s); the edit shows everywhere"));
+                }
+            }
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
         if id == "file.open" && r.is_ok() {

@@ -60,6 +60,9 @@ pub struct Settings {
     /// `help`, `shortcuts`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden: Vec<String>,
+    /// Warn on the first edit of a node that is referenced elsewhere (spec 01 §3).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub warn_referenced: bool,
 }
 
 impl Settings {

@@ -627,3 +627,10 @@ fn query_field_value_operators_and_workspace() {
     assert_eq!(run(&g, &format!("WORKSPACE:{}", ws.0)), [x]);
     assert!(!run(&g, &format!("WORKSPACE:{}", g.sys.root.0)).contains(&x));
 }
+
+#[test]
+fn html_export_is_a_nested_escaped_list() {
+    let (mut g, ids) = graph_with(&["B <b>", "C"]);
+    g.create(ids[0], None, "B1 & co").unwrap();
+    assert_eq!(export::to_html(&g, &ids), "<ul><li>B &lt;b&gt;<ul><li>B1 &amp; co</li></ul></li><li>C</li></ul>");
+}

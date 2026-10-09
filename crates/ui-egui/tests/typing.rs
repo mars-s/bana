@@ -1407,3 +1407,22 @@ fn every_menu_bar_entry_runs_a_known_command() {
     h.step();
     assert!((h.ctx.zoom_factor() - 1.0).abs() < 1e-4);
 }
+
+#[test]
+fn copying_selected_nodes_puts_html_and_text_on_the_clipboard() {
+    // Spec 02 §12: a nested HTML list plus plain text.
+    let mut h = harness();
+    let got = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let sink = got.clone();
+    h.state_mut().rich_clipboard = Some(Box::new(move |html: &str, text: &str| *sink.borrow_mut() = Some((html.to_string(), text.to_string()))));
+    let ids = page_with(&mut h, &["B"]);
+    h.state_mut().exec("node.add", json!({"parent": ids[0].0, "name": "B1"})).unwrap();
+    h.state_mut().exec("select.set", json!({"from": ids[0].0})).unwrap();
+    h.input_mut().events.push(Event::Copy);
+    h.step();
+    let (html, text) = got.borrow().clone().expect("clipboard written");
+    assert_eq!(html, "<ul><li>B<ul><li>B1</li></ul></li></ul>");
+    assert_eq!(text, "- B\n  - B1\n");
+    let r = h.state_mut().exec("export.clipboard", json!({"node": ids[0].0})).unwrap();
+    assert_eq!(r["html"], html);
+}

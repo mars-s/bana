@@ -104,6 +104,43 @@ fn md_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     }
 }
 
+/// Nested HTML list of the nodes and their subtrees (the rich clipboard flavour, spec 02 §12):
+/// `<ul><li>Name<ul><li>Child</li></ul></li></ul>`, text escaped, fields as `Field:: value` items.
+pub fn to_html(g: &Graph, ids: &[NodeId]) -> String {
+    let mut out = String::from("<ul>");
+    for id in ids {
+        html_node(g, *id, 0, &mut out);
+    }
+    out.push_str("</ul>");
+    out
+}
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+fn html_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
+    if depth > MAX_EXPORT_DEPTH {
+        return;
+    }
+    out.push_str("<li>");
+    out.push_str(&escape(&node_line(g, id)));
+    let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
+    let fields = if is_ref { Vec::new() } else { g.get(id).map(|n| n.fields.clone()).unwrap_or_default() };
+    let kids = if is_ref { &[][..] } else { g.children(id) };
+    if !fields.is_empty() || !kids.is_empty() {
+        out.push_str("<ul>");
+        for f in &fields {
+            out.push_str(&format!("<li>{}:: {}</li>", escape(g.name(f.field)), escape(&entry_text(g, f))));
+        }
+        for c in kids {
+            html_node(g, *c, depth + 1, out);
+        }
+        out.push_str("</ul>");
+    }
+    out.push_str("</li>");
+}
+
 /// Nested JSON of `id` and its subtree, with names resolved (for agents and the CLI).
 pub fn to_json_tree(g: &Graph, id: NodeId) -> Value {
     json_node(g, id, 0)

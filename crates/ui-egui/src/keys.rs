@@ -60,7 +60,12 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
         if matches!(ev, Event::Copy) && app.session.sel.is_some() && (app.session.focus.is_none() || app.edit.selection_empty) {
             let ids = app.session.selected();
             let text: String = ids.iter().map(|n| tanacraft_core::export::to_markdown(&app.session.graph, *n, false)).collect();
-            ctx.copy_text(text.clone());
+            // A nested HTML list too, where the platform clipboard takes one (spec 02 §12).
+            let html = tanacraft_core::export::to_html(&app.session.graph, &ids);
+            match app.rich_clipboard.as_mut() {
+                Some(put) => put(&html, &text),
+                None => ctx.copy_text(text.clone()),
+            }
             app.node_clip = Some((text, ids));
             used.push(i);
             continue;

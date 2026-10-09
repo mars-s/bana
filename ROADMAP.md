@@ -10,7 +10,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 |---|---|
 | Commands (every action; CLI, MCP and control channel can run them) | 162 engine commands, plus 22 window commands |
 | Tests | 149 (core 41, commands 47 incl. a fuzz test of random command sequences and a 50k-node timed test, UI 59 driving the real UI with keys, pointer drags, clicks and panels plus a 50k-node frame-time test, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 95 mapped: 69 done, 20 partial, 4 missing, 2 notes |
+| Spec sections (`docs/parity.md`) | 95 mapped: 70 done, 19 partial, 4 missing, 2 notes |
 | Spec screenshots | 160 mapped: 133 done, 20 partial, 6 missing, 1 not behaviour |
 
 ## Milestones
@@ -33,8 +33,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M13 Fields and calendar | Several values per field, pinned and optional fields, title expressions, option sources, invalid-value warnings, date picker with time; calendar time grid with timed dates, drop to time, resize, drag to create | done |
 | M14 Workspaces and shell | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel, page icons and banners, custom keybindings, Markdown import, user fields | done |
 | M15 Acceptance round 4 | DIFFS N1 to N14: field values, `>` field rows in place, selection keys, Cmd+. title, page edge moves, workspaces side by side, search builder closed on open, fuller selection toolbar; table header menu with calculations, + Add menu item / tab, hidden-field labels | done |
-| M16 Robustness, speed, menus | Fuzz test of random command sequences (fixed: untracked day creation clobbered by undo, references picking up child tags, day creation recursion, file repair of loops); 50k-node outline draws only visible rows; native macOS menu bar running commands | done |
-| M17 Next | Rich HTML clipboard, settings sub-pages, per-context notes on references, import from other apps, per-workspace schema and trash | next |
+| M16 Robustness, speed, menus | Fuzz test of random command sequences (fixed: untracked day creation clobbered by undo, references picking up child tags, day creation recursion, file repair of loops); 50k-node outline draws only visible rows; native macOS menu bar running commands; HTML plus text on the clipboard | done |
+| M17 Next | Settings sub-pages, per-context notes on references, import from other apps, per-workspace schema and trash | next |
 
 ## Later
 

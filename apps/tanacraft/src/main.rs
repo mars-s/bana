@@ -84,6 +84,14 @@ fn main() -> Result<(), String> {
     {
         eprintln!("{}: {e}", keys.display());
     }
+    // Copying nodes puts a nested HTML list and Markdown text on the clipboard (spec 02 §12).
+    if let Ok(mut clip) = arboard::Clipboard::new() {
+        app.rich_clipboard = Some(Box::new(move |html: &str, text: &str| {
+            if let Err(e) = clip.set_html(html, Some(text)) {
+                eprintln!("clipboard: {e}");
+            }
+        }));
+    }
     if let Some(port) = control {
         app.control = Some(control_server(port)?);
     }

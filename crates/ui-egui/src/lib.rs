@@ -100,6 +100,9 @@ pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
     ("Help", &[("Help", "ui.help"), ("Keyboard shortcuts", "ui.shortcuts")]),
 ];
 
+/// Writes (html, plain text) to the system clipboard.
+pub type RichClipboard = Box<dyn FnMut(&str, &str)>;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum WindowCmd {
     Close,
@@ -305,6 +308,9 @@ pub struct TanaApp {
     pin_open: std::collections::HashSet<NodeId>,
     /// A navigation view's just-added item: (node, heading being typed, focus it once).
     pub(crate) nav_title: Option<(NodeId, String, bool)>,
+    /// Puts (html, plain text) on the system clipboard; set by the desktop app. Without it, copying
+    /// nodes puts plain text only (egui's clipboard).
+    pub rich_clipboard: Option<RichClipboard>,
     /// Window requests from commands, carried out in `logic` where the context is at hand.
     pub(crate) window_cmds: Vec<WindowCmd>,
     /// Workspaces folded in the sidebar (all start open).
@@ -381,6 +387,7 @@ impl TanaApp {
             pin_open: Default::default(),
             ws_closed: Default::default(),
             window_cmds: Vec::new(),
+            rich_clipboard: None,
             nav_title: None,
             recents_page: false,
             settings_page: false,

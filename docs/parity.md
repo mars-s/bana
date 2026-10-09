@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 69 | 20 | 4 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 70 | 19 | 4 | 2 |
 | Screenshots (160) | 133 | 20 | 6 | 1 |
 | Beyond the spec | 4 | | | |
 
@@ -58,7 +58,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
 | 10. Inline formatting | done | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. With a collapsed caret the mark carries on for typed text. While editing, marks show faint and the text between them is styled. Links render blue with a small arrow before them. Bold is drawn brighter (one font weight). Tested. |
 | 11. Trigger characters | partial | `#` keeps the text in the line and the menu filters by it (Create and apply on top, tag descriptions, Cmd+Enter creates, Escape leaves the text, opens above the line near the bottom); @ (empty line: reference node; mid-sentence: inline reference; Create), > (field row, Tab to value), / and ! menus. Missing: Space for AI. |
-| 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste; Paste as code (`edit.pasteAsCode`). Missing: rich HTML on the clipboard (egui offers plain text only). |
+| 12. Copy and paste | done | Cmd+C copies selected nodes as a nested HTML list plus a Markdown list (`export.clipboard`; the desktop app writes both flavours); pasting them inserts references, into an empty line in its place; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste; Paste as code (`edit.pasteAsCode`). Tested. |
 | 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |

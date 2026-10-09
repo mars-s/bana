@@ -1224,13 +1224,17 @@ pub(crate) fn field_value(
                     .desired_width(ui.available_width())
                     .hint_text(hint(def.field_type)),
             );
+            // Saved as typed, like a bullet's text (DIFFS N15). Options and looked-up values are
+            // saved when the editor closes, so half-typed words do not become choices or nodes.
+            let live = matches!(def.field_type, FieldType::Plain | FieldType::Number | FieldType::Url | FieldType::Email);
+            if resp.changed() && live && (fe.buf.trim().is_empty() || FieldValue::parse(def.field_type, &fe.buf).is_ok()) {
+                app.acts.push(set(fe.buf.clone()));
+            }
             if fe.focus_once {
                 resp.request_focus();
                 fe.focus_once = false;
             } else if resp.lost_focus() {
-                let v = fe.buf.clone();
-                app.field_edit = None;
-                app.acts.push(set(v));
+                app.commit_field_edit();
             }
         }
         _ => {

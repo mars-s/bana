@@ -468,6 +468,24 @@ fn next_color(app: &TanaApp) -> &'static str {
 pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
     let Some(p) = app.picker.as_mut() else { return false };
     match k {
+        // A field name typed after `>` is kept: Escape leaves the new field row (DIFFS N15).
+        "Escape" if p.mode == PickMode::Field && p.line.is_some() && !p.query.trim().is_empty() => {
+            let (q, node, line) = (p.query.trim().to_string(), p.node, p.line);
+            let exact = picker_items(app).into_iter().find(|c| matches!(c, Choice::Existing(_, n) if n.eq_ignore_ascii_case(&q)));
+            let picked = match &exact {
+                Some(Choice::Existing(f, _)) => Some(*f),
+                _ => None,
+            };
+            apply_choice(app, exact.unwrap_or(Choice::Create(q)));
+            if let Some(l) = line {
+                drop(app.exec("node.delete", json!({"node": l.0})));
+            }
+            let f = picked.or_else(|| app.session.graph.get(node).and_then(|n| n.fields.last()).map(|e| e.field));
+            if let Some(f) = f {
+                app.start_field_edit(crate::FieldEdit::new(node, f, 0));
+                app.leave_field("Escape");
+            }
+        }
         "Escape" => {
             app.picker = None;
         }

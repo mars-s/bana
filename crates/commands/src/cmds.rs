@@ -1391,8 +1391,8 @@ fn field_add_value(s: &mut Session, v: &Value) -> CmdResult {
     Ok(field_json(s, id, field))
 }
 
-/// Takes value `index` out of the field and makes it the node's first child (Shift+Tab on a value
-/// line, spec 02 §3).
+/// Takes value `index` out of the field and makes it a child just below the field row (Shift+Tab on
+/// a value line, spec 02 §3). An empty value line gives an empty child.
 fn field_value_to_node(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let field = field_param(s, v, false)?;
@@ -1403,10 +1403,13 @@ fn field_value_to_node(s: &mut Session, v: &Value) -> CmdResult {
     if stored.is_some() {
         s.graph.set_field_at(owner, field, index, None)?;
     }
-    if text.trim().is_empty() {
-        return Ok(field_json(s, id, field));
-    }
-    let child = s.graph.create(owner, Some(0), &text)?;
+    // The new line goes directly below the field row (DIFFS N17), and an empty value line still
+    // gives one, so typing goes on there (DIFFS N16).
+    let after = s.graph.get(owner).and_then(|n| n.fields.iter().find(|e| e.field == field)).and_then(|e| e.after);
+    let at = after.filter(|a| s.graph.parent(*a) == Some(owner)).and_then(|a| s.graph.index_in_parent(a)).map_or(0, |i| i + 1);
+    let text = text.trim();
+    let child = s.graph.create(owner, Some(at), text)?;
+    s.graph.set_expanded(owner, true);
     s.set_focus(child, text.chars().count());
     let mut out = field_json(s, id, field);
     out["child"] = json!(child.0);

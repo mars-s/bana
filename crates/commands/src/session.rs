@@ -114,15 +114,18 @@ impl Session {
             Ok(_) if !spec.mutates => self.graph.commit_silent(),
             Ok(_) => {
                 // Typing into one bullet is one undo step, until any other command runs.
-                let key = (id == "node.setName").then(|| {
-                    let node = crate::p::node(params, "node").ok().flatten().or(self.focus);
-                    format!("rename:{node:?}:{}", self.command_count)
-                });
+                // Typing into a field value (saved as typed, DIFFS N15) is one step the same way.
+                let node = || crate::p::node(params, "node").ok().flatten().or(self.focus);
+                let key = match id {
+                    "node.setName" => Some(format!("rename:{:?}:{}", node(), self.command_count)),
+                    "field.set" => Some(format!("field:{:?}:{}:{}:{}", node(), params["field"], params["index"], self.command_count)),
+                    _ => None,
+                };
                 self.graph.commit_keyed(spec.label, key);
             }
             Err(_) => self.graph.abort(),
         }
-        if id != "node.setName" {
+        if id != "node.setName" && id != "field.set" {
             self.command_count += 1;
         }
         self.fix_view();

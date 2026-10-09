@@ -197,6 +197,12 @@ pub(crate) struct FieldEdit {
     focus_once: bool,
 }
 
+impl FieldEdit {
+    pub(crate) fn new(node: NodeId, field: NodeId, index: usize) -> Self {
+        FieldEdit { node, field, index, buf: String::new(), focus_once: true }
+    }
+}
+
 /// Deferred UI actions (collected while drawing, applied after).
 #[derive(Debug, Clone)]
 pub(crate) enum Act {
@@ -446,6 +452,82 @@ impl TanaApp {
         self.session.focus = None;
         self.edit_reset();
         self.field_edit = Some(fe);
+    }
+
+    /// Closes the field value editor, saving what was typed. Plain text is already saved as it is
+    /// typed (DIFFS N15); values that are collected or looked up (options, dates) are saved here.
+    pub(crate) fn commit_field_edit(&mut self) -> Option<FieldEdit> {
+        let fe = self.field_edit.take()?;
+        let g = &self.session.graph;
+        let stored = g
+            .get(g.resolve(fe.node))
+            .and_then(|n| n.field_values(fe.field).get(fe.index).map(|v| tanacraft_core::export::display_value(g, v)))
+            .unwrap_or_default();
+        if stored != fe.buf.trim()
+            && let Err(e) = self.exec("field.set", json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index, "value": fe.buf}))
+        {
+            self.session.status = e;
+        }
+        Some(fe)
+    }
+
+    /// Where the row of `field` on `owner` sits among the visible rows: the index of the first row
+    /// below it.
+    fn field_row_pos(&self, owner: NodeId, field: NodeId) -> (Vec<tanacraft_commands::Row>, usize) {
+        let rows = self.session.rows();
+        let g = &self.session.graph;
+        let after = g.get(owner).and_then(|n| n.fields.iter().find(|e| e.field == field)).and_then(|e| e.after);
+        let pos = match after.and_then(|a| rows.iter().position(|r| r.id == a)) {
+            Some(i) => {
+                let d = rows[i].depth;
+                i + 1 + rows[i + 1..].iter().take_while(|r| r.depth > d).count()
+            }
+            None => rows.iter().position(|r| g.resolve(r.id) == owner).map_or(0, |i| i + 1),
+        };
+        (rows, pos)
+    }
+
+    /// Leaves a field value with Escape, Up or Down (the text is kept, DIFFS N15). Up and Down move
+    /// between the field's values, then to the line above or below the field row; Escape selects
+    /// the line above it (spec-gap: in this outline a field row is not a node to select).
+    pub(crate) fn leave_field(&mut self, key: &str) {
+        let Some(fe) = self.commit_field_edit() else { return };
+        let owner = self.session.graph.resolve(fe.node);
+        let count = self.session.graph.get(owner).map_or(0, |n| n.field_values(fe.field).len());
+        let next_value = match key {
+            "Up" => fe.index.checked_sub(1),
+            "Down" => Some(fe.index + 1).filter(|i| *i < count),
+            _ => None,
+        };
+        if let Some(index) = next_value {
+            let buf = self
+                .session
+                .graph
+                .get(owner)
+                .and_then(|n| n.field_values(fe.field).get(index).map(|v| tanacraft_core::export::display_value(&self.session.graph, v)))
+                .unwrap_or_default();
+            self.start_field_edit(FieldEdit { index, buf, focus_once: true, ..fe });
+            return;
+        }
+        let (rows, pos) = self.field_row_pos(owner, fe.field);
+        let above = pos.checked_sub(1).and_then(|i| rows.get(i)).map(|r| r.id);
+        let below = rows.get(pos).map(|r| r.id);
+        match key {
+            "Escape" => {
+                if let Some(n) = above.or(below) {
+                    self.exec("select.set", json!({"from": n.0})).ok();
+                }
+            }
+            "Up" => match above {
+                Some(n) => drop(self.exec("focus.set", json!({"node": n.0, "caret": usize::MAX}))),
+                None if crate::outline::title_editable(&self.session.graph, self.session.zoom) => self.focus_title = true,
+                None => self.start_field_edit(FieldEdit { focus_once: true, ..fe }),
+            },
+            _ => match below {
+                Some(n) => drop(self.exec("focus.set", json!({"node": n.0, "caret": 0}))),
+                None => self.start_field_edit(FieldEdit { focus_once: true, ..fe }),
+            },
+        }
     }
 
     /// Forget the text field state (another panel or tab is now active).

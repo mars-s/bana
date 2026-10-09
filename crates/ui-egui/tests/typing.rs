@@ -1655,3 +1655,103 @@ fn query_builder_results_wait_for_run_once_and_done() {
     h.state_mut().exec("node.add", json!({"parent": lib.0, "name": "apple pie two"})).unwrap();
     assert_eq!(h.state().session.graph.view_items(q).len(), 2, "live after Done");
 }
+
+/// A page with one line "x", caret at its end, then Enter and `>` + `name`: a field row named
+/// `name` with its value editor open (Tab).
+fn field_after_x(h: &mut H<'_>, name: &str) -> (tanacraft_core::NodeId, tanacraft_core::NodeId) {
+    let page = page_with(h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(h, x, 1);
+    key(h, Key::Enter, Modifiers::NONE);
+    text(h, ">");
+    text(h, name);
+    key(h, Key::Tab, Modifiers::NONE);
+    (page, x)
+}
+
+fn values_of(h: &H<'_>, node: tanacraft_core::NodeId, field: &str) -> Vec<String> {
+    let g = &h.state().session.graph;
+    let f = g.find_field(field).expect("field exists");
+    g.get(node).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect()
+}
+
+#[test]
+fn diffs_n15_field_values_are_saved_as_typed() {
+    // Escape keeps the value, and the row is selected so typing goes on.
+    let mut h = harness();
+    let (page, x) = field_after_x(&mut h, "Prio");
+    text(&mut h, "High");
+    assert_eq!(values_of(&h, page, "Prio"), ["High"], "saved before any Enter");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(values_of(&h, page, "Prio"), ["High"]);
+    assert_eq!(h.state().session.sel, Some((x, x)));
+    // One undo takes the whole typed value back, not one letter.
+    key(&mut h, Key::Z, CMD);
+    assert!(values_of(&h, page, "Prio").is_empty());
+
+    // Up keeps it too, and the caret goes to the line above.
+    let mut h = harness();
+    let (page, x) = field_after_x(&mut h, "Lead");
+    text(&mut h, "Ann");
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    text(&mut h, "Z");
+    assert_eq!(values_of(&h, page, "Lead"), ["Ann"]);
+    assert_eq!(h.state().session.graph.name(x), "xZ");
+
+    // Several values: Escape after the second keeps both.
+    let mut h = harness();
+    let (page, _) = field_after_x(&mut h, "Ppl");
+    text(&mut h, "Ann");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Bob");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(values_of(&h, page, "Ppl"), ["Ann", "Bob"]);
+
+    // A field name typed after `>` stays with Escape; the line becomes the row.
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, ">");
+    text(&mut h, "Qq");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let f = g.find_field("Qq").expect("field kept");
+    assert!(g.get(page).unwrap().fields.iter().any(|e| e.field == f && e.after == Some(x)));
+    assert_eq!(g.children(page), &[x], "no blank line left");
+    assert!(h.state().picker.is_none());
+}
+
+#[test]
+fn diffs_n16_n17_shift_tab_leaves_the_value_to_a_line_below_the_field() {
+    // Shift+Tab on an empty value line: a new line below the field row, typing goes on there.
+    let mut h = harness();
+    let (page, x) = field_after_x(&mut h, "Lead");
+    text(&mut h, "Robin");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
+    text(&mut h, "Timeline2");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Week2");
+    assert_eq!(values_of(&h, page, "Lead"), ["Robin"]);
+    let g = &h.state().session.graph;
+    let names: Vec<&str> = g.children(page).iter().map(|c| g.name(*c)).collect();
+    assert_eq!(names, ["x", "Timeline2", "Week2"]);
+    let _ = x;
+
+    // Shift+Tab on a value with text: it becomes the line just below the field row, not the top.
+    let mut h = harness();
+    let (page, _) = field_after_x(&mut h, "Pq");
+    text(&mut h, "Ann");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Bob");
+    key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
+    text(&mut h, "!");
+    assert_eq!(values_of(&h, page, "Pq"), ["Ann"]);
+    let g = &h.state().session.graph;
+    let names: Vec<&str> = g.children(page).iter().map(|c| g.name(*c)).collect();
+    assert_eq!(names, ["x", "Bob!"]);
+}

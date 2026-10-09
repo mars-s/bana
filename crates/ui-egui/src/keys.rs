@@ -168,29 +168,24 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         return false;
     }
     if let Some(fe) = app.field_edit.clone() {
-        let base = json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index});
         match k.as_str() {
-            "Escape" => app.field_edit = None,
+            // Escape, Up and Down keep the typed value (DIFFS N15).
+            "Escape" | "Up" | "Down" => app.leave_field(&k),
             // Enter keeps the value and opens another value line in the same field (spec 02 §3).
-            "Enter" => {
-                let mut p = base.clone();
-                p["value"] = json!(fe.buf);
-                let r = app.exec("field.set", p);
-                app.field_edit = None;
-                match r {
-                    Ok(v) if !fe.buf.trim().is_empty() => {
-                        let index = v["values"].as_array().map(Vec::len).unwrap_or(fe.index + 1);
-                        app.start_field_edit(crate::FieldEdit { index, buf: String::new(), focus_once: true, ..fe });
-                    }
-                    Ok(_) => {}
-                    Err(e) => app.session.status = e,
+            "Enter" if !fe.buf.trim().is_empty() => {
+                app.commit_field_edit();
+                {
+                    let owner = app.session.graph.resolve(fe.node);
+                    let index = app.session.graph.get(owner).map_or(fe.index + 1, |n| n.field_values(fe.field).len());
+                    app.start_field_edit(crate::FieldEdit { index, buf: String::new(), focus_once: true, ..fe });
                 }
             }
-            // Shift+Tab moves the value out of the field: it becomes a node under the field row.
-            "Shift+Tab" => {
+            // Shift+Tab moves the value out of the field: it becomes a line under the field row,
+            // and an empty value line becomes an empty line there (DIFFS N16, N17). Enter on an
+            // empty value line does the same.
+            "Shift+Tab" | "Enter" => {
                 app.field_edit = None;
-                let mut p = base.clone();
-                p["text"] = json!(fe.buf);
+                let p = json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index, "text": fe.buf});
                 if let Err(e) = app.exec("field.valueToNode", p) {
                     app.session.status = e;
                 }

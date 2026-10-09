@@ -775,3 +775,14 @@ fn diffs_p2_query_builder_adds_nested_groups() {
     h.get_by_label("Done");
     h.get_by_label("Run once");
 }
+
+#[test]
+fn diffs_p3_tag_page_breadcrumb_reads_schema() {
+    let mut h = harness();
+    let tag = h.state_mut().exec("tag.create", json!({"name": "book"})).unwrap()["tag"].as_u64().unwrap();
+    h.state_mut().exec("nav.open", json!({"node": tag})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Schema");
+}

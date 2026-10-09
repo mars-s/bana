@@ -498,7 +498,14 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
             if r.changed() {
                 p.selected = 0;
             }
-            for (i, c) in items.iter().enumerate() {
+            // The tag menu shows "Create and apply" on top (spec 02 §11); Enter still picks the
+            // highlighted match, Cmd+Enter creates.
+            let mut order: Vec<usize> = (0..items.len()).collect();
+            if p.mode == PickMode::Tag && matches!(items.last(), Some(Choice::Create(_))) {
+                order.rotate_right(1);
+            }
+            for i in order {
+                let c = &items[i];
                 let (label, color) = match c {
                     Choice::Existing(id, name) => {
                         let color = app.session.graph.tag_def(*id).map(|d| theme::tag_color(&d.color, app.dark).0).unwrap_or(t.text);
@@ -512,7 +519,18 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                 if i == p.selected || resp.hovered() {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
-                ui.painter().text(rect.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(14.0), color);
+                let lr = ui.painter().text(rect.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(14.0), color);
+                // A supertag's description shows after its name, in grey.
+                if let Choice::Existing(id, _) = c
+                    && app.session.graph.tag_def(*id).is_some()
+                {
+                    let d = app.session.graph.get(*id).map(|n| n.description.clone()).unwrap_or_default();
+                    if !d.is_empty() {
+                        let room = (rect.right() - lr.right() - 16.0).max(0.0);
+                        let short: String = d.chars().take((room / 6.5) as usize).collect();
+                        ui.painter().text(lr.right_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, short, FontId::proportional(12.0), t.faint);
+                    }
+                }
                 if create {
                     let hint = if app.mac { "Cmd+Enter" } else { "Ctrl+Enter" };
                     ui.painter().text(rect.right_center() - vec2(8.0, 0.0), Align2::RIGHT_CENTER, hint, FontId::proportional(11.5), t.faint);

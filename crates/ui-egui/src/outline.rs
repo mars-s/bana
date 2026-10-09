@@ -19,7 +19,7 @@ pub fn page_title(s: &Session, id: NodeId) -> String {
         Some(Kind::Day { date }) if *date == s.today => format!("Today, {}", g.name(id)),
         Some(Kind::Day { date }) if *date == s.today.add_days(-1) => format!("Yesterday, {}", g.name(id)),
         Some(Kind::Day { date }) if *date == s.today.add_days(1) => format!("Tomorrow, {}", g.name(id)),
-        Some(Kind::Tag(_)) => format!("#{}", g.name(id)),
+        Some(Kind::Tag(_)) => g.name(id).to_string(),
         _ if id == g.sys.schema => "Supertags".to_string(),
         _ => g.name(id).to_string(),
     }
@@ -327,7 +327,8 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
                 ui.label(RichText::new("...").size(13.0).color(t.dim)).on_hover_text(hidden.join(" / "));
                 continue;
             };
-            let name = page_title(&app.session, c);
+            // The schema reads "Schema" on the way to a supertag (its own page is "Supertags").
+            let name = if c == app.session.graph.sys.schema { "Schema".to_string() } else { page_title(&app.session, c) };
             let r = ui.add(egui::Label::new(RichText::new(name).size(13.0).color(t.dim)).sense(Sense::click()));
             if r.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -370,6 +371,18 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let s = &app.session;
     let g = &s.graph;
     ui.horizontal(|ui| {
+        // A supertag page: a square "#" badge in the tag colour, then a checkbox square when the tag
+        // shows one (spec DIFFS P3 #14).
+        if let Some(def) = g.tag_def(target) {
+            let (strong, _) = theme::tag_color(&def.color, app.dark);
+            let (r, _) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::hover());
+            ui.painter().rect_filled(r, 7.0, strong.gamma_multiply(0.85));
+            crate::icons::hash(ui.painter(), r.shrink(8.0), Color32::WHITE);
+            if def.checkbox {
+                checkbox(ui, t, false, 22.0);
+            }
+            ui.add_space(4.0);
+        }
         if let Some(done) = g.checkbox(target) {
             if checkbox(ui, t, done, 22.0).clicked() {
                 app.acts.push(Act::Run("node.toggleDone".into(), json!({"node": target.0})));

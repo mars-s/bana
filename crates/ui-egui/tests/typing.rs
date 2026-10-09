@@ -1199,3 +1199,31 @@ fn custom_keybindings_run_their_command() {
     key(&mut h, Key::H, Modifiers { command: true, mac_cmd: true, shift: true, ..Modifiers::NONE });
     assert!(h.state().session.graph.get(ids[0]).unwrap().heading);
 }
+
+#[test]
+fn drop_on_an_empty_expanded_nodes_ghost_line_nests_it() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Parent", "Loose"]);
+    h.state_mut().exec("node.toggleExpand", json!({"node": ids[0].0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let ghost = h.get_by_label(&format!("ghost {}", ids[0].0)).rect().center();
+    let loose = h.get_by_label("Loose").rect();
+    let from = Pos2::new(loose.left() - 12.0, loose.center().y);
+    let ev = |h: &mut H<'_>, e: Event| {
+        h.input_mut().events.push(e);
+        h.step();
+    };
+    ev(&mut h, Event::PointerMoved(from));
+    ev(&mut h, Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    for k in 1..=10 {
+        ev(&mut h, Event::PointerMoved(from + (ghost - from) * (k as f32 / 10.0)));
+    }
+    ev(&mut h, Event::PointerButton { pos: ghost, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.parent(ids[1]), Some(ids[0]));
+}

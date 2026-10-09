@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (99) | 72 | 20 | 5 | 2 |
-| Screenshots (153) | 119 | 26 | 7 | 1 |
+| Screenshots (153) | 122 | 23 | 7 | 1 |
 
 ## `00-overview.md`
 
@@ -209,7 +209,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `46-search-node-options-menu.png` | partial | Search node options menu subset. |
 | `47-view-as-submenu.jpg` | done | View as submenu. |
 | `48-table-view.png` | done | Table view. |
-| `49-table-column-icon-field-config.png` | partial | Column menu: open field, remove. |
+| `49-table-column-icon-field-config.png` | done | The column header icon opens the field definition; the name renames in place. |
 | `50-cards-view.png` | done | Cards view. |
 | `51-lanes-view.png` | done | Lanes view. |
 | `52-calendar-view.png` | done | Calendar month view. |
@@ -260,8 +260,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `97-move-down-into-next-branch.jpg` | done | Move down into the next branch. |
 | `98-shift-click-range-select.jpg` | done | Shift+click range select. |
 | `99-multi-drag.jpg` | done | Dragging several nodes. |
-| `100-drag-into-empty-child-list.jpg` | partial | Drop as first child. |
-| `101-drag-drop-line-depth.jpg` | partial | Drop line depth (child by pointer offset). |
+| `100-drag-into-empty-child-list.jpg` | done | An expanded node with no children shows a ghost line; dropping on it nests the node (click adds a first child). Tested. |
+| `101-drag-drop-line-depth.jpg` | done | Upper half drops above, lower half below, at the row's depth; the drop line starts at that depth; horizontal offset does not nest. |
 | `102-cmd-a-select-all.jpg` | done | Cmd+A: text, then all nodes. |
 | `103-paste-duplicate-skipped-toast.png` | done | Pasting nodes already in the list skips them with a notice at the top right. |
 | `104-paste-node-as-reference.png` | done | Pasting copied nodes inserts references. |

@@ -1407,6 +1407,9 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         let expanded = app.session.graph.is_expanded(row.id);
         if expanded {
             fields(app, ui, t, row.id, (row.depth + 1) as f32 * INDENT + 8.0);
+            if app.session.row_children(row.id).is_empty() && app.session.graph.query(app.session.graph.resolve(row.id)).is_none() {
+                ghost_line(app, ui, t, row.id, row.depth + 1);
+            }
         }
         bottoms.push(ui.cursor().top());
     }
@@ -1711,6 +1714,32 @@ fn chips_width(g: &Graph, id: NodeId) -> f32 {
     g.get(g.resolve(id)).map(|n| n.tags.iter().map(|t| g.name(*t).chars().count() as f32 * 8.0 + 34.0).sum()).unwrap_or(0.0)
 }
 
+/// The faint empty line of an expanded node with no children: click to add its first child, or drop
+/// a dragged bullet on it to nest it there (spec 02 §6, `100-drag-into-empty-child-list.jpg`).
+fn ghost_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, parent: NodeId, depth: usize) {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H - 4.0), Sense::click());
+    let c = pos2(rect.left() + depth as f32 * INDENT + 10.0, rect.center().y);
+    ui.painter().circle_filled(c, 2.5, t.faint.gamma_multiply(0.6));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, format!("ghost {}", parent.0)));
+    let target = app.session.graph.resolve(parent);
+    if resp.clicked() {
+        let r = app.session.run("node.add", &json!({"parent": target.0}));
+        if let Some(id) = r.ok().and_then(|v| v["id"].as_u64()) {
+            app.acts.push(Act::Run("focus.set".into(), json!({"node": id, "caret": 0})));
+        }
+    }
+    if resp.dnd_hover_payload::<NodeId>().is_some() {
+        ui.painter().line_segment([pos2(c.x - 8.0, rect.center().y), pos2(rect.right(), rect.center().y)], Stroke::new(2.0, t.accent));
+    }
+    if let Some(dragged) = resp.dnd_release_payload::<NodeId>()
+        && *dragged != parent
+    {
+        let selected = app.session.selected();
+        let nodes: Vec<u64> = if selected.contains(&dragged) { selected.iter().map(|n| n.0).collect() } else { vec![dragged.0] };
+        app.acts.push(Act::Run("node.moveMany".into(), json!({"nodes": nodes, "parent": target.0, "index": 0})));
+    }
+}
+
 /// The floating toolbar above one selected node (spec 02 §8).
 fn selection_toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, row: Rect) {
     let anchor = row.left_top() + vec2(18.0, -34.0);
@@ -1744,25 +1773,20 @@ fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: e
     if *dragged == id {
         return;
     }
-    let as_child = ui.ctx().pointer_hover_pos().is_some_and(|p| p.x > bullet.x + INDENT);
-    let x = if as_child { bullet.x + INDENT - 8.0 } else { bullet.x - 8.0 };
-    ui.painter().line_segment([pos2(x, rect.bottom()), pos2(rect.right(), rect.bottom())], Stroke::new(2.0, t.accent));
+    // Upper half: above this row; lower half: below it; both at this row's depth. The line starts
+    // at that depth (spec 02 §6); nesting happens on a ghost line (see `ghost_line`).
+    let above = ui.ctx().pointer_hover_pos().is_some_and(|p| p.y < rect.center().y);
+    let y = if above { rect.top() } else { rect.bottom() };
+    ui.painter().line_segment([pos2(bullet.x - 8.0, y), pos2(rect.right(), y)], Stroke::new(2.0, t.accent));
     if let Some(dragged) = resp.dnd_release_payload::<NodeId>() {
         let g = &app.session.graph;
         // Dragging a selected bullet moves the whole selection.
         let selected = app.session.selected();
         let nodes: Vec<u64> = if selected.contains(&dragged) { selected.iter().map(|n| n.0).collect() } else { vec![dragged.0] };
-        let params = if as_child {
-            json!({"nodes": nodes, "parent": g.resolve(id).0, "index": 0})
-        } else {
-            match (g.parent(id), g.index_in_parent(id)) {
-                (Some(p), Some(i)) => json!({"nodes": nodes, "parent": p.0, "index": i + 1}),
-                _ => return,
-            }
+        let params = match (g.parent(id), g.index_in_parent(id)) {
+            (Some(p), Some(i)) => json!({"nodes": nodes, "parent": p.0, "index": if above { i } else { i + 1 }}),
+            _ => return,
         };
-        if as_child {
-            app.acts.push(Act::Run("node.expand".into(), json!({"node": id.0})));
-        }
         app.acts.push(Act::Run("node.moveMany".into(), params));
     }
 }

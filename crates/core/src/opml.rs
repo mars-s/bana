@@ -130,7 +130,8 @@ fn escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\n', "&#10;")
 }
 
-/// An OPML document of the nodes and their subtrees (names as `text`, descriptions as `_note`).
+/// An OPML document of the nodes and their subtrees (names as `text`, descriptions as `_note`,
+/// field values as `Field:: value` child outlines).
 pub fn to_opml(g: &Graph, ids: &[NodeId], title: &str) -> String {
     let mut out =
         format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"2.0\">\n  <head><title>{}</title></head>\n  <body>\n", escape(title));
@@ -148,11 +149,31 @@ fn write_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     let note = if note.is_empty() { String::new() } else { format!(" _note=\"{}\"", escape(&note)) };
     let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
     let kids = if is_ref || depth > MAX_DEPTH { &[][..] } else { g.children(id) };
-    if kids.is_empty() {
+    // Field values as `Field:: value` lines, one per value, as the Markdown export writes them.
+    let fields: Vec<String> = if is_ref {
+        Vec::new()
+    } else {
+        g.get(id)
+            .map(|n| {
+                n.fields
+                    .iter()
+                    .flat_map(|e| {
+                        let name = g.name(e.field).to_string();
+                        let vals: Vec<String> = e.values().map(|v| crate::export::display_value(g, v)).collect();
+                        if vals.is_empty() { vec![format!("{name}::")] } else { vals.into_iter().map(|v| format!("{name}:: {v}")).collect() }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    if kids.is_empty() && fields.is_empty() {
         out.push_str(&format!("{pad}<outline text=\"{}\"{note}/>\n", escape(&text)));
         return;
     }
     out.push_str(&format!("{pad}<outline text=\"{}\"{note}>\n", escape(&text)));
+    for f in fields {
+        out.push_str(&format!("{pad}  <outline text=\"{}\"/>\n", escape(&f)));
+    }
     for c in kids {
         write_node(g, *c, depth + 1, out);
     }

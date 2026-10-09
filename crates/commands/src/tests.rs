@@ -1145,3 +1145,30 @@ fn diffs_n18_enter_after_a_checkbox_item_makes_another() {
     run(&mut s, "node.enter", json!({}));
     assert_eq!(s.graph.checkbox(s.focus.unwrap()), None);
 }
+
+#[test]
+fn opml_keeps_field_values_and_import_links_names() {
+    // DIFFS clone notes: OPML export keeps field values; OPML import makes [[Name]] links.
+    let mut s = blank();
+    let lib = s.graph.sys.library;
+    let proj = id(&run(&mut s, "node.add", json!({"name": "Proj", "parent": lib.0})), "id");
+    run(&mut s, "field.add", json!({"node": proj.0, "field": "Lead5", "value": "Robin"}));
+    let phase = id(&run(&mut s, "node.add", json!({"name": "Phase one", "parent": proj.0})), "id");
+    let see = id(&run(&mut s, "node.add", json!({"name": "", "parent": proj.0})), "id");
+    run(&mut s, "node.setName", json!({"node": see.0, "name": format!("see [[id:{}]] first", phase.0)}));
+    run(&mut s, "node.reference", json!({"target": phase.0, "parent": proj.0}));
+    let out = run(&mut s, "export.opml", json!({"node": proj.0}));
+    let text = out["opml"].as_str().or(out["text"].as_str()).unwrap().to_string();
+    assert!(text.contains("Lead5:: Robin"), "{text}");
+    // Import it into a fresh graph.
+    let mut t = blank();
+    run(&mut t, "import.opml", json!({"text": text}));
+    let g = &t.graph;
+    let proj2 = g.iter().find(|n| n.name == "Proj").unwrap().id;
+    let lead = g.find_field("Lead5").unwrap();
+    assert_eq!(g.get(proj2).unwrap().field_values(lead).len(), 1);
+    let phase2 = g.iter().find(|n| n.name == "Phase one").unwrap().id;
+    let kids = g.children(proj2);
+    assert!(kids.iter().any(|k| g.name(*k) == format!("see [[id:{}]] first", phase2.0)), "inline link");
+    assert!(kids.iter().any(|k| g.get(*k).unwrap().reference_target() == Some(phase2)), "whole-line reference");
+}

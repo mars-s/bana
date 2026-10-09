@@ -106,9 +106,9 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
-            .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags)"#),
+            .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.opml", "Import OPML", "File", import_opml)
-        .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note)"#),
+        .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.file", "Import content", "File", |s, v| {
             let path = p::req_str(v, "path")?;
             let meta = std::fs::metadata(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
@@ -845,12 +845,104 @@ fn import_markdown(s: &mut Session, v: &Value) -> CmdResult {
             stack.pop();
         }
         let parent = stack.last().map(|(_, p)| *p).unwrap_or(section);
+        if import_field(s, parent, body)? {
+            continue;
+        }
         let n = import_line(s, parent, body)?;
         s.graph.set_expanded(parent, true);
         stack.push((indent, n));
         made += 1;
     }
-    Ok(json!({"parent": root.0, "created": made}))
+    let linked = import_links(s, root)?;
+    Ok(json!({"parent": root.0, "created": made, "linked": linked}))
+}
+
+/// A `Field:: value` line (as the exports write fields) sets that field on `parent`, made when
+/// missing; each such line adds a value. Returns whether `body` was one.
+fn import_field(s: &mut Session, parent: NodeId, body: &str) -> Result<bool, CmdError> {
+    let Some((name, value)) = body.split_once("::") else { return Ok(false) };
+    let name = name.trim();
+    if name.is_empty() || name.contains("[[") || parent == s.graph.sys.library || s.graph.is_system(parent) {
+        return Ok(false);
+    }
+    let f = match s.graph.find_field(name) {
+        Some(f) => f,
+        None => s.graph.create_field(name, tanacraft_core::FieldType::Plain)?,
+    };
+    let count = s.graph.get(parent).map_or(0, |n| n.field_values(f).len());
+    if value.trim().is_empty() {
+        s.graph.set_field_at(parent, f, count, None)?;
+    } else {
+        s.graph.set_field_text_at(parent, f, count, value.trim())?;
+    }
+    Ok(true)
+}
+
+/// `[[Name]]` in imported lines becomes a link: a whole line becomes a reference node, inside a
+/// line an inline reference. The node is found by its exact name (made in the Library when
+/// there is none). Returns how many links were made.
+fn import_links(s: &mut Session, root: NodeId) -> Result<usize, CmdError> {
+    let mut todo = Vec::new();
+    let mut stack = vec![root];
+    while let Some(n) = stack.pop() {
+        if todo.len() > 100_000 {
+            break;
+        }
+        if n != root && s.graph.name(n).contains("[[") && s.graph.get(n).is_some_and(|x| x.reference_target().is_none()) {
+            todo.push(n);
+        }
+        stack.extend(s.graph.get(n).map(|x| x.children.clone()).unwrap_or_default());
+    }
+    let mut made = 0;
+    for n in todo {
+        let name = s.graph.name(n).to_string();
+        let mut out = String::new();
+        let mut rest = name.as_str();
+        while let Some(a) = rest.find("[[") {
+            let Some(b) = rest[a + 2..].find("]]") else { break };
+            let target_name = &rest[a + 2..a + 2 + b];
+            out.push_str(&rest[..a]);
+            if target_name.trim().is_empty() || target_name.starts_with("id:") {
+                out.push_str(&rest[a..a + 4 + b]);
+            } else {
+                let t = link_target(s, target_name.trim(), n)?;
+                out.push_str(&tanacraft_core::format::ref_token(t.0));
+                made += 1;
+            }
+            rest = &rest[a + 4 + b..];
+        }
+        out.push_str(rest);
+        // A line that is just one link becomes a reference node.
+        let refs = tanacraft_core::format::refs(&out);
+        let whole = refs.len() == 1 && out.trim() == tanacraft_core::format::ref_token(refs[0]);
+        let plain_line = s.graph.get(n).is_some_and(|x| x.children.is_empty() && x.tags.is_empty() && x.fields.is_empty() && x.done.is_none());
+        if whole
+            && plain_line
+            && let Some(parent) = s.graph.parent(n)
+        {
+            let index = s.graph.index_in_parent(n);
+            s.graph.delete_permanently(n)?;
+            s.graph.create_reference(parent, index, NodeId(refs[0]))?;
+        } else {
+            s.graph.set_name(n, &out)?;
+        }
+    }
+    Ok(made)
+}
+
+/// The node an imported `[[Name]]` points at: one with exactly that name (not `from` itself), else
+/// a new one in the Library.
+fn link_target(s: &mut Session, name: &str, from: NodeId) -> Result<NodeId, CmdError> {
+    let g = &s.graph;
+    let found = g
+        .iter()
+        .filter(|x| x.id != from && x.reference_target().is_none() && !g.in_trash(x.id) && x.name == name)
+        .map(|x| x.id)
+        .min_by_key(|id| (g.tag_def(*id).is_some() || g.field_def(*id).is_some(), id.0));
+    match found {
+        Some(t) => Ok(t),
+        None => Ok(s.graph.create(s.graph.sys.library, None, name)?),
+    }
 }
 
 /// One imported line under `parent`: `[ ]` / `[x]` make a checkbox, trailing `#tag` words become
@@ -861,12 +953,29 @@ fn import_line(s: &mut Session, parent: NodeId, body: &str) -> Result<NodeId, Cm
         b if b.starts_with("[x] ") || b.starts_with("[X] ") => (Some(true), &b[4..]),
         b => (None, b),
     };
-    let mut words: Vec<&str> = body.split(' ').collect();
+    // Trailing `#tag` and `#[[two words]]` (how exports write a tag with a space).
+    let mut text = body.trim_end().to_string();
     let mut tags = Vec::new();
-    while words.last().is_some_and(|w| w.len() > 1 && w.starts_with('#') && !w[1..].contains('#')) {
-        tags.push(words.pop().unwrap_or_default().trim_start_matches('#').to_string());
+    loop {
+        if text.ends_with("]]")
+            && let Some(i) = text.rfind("#[[")
+            && (i == 0 || text[..i].ends_with(' '))
+        {
+            tags.push(text[i + 3..text.len() - 2].to_string());
+            text.truncate(i);
+        } else if let Some(i) = text.rfind(' ').map(|i| i + 1).or(Some(0))
+            && text[i..].len() > 1
+            && text[i..].starts_with('#')
+            && !text[i + 1..].contains('#')
+        {
+            tags.push(text[i + 1..].to_string());
+            text.truncate(i);
+        } else {
+            break;
+        }
+        text = text.trim_end().to_string();
     }
-    let n = s.graph.create(parent, None, words.join(" ").trim())?;
+    let n = s.graph.create(parent, None, text.trim())?;
     for tag in tags.into_iter().rev() {
         let t = match s.graph.find_tag(&tag) {
             Some(t) => t,
@@ -885,13 +994,17 @@ fn import_opml(s: &mut Session, v: &Value) -> CmdResult {
     s.graph.node(root)?;
     let items = tanacraft_core::opml::parse(p::req_str(v, "text")?);
     let made = import_items(s, root, &items)?;
-    Ok(json!({"created": made, "parent": root.0}))
+    let linked = import_links(s, root)?;
+    Ok(json!({"created": made, "parent": root.0, "linked": linked}))
 }
 
 /// OPML items under `parent`, line by line as in Markdown import, notes as descriptions.
 fn import_items(s: &mut Session, parent: NodeId, items: &[tanacraft_core::opml::Item]) -> Result<usize, CmdError> {
     let mut made = 0;
     for it in items {
+        if it.children.is_empty() && import_field(s, parent, it.text.trim())? {
+            continue;
+        }
         let n = import_line(s, parent, it.text.trim())?;
         if !it.note.is_empty() {
             s.graph.set_description(n, &it.note)?;

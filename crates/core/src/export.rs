@@ -161,3 +161,17 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
 pub fn entry_text(g: &Graph, e: &crate::FieldEntry) -> String {
     e.values().map(|v| display_value(g, v)).collect::<Vec<_>>().join(", ")
 }
+
+/// A content snippet for a search hit (spec 05 §4): the node's description, its own long text, or
+/// a child line that holds every query word.
+pub fn snippet(g: &Graph, id: NodeId, query: &str) -> Option<String> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return None;
+    }
+    let n = g.get(id)?;
+    std::iter::once(n.description.clone())
+        .chain(std::iter::once(g.text(id)).filter(|t| t.chars().count() > 48))
+        .chain(g.children(id).iter().take(200).map(|c| g.text(*c)))
+        .find(|t| q.split_whitespace().all(|w| t.to_lowercase().contains(w)))
+}

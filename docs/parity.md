@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 66 | 26 | 5 | 2 |
+| Spec sections (99) | 67 | 25 | 5 | 2 |
 | Screenshots (153) | 118 | 26 | 8 | 1 |
 
 ## `00-overview.md`
@@ -106,7 +106,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
 | 2. Query builder | done | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group, menus for Tag fields (Set / Not set), System fields, Tag types (`TYPE:task`) and Search operators, the query as text, Run once and Done. Results stay live while editing; no workspace scope (one workspace per file). Tested. |
 | 3. Command line (Cmd+K) | done | Enter command...: steps for the focused node first (Add tag >, Remove tag, Set <field> >, Move to >, Move and leave reference to >, View as), then commands with shortcuts; steps marked > open a second picker. No node search. Tested. |
-| 4. Search and open (Cmd+S, sidebar magnifier) | partial | Recently viewed, fuzzy search with breadcrumbs, new-tab variant (Cmd+T). Content snippets missing. |
+| 4. Search and open (Cmd+S, sidebar magnifier) | done | Recently viewed, fuzzy search with breadcrumbs and two-line content snippets (description, long text or a child line with the words), new-tab variant (Cmd+T). Tested. |
 | 5. Quick add (Cmd+E) | done | Modal with yellow bar, several lines, Cmd+E saves to the end of today, Escape cancels. |
 
 ## `06-daily-notes.md`

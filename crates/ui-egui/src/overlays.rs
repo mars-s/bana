@@ -937,13 +937,22 @@ pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
                 let g = &app.session.graph;
                 for (i, id) in items.iter().enumerate() {
                     let crumbs: Vec<String> = g.ancestors(*id).iter().skip(1).map(|a| crate::outline::page_title(&app.session, *a)).collect();
-                    let (rect, resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click());
+                    // A content snippet for text matches: the description or a child line with the
+                    // words, at most two lines (spec 05 §4).
+                    let snippet = export::snippet(g, *id, &p.query);
+                    let (rect, resp) = ui.allocate_exact_size(vec2(w, if snippet.is_some() { 76.0 } else { 40.0 }), Sense::click());
                     if i == p.selected || resp.hovered() {
                         ui.painter().rect_filled(rect, 5.0, if i == p.selected { t.accent.gamma_multiply(0.25) } else { t.hover });
                     }
                     let painter = ui.painter();
                     painter.text(rect.left_top() + vec2(10.0, 4.0), Align2::LEFT_TOP, crumbs.join(" / "), FontId::proportional(11.5), t.faint);
                     painter.text(rect.left_top() + vec2(10.0, 19.0), Align2::LEFT_TOP, export::node_line(g, *id), FontId::proportional(14.5), t.text);
+                    if let Some(sn) = snippet {
+                        let mut job = egui::text::LayoutJob::simple(sn, FontId::proportional(12.5), t.dim, w - 20.0);
+                        job.wrap.max_rows = 2;
+                        let galley = ui.fonts_mut(|f| f.layout_job(job));
+                        ui.painter().galley(rect.left_top() + vec2(10.0, 40.0), galley, t.dim);
+                    }
                     if resp.clicked() {
                         chosen = Some(*id);
                     }

@@ -576,3 +576,14 @@ fn base_type_query_matches_tags_of_that_type() {
     assert_eq!(names("TYPE:task AND DONE"), ["Order cedar boards"]);
     assert!(Query::parse(&g, "TYPE:spaceship").is_err());
 }
+
+#[test]
+fn search_snippets_come_from_content() {
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let a = g.create(lib, None, "Notes").unwrap();
+    g.create(a, None, "Pumpkins were a game-changer this year").unwrap();
+    assert_eq!(export::snippet(&g, a, "game"), Some("Pumpkins were a game-changer this year".to_string()));
+    assert_eq!(export::snippet(&g, a, "tomato"), None);
+    assert_eq!(export::snippet(&g, a, ""), None);
+}

@@ -1546,3 +1546,34 @@ fn date_picker_add_end_sets_a_span_of_days() {
     assert_eq!(v.map(|v| tanacraft_core::export::display_value(g, &v)), Some("2026-10-15/2026-10-17".to_string()));
     h.get_by_label("Thu, 15 Oct - Sat, 17 Oct");
 }
+
+#[test]
+fn node_menu_has_filter_sort_group_display_and_copy() {
+    // Spec 04 §1 options menu (`46-search-node-options-menu.png`).
+    let mut h = harness();
+    let p = page_with(&mut h, &["Reading"])[0];
+    h.state_mut().exec("nav.open", json!({"node": p.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("...").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    for label in ["Copy", "Duplicate", "Show edit log"] {
+        h.get_by_label(label);
+    }
+    // Submenu buttons carry an arrow after their label.
+    for label in ["View as", "Filter by", "Sort by", "Group by", "Display"] {
+        h.get_by_label_contains(label);
+    }
+    h.get_by_label_contains("Sort by").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Last edited").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.view_def(p).sort.first().map(|s| s.by), Some(tanacraft_core::SortBy::Edited));
+}

@@ -1463,12 +1463,66 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
             }
         }
     });
+    // Filter, sort, group and display, as in the view toolbar (spec 04 §1, `46`).
+    let sub = |ui: &mut Ui, acts: &mut Vec<Act>, title: &str, cmd: &str, key: &str, options: &[(&str, &str)]| {
+        ui.menu_button(title, |ui| {
+            for (label, value) in options {
+                if ui.button(*label).clicked() {
+                    acts.push(Act::Run(cmd.into(), json!({"node": id.0, key: value})));
+                    ui.close();
+                }
+            }
+        });
+    };
+    sub(
+        ui,
+        acts,
+        "Filter by",
+        "view.filter",
+        "query",
+        &[("Not done", "TODO"), ("Done", "DONE"), ("Has a supertag", "HAS:TAG"), ("Clear filters", "")],
+    );
+    sub(
+        ui,
+        acts,
+        "Sort by",
+        "view.sort",
+        "by",
+        &[("Name", "name"), ("Created", "created"), ("Last edited", "edited"), ("Done", "done"), ("None", "none")],
+    );
+    sub(
+        ui,
+        acts,
+        "Group by",
+        "view.group",
+        "by",
+        &[("Supertags", "tags"), ("Done", "done"), ("Owner", "owner"), ("Created day", "created"), ("None", "none")],
+    );
+    sub(
+        ui,
+        acts,
+        "Display",
+        "view.toggleSystemField",
+        "field",
+        &[
+            ("Created time", "Created time"),
+            ("Last edited time", "Last edited time"),
+            ("Done time", "Done time"),
+            ("Tags", "Tags"),
+            ("Number of references", "Number of references"),
+        ],
+    );
     let mut item = |ui: &mut Ui, label: &str, act: Act| {
         if ui.button(label).clicked() {
             acts.push(act);
             ui.close();
         }
     };
+    // Copy: the node and its subtree as a Markdown list.
+    if ui.button("Copy").clicked() {
+        ui.ctx().copy_text(tanacraft_core::export::to_markdown(g, id, false));
+        ui.close();
+    }
     item(ui, "Duplicate", run("node.duplicate"));
     item(ui, "Show or hide view toolbar", run("view.toggleToolbar"));
     item(ui, "Show edit log", Act::EditLog(id));

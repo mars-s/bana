@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (95 rows, spec files 00 to 09 and INDEX) | 74 | 15 | 4 | 2 |
-| Screenshots (160) | 139 | 15 | 5 | 1 |
+| Screenshots (160) | 140 | 14 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
@@ -207,7 +207,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `43-search-options-popover.png` | done | Conditions opens a Search card with the query as a sentence and Open query editor. |
 | `44-query-editor.png` | done | Query editor with nested groups, Run once and Done. |
 | `45-search-operators.png` | partial | Search operators: TODO, DONE, DONE/CREATED/EDITED last N days, HAS TAG/FIELD, IS TAG/FIELD/SEARCH/CALENDAR, IN LIBRARY, ON DAY, FOR DATE; no user, media or chat operators. |
-| `46-search-node-options-menu.png` | partial | Search node options menu subset. |
+| `46-search-node-options-menu.png` | done | Options menu: view as, show or hide view toolbar, filter by, sort by, group by, display, copy node link, copy, duplicate, move, add tag, add description, add checkbox, show progress bar, edit log, convert search node to plain list, delete, more commands. No AI chat, appearance or publish. Tested. |
 | `47-view-as-submenu.jpg` | done | View as submenu. |
 | `48-table-view.png` | done | Table view. |
 | `49-table-column-icon-field-config.png` | done | The column header icon opens the field definition; the name renames in place. |

@@ -9,3 +9,4 @@ plan/
 /web/test-results/
 /web/playwright-report/
 /apps/tanacraft-desktop/gen/
+/web/tsconfig.tsbuildinfo

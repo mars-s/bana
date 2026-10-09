@@ -119,6 +119,9 @@ struct EditState {
     /// Put the caret here on the next frame (and take keyboard focus).
     /// (anchor, caret) in chars.
     set_cursor: Option<(usize, usize)>,
+    /// The caret placed last frame: if egui's own arrow-key focus moving took the keyboard away
+    /// in that same frame, take it back once (DIFFS N3).
+    verify_focus: Option<(usize, usize)>,
     selection_empty: bool,
 }
 

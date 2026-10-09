@@ -712,6 +712,16 @@ fn move_sibling(s: &mut Session, v: &Value, up: bool) -> CmdResult {
     if !up {
         ids.reverse();
     }
+    // The open page is the edge: its first (last) top-level node does not move up (down) out of
+    // it into a neighbouring page (spec 02 §6).
+    let page = s.graph.resolve(s.zoom);
+    let at_edge = |s: &Session, id: NodeId| {
+        let kids = s.graph.children(page);
+        s.graph.parent(id) == Some(page) && if up { kids.first() == Some(&id) } else { kids.last() == Some(&id) }
+    };
+    if ids.first().is_some_and(|id| at_edge(s, *id)) {
+        return Err(CmdError::Disabled(format!("already at the {} of the page", if up { "top" } else { "bottom" })));
+    }
     for id in ids {
         s.graph.move_sibling(id, up)?;
     }

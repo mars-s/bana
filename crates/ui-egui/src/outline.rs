@@ -1881,7 +1881,19 @@ fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: e
 fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
     let tid = egui::Id::new((app.panel_ix, "node-edit", id.0));
     // An open picker keeps the keyboard; the caret moves once it closes.
-    if let Some((a, c)) = app.edit.set_cursor.take_if(|_| app.picker.is_none()) {
+    let mut retry = None;
+    if let Some(r) = app.edit.verify_focus.take()
+        && app.picker.is_none()
+        && app.edit.set_cursor.is_none()
+        && !ui.ctx().memory(|m| m.has_focus(tid))
+    {
+        retry = Some(r);
+    }
+    let fresh = if app.picker.is_none() { app.edit.set_cursor.take() } else { None };
+    if fresh.is_some() {
+        app.edit.verify_focus = fresh;
+    }
+    if let Some((a, c)) = fresh.or(retry) {
         let mut st = egui::text_edit::TextEditState::load(ui.ctx(), tid).unwrap_or_default();
         st.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(a), CCursor::new(c))));
         st.store(ui.ctx(), tid);

@@ -237,11 +237,28 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             app.session.sel = None;
             return true;
         }
+        // Up / Down leave selection mode with the caret in the neighbouring line (spec 02 §8).
         "Up" | "Down" if selecting => {
-            let head = app.session.sel.map(|s| s.1);
+            let rows = app.session.rows();
+            let picked: Vec<usize> = app
+                .session
+                .sel
+                .map(|(a, h)| rows.iter().enumerate().filter(|(_, r)| r.id == a || r.id == h).map(|(i, _)| i).collect())
+                .unwrap_or_default();
             app.session.sel = None;
-            if let Some(h) = head {
-                app.exec("focus.set", json!({"node": h.0})).ok();
+            let up = k == "Up";
+            let at = if up { picked.iter().min().and_then(|i| i.checked_sub(1)) } else { picked.iter().max().map(|i| i + 1) };
+            let fallback = picked.first().copied();
+            if let Some(r) = at.and_then(|i| rows.get(i)).or_else(|| fallback.and_then(|i| rows.get(i))) {
+                app.exec("focus.set", json!({"node": r.id.0, "caret": if up { usize::MAX } else { 0 }})).ok();
+            }
+            return true;
+        }
+        // Cmd+. zooms in and puts the caret in the new page's title (spec 02 §7).
+        "Mod+." if editing => {
+            match app.exec("nav.zoomIn", json!({})) {
+                Ok(_) => app.focus_title = true,
+                Err(e) => app.session.status = e,
             }
             return true;
         }

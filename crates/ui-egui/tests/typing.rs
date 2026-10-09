@@ -1275,3 +1275,31 @@ fn diffs_n2_gt_field_row_stays_where_it_was_typed() {
     assert_eq!(e.after, Some(kids[2]), "the row shows below c, not above a");
     assert_eq!(g.children(page).len(), 3, "the > line became the field row");
 }
+
+#[test]
+fn diffs_n3_escape_then_down_or_up_edits_the_next_or_previous_line() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[1], 1);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::ArrowDown, Modifiers::NONE);
+    text(&mut h, "X");
+    assert_eq!(h.state().session.sel, None);
+    assert_eq!(h.state().session.graph.name(ids[2]), "Xthree");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    text(&mut h, "Y");
+    assert_eq!(h.state().session.graph.name(ids[1]), "twoY");
+}
+
+#[test]
+fn diffs_n4_cmd_period_puts_the_caret_in_the_page_title() {
+    let mut h = harness();
+    let p = page_with(&mut h, &["P"])[0];
+    h.state_mut().exec("node.add", json!({"parent": p.0, "name": "c"})).unwrap();
+    focus(&mut h, p, 1);
+    key(&mut h, Key::Period, CMD);
+    text(&mut h, "X");
+    assert_eq!(h.state().session.zoom, p);
+    assert_eq!(h.state().session.graph.name(p), "PX");
+}

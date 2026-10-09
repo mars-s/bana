@@ -849,3 +849,22 @@ fn user_fields_offer_known_people() {
     assert_eq!(names.len(), 2, "{names:?}");
     assert_eq!(names[1], "Robin");
 }
+
+#[test]
+fn moving_the_first_top_level_node_up_stays_on_the_page() {
+    // DIFFS N5.
+    let mut s = blank();
+    let page = id(&run(&mut s, "node.add", json!({"name": "Page"})), "id");
+    run(&mut s, "node.add", json!({"name": "Before"}));
+    run(&mut s, "nav.open", json!({"node": page.0}));
+    let a = id(&run(&mut s, "node.add", json!({"name": "a", "parent": page.0})), "id");
+    let b = id(&run(&mut s, "node.add", json!({"name": "b", "parent": page.0})), "id");
+    run(&mut s, "focus.set", json!({"node": a.0}));
+    assert!(s.run("node.moveUp", &json!({})).is_err());
+    assert_eq!(s.graph.children(page), [a, b]);
+    run(&mut s, "focus.set", json!({"node": b.0}));
+    assert!(s.run("node.moveDown", &json!({})).is_err());
+    assert_eq!(s.graph.children(page), [a, b]);
+    run(&mut s, "node.moveUp", json!({}));
+    assert_eq!(s.graph.children(page), [b, a]);
+}

@@ -1876,6 +1876,18 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             description_line(app, ui, t, target, &description, 13.0);
         });
     }
+    // A reference's own note for this place (Alt+Cmd+Down), under the line.
+    if is_ref {
+        let note = app.session.graph.get(id).map(|n| n.description.clone()).unwrap_or_default();
+        if !note.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == id) {
+            ui.add_space(-6.0);
+            ui.horizontal(|ui| {
+                ui.add_space(indent + 26.0);
+                ui.label(RichText::new("In this context:").size(12.0).color(t.faint));
+                description_line(app, ui, t, id, &note, 13.0);
+            });
+        }
+    }
     // Progress bar of checkbox children, under the name (spec screenshot 152).
     if node.as_ref().is_some_and(|n| n.progress) {
         let (done_n, total) = app.session.graph.progress(target);
@@ -1940,7 +1952,10 @@ fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, te
     } else if resp.lost_focus() {
         let text = buf.clone();
         app.desc_edit = None;
-        app.acts.push(Act::Run("node.setDescription".into(), json!({"node": node.0, "text": text})));
+        // On a reference this is the note for this context, not the target's description.
+        let is_ref = app.session.graph.get(node).is_some_and(|n| n.reference_target().is_some());
+        let cmd = if is_ref { "node.contextNote" } else { "node.setDescription" };
+        app.acts.push(Act::Run(cmd.into(), json!({"node": node.0, "text": text})));
         if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             app.acts.push(Act::Run("focus.set".into(), json!({"node": node.0, "caret": usize::MAX})));
         }

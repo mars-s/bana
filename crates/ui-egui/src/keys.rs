@@ -157,7 +157,9 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         // Escape and Up leave the description (keeping it); Up goes back to the name.
         if k == "Escape" || k == "Up" {
             app.desc_edit = None;
-            app.exec("node.setDescription", json!({"node": node.0, "text": text})).ok();
+            let is_ref = app.session.graph.get(node).is_some_and(|n| n.reference_target().is_some());
+            let cmd = if is_ref { "node.contextNote" } else { "node.setDescription" };
+            app.exec(cmd, json!({"node": node.0, "text": text})).ok();
             if k == "Up" {
                 app.exec("focus.set", json!({"node": node.0, "caret": usize::MAX})).ok();
             }
@@ -264,6 +266,16 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             let fallback = picked.first().copied();
             if let Some(r) = at.and_then(|i| rows.get(i)).or_else(|| fallback.and_then(|i| rows.get(i))) {
                 app.exec("focus.set", json!({"node": r.id.0, "caret": if up { usize::MAX } else { 0 }})).ok();
+            }
+            return true;
+        }
+        // Alt+Cmd+Down on a reference: notes for this context, under the line (spec 01 §3).
+        "Mod+Alt+Down" if app.session.focus.is_some_and(|f| app.session.graph.get(f).is_some_and(|n| n.reference_target().is_some())) => {
+            if let Some(f) = app.session.focus {
+                let note = app.session.graph.get(f).map(|n| n.description.clone()).unwrap_or_default();
+                app.desc_edit = Some((f, note));
+                app.desc_focus = true;
+                app.session.focus = None;
             }
             return true;
         }

@@ -968,3 +968,19 @@ fn building_blocks_are_promoted_or_hidden_in_menus() {
     assert!(s.graph.fuzzy("internal", 5).is_empty(), "hidden from Search and open");
     assert!(s.run("tag.setBuildingBlock", &json!({"tag": "alpha", "promoteFor": ["spaceship"]})).is_err());
 }
+
+#[test]
+fn context_notes_live_on_the_reference_not_the_target() {
+    // Spec 01 §3: Alt+Cmd+Down, notes for this context.
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Recipe"})), "id");
+    let b = id(&run(&mut s, "node.add", json!({"name": "Plan"})), "id");
+    let r = id(&run(&mut s, "node.reference", json!({"target": a.0, "parent": b.0})), "id");
+    run(&mut s, "node.contextNote", json!({"node": r.0, "text": "for Sunday lunch"}));
+    assert_eq!(s.graph.get(r).unwrap().description, "for Sunday lunch");
+    assert_eq!(s.graph.get(a).unwrap().description, "", "the original is untouched");
+    assert_eq!(run(&mut s, "node.contextNote", json!({"node": r.0}))["note"], "for Sunday lunch");
+    assert!(s.run("node.contextNote", &json!({"node": a.0, "text": "x"})).is_err());
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.graph.get(r).unwrap().description, "");
+}

@@ -33,7 +33,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields (several values), checkbox, heading, icon and banner, view settings, created/edited/done times, expansion, bullet states. Missing: edited-by (one local editor), per-place expansion. |
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
-| 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference. Missing: per-context notes and fields (Alt+Cmd+Down), warn when editing referenced nodes. |
+| 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference, notes for this context on a reference (Alt+Cmd+Down, `node.contextNote`), warn on the first edit of a referenced node (setting). Missing: fields for this context. Tested. |
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Building block: promote for base types (first in the # menu), hide from searches and menus (`tag.setBuildingBlock`). Missing: AI settings (out of scope). |
 | 5. Fields | done | Nine types (plain, options, options from supertag, date with optional time range, number, URL, e-mail, checkbox, user), required, hide modes, auto-initialize, number range, option sources, auto-collect, used in; several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Tested. |
 | 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
@@ -155,7 +155,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Navigating | done | All bindings, including Shift+Cmd+? for the sheet and Ctrl+Shift+PageUp/PageDown to move tabs. Tested. |
 | Editing | done | Undo, redo, move, mark done, insert node, duplicate, delete, description, > @ #, create new. |
 | Formatting | done | Cmd+B, Cmd+I, Cmd+U, Ctrl+H, backticks. |
-| Other keys observed (not in the sheet) | partial | Enter, Backspace, Delete, Up/Down, Left/Right line jumps, Shift+Up/Down, Escape, selection keys, /, Cmd+S, Cmd+E, paste, Cmd+A, Shift+click, Tab in field names, Shift+Cmd+C clone reference. Missing: Space AI, Alt+Cmd+Down (per-context notes). |
+| Other keys observed (not in the sheet) | partial | Enter, Backspace, Delete, Up/Down, Left/Right line jumps, Shift+Up/Down, Escape, selection keys, /, Cmd+S, Cmd+E, paste, Cmd+A, Shift+click, Tab in field names, Shift+Cmd+C clone reference. Alt+Cmd+Down (context notes). Missing: Space AI (out of scope). |
 
 ## `INDEX.md`
 

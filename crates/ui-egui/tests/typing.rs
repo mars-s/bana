@@ -1501,3 +1501,21 @@ fn editing_a_referenced_node_warns_once_when_the_setting_is_on() {
     h.get_by_label(msg);
     assert_eq!(h.state().session.graph.name(ids[0]), "Shared!");
 }
+
+#[test]
+fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
+    // Spec 01 §3.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Recipe", "Plan"]);
+    let r = h.state_mut().exec("node.reference", json!({"target": ids[0].0, "parent": ids[1].0})).unwrap();
+    let r = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
+    focus(&mut h, r, 0);
+    key(&mut h, Key::ArrowDown, Modifiers { alt: true, command: true, mac_cmd: true, ..Modifiers::NONE });
+    text(&mut h, "for Sunday");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    assert_eq!(g.get(r).unwrap().description, "for Sunday");
+    assert_eq!(g.get(ids[0]).unwrap().description, "");
+    h.get_by_label("In this context:");
+}

@@ -731,6 +731,16 @@ impl Graph {
         Ok(())
     }
 
+    /// A note for this place only, on a reference node (spec 01 §3, "Notes and fields for this
+    /// context"). Stored on the reference itself, not on what it points at.
+    pub fn set_context_note(&mut self, reference: NodeId, text: &str) -> Result<()> {
+        if self.node(reference)?.reference_target().is_none() {
+            return Err(Error::Invalid("context notes belong to references".into()));
+        }
+        self.node_mut(reference)?.description = clean_name(text);
+        Ok(())
+    }
+
     /// `Some(done)` shows a checkbox, `None` hides it.
     pub fn set_done(&mut self, id: NodeId, done: Option<bool>) -> Result<()> {
         let target = self.resolve(id);

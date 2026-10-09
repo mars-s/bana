@@ -107,6 +107,17 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags)"#),
+        C::new("node.contextNote", "Notes for this context", "Node", |s, v| {
+            let id = s.target(v)?;
+            if let Some(text) = p::str(v, "text") {
+                s.graph.set_context_note(id, text)?;
+            } else if s.graph.get(id).and_then(|n| n.reference_target()).is_none() {
+                return Err(CmdError::Disabled("context notes belong to references".into()));
+            }
+            Ok(json!({"node": id.0, "note": s.graph.get(id).map(|n| n.description.clone()).unwrap_or_default()}))
+        })
+        .key("Mod+Alt+Down")
+        .params(r#"{"node"?: id, "text"?: string}  (a note on this reference only; without text: read it)"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

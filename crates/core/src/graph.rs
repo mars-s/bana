@@ -1104,6 +1104,25 @@ impl Graph {
         Ok(value)
     }
 
+    /// The people a user field can pick: the current user, then every name used in a user field.
+    pub fn user_names(&self) -> Vec<String> {
+        let me = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "Me".into());
+        let mut out = vec![me];
+        for n in self.nodes.values() {
+            for e in &n.fields {
+                if self.field_def(e.field).is_some_and(|d| d.field_type == FieldType::User) {
+                    for v in e.values() {
+                        let name = crate::export::display_value(self, v);
+                        if !name.is_empty() && !out.contains(&name) {
+                            out.push(name);
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Every option of an options field: its own, then the children of its sources.
     pub fn field_options(&self, field: NodeId) -> Vec<String> {
         let Some(d) = self.field_def(field) else { return Vec::new() };

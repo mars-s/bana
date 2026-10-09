@@ -838,3 +838,14 @@ fn calendar_day_length() {
     run(&mut s, "view.dayLength", json!({"node": n.0}));
     assert_eq!(s.graph.view_def(n).day_hours, None);
 }
+
+#[test]
+fn user_fields_offer_known_people() {
+    let mut s = blank();
+    run(&mut s, "field.create", json!({"name": "Assignee", "type": "user"}));
+    let a = id(&run(&mut s, "node.add", json!({"name": "Fix fence"})), "id");
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Assignee", "value": "Robin"}));
+    let names = s.graph.user_names();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert_eq!(names[1], "Robin");
+}

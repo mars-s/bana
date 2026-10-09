@@ -184,10 +184,12 @@ pub enum FieldType {
     Url,
     Email,
     Checkbox,
+    /// A person in the workspace (here: a name; the picker offers the names already used).
+    User,
 }
 
 impl FieldType {
-    pub const ALL: [FieldType; 8] = [
+    pub const ALL: [FieldType; 9] = [
         FieldType::Plain,
         FieldType::Options,
         FieldType::OptionsFromTag,
@@ -196,6 +198,7 @@ impl FieldType {
         FieldType::Url,
         FieldType::Email,
         FieldType::Checkbox,
+        FieldType::User,
     ];
 
     pub fn name(self) -> &'static str {
@@ -208,6 +211,7 @@ impl FieldType {
             FieldType::Url => "url",
             FieldType::Email => "email",
             FieldType::Checkbox => "checkbox",
+            FieldType::User => "user",
         }
     }
 
@@ -334,7 +338,7 @@ impl FieldValue {
     pub fn parse(ty: FieldType, s: &str) -> Result<FieldValue, String> {
         let s = s.trim();
         Ok(match ty {
-            FieldType::Plain | FieldType::OptionsFromTag => FieldValue::Text(s.to_string()),
+            FieldType::Plain | FieldType::OptionsFromTag | FieldType::User => FieldValue::Text(s.to_string()),
             FieldType::Options => FieldValue::Choice(s.to_string()),
             FieldType::Number => FieldValue::Number(s.parse::<f64>().ok().filter(|f| f.is_finite()).ok_or_else(|| format!("`{s}` is not a number"))?),
             FieldType::Date => parse_date_value(s)?,

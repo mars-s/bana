@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 71 | 21 | 5 | 2 |
-| Screenshots (153) | 118 | 26 | 8 | 1 |
+| Spec sections (99) | 72 | 20 | 5 | 2 |
+| Screenshots (153) | 119 | 26 | 7 | 1 |
 
 ## `00-overview.md`
 
@@ -34,7 +34,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference. Missing: per-context notes and fields (Alt+Cmd+Down), warn when editing referenced nodes. |
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
-| 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. Several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Missing: user type. |
+| 5. Fields | done | Nine types (plain, options, options from supertag, date with optional time range, number, URL, e-mail, checkbox, user), required, hide modes, auto-initialize, number range, option sources, auto-collect, used in; several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Tested. |
 | 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
 | 7. Workspaces | partial | Each workspace is its own graph file in one folder: list, create, switch (saves first), rename (`workspace.*`); sidebar avatar and name open the workspace menu. Library, Schema, Daily notes, Inbox (made on first use; `node.capture`, `tanacraft-cli capture`), Trash. Missing: tags grouped by several workspaces in one overview, cross-workspace search. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
@@ -74,7 +74,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Missing: AI and Commands, Voice chat, building-block promotion, tag description. |
 | 6. Field definition panel | partial | Type, pre-determined options as a small outline (dashed rings, Empty line to add), sources of options (nodes whose children become options), auto-collect toggle, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows, field description. |
 | 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
-| 8. Field value pickers | partial | Options picker (other options, auto-collected values, create), options-from-supertag picker listing tagged nodes (Tag as #X to create), date picker with ISO week numbers, today circle, selected day, time range and OK (day click alone no longer commits; the opening click no longer closes it), number, checkbox, URL/email as plain text. Missing: user type, date ranges across days. Tested. |
+| 8. Field value pickers | partial | Options picker (other options, auto-collected values, create), options-from-supertag picker listing tagged nodes (Tag as #X to create), date picker with ISO week numbers, today circle, selected day, time range and OK (day click alone no longer commits; the opening click no longer closes it), number, checkbox, URL/email as plain text. User fields pick from known names. Missing: date ranges across days. Tested. |
 | 9. Required, hidden, pinned and invalid fields | done | Empty required fields show an amber ?; invalid URL and e-mail values are kept and get the same ? (Not a valid value); hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows; pinned fields come first in view menus. Tested. |
 | 10. Template behaviour and inheritance | done | Template fields and nodes are copied, later template additions reach existing tagged nodes, extended supertags pass on fields and nodes and match the parent's searches, mixed views title the first column Title. Title expressions (`${name}` then text and `${Field}`) add a grey computed part after the name on rows, page titles, cards and tables, an empty field shows its name underlined; only the tag's own nodes, not extending tags. Tested. |
 | 11. Adding fields | partial | > on a line, template New field / Insert existing, table + Add field adds to the supertag template. AI suggested fields missing. |
@@ -180,7 +180,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
 | `18-supertag-advanced.png` | partial | Default child supertag only. |
 | `19-field-config-options.png` | partial | Field page options. |
-| `20-field-type-dropdown.png` | partial | Field types without user type. |
+| `20-field-type-dropdown.png` | done | Field types including User. |
 | `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |
 | `22-options-picker.png` | done | Options picker lists the other options. |
 | `23-date-picker.png` | done | Week numbers, today circle, selected day, time and end inputs, OK. |
@@ -269,7 +269,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `106-pasted-url-empty-line.png` | done | A URL-only node gets the link bullet and blue text. |
 | `107-system-field-owner-node.jpg` | done | Owner node system field. |
 | `108-field-row-tab-enter.jpg` | done | Tab from the field name to the value; Enter adds a value line; Shift+Tab moves a value out. Tested. |
-| `109-user-field-picker.png` | missing | User field picker. |
+| `109-user-field-picker.png` | partial | User field picker lists you and every name used in user fields (one local user, no workspace members). |
 | `110-typed-field-values.png` | done | Typed field values validated. |
 | `111-options-from-supertag-picker.png` | done | Options from supertag: dropdown of tagged nodes; a new name is tagged on commit. |
 | `112-new-instance-value.png` | done | New instance value. |

@@ -250,7 +250,14 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             // Options from a supertag: every node with that tag (spec 03 §8).
             let source =
                 p.field.and_then(|f| g.field_def(f)).filter(|d| d.field_type == tanacraft_core::FieldType::OptionsFromTag).and_then(|d| d.source_tag);
+            let is_user = p.field.and_then(|f| g.field_def(f)).is_some_and(|d| d.field_type == tanacraft_core::FieldType::User);
             match (source, p.field) {
+                (_, Some(_)) if is_user => g
+                    .user_names()
+                    .into_iter()
+                    .filter(|n| !current.contains(n) && n.to_lowercase().contains(&q))
+                    .map(|n| Choice::Existing(NodeId(0), n))
+                    .collect(),
                 (Some(tag), _) => g
                     .tagged(tag)
                     .into_iter()

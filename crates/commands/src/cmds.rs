@@ -399,7 +399,7 @@ pub fn registry() -> Registry {
             .params(r#"{"node"?: id, "field": name | id, "index": number}"#),
         C::new("field.remove", "Remove field", "Field", field_remove).params(r#"{"node"?: id, "field": name | id}"#),
         C::new("field.create", "Create field", "Field", field_create)
-            .params(r#"{"name": string, "type"?: "plain|options|options_from_tag|date|number|url|email|checkbox"}"#),
+            .params(r#"{"name": string, "type"?: "plain|options|options_from_tag|date|number|url|email|checkbox|user"}"#),
         C::new("field.setOptions", "Set field options", "Field", field_set_options).params(r#"{"field": name | id, "options": [string]}"#),
         // Edit and file.
         C::new("edit.undo", "Undo", "Edit", |s, _| Ok(json!({"undone": s.graph.undo()}))).key("Mod+Z").pure(),

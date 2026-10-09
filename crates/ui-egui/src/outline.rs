@@ -696,6 +696,7 @@ pub(crate) fn type_label(ty: FieldType) -> &'static str {
         FieldType::Url => "URL",
         FieldType::Email => "Email",
         FieldType::Checkbox => "Checkbox",
+        FieldType::User => "User",
     }
 }
 
@@ -737,6 +738,11 @@ pub(crate) fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Col
         FieldType::Options | FieldType::OptionsFromTag => {
             p.circle_stroke(r.center(), r.width() * 0.45, st);
             p.circle_filled(r.center(), 1.6, c);
+        }
+        FieldType::User => {
+            p.rect_stroke(r, 2.0, st, StrokeKind::Middle);
+            p.circle_stroke(r.center() - vec2(0.0, 1.5), 1.8, st);
+            p.line_segment([r.left_bottom() + vec2(2.0, -1.5), r.right_bottom() + vec2(-2.0, -1.5)], st);
         }
         FieldType::Url | FieldType::Email => {
             p.circle_stroke(r.center(), r.width() * 0.45, st);
@@ -969,7 +975,7 @@ pub(crate) fn field_value(
                 app.acts.push(Act::Run("nav.day".into(), json!({"date": d.to_string()})));
             }
         }
-        FieldType::Options | FieldType::OptionsFromTag if !editing => {
+        FieldType::Options | FieldType::OptionsFromTag | FieldType::User if !editing => {
             let current = text.clone().unwrap_or_default();
             let set_color = if def.field_type == FieldType::OptionsFromTag { t.link } else { t.text };
             let (label, color) = if current.is_empty() { (hint(def.field_type).to_string(), t.faint) } else { (current, set_color) };
@@ -1025,6 +1031,7 @@ fn hint(ty: FieldType) -> &'static str {
         FieldType::Url => "Add link",
         FieldType::Email => "Add email",
         FieldType::OptionsFromTag => "Select node",
+        FieldType::User => "Add user",
         FieldType::Options => "Select option",
         _ => "Empty",
     }

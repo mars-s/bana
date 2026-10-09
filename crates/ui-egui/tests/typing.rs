@@ -119,7 +119,7 @@ fn every_view_renders_on_search_tag_and_plain_pages() {
     let pages = [g.search("Open tasks")[0], g.find_tag("task").unwrap(), g.search("Raised beds")[0]];
     for page in pages {
         h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-        for kind in ["list", "table", "cards", "board", "calendar"] {
+        for kind in ["outline", "table", "cards", "board", "lanes", "list", "side_menu", "tabs", "calendar"] {
             h.state_mut().exec("view.set", json!({"kind": kind})).unwrap();
             for _ in 0..3 {
                 h.step();

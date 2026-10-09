@@ -133,7 +133,14 @@ pub struct TanaApp {
     /// Search pages: the condition editor is open.
     pub query_open: bool,
     clause_buf: String,
-    filter_buf: Option<(NodeId, String)>,
+    /// Quick text filter per view node (toolbar magnifier).
+    quick_filter: std::collections::HashMap<NodeId, String>,
+    quick_filter_open: Option<NodeId>,
+    quick_filter_focus: bool,
+    /// Week shown by a calendar in week mode (None: this week).
+    calendar_week_anchor: Option<tanacraft_core::Date>,
+    /// Calendars whose "nodes with no dates" list is open.
+    show_undated: std::collections::HashSet<NodeId>,
     dirty_since: Option<f64>,
     acts: Vec<Act>,
 }
@@ -158,7 +165,11 @@ impl TanaApp {
             desc_edit: None,
             query_open: true,
             clause_buf: String::new(),
-            filter_buf: None,
+            quick_filter: Default::default(),
+            quick_filter_open: None,
+            quick_filter_focus: false,
+            calendar_week_anchor: None,
+            show_undated: Default::default(),
             dirty_since: None,
             acts: Vec::new(),
         }

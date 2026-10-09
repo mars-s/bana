@@ -425,3 +425,34 @@ fn multi_select_moves_indents_tags_and_deletes_together() {
     run(&mut s, "select.set", json!({"from": ids[0].0, "to": ids[3].0}));
     assert_eq!(s.selected(), vec![ids[0]]);
 }
+
+#[test]
+fn view_filters_and_add_item() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let open = s.graph.search("Open tasks")[0];
+    run(&mut s, "nav.open", json!({"node": open.0}));
+    run(&mut s, "view.addFilter", json!({"clause": "Status:\"Not started\""}));
+    assert_eq!(s.graph.view_groups(open)[0].items.len(), 2);
+    assert_eq!(s.graph.view_filtered_out(open), 1);
+    run(&mut s, "view.removeFilter", json!({"index": 0}));
+    assert_eq!(s.graph.view_filtered_out(open), 0);
+    assert!(s.run("view.removeFilter", &json!({"index": 0})).is_err());
+    // "+" on a search: a node in the Library with the query's supertag, opened.
+    run(&mut s, "search.addClause", json!({"node": open.0, "clause": "Status:\"In progress\""}));
+    let r = run(&mut s, "view.addItem", json!({"node": open.0}));
+    let new = id(&r, "id");
+    assert_eq!(s.zoom, new);
+    assert_eq!(s.graph.parent(new), Some(s.graph.sys.library));
+    assert!(s.graph.view_items(open).contains(&new), "the new node matches the search");
+    // Supertag page: on today's page, tagged.
+    let task = s.graph.find_tag("task").unwrap();
+    let r = run(&mut s, "view.addItem", json!({"node": task.0, "name": "From the tag page"}));
+    assert_eq!(s.graph.name(s.graph.parent(id(&r, "id")).unwrap()), "Sat, 10 Oct");
+    // Board column preset.
+    let beds = s.graph.search("Raised beds")[0];
+    run(&mut s, "nav.open", json!({"node": beds.0}));
+    let r = run(&mut s, "view.addItem", json!({"node": beds.0, "field": "Status", "value": "Done"}));
+    assert_eq!(s.focus, Some(id(&r, "id")));
+    run(&mut s, "node.setDone", json!({"node": id(&r, "id").0, "done": true}));
+    assert_eq!(s.graph.checkbox(id(&r, "id")), Some(true));
+}

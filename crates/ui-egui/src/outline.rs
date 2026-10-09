@@ -39,29 +39,29 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.trash {
                 trash_banner(ui, &t);
             }
-            let g = &app.session.graph;
-            let is_tag = g.tag_def(zoom).is_some();
-            let is_search = g.query(zoom).is_some();
-            let kind = g.view_def(zoom).kind;
+            let is_tag = app.session.graph.tag_def(zoom).is_some();
+            let is_search = app.session.graph.query(zoom).is_some();
             if is_tag {
                 tag_page(app, ui, &t, zoom);
-                crate::views::toolbar(app, ui, &t, zoom);
-                crate::views::render(app, ui, &t, zoom);
-            } else if is_search || kind != tanacraft_core::ViewKind::List {
-                fields(app, ui, &t, zoom, 0.0);
-                if is_search && app.query_open {
-                    crate::views::query_builder(app, ui, &t, zoom);
-                }
-                crate::views::toolbar(app, ui, &t, zoom);
-                if kind == tanacraft_core::ViewKind::List {
-                    rows(app, ui, &t);
-                } else {
-                    crate::views::render(app, ui, &t, zoom);
-                }
             } else {
                 fields(app, ui, &t, zoom, 0.0);
                 ui.add_space(4.0);
+            }
+            if is_search && app.query_open {
+                crate::views::query_builder(app, ui, &t, zoom);
+            }
+            let has_view = is_tag || is_search || app.session.graph.get(zoom).is_some_and(|n| n.view.is_some());
+            if has_view {
+                crate::views::toolbar(app, ui, &t, zoom);
+            }
+            if crate::views::uses_layout(app, zoom) {
+                crate::views::render(app, ui, &t, zoom);
+            } else {
                 rows(app, ui, &t);
+                let hidden = app.session.graph.view_filtered_out(zoom);
+                if hidden > 0 {
+                    ui.label(RichText::new(format!("{hidden} items filtered out")).size(12.5).color(t.faint));
+                }
             }
             references(app, ui, &t, zoom);
         });
@@ -302,7 +302,7 @@ fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Color32) {
 }
 
 /// Field rows of `node` (its own and its supertags'), indented by `indent`.
-fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32) {
+pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32) {
     let target = app.session.graph.resolve(node);
     let entries = app.session.graph.get(target).map(|n| n.fields.clone()).unwrap_or_default();
     for e in entries {
@@ -765,6 +765,15 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             ui.add_space(indent + 26.0);
             ui.label(RichText::new(description).size(13.0).color(t.dim));
         });
+    }
+    if depth == 0 {
+        let line = app.session.graph.display_line(app.session.zoom, id);
+        if !line.is_empty() {
+            ui.horizontal(|ui| {
+                ui.add_space(indent + 26.0);
+                ui.label(RichText::new(line).size(12.5).color(t.dim));
+            });
+        }
     }
     drop_target(app, ui, t, id, center, row.response.rect);
     center

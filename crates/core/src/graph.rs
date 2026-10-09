@@ -400,7 +400,9 @@ impl Graph {
             return Err(Error::NoNode(id));
         }
         self.touch(id);
-        self.nodes.get_mut(&id).ok_or(Error::NoNode(id))
+        let n = self.nodes.get_mut(&id).ok_or(Error::NoNode(id))?;
+        n.edited = now_secs();
+        Ok(n)
     }
 
     fn put(&mut self, node: Node) {
@@ -491,7 +493,13 @@ impl Graph {
     /// `Some(done)` shows a checkbox, `None` hides it.
     pub fn set_done(&mut self, id: NodeId, done: Option<bool>) -> Result<()> {
         let target = self.resolve(id);
-        self.node_mut(target)?.done = done;
+        let n = self.node_mut(target)?;
+        if done == Some(true) && n.done != Some(true) {
+            n.done_at = Some(now_secs());
+        } else if done != Some(true) {
+            n.done_at = None;
+        }
+        n.done = done;
         Ok(())
     }
 

@@ -98,6 +98,6 @@ pub fn sample(today: Date) -> Result<Graph> {
     let open = g.create_search(home, Some(1), "Open tasks", q)?;
     let v = g.view_mut(open)?;
     v.kind = crate::view::ViewKind::Table;
-    v.sort = Some(crate::view::Sort { by: crate::view::SortBy::Field(due), desc: false });
+    v.sort = vec![crate::view::Sort { by: crate::view::SortBy::Field(due), desc: false }];
     Ok(g)
 }

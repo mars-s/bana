@@ -53,8 +53,19 @@ pub fn registry() -> Registry {
         C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not).params(r#"{"node"?: id, "index": number}"#),
         C::new("search.setMode", "Match all or any", "Search", search_set_mode).params(r#"{"node"?: id, "any": bool}"#),
         // Views.
-        C::new("view.set", "View as", "Views", view_set).params(r#"{"node"?: id, "kind": "list|table|cards|board|calendar"}"#),
+        C::new("view.set", "View as", "Views", view_set)
+            .params(r#"{"node"?: id, "kind": "outline|table|cards|board|lanes|list|side_menu|tabs|calendar"}"#),
         C::new("view.sort", "Sort by", "Views", view_sort).params(r#"{"node"?: id, "by": "none|name|created|done|<field>", "desc"?: bool}"#),
+        C::new("view.addFilter", "Add filter", "Views", view_add_filter).params(r#"{"node"?: id, "clause": string}"#),
+        C::new("view.removeFilter", "Remove filter", "Views", view_remove_filter).params(r#"{"node"?: id, "index": number}"#),
+        C::new("view.addItem", "Add item to view", "Views", view_add_item)
+            .params(r#"{"node"?: id, "name"?: string, "field"?: name | id, "value"?: string}"#),
+        C::new("node.setDone", "Set done", "Node", set_done).params(r#"{"node"?: id, "done": bool | null}"#),
+        C::new("view.addSort", "Add sort rule", "Views", view_add_sort).params(r#"{"node"?: id, "by": "name|created|done|<field>", "desc"?: bool}"#),
+        C::new("view.removeSort", "Remove sort rule", "Views", view_remove_sort).params(r#"{"node"?: id, "index": number}"#),
+        C::new("view.toggleDisplay", "Display field", "Views", view_toggle_display).params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.toggleToolbar", "Show or hide view toolbar", "Views", view_toggle_toolbar).params(r#"{"node"?: id}"#),
+        C::new("view.calendarMode", "Calendar week or month", "Views", view_calendar_mode).params(r#"{"mode": "week|month"}"#).pure(),
         C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|<field>"}"#),
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
@@ -935,9 +946,10 @@ fn view_json(s: &Session, id: NodeId) -> CmdResult {
 fn view_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = view_target(s, v)?;
     let kind = p::req_str(v, "kind")?;
+    let board = kind.trim().eq_ignore_ascii_case("board");
     let kind = ViewKind::parse(kind).ok_or_else(|| CmdError::Params(format!("unknown view `{kind}`")))?;
-    let needs_group = kind == ViewKind::Board && s.graph.view_def(id).group.is_none();
-    // A board needs lanes: default to the first options field, else done / not done.
+    let needs_group = board && s.graph.view_def(id).group.is_none();
+    // A board is cards grouped into columns: default to the first options field, else done.
     let default_group = needs_group.then(|| {
         s.graph
             .view_columns(id)
@@ -946,7 +958,12 @@ fn view_set(s: &mut Session, v: &Value) -> CmdResult {
             .map(GroupBy::Field)
             .unwrap_or(GroupBy::Done)
     });
+    let current = s.graph.view_def(id);
     let view = s.graph.view_mut(id)?;
+    // Keep the settings a supertag page had by default (table) when switching.
+    if view.kind != current.kind {
+        view.kind = current.kind;
+    }
     view.kind = kind;
     if let Some(g) = default_group {
         view.group = Some(g);
@@ -964,10 +981,8 @@ fn field_or_keyword(s: &mut Session, v: &Value, key: &str) -> Result<Result<Node
     Ok(Ok(field_param(s, &probe, false)?))
 }
 
-fn view_sort(s: &mut Session, v: &Value) -> CmdResult {
-    let id = view_target(s, v)?;
-    let desc = p::bool(v, "desc").unwrap_or(false);
-    let by = match field_or_keyword(s, v, "by")? {
+fn sort_by(s: &mut Session, v: &Value) -> Result<Option<SortBy>, CmdError> {
+    Ok(match field_or_keyword(s, v, "by")? {
         Ok(f) => Some(SortBy::Field(f)),
         Err(k) => match k.as_str() {
             "none" => None,
@@ -976,9 +991,68 @@ fn view_sort(s: &mut Session, v: &Value) -> CmdResult {
             "done" => Some(SortBy::Done),
             other => return Err(CmdError::Params(format!("cannot sort by `{other}`"))),
         },
-    };
-    s.graph.view_mut(id)?.sort = by.map(|by| Sort { by, desc });
+    })
+}
+
+/// Replaces the sort rules with one rule (`by: "none"` clears them).
+fn view_sort(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let desc = p::bool(v, "desc").unwrap_or(false);
+    let by = sort_by(s, v)?;
+    s.graph.view_mut(id)?.sort = by.map(|by| vec![Sort { by, desc }]).unwrap_or_default();
     view_json(s, id)
+}
+
+/// Adds a sort rule after the existing ones.
+fn view_add_sort(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let desc = p::bool(v, "desc").unwrap_or(false);
+    let by = sort_by(s, v)?.ok_or_else(|| CmdError::Params("`by` must name a field or name/created/done".into()))?;
+    let view = s.graph.view_mut(id)?;
+    view.sort.retain(|r| r.by != by);
+    view.sort.push(Sort { by, desc });
+    view_json(s, id)
+}
+
+fn view_remove_sort(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let i = p::usize(v, "index").ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let view = s.graph.view_mut(id)?;
+    if i >= view.sort.len() {
+        return Err(CmdError::Params("no such sort rule".into()));
+    }
+    view.sort.remove(i);
+    view_json(s, id)
+}
+
+fn view_toggle_display(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let f = field_param(s, v, false)?;
+    let view = s.graph.view_mut(id)?;
+    if view.columns.contains(&f) {
+        view.columns.retain(|c| *c != f);
+    } else {
+        view.columns.push(f);
+    }
+    view_json(s, id)
+}
+
+fn view_toggle_toolbar(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let view = s.graph.view_mut(id)?;
+    view.hide_toolbar = !view.hide_toolbar;
+    let hidden = view.hide_toolbar;
+    Ok(json!({"node": id.0, "toolbar": !hidden}))
+}
+
+fn view_calendar_mode(s: &mut Session, v: &Value) -> CmdResult {
+    let mode = p::req_str(v, "mode")?;
+    s.calendar_week = match mode {
+        "week" => true,
+        "month" => false,
+        other => return Err(CmdError::Params(format!("mode must be week or month, not `{other}`"))),
+    };
+    Ok(json!({"mode": mode}))
 }
 
 fn view_group(s: &mut Session, v: &Value) -> CmdResult {
@@ -1009,6 +1083,10 @@ fn view_add_column(s: &mut Session, v: &Value) -> CmdResult {
     let mut cols = s.graph.view_columns(id);
     if !cols.contains(&f) {
         cols.push(f);
+    }
+    // On a supertag's page a new column joins the supertag's template (spec 03 §9).
+    if s.graph.tag_def(id).is_some() {
+        s.graph.tag_add_field(id, f)?;
     }
     s.graph.view_mut(id)?.columns = cols;
     view_json(s, id)
@@ -1061,4 +1139,91 @@ fn results(s: &mut Session, v: &Value) -> CmdResult {
         .collect();
     let d = s.graph.view_def(id);
     Ok(json!({"node": id.0, "view": d.kind.name(), "query": s.graph.query(id).map(|q| q.describe(&s.graph)), "groups": groups}))
+}
+
+fn view_add_filter(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let parsed = parse_query(s, p::req_str(v, "clause")?)?;
+    let view = s.graph.view_mut(id)?;
+    if view.filter.any && !parsed.clauses.is_empty() {
+        // Keep filters an AND list: wrap the existing OR group.
+        let old = std::mem::take(&mut view.filter);
+        view.filter.clauses.push(Clause { not: false, kind: tanacraft_core::query::ClauseKind::Group { query: old } });
+    }
+    for c in parsed.clauses {
+        if !view.filter.clauses.contains(&c) {
+            view.filter.clauses.push(c);
+        }
+    }
+    view_json(s, id)
+}
+
+fn view_remove_filter(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let i = p::usize(v, "index").ok_or_else(|| CmdError::Params("`index` is required".into()))?;
+    let view = s.graph.view_mut(id)?;
+    if i >= view.filter.clauses.len() {
+        return Err(CmdError::Params("no such filter".into()));
+    }
+    view.filter.clauses.remove(i);
+    view_json(s, id)
+}
+
+fn set_done(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let done = match v.get("done") {
+        Some(Value::Bool(b)) => Some(*b),
+        Some(Value::Null) => None,
+        _ => return Err(CmdError::Params("`done` must be true, false or null".into())),
+    };
+    s.graph.set_done(id, done)?;
+    Ok(json!({"node": id.0, "done": done}))
+}
+
+/// A new item that fits a view (spec 05 §1, 03 §2): a child of a plain node; for a search, a node
+/// in the Library carrying the query's supertags and field values; for a supertag page, a node with
+/// that supertag on today's page. The new node opens with the caret in its title.
+fn view_add_item(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let name = p::str(v, "name").unwrap_or("");
+    let g = &s.graph;
+    let (parent, tags, values) = if let Some(q) = g.query(id).cloned() {
+        let tags: Vec<NodeId> = q
+            .clauses
+            .iter()
+            .filter(|c| !c.not)
+            .filter_map(|c| if let tanacraft_core::query::ClauseKind::Tagged { tag } = c.kind { Some(tag) } else { None })
+            .collect();
+        let values: Vec<(NodeId, String)> = q
+            .clauses
+            .iter()
+            .filter(|c| !c.not)
+            .filter_map(|c| match &c.kind {
+                tanacraft_core::query::ClauseKind::Field { field, op: tanacraft_core::query::Op::Eq, value } => Some((*field, value.clone())),
+                _ => None,
+            })
+            .collect();
+        (g.sys.library, tags, values)
+    } else if g.tag_def(id).is_some() {
+        (s.graph.day(s.today)?, vec![id], Vec::new())
+    } else {
+        (id, Vec::new(), Vec::new())
+    };
+    let new = s.graph.create(parent, None, name)?;
+    for t in tags {
+        s.graph.add_tag(new, t)?;
+    }
+    for (f, val) in values {
+        s.graph.set_field_text(new, f, &val)?;
+    }
+    if v.get("field").is_some() {
+        let f = field_param(s, v, false)?;
+        s.graph.set_field_text(new, f, p::str(v, "value").unwrap_or(""))?;
+    }
+    if parent == id {
+        s.set_focus(new, 0);
+    } else {
+        s.open(new)?;
+    }
+    Ok(json!({"id": new.0, "parent": parent.0}))
 }

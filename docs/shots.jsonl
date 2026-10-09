@@ -10,15 +10,27 @@
 {"shot": "docs/images/supertag.png"}
 {"open": "Open tasks"}
 {"shot": "docs/images/search-table.png"}
-{"cmd": "view.set", "params": {"kind": "board"}}
 {"cmd": "ui.searchOptions"}
-{"shot": "docs/images/board.png"}
 {"cmd": "view.set", "params": {"kind": "cards"}}
+{"cmd": "view.group", "params": {"by": "none"}}
+{"cmd": "view.toggleDisplay", "params": {"field": "Status"}}
+{"cmd": "view.toggleDisplay", "params": {"field": "Due"}}
 {"shot": "docs/images/cards.png"}
+{"cmd": "view.set", "params": {"kind": "board"}}
+{"cmd": "view.group", "params": {"by": "Status"}}
+{"shot": "docs/images/board.png"}
+{"cmd": "view.set", "params": {"kind": "list"}}
+{"shot": "docs/images/list-view.png"}
+{"cmd": "view.group", "params": {"by": "none"}}
 {"cmd": "view.set", "params": {"kind": "calendar"}}
 {"shot": "docs/images/calendar.png"}
 {"cmd": "view.set", "params": {"kind": "table"}}
 {"cmd": "ui.searchOptions"}
+{"open": "Raised beds"}
+{"cmd": "view.set", "params": {"kind": "outline"}}
+{"cmd": "view.group", "params": {"by": "Status"}}
+{"cmd": "view.toggleDisplay", "params": {"field": "Due"}}
+{"shot": "docs/images/grouped-outline.png"}
 {"cmd": "nav.today"}
 {"cmd": "ui.commandLine"}
 {"type": "garden"}

@@ -55,13 +55,73 @@ pub enum Op {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClauseKind {
-    Tagged { tag: NodeId },
-    Text { text: String },
+    Tagged {
+        tag: NodeId,
+    },
+    Text {
+        text: String,
+    },
     Done,
     Todo,
-    Field { field: NodeId, op: Op, value: String },
-    CreatedWithin { days: u32 },
-    Under { node: NodeId },
+    Field {
+        field: NodeId,
+        op: Op,
+        value: String,
+    },
+    CreatedWithin {
+        days: u32,
+    },
+    EditedWithin {
+        days: u32,
+    },
+    DoneWithin {
+        days: u32,
+    },
+    Under {
+        node: NodeId,
+    },
+    /// Has any supertag / any field.
+    HasTag,
+    HasField,
+    /// Node type: tag, field, search or calendar node.
+    Is {
+        what: NodeType,
+    },
+    InLibrary,
+    /// Lives (somewhere) under a day node.
+    OnDay,
+    /// A date field equals the date, or the node lives on that day (`today` etc. are relative).
+    ForDate {
+        date: String,
+    },
+    /// References the node (reference node or node-valued field).
+    LinksTo {
+        node: NodeId,
+    },
+    /// A nested group, in parentheses.
+    Group {
+        query: Query,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeType {
+    Tag,
+    Field,
+    Search,
+    Calendar,
+}
+
+impl NodeType {
+    fn name(self) -> &'static str {
+        match self {
+            NodeType::Tag => "TAG",
+            NodeType::Field => "FIELD",
+            NodeType::Search => "SEARCH",
+            NodeType::Calendar => "CALENDAR",
+        }
+    }
 }
 
 impl Query {
@@ -71,28 +131,70 @@ impl Query {
 
     /// Parses the text form against `g` (supertag and field names must exist).
     pub fn parse(g: &Graph, text: &str) -> Result<Query> {
-        let mut q = Query::default();
-        let mut negate = false;
-        let mut saw_and = false;
-        for tok in tokenize(text)? {
-            match (tok.text.as_str(), tok.quoted, tok.op) {
-                ("AND", false, None) => saw_and = true,
-                ("OR", false, None) => q.any = true,
-                ("NOT", false, None) => negate = !negate,
-                ("DONE", false, None) => push(&mut q, &mut negate, ClauseKind::Done),
-                ("TODO", false, None) => push(&mut q, &mut negate, ClauseKind::Todo),
-                _ => {
-                    let kind = clause(g, &tok)?;
-                    push(&mut q, &mut negate, kind);
-                }
-            }
-        }
-        if q.any && saw_and {
-            return Err(Error::Invalid("mixing AND and OR is not supported; use one of them".into()));
+        let toks = tokenize(text)?;
+        let mut pos = 0;
+        let q = parse_group(g, &toks, &mut pos, 0)?;
+        if pos < toks.len() {
+            return Err(Error::Invalid("unmatched `)` in query".into()));
         }
         Ok(q)
     }
 
+    /// Whether any clause asks for a node type (then tags, fields... become candidates).
+    fn wants_types(&self) -> bool {
+        self.clauses.iter().any(|c| match &c.kind {
+            ClauseKind::Is { .. } => !c.not,
+            ClauseKind::Group { query } => query.wants_types(),
+            _ => false,
+        })
+    }
+}
+
+fn parse_group(g: &Graph, toks: &[Token], pos: &mut usize, depth: usize) -> Result<Query> {
+    if depth > 16 {
+        return Err(Error::Invalid("query nested too deeply".into()));
+    }
+    let mut q = Query::default();
+    let mut negate = false;
+    let mut saw_and = false;
+    while let Some(tok) = toks.get(*pos) {
+        *pos += 1;
+        if !tok.quoted && !tok.hash && tok.text == "(" {
+            let inner = parse_group(g, toks, pos, depth + 1)?;
+            match toks.get(*pos) {
+                Some(t) if !t.quoted && t.text == ")" => *pos += 1,
+                _ => return Err(Error::Invalid("missing `)` in query".into())),
+            }
+            push(&mut q, &mut negate, ClauseKind::Group { query: inner });
+            continue;
+        }
+        if !tok.quoted && !tok.hash && tok.text == ")" {
+            *pos -= 1;
+            break;
+        }
+        {
+            {
+                match (tok.text.as_str(), tok.quoted, tok.op) {
+                    ("AND", false, None) => saw_and = true,
+                    ("OR", false, None) => q.any = true,
+                    ("NOT", false, None) => negate = !negate,
+                    ("DONE", false, None) => push(&mut q, &mut negate, ClauseKind::Done),
+                    ("TODO", false, None) => push(&mut q, &mut negate, ClauseKind::Todo),
+                    _ => {
+                        let kind = clause(g, tok)?;
+                        push(&mut q, &mut negate, kind);
+                    }
+                }
+            }
+        }
+    }
+    if q.any && saw_and {
+        return Err(Error::Invalid("mixing AND and OR in one group: use parentheses, e.g. (a OR b) AND c".into()));
+    }
+    Ok(q)
+}
+
+impl Query {
     /// The text form (parses back to the same query).
     pub fn describe(&self, g: &Graph) -> String {
         let parts: Vec<String> = self
@@ -114,7 +216,17 @@ impl Query {
                         }
                     }
                     ClauseKind::CreatedWithin { days } => format!("CREATED:{days}"),
+                    ClauseKind::EditedWithin { days } => format!("EDITED:{days}"),
+                    ClauseKind::DoneWithin { days } => format!("DONE:{days}"),
                     ClauseKind::Under { node } => format!("UNDER:{node}"),
+                    ClauseKind::HasTag => "HAS:TAG".into(),
+                    ClauseKind::HasField => "HAS:FIELD".into(),
+                    ClauseKind::Is { what } => format!("IS:{}", what.name()),
+                    ClauseKind::InLibrary => "IN:LIBRARY".into(),
+                    ClauseKind::OnDay => "ON:DAY".into(),
+                    ClauseKind::ForDate { date } => format!("DATE:{}", quote(date)),
+                    ClauseKind::LinksTo { node } => format!("LINKS:{node}"),
+                    ClauseKind::Group { query } => format!("({})", query.describe(g)),
                 };
                 if c.not { format!("NOT {body}") } else { body }
             })
@@ -138,12 +250,10 @@ impl Query {
 
     /// Every searchable node that matches, oldest first.
     pub fn run(&self, g: &Graph, exclude: NodeId) -> Vec<NodeId> {
-        let mut hits: Vec<(u64, NodeId)> = g
-            .iter()
-            .filter(|n| searchable(g, n.id) && n.id != exclude && self.matches(g, n.id))
-            .map(|n| (n.created, n.id))
-            .take(MAX_RESULTS)
-            .collect();
+        let types = self.wants_types();
+        let ok = |id: NodeId| if types { candidate(g, id) } else { searchable(g, id) };
+        let mut hits: Vec<(u64, NodeId)> =
+            g.iter().filter(|n| ok(n.id) && n.id != exclude && self.matches(g, n.id)).map(|n| (n.created, n.id)).take(MAX_RESULTS).collect();
         hits.sort();
         hits.into_iter().map(|(_, id)| id).collect()
     }
@@ -162,9 +272,37 @@ pub fn searchable(g: &Graph, id: NodeId) -> bool {
     }
 }
 
+/// Any node a type operator may find: not built-in, not a reference, not trashed.
+fn candidate(g: &Graph, id: NodeId) -> bool {
+    g.get(id).is_some_and(|n| n.reference_target().is_none()) && !g.is_system(id) && !g.in_trash(id)
+}
+
+fn within(t: u64, days: u32) -> bool {
+    t + u64::from(days) * 86_400 >= crate::model::now_secs()
+}
+
 fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
     let Some(n) = g.get(id) else { return false };
     match k {
+        ClauseKind::EditedWithin { days } => within(n.edited.max(n.created), *days),
+        ClauseKind::DoneWithin { days } => g.checkbox(id) == Some(true) && n.done_at.is_some_and(|t| within(t, *days)),
+        ClauseKind::HasTag => n.tags.iter().any(|t| *t != g.sys.day_tag),
+        ClauseKind::HasField => !n.fields.is_empty(),
+        ClauseKind::Is { what } => match what {
+            NodeType::Tag => matches!(n.kind, Kind::Tag(_)),
+            NodeType::Field => matches!(n.kind, Kind::Field(_)),
+            NodeType::Search => matches!(n.kind, Kind::Search(_)),
+            NodeType::Calendar => matches!(n.kind, Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }),
+        },
+        ClauseKind::InLibrary => g.is_ancestor_or_self(g.sys.library, id),
+        ClauseKind::OnDay => g.ancestors(id).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(Kind::Day { .. }))),
+        ClauseKind::ForDate { date } => {
+            let Some(d) = Date::parse(date) else { return false };
+            n.fields.iter().any(|f| f.value == Some(FieldValue::Date(d)))
+                || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
+        }
+        ClauseKind::LinksTo { node } => n.reference_target() == Some(*node) || n.fields.iter().any(|f| f.value == Some(FieldValue::Node(*node))),
+        ClauseKind::Group { query } => query.matches(g, id),
         ClauseKind::Tagged { tag } => n.tags.iter().any(|t| g.tag_lineage(*t).contains(tag)),
         ClauseKind::Text { text } => crate::format::plain(&n.name).to_lowercase().contains(&text.to_lowercase()),
         ClauseKind::Done => g.checkbox(id) == Some(true),
@@ -216,12 +354,20 @@ fn tokenize(s: &str) -> Result<Vec<Token>> {
             break;
         }
         let mut t = Token { text: String::new(), quoted: false, op: None, hash: false };
+        if let Some(&c) = chars.peek()
+            && (c == '(' || c == ')')
+        {
+            chars.next();
+            t.text.push(c);
+            out.push(t);
+            continue;
+        }
         if chars.peek() == Some(&'#') {
             chars.next();
             t.hash = true;
         }
         while let Some(&c) = chars.peek() {
-            if c.is_whitespace() {
+            if c.is_whitespace() || c == ')' {
                 break;
             }
             chars.next();
@@ -264,6 +410,38 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
         ("CREATED", ':') => {
             let days = value.trim().parse().map_err(|_| Error::Invalid(format!("CREATED needs a number of days, not `{value}`")))?;
             return Ok(ClauseKind::CreatedWithin { days });
+        }
+        ("EDITED", ':') | ("DONE", ':') => {
+            let days = value.trim().parse().map_err(|_| Error::Invalid(format!("{name} needs a number of days, not `{value}`")))?;
+            return Ok(if name == "EDITED" { ClauseKind::EditedWithin { days } } else { ClauseKind::DoneWithin { days } });
+        }
+        ("HAS", ':') => {
+            return match value.as_str() {
+                "TAG" => Ok(ClauseKind::HasTag),
+                "FIELD" => Ok(ClauseKind::HasField),
+                other => Err(Error::Invalid(format!("HAS:{other}: use HAS:TAG or HAS:FIELD"))),
+            };
+        }
+        ("IS", ':') => {
+            let what = match value.as_str() {
+                "TAG" => NodeType::Tag,
+                "FIELD" => NodeType::Field,
+                "SEARCH" => NodeType::Search,
+                "CALENDAR" => NodeType::Calendar,
+                other => return Err(Error::Invalid(format!("IS:{other}: use IS:TAG, IS:FIELD, IS:SEARCH or IS:CALENDAR"))),
+            };
+            return Ok(ClauseKind::Is { what });
+        }
+        ("IN", ':') if value == "LIBRARY" => return Ok(ClauseKind::InLibrary),
+        ("ON", ':') if value == "DAY" => return Ok(ClauseKind::OnDay),
+        ("DATE", ':') => {
+            Date::parse(&value).ok_or_else(|| Error::Invalid(format!("DATE:{value} is not a date")))?;
+            return Ok(ClauseKind::ForDate { date: value });
+        }
+        ("LINKS", ':') => {
+            let node: NodeId = value.parse().map_err(Error::Invalid)?;
+            g.node(node)?;
+            return Ok(ClauseKind::LinksTo { node });
         }
         ("UNDER", ':') => {
             let node: NodeId = value.parse().map_err(Error::Invalid)?;

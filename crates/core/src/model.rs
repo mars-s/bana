@@ -219,6 +219,21 @@ pub struct Node {
     /// Unix seconds.
     #[serde(default)]
     pub created: u64,
+    /// Last change (Unix seconds).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub edited: u64,
+    /// When the checkbox was checked (Unix seconds).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub done_at: Option<u64>,
+}
+
+fn is_zero(x: &u64) -> bool {
+    *x == 0
+}
+
+/// Unix seconds now.
+pub fn now_secs() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
 fn is_plain(k: &Kind) -> bool {
@@ -227,7 +242,7 @@ fn is_plain(k: &Kind) -> bool {
 
 impl Node {
     pub fn new(id: NodeId, name: impl Into<String>, parent: Option<NodeId>) -> Node {
-        let created = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let created = now_secs();
         Node {
             id,
             name: name.into(),
@@ -242,6 +257,8 @@ impl Node {
             view: None,
             heading: false,
             created,
+            edited: created,
+            done_at: None,
         }
     }
 

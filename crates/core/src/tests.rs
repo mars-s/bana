@@ -372,7 +372,7 @@ fn views_sort_group_filter_and_columns() {
     g.view_mut(open).unwrap().group = Some(GroupBy::Field(status));
     let groups = g.view_groups(open);
     let labels: Vec<&str> = groups.iter().map(|x| x.label.as_str()).collect();
-    assert_eq!(labels, ["Not started", "In progress"], "option order");
+    assert_eq!(labels, ["Not started", "In progress", "Done"], "option order, empty options too");
     g.view_mut(open).unwrap().filter = Query::parse(&g, "\"Effort (hours)\">4").unwrap();
     let total: usize = g.view_groups(open).iter().map(|x| x.items.len()).sum();
     assert_eq!(total, 1);
@@ -380,12 +380,18 @@ fn views_sort_group_filter_and_columns() {
     assert_eq!(g.calendar_field(open), Some(due));
     // Views also apply to plain children and to supertag pages.
     let beds = g.search("Raised beds")[0];
-    g.view_mut(beds).unwrap().sort = Some(Sort { by: SortBy::Name, desc: true });
+    g.view_mut(beds).unwrap().sort = vec![Sort { by: SortBy::Name, desc: true }];
     let names: Vec<&str> = g.view_groups(beds)[0].items.iter().map(|i| g.name(*i)).collect();
     assert_eq!(names, ["Order cedar boards", "Fill with compost", "Build four beds"]);
     let task = g.find_tag("task").unwrap();
     assert_eq!(g.view_items(task).len(), 4);
-    assert_eq!(ViewKind::parse("Lanes"), Some(ViewKind::Board));
+    assert_eq!(ViewKind::parse("Lanes"), Some(ViewKind::Lanes));
+    assert_eq!(ViewKind::parse("side menu"), Some(ViewKind::SideMenu));
+    assert_eq!(ViewKind::parse("board"), Some(ViewKind::Cards));
+    assert_eq!(g.view_def(task).kind, ViewKind::Table, "supertag pages default to a table");
+    g.view_mut(open).unwrap().columns = vec![status, due];
+    assert_eq!(g.display_line(open, g.search("Fill with compost")[0]), "Not started · 2026-10-22");
+    assert_eq!(g.view_filtered_out(open), 2);
 }
 
 #[test]
@@ -401,4 +407,40 @@ fn views_and_searches_survive_save_and_undo() {
     g.commit("view");
     g.undo();
     assert_eq!(g.view_def(open).kind, ViewKind::Table);
+}
+
+#[test]
+fn nested_groups_and_operators() {
+    let mut g = garden();
+    let names = |g: &Graph, q: &str| {
+        let q = Query::parse(g, q).unwrap();
+        let mut v: Vec<String> = q.run(g, NodeId(0)).iter().map(|n| g.name(*n).to_string()).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(names(&g, "(#meeting OR #person) AND NOT Outdoors:Yes"), ["Robin Ash"]);
+    assert_eq!(names(&g, "#task AND (DONE OR \"Effort (hours)\">5)"), ["Build four beds", "Order cedar boards"]);
+    assert_eq!(names(&g, "IS:TAG AND meet"), ["meeting"]);
+    assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks"]);
+    assert!(names(&g, "HAS:FIELD AND ON:DAY").contains(&"Volunteer meetup".to_string()));
+    assert_eq!(names(&g, "DATE:2026-10-12"), ["Ask the hardware store about bulk compost"]);
+    assert!(names(&g, "IN:LIBRARY AND seed").contains(&"Seed list".to_string()));
+    assert_eq!(names(&g, "DONE:7"), ["Order cedar boards"], "checked just now (in the sample)");
+    let robin = g.search("Robin Ash")[0];
+    assert_eq!(names(&g, &format!("LINKS:{robin}")), ["Community garden"]);
+    for text in ["(#meeting OR #person) AND NOT Outdoors:Yes", "IS:TAG", "DATE:today", "HAS:FIELD AND ON:DAY"] {
+        let q = Query::parse(&g, text).unwrap();
+        assert_eq!(Query::parse(&g, &q.describe(&g)).unwrap(), q, "{text}");
+    }
+    assert!(Query::parse(&g, "(a OR b").is_err());
+    assert!(Query::parse(&g, "a OR b)").is_err());
+    assert!(Query::parse(&g, "IS:WHATEVER").is_err());
+    assert!(Query::parse(&g, &"(".repeat(40)).is_err(), "depth is bounded");
+    // Timestamps: editing touches `edited`; checking sets done time.
+    let t = g.search("Fill with compost")[0];
+    g.set_done(t, Some(true)).unwrap();
+    assert!(g.get(t).unwrap().done_at.is_some());
+    g.set_done(t, Some(false)).unwrap();
+    assert!(g.get(t).unwrap().done_at.is_none());
+    assert_eq!(names(&g, "EDITED:1 AND compost").len(), 2);
 }

@@ -12,31 +12,73 @@ use crate::query::Query;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ViewKind {
+    /// Bullets (the default).
     #[default]
-    List,
+    Outline,
     Table,
+    /// A grid of cards; grouped cards are laid out as board columns.
     Cards,
-    /// Lanes: one column per group.
-    Board,
+    /// Each item is a vertical lane listing its children.
+    Lanes,
+    /// Navigation view: a narrow list of items, the selected one shown beside it.
+    List,
+    /// Navigation view: a compact menu of items at the left of the content.
+    SideMenu,
+    /// Navigation view: items as tabs, the selected one shown below.
+    Tabs,
     Calendar,
 }
 
 impl ViewKind {
-    pub const ALL: [ViewKind; 5] = [ViewKind::List, ViewKind::Table, ViewKind::Cards, ViewKind::Board, ViewKind::Calendar];
+    pub const ALL: [ViewKind; 8] = [
+        ViewKind::Outline,
+        ViewKind::Table,
+        ViewKind::Cards,
+        ViewKind::Lanes,
+        ViewKind::List,
+        ViewKind::SideMenu,
+        ViewKind::Tabs,
+        ViewKind::Calendar,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
-            ViewKind::List => "list",
+            ViewKind::Outline => "outline",
             ViewKind::Table => "table",
             ViewKind::Cards => "cards",
-            ViewKind::Board => "board",
+            ViewKind::Lanes => "lanes",
+            ViewKind::List => "list",
+            ViewKind::SideMenu => "side_menu",
+            ViewKind::Tabs => "tabs",
             ViewKind::Calendar => "calendar",
         }
     }
 
+    pub fn label(self) -> &'static str {
+        match self {
+            ViewKind::Outline => "Outline",
+            ViewKind::Table => "Table",
+            ViewKind::Cards => "Cards",
+            ViewKind::Lanes => "Lanes",
+            ViewKind::List => "List",
+            ViewKind::SideMenu => "Side menu",
+            ViewKind::Tabs => "Tabs",
+            ViewKind::Calendar => "Calendar",
+        }
+    }
+
+    /// Navigation views show one selected item beside or below the item list.
+    pub fn is_navigation(self) -> bool {
+        matches!(self, ViewKind::List | ViewKind::SideMenu | ViewKind::Tabs)
+    }
+
+    /// Accepts the names above, labels, and `board` (cards grouped into columns).
     pub fn parse(s: &str) -> Option<ViewKind> {
-        let s = s.trim().to_ascii_lowercase();
-        ViewKind::ALL.into_iter().find(|k| k.name() == s || (s == "lanes" && *k == ViewKind::Board))
+        let s = s.trim().to_ascii_lowercase().replace([' ', '-'], "_");
+        if s == "board" {
+            return Some(ViewKind::Cards);
+        }
+        ViewKind::ALL.into_iter().find(|k| k.name() == s)
     }
 }
 
@@ -68,16 +110,21 @@ pub enum GroupBy {
 pub struct ViewDef {
     #[serde(default)]
     pub kind: ViewKind,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sort: Option<Sort>,
+    /// Sort rules, applied in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sort: Vec<Sort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<GroupBy>,
     /// Extra conditions on the items (ANDed with the search query).
     #[serde(default, skip_serializing_if = "Query::is_empty")]
     pub filter: Query,
-    /// Fields shown as table columns and card lines. Empty: every field the items have.
+    /// Display fields: shown under each item (outline, cards, lists) and as table columns. A table
+    /// with none shows every field the items have.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub columns: Vec<NodeId>,
+    /// The view toolbar is hidden.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hide_toolbar: bool,
     /// The date field a calendar places items by. `None`: the first date field the items have.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date_field: Option<NodeId>,
@@ -90,7 +137,7 @@ pub struct Group {
     pub items: Vec<NodeId>,
 }
 
-pub const NO_VALUE: &str = "No value";
+pub const NO_VALUE: &str = "Not defined";
 
 impl Graph {
     /// The items a node shows: a search node's results, a supertag's tagged nodes, or its children.
@@ -103,24 +150,64 @@ impl Graph {
         }
     }
 
+    /// A node's view settings. A supertag page shows its tagged nodes as a table by default.
     pub fn view_def(&self, id: NodeId) -> ViewDef {
-        self.get(self.resolve(id)).and_then(|n| n.view.clone()).unwrap_or_default()
+        let n = self.get(self.resolve(id));
+        match n.and_then(|n| n.view.clone()) {
+            Some(v) => v,
+            None if n.is_some_and(|n| matches!(n.kind, Kind::Tag(_))) => ViewDef { kind: ViewKind::Table, ..ViewDef::default() },
+            None => ViewDef::default(),
+        }
+    }
+
+    /// How many items the view's filter hides.
+    pub fn view_filtered_out(&self, id: NodeId) -> usize {
+        let v = self.view_def(id);
+        if v.filter.is_empty() {
+            return 0;
+        }
+        self.view_items(id).into_iter().filter(|i| !v.filter.filter(self, self.resolve(*i))).count()
+    }
+
+    /// The field values shown under an item for the view's display fields.
+    pub fn display_line(&self, view: NodeId, item: NodeId) -> String {
+        let v = self.view_def(view);
+        let n = self.get(self.resolve(item));
+        v.columns
+            .iter()
+            .filter_map(|f| n.and_then(|n| n.field_value(*f)).map(|x| display_value(self, x)))
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" · ")
     }
 
     /// Items after the view's filter and sort, split into groups.
     pub fn view_groups(&self, id: NodeId) -> Vec<Group> {
         let v = self.view_def(id);
         let mut items: Vec<NodeId> = self.view_items(id).into_iter().filter(|i| v.filter.filter(self, self.resolve(*i))).collect();
-        if let Some(sort) = v.sort {
+        if !v.sort.is_empty() {
             items.sort_by(|a, b| {
-                let o = self.sort_key_cmp(self.resolve(*a), self.resolve(*b), sort.by);
-                if sort.desc { o.reverse() } else { o }
+                let (a, b) = (self.resolve(*a), self.resolve(*b));
+                v.sort
+                    .iter()
+                    .map(|s| {
+                        let o = self.sort_key_cmp(a, b, s.by);
+                        if s.desc { o.reverse() } else { o }
+                    })
+                    .find(|o| o.is_ne())
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
         let Some(group) = v.group else {
             return vec![Group { label: String::new(), items }];
         };
         let mut groups: Vec<Group> = Vec::new();
+        // Every option of an options field gets a group, even an empty one (spec 04 §12).
+        if let GroupBy::Field(f) = group {
+            for o in self.field_def(f).map(|d| d.options.clone()).unwrap_or_default() {
+                groups.push(Group { label: o, items: Vec::new() });
+            }
+        }
         for i in items {
             let label = self.group_label(self.resolve(i), group);
             match groups.iter_mut().find(|g| g.label == label) {
@@ -167,9 +254,9 @@ impl Graph {
                 let vb = nb.and_then(|n| n.field_value(f));
                 match (va, vb) {
                     (None, None) => std::cmp::Ordering::Equal,
-                    // Empty values sort last.
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (Some(_), None) => std::cmp::Ordering::Less,
+                    // Items without the value come first when ascending (observed, spec 04 §13).
+                    (None, Some(_)) => std::cmp::Ordering::Less,
+                    (Some(_), None) => std::cmp::Ordering::Greater,
                     (Some(FieldValue::Number(x)), Some(FieldValue::Number(y))) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
                     (Some(FieldValue::Date(x)), Some(FieldValue::Date(y))) => x.cmp(y),
                     (Some(x), Some(y)) => display_value(self, x).to_lowercase().cmp(&display_value(self, y).to_lowercase()),

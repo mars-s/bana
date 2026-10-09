@@ -7,7 +7,7 @@ import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
-import { getState, refresh, setActivePanel, setState, closePanel, useStore } from './store'
+import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { ViewBody, ViewToolbar } from './Views'
@@ -302,7 +302,7 @@ function Guides({ depth }: { depth: number }) {
   )
 }
 
-function Bullet({ row, onClick }: { row: NodeRow; onClick: () => void }) {
+function Bullet({ row, onClick, panel }: { row: NodeRow; onClick: () => void; panel?: string }) {
   const tag = row.tags.find((t) => t.name !== 'day')
   const style = tag ? tagStyle(tag.color) : undefined
   const closed = (row.hasKids && !row.expanded) || row.kind === 'search'
@@ -315,13 +315,165 @@ function Bullet({ row, onClick }: { row: NodeRow; onClick: () => void }) {
     <span
       className={`bullet${closed ? ' closed' : ''}${tag ? ' tagged' : ''}`}
       style={style}
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={(e) => e.button === 0 && !panel && e.preventDefault()}
       onClick={onClick}
       title={`Edited ${ago(row.edited)}, created ${ago(row.created)}`}
+      draggable={!!panel}
+      onDragStart={(e) => {
+        if (!panel) return
+        const page = getState().pages[panel]
+        const ids = page?.sel.includes(row.id) ? page.sel : [row.id]
+        e.dataTransfer.setData('text/x-nodes', JSON.stringify(ids))
+        e.dataTransfer.effectAllowed = 'move'
+        dragging = ids
+      }}
+      onDragEnd={() => {
+        dragging = []
+        setDrop(null)
+      }}
+      onContextMenu={(e) => {
+        if (!panel) return
+        e.preventDefault()
+        setState({ nodeMenu: { panel, node: row.id, x: e.clientX, y: e.clientY } })
+      }}
     >
       {glyph}
     </span>
   )
+}
+
+// ---- selection toolbar (spec 02 §8; 11 §8) ---------------------------------------------------------
+
+function SelectionToolbar({ row, panel }: { row: NodeRow; panel: string }) {
+  const b = (label: string | JSX.Element, title: string, on: (e: React.MouseEvent) => void) => (
+    <button className="sel-btn" title={title} onMouseDown={(e) => e.preventDefault()} onClick={on}>
+      {label}
+    </button>
+  )
+  return (
+    <div className="sel-toolbar" role="toolbar" aria-label="Selection">
+      {b(<Icon name="chevronLeft" size={12} />, 'Outdent', () => void exec('node.outdent', {}, panel))}
+      {b(<Icon name="chevronRight" size={12} />, 'Indent', () => void exec('node.indent', {}, panel))}
+      <span className="sel-div" />
+      {b('# Tag', 'Add supertag', (e) => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        openPicker({ mode: 'tag', panel, node: row.target, at: -1, x: r.left, y: r.bottom })
+      })}
+      {b('Move', 'Move to', (e) => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        openPicker({ mode: 'moveTo', panel, node: row.id, at: -1, x: r.left, y: r.bottom })
+      })}
+      <span className="sel-div" />
+      {b('H', 'Toggle heading', () => void exec('node.toggleHeading', { node: row.id }, panel))}
+      <span className="sel-div" />
+      {b(<Icon name="link" size={12} />, 'Copy node link', () => void navigator.clipboard?.writeText(`[[id:${row.target}]]`))}
+      {b(<Icon name="sidebar" size={12} />, 'Open in new panel', () => void openInNewPanel(row.target))}
+      {b(<Icon name="more" size={12} />, 'Node menu', (e) => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        setState({ nodeMenu: { panel, node: row.id, x: r.left, y: r.bottom + 4 } })
+      })}
+    </div>
+  )
+}
+
+// ---- descriptions (spec 02 §13) --------------------------------------------------------------------
+
+function DescEditor({ row, panel }: { row: NodeRow; panel: string }) {
+  const [value, setValue] = useState(row.description)
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [])
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el) {
+      el.style.height = '0px'
+      el.style.height = `${el.scrollHeight}px`
+    }
+  })
+  const leave = (toLine: boolean) => {
+    setState({ descEdit: null })
+    if (toLine) void exec('focus.set', { node: row.id, caret: 1e9 }, panel)
+  }
+  return (
+    <textarea
+      ref={ref}
+      className="desc-input"
+      value={value}
+      rows={1}
+      placeholder="Add description"
+      onChange={(e) => {
+        const v = e.target.value.replace(/\n/g, ' ')
+        setValue(v)
+        // Saved as typed, like a line.
+        void call('run', { command: 'node.setDescription', params: { node: row.id, text: v }, panel }).then(() => scheduleQuietRefresh())
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'Enter') {
+          e.preventDefault()
+          leave(true)
+        }
+      }}
+      onBlur={() => setTimeout(() => getState().descEdit?.node === row.id && document.activeElement !== ref.current && setState({ descEdit: null }), 0)}
+    />
+  )
+}
+
+// ---- drag and drop (spec 02 §9; 11 §10) -----------------------------------------------------------
+
+let dragging: number[] = []
+let dropState: { id: number; nest: boolean } | null = null
+const dropSubs = new Set<() => void>()
+
+function setDrop(d: { id: number; nest: boolean } | null) {
+  if (d?.id === dropState?.id && d?.nest === dropState?.nest) return
+  dropState = d
+  dropSubs.forEach((f) => f())
+}
+
+function useDrop(id: number): { nest: boolean } | null {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const f = () => force((x) => x + 1)
+    dropSubs.add(f)
+    return () => {
+      dropSubs.delete(f)
+    }
+  }, [])
+  return dropState?.id === id ? dropState : null
+}
+
+/** Drop on a row: after it, or (right of its bullet by an indent) as its first child. */
+function dropHandlers(row: NodeRow, panel: string) {
+  return {
+    onDragOver(e: React.DragEvent) {
+      if (!dragging.length || dragging.includes(row.id)) return
+      e.preventDefault()
+      const box = (e.currentTarget as HTMLElement).querySelector('.bullet')?.getBoundingClientRect()
+      // Just right of the bullet, by about an indent: nest. Further right (over the text): after.
+      const nest = !!box && e.clientX > box.left + 32 && e.clientX < box.left + 32 * 3
+      setDrop({ id: row.id, nest })
+    },
+    onDragLeave() {
+      setDrop(null)
+    },
+    onDrop(e: React.DragEvent) {
+      e.preventDefault()
+      const d = dropState
+      setDrop(null)
+      const nodes = dragging
+      dragging = []
+      if (!d || !nodes.length || nodes.includes(row.id)) return
+      const parent = d.nest ? row.id : row.parent
+      const index = d.nest ? 0 : (row.index ?? 0) + 1
+      if (parent == null) return
+      void exec('node.moveMany', { nodes, parent, index }, panel)
+    },
+  }
 }
 
 export function ago(secs: number) {
@@ -333,6 +485,9 @@ export function ago(secs: number) {
 }
 
 function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel: string; page: Page; selected: boolean; editing: boolean }) {
+  const drop = useDrop(row.id)
+  const descEdit = useStore((s) => s.descEdit)
+  const describing = descEdit?.panel === panel && descEdit.node === row.id
   const blank = !editing && !row.ref && !row.hasKids && !row.name && !row.tags.length && row.kind === 'plain'
   return (
     <div
@@ -340,8 +495,11 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
       style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }}
       data-id={row.id}
       data-depth={row.depth}
+      {...dropHandlers(row, panel)}
     >
       <Guides depth={row.depth} />
+      {drop && <span className={`drop-line${drop.nest ? ' nest' : ''}`} style={{ '--d': row.depth } as CSSProperties} />}
+      {selected && page.sel[0] === row.id && <SelectionToolbar row={row} panel={panel} />}
       <div className="row-inner">
         {row.hasKids && (
           <span
@@ -353,7 +511,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             <Icon name={row.expanded ? 'chevronDown' : 'chevronRight'} size={10} />
           </span>
         )}
-        {blank ? <span className="bullet blank" /> : <Bullet row={row} onClick={() => void exec('nav.zoomIn', { node: row.id }, panel)} />}
+        {blank ? <span className="bullet blank" /> : <Bullet row={row} panel={panel} onClick={() => void exec('nav.zoomIn', { node: row.id }, panel)} />}
         <span className="line">
           {row.done !== null && (
             <span
@@ -404,6 +562,9 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             </span>
           )}
         </span>
+        {(row.description || describing) && (
+          <span className="desc">{describing ? <DescEditor row={row} panel={panel} /> : <span onMouseDown={(e) => (e.preventDefault(), setState({ descEdit: { panel, node: row.id } }))}>{row.description}</span>}</span>
+        )}
       </div>
     </div>
   )

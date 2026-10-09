@@ -156,6 +156,7 @@
   --c-scrim: rgba(0, 0, 0, 0.75);
   --c-scrollbar: rgba(255, 255, 255, 0.1);
   --c-warn: #d48c0d;
+  --c-danger: #e0715f;
   --shadow-float: 0 1.5px 1.5px rgba(0, 0, 0, 0.2), 0 1.5px 1.5px rgba(0, 0, 0, 0.25), 0 11.25px 22.5px rgba(0, 0, 0, 0.3);
   --shadow-tooltip: 0 1.5px 1.5px rgba(0, 0, 0, 0.2), 0 1.5px 1.5px rgba(0, 0, 0, 0.25);
   --shadow-chip: 0 0.5px 0 0.5px rgba(0, 0, 0, 0.2);
@@ -252,6 +253,7 @@
   --c-scrim: rgba(0, 0, 0, 0.4);
   --c-scrollbar: rgba(0, 0, 0, 0.1);
   --c-warn: #a16100;
+  --c-danger: #c2412d;
   --shadow-float: 0 1.5px 1.5px rgba(0, 0, 0, 0.05), 0 1.5px 1.5px rgba(0, 0, 0, 0.03), 0 11.25px 22.5px rgba(0, 0, 0, 0.04);
   --shadow-tooltip: 0 1.5px 1.5px rgba(0, 0, 0, 0.05), 0 1.5px 1.5px rgba(0, 0, 0, 0.03);
   --fw-text: var(--fw-ui);

@@ -1968,3 +1968,115 @@ kbd {
   font-weight: var(--fw-medium);
   color: var(--c-muted);
 }
+
+/* ---- node menu, selection toolbar, descriptions, drop line ---- */
+
+.node-menu {
+  width: 230px;
+  max-height: none;
+  overflow: visible;
+}
+
+.menu-item.has-sub {
+  position: relative;
+}
+
+.menu.submenu {
+  position: absolute;
+  left: calc(100% + 2px);
+  top: calc(-1 * var(--q1-5));
+  animation: fade-in var(--t-submenu);
+}
+
+.menu-item.danger {
+  color: var(--c-danger);
+}
+
+.menu-item kbd {
+  margin-left: var(--q2);
+}
+
+.sel-toolbar {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 7px);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  height: 29px;
+  padding: var(--q1);
+  background: var(--c-popover);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--c-outline);
+  white-space: nowrap;
+}
+
+.sel-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 21.5px;
+  padding: var(--q1) var(--q2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-button);
+  color: var(--c-tertiary);
+}
+
+.sel-btn:hover {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+
+.sel-div {
+  width: 1px;
+  height: 15px;
+  margin: 0 var(--q1);
+  background: var(--c-divider);
+}
+
+.desc {
+  display: block;
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+  margin-top: -2px;
+  font-size: var(--fs-dense);
+  line-height: var(--lh-dense);
+  color: var(--c-muted);
+  cursor: text;
+}
+
+.row-inner {
+  flex-wrap: wrap;
+}
+
+.desc-input {
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--c-muted);
+  overflow: hidden;
+}
+
+.desc-input::placeholder {
+  color: var(--c-faint);
+}
+
+.drop-line {
+  position: absolute;
+  left: calc(var(--indent) * var(--d, 0));
+  right: 0;
+  bottom: -2px;
+  height: var(--q1);
+  border-radius: 2px;
+  background: var(--c-drop-line);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.drop-line.nest {
+  margin-left: var(--indent);
+}

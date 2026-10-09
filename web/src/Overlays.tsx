@@ -2,13 +2,13 @@
 // keyboard shortcut sheet.
 
 import { useEffect, useRef, useState } from 'react'
-import { call, type Json } from './engine'
+import { call, type Json, type NodeRow } from './engine'
 import { Icon } from './icons'
 import { exec, runUiCommand } from './controller'
-import { applyPick } from './picker'
+import { applyPick, openPicker } from './picker'
 import { tagStyle } from './Outline'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
-import { getState, newTab, refresh, setState, useStore } from './store'
+import { getState, newTab, openInNewPanel, refresh, setState, showToast, useStore } from './store'
 
 function close() {
   setState({ overlay: null })
@@ -274,11 +274,124 @@ function Picker() {
   )
 }
 
+// ---- the node menu ------------------------------------------------------------------------------
+
+function Sub({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="menu-item has-sub" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <span className="grow">{label}</span>
+      <Icon name="chevronRight" size={12} />
+      {open && <div className="menu submenu">{children}</div>}
+    </div>
+  )
+}
+
+function NodeMenu() {
+  const m = useStore((s) => s.nodeMenu)
+  const row = useStore((s) => {
+    const nm = s.nodeMenu
+    const page = nm ? s.pages[nm.panel] : undefined
+    return page?.rows.items.find((r) => r.k === 'node' && r.id === nm?.node) as NodeRow | undefined
+  })
+  useEffect(() => {
+    if (!m) return
+    const off = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest?.('.node-menu')) setState({ nodeMenu: null })
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setState({ nodeMenu: null })
+    window.addEventListener('mousedown', off)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', off)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [m])
+  if (!m) return null
+  const { panel, node } = m
+  const target = row?.target ?? node
+  const close = () => setState({ nodeMenu: null })
+  const run = (cmd: string, p: Record<string, unknown> = {}) => () => {
+    close()
+    void exec(cmd, { node, ...p }, panel)
+  }
+  const pick = (mode: 'tag' | 'field' | 'moveTo') => () => {
+    close()
+    openPicker({ mode, panel, node: mode === 'moveTo' ? node : target, owner: mode === 'field' ? target : undefined, at: -1, x: m.x, y: m.y })
+  }
+  const copy = (text: string, note: string) => () => {
+    close()
+    void navigator.clipboard?.writeText(text).then(() => showToast(note), () => showToast('Could not reach the clipboard'))
+  }
+  const It = ({ label, on, sc, danger }: { label: string; on: () => void; sc?: string; danger?: boolean }) => (
+    <div className={`menu-item${danger ? ' danger' : ''}`} onMouseDown={(e) => (e.preventDefault(), on())}>
+      <span className="grow">{label}</span>
+      {sc && <kbd>{prettyKey(sc)}</kbd>}
+    </div>
+  )
+  return (
+    <div className="menu node-menu" style={{ left: Math.min(m.x, window.innerWidth - 230), top: Math.min(m.y, window.innerHeight - 420) }} role="menu">
+      <It label="Open" on={run('nav.zoomIn')} sc="Mod+." />
+      <It label="Open in new panel" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
+      <It label={row?.expanded ? 'Collapse' : 'Expand'} on={run('node.toggleExpand')} />
+      <div className="menu-sep" />
+      <It label="Add supertag" on={pick('tag')} />
+      <It label="Add field" on={pick('field')} />
+      <It label={row?.done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
+      <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
+      <It label="Toggle heading" on={run('node.toggleHeading')} />
+      <It label="Show progress bar" on={run('node.toggleProgress')} />
+      <It label={row?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} on={run('node.togglePin')} />
+      <div className="menu-sep" />
+      <Sub label="View as">
+        {['outline', 'table', 'cards', 'list', 'side_menu', 'tabs', 'calendar'].map((k) => (
+          <It key={k} label={k[0].toUpperCase() + k.slice(1).replace('_', ' ')} on={run('view.set', { kind: k })} />
+        ))}
+      </Sub>
+      <Sub label="Sort by">
+        {[['name', 'Name'], ['created', 'Created'], ['edited', 'Last edited'], ['done', 'Done'], ['none', 'None']].map(([by, l]) => (
+          <It key={by} label={l} on={run('view.sort', { by })} />
+        ))}
+      </Sub>
+      <Sub label="Group by">
+        {[['tags', 'Supertags'], ['done', 'Done'], ['owner', 'Owner'], ['created', 'Created day'], ['none', 'None']].map(([by, l]) => (
+          <It key={by} label={l} on={run('view.group', { by })} />
+        ))}
+      </Sub>
+      <div className="menu-sep" />
+      <It label="Duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
+      <It label="Copy node link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+      <It label="Move to…" on={pick('moveTo')} />
+      <It label="Move to top" on={run('node.moveToTop')} />
+      <It label="Move to bottom" on={run('node.moveToBottom')} />
+      <It label="Move up" on={run('node.moveUp')} sc="Mod+Shift+Up" />
+      <It label="Move down" on={run('node.moveDown')} sc="Mod+Shift+Down" />
+      <It label="Indent" on={run('node.indent')} sc="Tab" />
+      <It label="Outdent" on={run('node.outdent')} sc="Shift+Tab" />
+      <div className="menu-sep" />
+      {row?.kind === 'search' && <It label="Convert search node to plain list" on={run('search.toPlainList')} />}
+      {row && !row.ref && row.kind === 'plain' && <It label="Convert to supertag" on={run('node.convertToSupertag')} />}
+      <It label="More commands" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
+      {row?.inTrash ? (
+        <It label="Restore" on={run('node.restore')} />
+      ) : row?.ref ? (
+        <It label="Remove reference" on={run('node.delete')} />
+      ) : (
+        <>
+          <It label="Delete" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
+          <It label="Hard delete including references" on={run('node.hardDelete')} danger />
+        </>
+      )}
+    </div>
+  )
+}
+
 export function Overlays() {
   const o = useStore((s) => s.overlay)
   return (
     <>
       <Picker />
+      <NodeMenu />
       <Shortcuts />
       {o && (
         <div className={`scrim${o.kind === 'palette' ? '' : ' dim'}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>

@@ -247,6 +247,14 @@ function runUi(id: string): boolean {
     case 'ui.searchOpen':
       setState({ overlay: { kind: 'search', query: '' } })
       return true
+    case 'ui.editDescription': {
+      const node = p?.focus ?? p?.sel[0]
+      if (node != null && p) {
+        setState({ descEdit: { panel: s.activePanel, node } })
+        void exec('focus.clear', {}, s.activePanel)
+      }
+      return true
+    }
     case 'ui.quickAdd':
       setState({ overlay: { kind: 'quickadd', lines: [''] } })
       return true
@@ -445,9 +453,17 @@ function editorKey(k: KeyInfo, sc: string, p: Page, ed: EditorHandle): boolean {
       void exec('focus.up')
       return true
     }
-    case 'Down':
+    case 'Down': {
+      // Down from a line with a description goes into the description (spec 02 §13).
+      const row = nodeRows(p).find((r) => r.id === ed.node)
+      if (row?.description) {
+        setState({ descEdit: { panel, node: ed.node } })
+        void exec('focus.clear', {}, panel)
+        return true
+      }
       void exec('focus.down')
       return true
+    }
   }
   if (isTextKey(k)) return false
   const cmd = registryCommand(sc)

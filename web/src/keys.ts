@@ -78,4 +78,5 @@ export const UI_COMMANDS: [string, string, string][] = [
   ['ui.toggleTheme', 'Switch light or dark theme', ''],
   ['ui.searchOpen', 'Search and open', 'Mod+S'],
   ['ui.quickAdd', 'Quick add', 'Mod+E'],
+  ['ui.editDescription', 'Add description', 'Ctrl+I'],
 ]

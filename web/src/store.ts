@@ -74,6 +74,10 @@ export interface State {
   activePanel: string
   picker: PickerState | null
   fieldEdit: FieldEdit | null
+  /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
+  nodeMenu: { panel: string; node: number; x: number; y: number } | null
+  /** A description being typed under a line. */
+  descEdit: { panel: string; node: number } | null
 }
 
 const saved = (() => {
@@ -102,6 +106,8 @@ let state: State = {
   activePanel: 'main',
   picker: null,
   fieldEdit: null,
+  nodeMenu: null,
+  descEdit: null,
 }
 
 const subs = new Set<() => void>()

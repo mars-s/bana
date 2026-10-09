@@ -152,10 +152,11 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
   await withBarrier(async () => {
     switch (p.mode) {
       case 'tag': {
-        const caret = await cutQuery(p, '', true)
+        // From the line (`#`): the typed text leaves the line. From a menu: nothing to cut.
+        const caret = p.at >= 0 ? await cutQuery(p, '', true) : null
         if (item.create) await exec('tag.add', { node: p.node, tag: item.create, color: p.nextColor }, panel)
         else await exec('tag.add', { node: p.node, tag: item.id }, panel)
-        await exec('focus.set', { node: p.node, caret }, panel)
+        if (caret != null) await exec('focus.set', { node: p.node, caret }, panel)
         break
       }
       case 'inlineRef': {
@@ -184,6 +185,13 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
       }
       case 'field': {
         const owner = p.owner!
+        if (p.at < 0) {
+          // From a menu: the field goes on the node, and its value is typed next.
+          const r = await exec('field.add', { node: owner, field: item.create ?? item.id }, panel)
+          const fid: number | null = r?.result?.field ?? null
+          if (fid != null) await startFieldEdit(panel, owner, fid, 0)
+          break
+        }
         const field = item.create ?? item.id
         // The row takes the place of the line `>` was typed on: after the sibling above it.
         const page = getState().pages[panel]

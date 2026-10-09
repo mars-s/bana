@@ -156,6 +156,9 @@ export interface NodeRow {
   id: number
   target: number
   parent: number | null
+  index: number | null
+  pinned: boolean
+  inTrash: boolean
   depth: number
   name: string
   ref: boolean

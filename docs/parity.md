@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (95) | 43 | 44 | 6 | 2 |
-| Screenshots (150) | 87 | 37 | 25 | 1 |
+| Screenshots (153) | 88 | 37 | 27 | 1 |
 
 ## `00-overview.md`
 
@@ -85,7 +85,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Where view controls live | partial | Toolbar: quick filter, view as, display, group, sort, filter, active filter chips; options menu. Text buttons rather than icons. |
 | 2. Outline (default) | done | Bullets with display-field line. |
-| 3. Table | partial | Tag-named first column with tag-colour underline, field columns, sort by header, + Add field, in-place cells. Header rename in place missing. |
+| 3. Table | partial | Tag-named first column (Title when mixed) with tag-colour underline, field columns, resizable columns, sort by header, + Add field, in-place cells. Header rename in place missing. |
 | 4. Cards | done | Grid of cards: tag header, checkbox and name, display fields footer, + Add. |
 | 5. Board (cards grouped) | done | Columns per value including empty options and <Field> not set; dragging a card sets the value; + Add per column. |
 | 6. Lanes | done | Each item a lane with its children. |
@@ -314,9 +314,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `151-heading-with-child.jpg` | done | Heading with children. |
 | `152-checklist-inserted.jpg` | done | Checklist from the slash menu. |
 | `153-checklist-progress.png` | done | Checklist progress bar. |
-| `154-table-column-resize.jpg` | missing | Table column resize. |
-| `155-calendar-drag-create.png` | missing | New, not reviewed yet. |
-| `156-calendar-event-resize.jpg` | missing | New, not reviewed yet. |
+| `154-table-column-resize.jpg` | done | Table column resize (drag a header edge; saved with the view). |
+| `155-calendar-drag-create.png` | missing | Drag to create on the calendar time grid. |
+| `156-calendar-event-resize.jpg` | missing | Resize events on the time grid. |
+| `157-title-expr-default-child-config.png` | missing | New, not reviewed yet. |
+| `158-title-expression-table.png` | missing | New, not reviewed yet. |
+| `159-default-child-supertag.png` | missing | New, not reviewed yet. |
 
 ## Beyond the spec
 

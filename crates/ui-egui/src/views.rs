@@ -562,8 +562,17 @@ fn grouped_outline(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, gro
 fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Group]) {
     let cols = app.session.graph.view_columns(node);
     let total = ui.available_width();
-    let col_w = 160.0_f32;
-    let name_w = (total - col_w * cols.len() as f32 - 70.0).max(240.0);
+    // Column widths: saved per view, live while a header edge is dragged (spec screenshot 154).
+    let width_of = |app: &TanaApp, c: NodeId, default: f32| -> f32 {
+        app.col_drag
+            .filter(|(v, cc, _)| *v == node && *cc == c)
+            .map(|(_, _, w)| w)
+            .or_else(|| app.session.graph.column_width(node, c))
+            .unwrap_or(default)
+    };
+    let col_ws: Vec<f32> = cols.iter().map(|c| width_of(app, *c, 160.0)).collect();
+    let fixed: f32 = col_ws.iter().sum();
+    let name_w = width_of(app, NodeId(0), (total - fixed - 70.0).max(240.0));
     let sort = app.session.graph.view_def(node).sort;
     let tag_color = app.session.graph.tag_def(node).map(|d| theme::tag_color(&d.color, app.dark).0);
     let header = ui.horizontal(|ui| {
@@ -588,8 +597,11 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
             let desc = sort.first().is_some_and(|s| s.by == SortBy::Name && !s.desc);
             app.acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": "name", "desc": desc})));
         }
-        for f in &cols {
+        resize_handle(app, ui, t, node, NodeId(0), r, "title");
+        for (ci, f) in cols.iter().enumerate() {
+            let col_w = col_ws.get(ci).copied().unwrap_or(160.0);
             let (r, resp) = ui.allocate_exact_size(vec2(col_w, 24.0), Sense::click());
+            resize_handle(app, ui, t, node, *f, r, &f.0.to_string());
             let g = &app.session.graph;
             let mut label = g.name(*f).to_string();
             if let Some(s) = sort.first().filter(|s| s.by == SortBy::Field(*f)) {
@@ -620,7 +632,7 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
         }
     });
     let hr = header.response.rect;
-    let line_end = hr.left() + name_w + col_w * cols.len() as f32;
+    let line_end = hr.left() + name_w + fixed;
     ui.painter().line_segment([hr.left_bottom(), pos2(line_end, hr.bottom())], Stroke::new(1.0, t.line));
     for gr in groups {
         group_header(ui, t, &gr.label, gr.items.len());
@@ -629,8 +641,8 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                 ui.set_min_height(30.0);
                 cell(ui, name_w, |ui| item_line(app, ui, t, *item, false));
                 let target = app.session.graph.resolve(*item);
-                for f in &cols {
-                    cell(ui, col_w, |ui| {
+                for (ci, f) in cols.iter().enumerate() {
+                    cell(ui, col_ws.get(ci).copied().unwrap_or(160.0), |ui| {
                         let g = &app.session.graph;
                         let Some(def) = g.field_def(*f).cloned() else { return };
                         let value = g.get(target).and_then(|n| n.field_value(*f)).cloned();
@@ -646,6 +658,28 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
     }
     ui.add_space(4.0);
     add_button(app, ui, t, node, None);
+}
+
+/// A drag handle on the right edge of a table header cell.
+fn resize_handle(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, col: NodeId, cell: Rect, key: &str) {
+    let edge = Rect::from_center_size(cell.right_center(), vec2(8.0, cell.height()));
+    let resp = ui.interact(edge, egui::Id::new((app.panel_ix, "col-resize", node.0, col.0)), Sense::drag());
+    if resp.hovered() || resp.dragged() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        ui.painter().line_segment([edge.center_top(), edge.center_bottom()], Stroke::new(2.0, t.accent));
+    }
+    if resp.dragged() {
+        let w = (cell.width() + resp.drag_delta().x).clamp(60.0, 1200.0);
+        app.col_drag = Some((node, col, w));
+    }
+    if resp.drag_stopped()
+        && let Some((_, _, w)) = app.col_drag.take()
+    {
+        app.acts.push(Act::Run(
+            "view.setColumnWidth".into(),
+            json!({"node": node.0, "field": if col == NodeId(0) { json!("title") } else { json!(key) }, "width": w}),
+        ));
+    }
 }
 
 /// A fixed-width table cell: content is clipped, never widens the row.

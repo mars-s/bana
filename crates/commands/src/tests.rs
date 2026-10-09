@@ -368,6 +368,10 @@ fn search_nodes_and_views_by_command() {
     assert!(s.run("view.set", &json!({"kind": "pie"})).is_err());
     assert!(s.run("view.sort", &json!({"by": "nosuchfield"})).is_err());
     assert!(s.run("view.dateField", &json!({"field": "Status"})).is_err());
+    run(&mut s, "view.setColumnWidth", json!({"field": "Status", "width": 220}));
+    run(&mut s, "view.setColumnWidth", json!({"field": "title", "width": 5000}));
+    assert_eq!(s.graph.column_width(search, s.graph.find_field("Status").unwrap()), Some(220.0));
+    assert_eq!(s.graph.column_width(search, NodeId(0)), Some(1200.0), "clamped");
     run(&mut s, "view.toggleGroupHidden", json!({"group": "Done"}));
     run(&mut s, "view.group", json!({"by": "Status"}));
     assert!(s.graph.view_groups(search).iter().all(|g| g.label != "Done"), "hidden group");

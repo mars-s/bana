@@ -8,10 +8,10 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 115 |
-| Tests | 65 (core 33, commands 23, UI 9 including real key, drag and drop and panel tests, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 92 mapped: 34 done, 50 partial, 8 missing |
-| Spec screenshots | 131 mapped: 67 done, 35 partial, 27 missing |
+| Commands (every action; CLI, MCP and control channel can run them) | 124 |
+| Tests | 73 (core 33, commands 26, UI 12 including real key, drag and drop, paste and panel tests, MCP 1, CLI 1) |
+| Spec sections (`docs/parity.md`) | 95 mapped: 43 done, 44 partial, 6 missing, 2 notes |
+| Spec screenshots | 153 mapped: 88 done, 37 partial, 27 missing, 1 not behaviour |
 
 ## Milestones
 
@@ -28,7 +28,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M8 Editing per spec 02 | Enter/Backspace/Delete rules, moves across branches, selection mode, multi-select, drag and drop, paste, inline formatting, headings, descriptions | done (first versions) |
 | M9 Shell | Tabs, panels, sidebar modes, Search and open, quick add, slash menu, related content, go to date | done (first versions) |
 | M10 Schema | Supertag page with view tabs and configure section, field definition page, done mapping, templates, auto-initialize, hide and required fields | done (first versions) |
-| M11 Next | Inline references, Recents page, Move to, system fields in display/group/sort, calendar drag and time grid, floating selection toolbar, Settings | next |
+| M11 Spec round two | Inline references and links, Recents and Settings pages, Move to, system fields, calendar drag and day view, selection toolbar, copy/paste as references, checklists, column resize, template propagation | done (first versions) |
+| M12 Next | Calendar time grid (timed dates, drag to create and resize), several values per field, pinned fields, workspaces and Inbox, AI features, native menus | next |
 
 ## Later
 

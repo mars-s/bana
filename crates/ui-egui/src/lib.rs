@@ -191,6 +191,8 @@ pub struct TanaApp {
     recents_selected: Option<NodeId>,
     /// Put the caret in the page title on the next frame.
     pub(crate) focus_title: bool,
+    /// A table column being resized: (view, column, width).
+    pub(crate) col_drag: Option<(NodeId, NodeId, f32)>,
     /// A short notice in the top-right corner, and when it appeared.
     toast_msg: Option<(String, f64)>,
     /// The last nodes copied with Cmd+C and the text that went to the clipboard.
@@ -252,6 +254,7 @@ impl TanaApp {
             focus_title: false,
             node_clip: None,
             toast_msg: None,
+            col_drag: None,
             config_open: Default::default(),
             tag_tab: Default::default(),
             template_buf: String::new(),

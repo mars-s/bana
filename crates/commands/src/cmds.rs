@@ -108,6 +108,24 @@ pub fn registry() -> Registry {
             view_json(s, id)
         })
         .params(r#"{"node"?: id, "group": string}"#),
+        C::new("view.setColumnWidth", "Resize table column", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let col = match v.get("field") {
+                Some(Value::String(x)) if x == "title" => NodeId(0),
+                _ => field_param(s, v, false)?,
+            };
+            let w = v
+                .get("width")
+                .and_then(Value::as_f64)
+                .filter(|w| w.is_finite())
+                .ok_or_else(|| CmdError::Params("`width` (number) is required".into()))?
+                .clamp(60.0, 1200.0) as f32;
+            let view = s.graph.view_mut(id)?;
+            view.widths.retain(|(c, _)| *c != col);
+            view.widths.push((col, w));
+            Ok(json!({"node": id.0, "width": w}))
+        })
+        .params(r#"{"node"?: id, "field": name | id | "title", "width": number}"#),
         C::new("view.toggleToolbar", "Show or hide view toolbar", "Views", view_toggle_toolbar).params(r#"{"node"?: id}"#),
         C::new("view.calendarMode", "Calendar week or month", "Views", view_calendar_mode).params(r#"{"mode": "day|week|month"}"#).pure(),
         C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|owner|created|edited|<field>"}"#),

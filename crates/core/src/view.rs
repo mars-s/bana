@@ -170,6 +170,9 @@ pub struct ViewDef {
     /// with none shows every field the items have.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub columns: Vec<NodeId>,
+    /// Table column widths in points (field id; `NodeId(0)` is the title column).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widths: Vec<(NodeId, f32)>,
     /// Groups (board columns) the person hid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden_groups: Vec<String>,
@@ -326,6 +329,11 @@ impl Graph {
                 }
             }
         }
+    }
+
+    /// A table column's width, if set.
+    pub fn column_width(&self, id: NodeId, col: NodeId) -> Option<f32> {
+        self.view_def(id).widths.iter().find(|(c, _)| *c == col).map(|(_, w)| *w)
     }
 
     /// A system field of a node, as text.

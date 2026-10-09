@@ -638,7 +638,22 @@ pub(crate) fn item_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId
     let g = &app.session.graph;
     let done = g.checkbox(target) == Some(true);
     let mut link_acts = Vec::new();
-    let clicked = rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false).clicked();
+    // Leave room for the tag chips so they stay on the line the text starts on.
+    let chips: f32 = if with_chips {
+        g.get(target)
+            .map(|n| n.tags.iter().filter(|x| **x != g.sys.day_tag).map(|x| g.name(*x).chars().count() as f32 * 8.0 + 34.0).sum())
+            .unwrap_or(0.0)
+    } else {
+        0.0
+    };
+    let room = (ui.available_size_before_wrap().x - chips - 24.0).max(80.0);
+    let clicked = ui
+        .scope(|ui| {
+            ui.set_max_width(room);
+            rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false)
+        })
+        .inner
+        .clicked();
     crate::outline::title_suffix(ui, g, t, target, theme::FONT);
     if !link_acts.is_empty() {
         app.acts.extend(link_acts);

@@ -83,3 +83,27 @@
 {"cmd": "node.delete", "params": {"node": 29}}
 {"cmd": "nav.trash"}
 {"shot": "docs/images/trash.png"}
+{"cmd": "nav.home"}
+{"open": "Community garden"}
+{"focus": "Build four beds"}
+{"cmd": "field.set", "params": {"field": "Due", "value": "2026-10-08 10:30-13:00"}}
+{"focus": "Fill with compost"}
+{"cmd": "field.set", "params": {"field": "Due", "value": "2026-10-08 11:00-12:00"}}
+{"key": "Escape"}
+{"key": "Escape"}
+{"open": "Open tasks"}
+{"cmd": "ui.searchOptions"}
+{"cmd": "view.set", "params": {"kind": "calendar"}}
+{"cmd": "view.calendarMode", "params": {"mode": "week"}}
+{"shot": "docs/images/week-grid.png"}
+{"cmd": "view.calendarMode", "params": {"mode": "month"}}
+{"cmd": "view.set", "params": {"kind": "table"}}
+{"cmd": "ui.searchOptions"}
+{"cmd": "search.addGroup", "params": {"kind": "or"}}
+{"cmd": "search.addClause", "params": {"clause": "beds", "path": [2]}}
+{"cmd": "search.addGroup", "params": {"kind": "not", "path": [2]}}
+{"cmd": "search.addClause", "params": {"clause": "cedar", "path": [2, 1]}}
+{"shot": "docs/images/query-builder.png"}
+{"cmd": "ui.searchOptions"}
+{"cmd": "ui.help"}
+{"shot": "docs/images/help.png"}

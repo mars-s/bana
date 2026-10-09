@@ -662,7 +662,7 @@ pub(crate) fn related(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) 
                 ui.label(RichText::new("Nothing here").size(13.0).color(t.faint));
             }
             for i in items {
-                ui.horizontal_wrapped(|ui| crate::views::item_line(app, ui, t, i, true));
+                ui.horizontal(|ui| crate::views::item_line(app, ui, t, i, true));
             }
         });
         ui.add_space(8.0);
@@ -1183,7 +1183,7 @@ pub(crate) fn link_label(
 pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &Tokens, text: &str, color: Color32, strike: bool) -> egui::Response {
     let (mut job, targets) = rich_job_links(g, t, text, color, strike, theme::FONT);
     // Wrap at the room left (cards, table cells, lists).
-    let room = ui.available_width();
+    let room = ui.available_size_before_wrap().x;
     if room.is_finite() && room > 60.0 {
         job.wrap.max_width = room;
     }

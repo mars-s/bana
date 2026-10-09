@@ -7,51 +7,69 @@
 
 <p align="center">
   Every bullet is a node. Tag a node with a supertag and it gains that supertag's fields. Reference any
-  node from anywhere. Write by hierarchy or by day. Your graph is one local JSON file, and every action
+  node from anywhere. Write by hierarchy or by day. Your graph is a local JSON file, and every action
   is a command that people, scripts and AI agents can run.
 </p>
 
 <p align="center">
-  <img src="docs/images/today.png" alt="TanaCraft showing today's page, Sat 10 Oct: a sidebar with Today, Supertags, Search, Create new and coloured supertags; the page has a day tag chip, previous and next day buttons, a meeting node expanded to show an Outdoors checkbox field and two child bullets, a task with a checkbox and a pink task chip, and a reference to the Community garden project." width="100%">
-  <br><sub><b>Today.</b> Daily notes grouped by year and week, supertag chips, field rows and references.</sub>
+  <img src="docs/images/today.png" alt="TanaCraft showing today's page, Sat 10 Oct: the sidebar with Today, Supertags, Recents, Create new, a search button, pinned supertags and the workspace; the day page with a meeting node and its Outdoors checkbox field, a task with a pink chip, a reference to the Community garden project and an inline link; an Open tasks card on the right." width="100%">
+  <br><sub><b>Today.</b> Daily notes grouped by year and week, supertag chips, field rows, references and an Open tasks card.</sub>
 </p>
+
+## Tour
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/outline.png" alt="The Community garden page zoomed in: project chip, Status, Website and Owner field rows, then nested bullets with task checkboxes, one done and struck through" width="100%"><p align="center"><sub><b>Zoom into any node.</b> Fields from its supertags sit above its children.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/supertag.png" alt="The task supertag page: extends item, shows a checkbox, three template fields and the four tagged nodes with their locations" width="100%"><p align="center"><sub><b>Supertags</b> extend each other, carry typed template fields and list everything tagged with them.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/outline.png" alt="The Community garden page: project chip, Status, Website and an Owner field holding two people, then nested bullets with task checkboxes" width="100%"><p align="center"><sub><b>Zoom into any node.</b> Fields from its supertags sit above its children; a field can hold several values.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/week-grid.png" alt="Open tasks as a week calendar: day columns, an all-day strip and an hour grid with two overlapping timed tasks on Thursday" width="100%"><p align="center"><sub><b>Calendar.</b> Month, week and day. Drop an item on an hour to time it, drag its edge to resize, drag on empty grid to create.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/board.png" alt="Open tasks as a board: columns Not started, In progress and Done with task cards showing status and due date" width="100%"><p align="center"><sub><b>Board.</b> Cards grouped by a field; drag a card to change its value.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/calendar.png" alt="Open tasks on a month calendar with week numbers, today circled and tasks on their due dates" width="100%"><p align="center"><sub><b>Calendar.</b> Items placed by a date field, month or week.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/query-builder.png" alt="The query builder of Open tasks: an AND group with #task and TODO, a nested OR group holding beds and a NOT group holding cedar, menus for tag fields, system fields, tag types and operators, Run once and Done" width="100%"><p align="center"><sub><b>Search nodes.</b> Live queries with nested AND, OR and NOT groups, shown as a table, cards, board, list or calendar.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/configure-supertag.png" alt="The task supertag page on the left; its configuration in a panel on the right: colour row, Building blocks, Content template with pinned toggles, optional fields and the done mapping" width="100%"><p align="center"><sub><b>Configure a supertag</b> in its own panel: template, optional fields, title expression, done mapping, default child supertag.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/search-table.png" alt="The Open tasks search node as a table with its conditions panel, sorted by due date" width="100%"><p align="center"><sub><b>Search nodes.</b> Live queries shown as a table, cards, board, list or calendar.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/two-panels.png" alt="Two panels side by side: Community garden on the left, Build four beds on the right" width="100%"><p align="center"><sub><b>Panels and tabs.</b> Cmd+M opens a node beside the current one.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/board.png" alt="Open tasks as a board: columns Not started, In progress, Done and Status not set with task cards and their due dates" width="100%"><p align="center"><sub><b>Board.</b> Cards grouped by a field; drag a card to change its value.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/supertags-overview.png" alt="The Supertags page: pinned task, project and meeting supertags as large coloured cards, then every supertag of the workspace as a tile" width="100%"><p align="center"><sub><b>Supertags.</b> Pinned ones as cards, then every supertag of the workspace.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/configure-supertag.png" alt="Configuring the task supertag: colour swatches, base type, extends, template fields, checkbox mapping" width="100%"><p align="center"><sub><b>Configure a supertag.</b> Template, inheritance, done mapping, default child tag.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/light-shortcuts.png" alt="Light theme with the keyboard shortcuts panel open on the right" width="100%"><p align="center"><sub><b>Light theme</b> and the shortcuts panel.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/command-line.png" alt="The command line over the Community garden page: steps for the focused task (add tag, remove tag, set status, set due, move to, view as) before the global commands" width="100%"><p align="center"><sub><b>Command line (Cmd+K).</b> Steps for the focused node first, then every command with its shortcut.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/tag-picker.png" alt="Typing #pro after Ideas in the Library: the menu offers Create and apply #pro on top and the existing #project supertag" width="100%"><p align="center"><sub><b>Type <code>#</code>, <code>@</code>, <code>&gt;</code> or <code>/</code></b> in a line for supertags, references, fields and the insert menu.</sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/two-panels.png" alt="Two panels side by side: Community garden on the left, Build four beds on the right" width="100%"><p align="center"><sub><b>Panels and tabs.</b> Cmd+M opens a node beside the current one; drag the gap to resize.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/light-shortcuts.png" alt="Light theme with the keyboard shortcuts panel open on the right" width="100%"><p align="center"><sub><b>Light theme</b> and the shortcut sheet (Shift+Cmd+?).</sub></p></td>
 </tr>
 </table>
 
 Every screenshot is TanaCraft itself, rendered offscreen by `cargo xtask shots`.
 
+## Why
+
+Tana showed that an outliner gets much more useful when nodes can carry types: tag a bullet `#task`
+and it gains a status, a due date and a checkbox; ask a search node for every open task and it stays
+live. TanaCraft rebuilds that model as open source:
+
+- **Local and yours.** One JSON file per workspace on your disk, saved atomically. No account, no server.
+- **Fast and small.** Pure Rust with an immediate-mode UI; it starts in a blink and never blocks on the network.
+- **Scriptable to the core.** Every action is a command with an id. The keyboard, the command line, the CLI, the MCP server and a JSON control channel all run the same commands, so an agent can do anything you can.
+- **Clean room.** Built from public docs and a black-box behaviour spec; see [Clean room](#clean-room).
+
 ## What works today
 
 | Area | Highlights |
 |---|---|
-| **Outline** | Enter, Shift+Enter, Tab, Shift+Tab, Backspace and Delete as in the spec, move up/down across branches, Escape and Shift+Up/Down selection, drag and drop, paste as nodes, headings, descriptions, inline bold/italic/underline/highlight/code |
-| **Supertags** | `#` picker, colours, extends, base types, template fields and nodes, checkbox and done mapping, default child supertag, supertag pages with view tabs and a configure section |
-| **Fields** | `>` picker; plain, options, options from supertag, date, number, URL, email, checkbox; required, hide rules, auto-initialize, number ranges, option and date pickers |
-| **Search** | Search nodes with a query language (AND, OR, NOT, nested groups, TODO/DONE, field comparisons, date and type operators), Search and open with fuzzy matching, command line |
-| **Views** | Outline, table, cards, board (drag cards between columns), lanes, list, side menu, tabs, calendar (month and week); display fields, several sort rules, group, filter chips |
-| **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, go to date, dates that link to their day |
-| **Shell** | Tabs, side-by-side panels, sidebar full/mini/hidden, pinned items, quick add, slash menu, references footer, trash |
+| **Outline** | Enter, Shift+Enter, Tab, Shift+Tab, Backspace and Delete as in the spec, wrapped long lines, caret where you click, moves across branches, Escape and Shift+Up/Down selection with a floating toolbar, drag and drop, paste as nodes or references, headings, descriptions edited in place, inline bold/italic/underline/highlight/code that carry on as you type, links, checklists with progress |
+| **Supertags** | Inline `#` menu, colours (or none, or custom), extends, base types, template fields and nodes, optional and pinned fields, title expressions, checkbox and done mapping, default child supertag, related content, convert a node to a supertag |
+| **Fields** | `>` field rows (Tab to the value, Enter for another value); plain, options, options from a supertag, date (with time ranges), number, URL, email, checkbox; several values per field, option sources and auto-collect, required, hide rules, invalid-value warnings, auto-initialize |
+| **Search** | Search nodes with nested AND/OR/NOT groups, field comparisons, date, type and base-type operators; new results flash; Search and open with fuzzy matching and snippets; a context-aware command line |
+| **Views** | Outline, table (full width, rename columns in place, resize), cards, board, lanes (drag between lanes), list (detail in the next panel), side menu, tabs, calendar (month, week and day with a time grid); display, sort, group and filter from an icon toolbar |
+| **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, week Schedule, go to date, insert date, dates that link to their day |
+| **Shell** | Tabs, resizable panels, sidebar full/mini/hidden with flyouts, pinned items, quick add, capture Inbox, workspaces (switch, create, rename), page icons and banners, content width, Help page, settings, trash |
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
-| **Files** | One JSON file (`~/TanaCraft/graph.json` by default), atomic autosave, Markdown and JSON export |
+| **Files** | One JSON file per workspace (`~/TanaCraft/graph.json` by default), atomic autosave, Markdown and JSON export |
 
-Status per spec item: [docs/parity.md](docs/parity.md). Plans: [ROADMAP.md](ROADMAP.md).
+Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (68 of 99 sections done,
+118 of 153 screenshots). AI features are out of scope for now.
 
 ## Quick start
 
@@ -60,17 +78,22 @@ cargo run --release -p tanacraft -- --sample          # the desktop app with the
 cargo run --release -p tanacraft -- notes.json        # open or create a graph file
 ```
 
+Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
+**Shift+Cmd+?** for the shortcut sheet.
+
 ## For agents: CLI, MCP and the control channel
 
-Every action is a command with an id (`node.indent`, `tag.add`, `field.set`, `nav.today` ...). The same
-commands drive the keyboard shortcuts, the command line, the CLI, the MCP server and the control channel.
+Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
+`nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
+server and the control channel. `tanacraft-cli commands` lists all 153 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params
 tanacraft-cli add "Plant garlic" --today --tag task     # prints the new node id
-tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20"}'
+tanacraft-cli capture "Call the plumber"                # into the capture Inbox
+tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
 tanacraft-cli export today                              # Markdown outline
-tanacraft-cli export 2 --format json                    # JSON tree of Home
+tanacraft-cli export 2 --format json                    # JSON tree of the Library
 tanacraft-mcp --file graph.json                         # MCP server on stdio (headless)
 tanacraft --control 7991 &                              # app + JSON control channel
 tanacraft-mcp --connect 127.0.0.1:7991                  # MCP driving the running app
@@ -80,13 +103,23 @@ tanacraft-mcp --connect 127.0.0.1:7991                  # MCP driving the runnin
 
 | Crate | Job |
 |---|---|
-| `crates/core` | Node graph: nodes, supertags, fields, references, daily notes, trash, undo/redo, JSON file, export |
-| `crates/commands` | `Session` and the command registry (ids, labels, shortcuts, params) |
+| `crates/core` | Node graph: nodes, supertags, fields, references, queries, views, daily notes, trash, undo/redo, JSON file, export |
+| `crates/commands` | `Session` (graph, focus, panels' navigation) and the command registry (ids, labels, shortcuts, params) |
 | `crates/mcp` | MCP server library and the `tanacraft-mcp` binary |
-| `crates/ui-egui` | egui front end and the offscreen `ui_shot` example |
+| `crates/ui-egui` | egui front end; tests drive it with real keys, clicks and drags; the offscreen `ui_shot` example |
 | `apps/tanacraft` | Desktop app (eframe) with the control channel |
 | `apps/tanacraft-cli` | Command line |
 | `xtask` | `cargo xtask ci`, `cargo xtask shots`, `cargo xtask parity` |
+
+Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::run`.
+
+## Roadmap
+
+Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel), views, the editing
+rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
+Inbox, and every behaviour difference the spec team reported in its acceptance test. Next: native menus,
+user fields, per-context notes on references, rich HTML on the clipboard, more import formats and,
+later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room
 

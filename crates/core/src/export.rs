@@ -23,7 +23,7 @@ pub fn node_line(g: &Graph, id: NodeId) -> String {
     let Some(n) = g.get(id) else { return String::new() };
     let t = g.get(g.resolve(id)).unwrap_or(n);
     let mut s = String::new();
-    match t.done {
+    match g.checkbox(id) {
         Some(true) => s.push_str("[x] "),
         Some(false) => s.push_str("[ ] "),
         None => {}

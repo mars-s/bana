@@ -87,6 +87,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tanacraft-commands"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tanacraft-core",
+ "thiserror",
+]
+
+[[package]]
 name = "tanacraft-core"
 version = "0.1.0"
 dependencies = [

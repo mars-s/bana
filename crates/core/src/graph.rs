@@ -274,6 +274,12 @@ impl Graph {
         tags.iter().any(|t| self.tag_lineage(*t).iter().any(|x| self.tag_def(*x).is_some_and(|d| d.checkbox)))
     }
 
+    /// The checkbox a node shows: its own state, or unchecked when a supertag asks for a checkbox.
+    pub fn checkbox(&self, id: NodeId) -> Option<bool> {
+        let id = self.resolve(id);
+        self.get(id)?.done.or_else(|| self.tag_wants_checkbox(id).then_some(false))
+    }
+
     /// Day node for `date`, if it exists.
     pub fn find_day(&self, date: Date) -> Option<NodeId> {
         self.nodes.values().find(|n| n.kind == Kind::Day { date } && !self.in_trash(n.id)).map(|n| n.id)

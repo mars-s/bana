@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 63 | 29 | 5 | 2 |
-| Screenshots (153) | 115 | 29 | 8 | 1 |
+| Spec sections (99) | 65 | 27 | 5 | 2 |
+| Screenshots (153) | 116 | 28 | 8 | 1 |
 
 ## `00-overview.md`
 
@@ -57,7 +57,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
 | 10. Inline formatting | done | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. With a collapsed caret the mark carries on for typed text. While editing, marks show faint and the text between them is styled. Links render blue with a small arrow before them. Bold is drawn brighter (one font weight). Tested. |
 | 11. Trigger characters | partial | `#` keeps the text in the line and the menu filters by it (Create and apply on top, tag descriptions, Cmd+Enter creates, Escape leaves the text, opens above the line near the bottom); @ (empty line: reference node; mid-sentence: inline reference; Create), > (field row, Tab to value), / and ! menus. Missing: Space for AI. |
-| 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste. Missing: rich HTML on the clipboard, paste as code. |
+| 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste; Paste as code (`edit.pasteAsCode`). Missing: rich HTML on the clipboard (egui offers plain text only). |
 | 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
@@ -95,7 +95,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Missing: day length setting, overlapping events side by side. |
 | 11. Display menu | done | Field checkboxes and system fields (created, edited, done time, owner, tags, references). |
 | 12. Group by | done | Fields, tags, done, owner, created and edited day; every option gets a group; Not defined; group headers collapse. |
-| 13. Sort by | partial | Several rules, direction, remove, add, reset; empty values first. Reapply sort and sort-children commands missing. |
+| 13. Sort by | done | Several rules, direction, remove, add, Reapply sort, Reset; empty values first; Sort children commands (`node.sortChildren`). |
 | 14. Filter by | done | Checked state, tags, field values; chips with x; N items filtered out. |
 | 15. View toolbar visibility | done | view.toggleToolbar. |
 
@@ -118,7 +118,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 3. Day page layout (`01-today-shell-dark.png`) | partial | Nav bar, Open tasks card (related content of #day), references. Calendar sync missing. |
 | 4. Navigation | done | Previous/next day, Today, Go to date picker marking days that have notes. |
 | 5. Daily notes root (`60-daily-notes-root.png`) | done | Today's notes embedded under the title with the nav bar. |
-| 6. Week page (`79-week-node.png`) | partial | Previous/next week, day nodes. Schedule card missing. |
+| 6. Week page (`79-week-node.png`) | done | Previous/next week, day nodes, and a Schedule card: the week's time grid with every dated node (by the date field most of them use); New event on it goes on that day. Tested. |
 | 7. Year page (`80-year-node.png`) | done | Previous/next year, weeks newest first. |
 | 8. Adding to today | done | Typing, quick add, Create new (untitled page on today with suggested tags and Create search node), tag-page Create new. |
 | 9. Dates elsewhere | done | Date values (also timed) link to day nodes and show in their References; Insert date... (picker), Insert current date and time, Insert current time put a day link (and time) at the caret. Tested. |
@@ -239,7 +239,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `76-table-number-cell.png` | done | Table number cell. |
 | `77-add-view-menu.png` | done | Add view menu. |
 | `78-description-and-heading.png` | done | Heading and a description edited in place under the name. |
-| `79-week-node.png` | partial | Week page without Schedule. |
+| `79-week-node.png` | done | Week page with day nodes and the Schedule card. |
 | `80-year-node.png` | done | Year page. |
 | `81-space-ai-prompt.png` | missing | AI prompt. |
 | `82-sidebar-pinned-expanded.png` | done | Expandable pinned rows. |

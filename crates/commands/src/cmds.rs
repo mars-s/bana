@@ -79,6 +79,11 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"node"?: id}"#)
         .pure(),
+        C::new("edit.pasteAsCode", "Paste as code", "Edit", |s, v| {
+            let text = p::req_str(v, "text")?.replace(['\n', '\r'], " ").replace('`', "'");
+            insert_text(s, v, &format!("`{text}`"))
+        })
+        .params(r#"{"node"?: id, "caret"?: number, "text": string}  (inserted as inline code)"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

@@ -396,6 +396,10 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     }
                 }
             });
+            // ponytail: sorting is live, so Reapply only closes the menu; it is here for the muscle memory.
+            if !def.sort.is_empty() && ui.button("Reapply sort").clicked() {
+                ui.close();
+            }
             if !def.sort.is_empty() && ui.button(RichText::new("Reset").color(Color32::from_rgb(232, 128, 96))).clicked() {
                 acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": "none"})));
                 ui.close();
@@ -1340,6 +1344,39 @@ fn paint_chip(app: &TanaApp, t: &Tokens, p: &egui::Painter, r: Rect, target: Nod
     }
 }
 
+/// The Schedule card of a week page: the week's time grid with every dated node, placed by the
+/// date field most of them use.
+pub fn schedule(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, week_node: NodeId, year: i32, week: u32) {
+    let Some(jan4) = Date::new(year, 1, 4) else { return };
+    let monday = jan4.add_days(-(jan4.weekday() as i64)).add_days((i64::from(week) - 1) * 7);
+    let days: Vec<Date> = (0..7).map(|k| monday.add_days(k)).collect();
+    let g = &app.session.graph;
+    let mut hits: Vec<(Date, NodeId, NodeId)> = Vec::new();
+    for n in g.iter().filter(|n| !g.in_trash(n.id)) {
+        for e in &n.fields {
+            for v in e.values() {
+                if let Some(d) = v.date().filter(|d| days.contains(d)) {
+                    hits.push((d, n.id, e.field));
+                }
+            }
+        }
+    }
+    // ponytail: one date field per schedule (the most used); several would need per-item fields in the grid.
+    let mut counts: std::collections::BTreeMap<NodeId, usize> = Default::default();
+    for (_, _, f) in &hits {
+        *counts.entry(*f).or_default() += 1;
+    }
+    let field = counts.into_iter().max_by_key(|(_, c)| *c).map(|(f, _)| f);
+    let dated: Vec<(Date, NodeId)> = hits.into_iter().filter(|(_, _, f)| Some(*f) == field).map(|(d, n, _)| (d, n)).collect();
+    ui.add_space(12.0);
+    egui::Frame::new().stroke(Stroke::new(1.0, t.line)).corner_radius(10.0).inner_margin(12.0).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.label(RichText::new("Schedule").strong().size(15.0));
+        ui.add_space(6.0);
+        time_grid(app, ui, t, week_node, field, &days, &dated);
+    });
+}
+
 /// Week / day view: day headers, an all-day strip and a 24-hour grid. Drag an item onto an hour to
 /// give it a time, drag a timed event's bottom edge to resize it, drag on empty grid to create an
 /// event.
@@ -1565,10 +1602,20 @@ fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, 
     }
     if create {
         let name = if ev.name.trim().is_empty() { "New event".to_string() } else { ev.name.clone() };
-        let r = app.exec(
-            "view.addItem",
-            json!({"node": ev.view.0, "name": name, "field": field.0, "value": range_text(ev.day, ev.start, ev.end), "stay": true}),
-        );
+        let on_week = matches!(app.session.graph.get(ev.view).map(|n| &n.kind), Some(tanacraft_core::Kind::Week { .. }));
+        let r = if on_week {
+            // A week's Schedule: the event goes on its day.
+            app.exec("nav.day", json!({"date": ev.day.to_string()}))
+                .and_then(|_| app.exec("nav.open", json!({"node": ev.view.0})))
+                .and_then(|_| app.session.graph.find_day(ev.day).ok_or_else(|| "no day".to_string()))
+                .and_then(|day| app.exec("node.add", json!({"parent": day.0, "name": name})))
+                .and_then(|v| app.exec("field.set", json!({"node": v["id"], "field": field.0, "value": range_text(ev.day, ev.start, ev.end)})))
+        } else {
+            app.exec(
+                "view.addItem",
+                json!({"node": ev.view.0, "name": name, "field": field.0, "value": range_text(ev.day, ev.start, ev.end), "stay": true}),
+            )
+        };
         if let Err(e) = r {
             app.session.status = e;
         }

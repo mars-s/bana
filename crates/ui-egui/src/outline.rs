@@ -124,6 +124,10 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
                 if hidden > 0 {
                     ui.label(RichText::new(format!("{hidden} items filtered out")).size(12.5).color(t.faint));
                 }
+                // A week page ends with its Schedule: the week's time grid (spec 06 §6).
+                if let Some(Kind::Week { year, week }) = app.session.graph.get(zoom).map(|n| n.kind.clone()) {
+                    crate::views::schedule(app, ui, &t, zoom, year, week);
+                }
             }
             references(app, ui, &t, zoom);
         });

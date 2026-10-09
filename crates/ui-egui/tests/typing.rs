@@ -1157,3 +1157,18 @@ fn clicking_text_puts_the_caret_there() {
     let at = name.find('X').unwrap();
     assert!((3..=6).contains(&at), "{name}");
 }
+
+#[test]
+fn week_page_has_a_schedule() {
+    let mut h = harness();
+    let s = h.state_mut();
+    let n = s.exec("node.add", json!({"name": "Dentist"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("field.add", json!({"node": n, "field": "When", "type": "date", "value": "2026-10-08 09:00-10:00"})).unwrap();
+    let week = s.session.graph.iter().find(|x| x.kind == tanacraft_core::Kind::Week { year: 2026, week: 41 }).unwrap().id;
+    s.exec("nav.open", json!({"node": week.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Schedule");
+    h.get_by_label("Time grid");
+}

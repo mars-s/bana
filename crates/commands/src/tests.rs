@@ -786,3 +786,11 @@ fn convert_to_supertag_and_hard_delete() {
     assert_eq!(r["references_removed"], json!(1));
     assert!(s.graph.in_trash(tag));
 }
+
+#[test]
+fn paste_as_code_wraps_in_backticks() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Run "})), "id");
+    run(&mut s, "edit.pasteAsCode", json!({"node": n.0, "text": "cargo xtask ci\n"}));
+    assert_eq!(s.graph.name(n), "Run `cargo xtask ci `");
+}

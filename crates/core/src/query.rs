@@ -13,6 +13,7 @@
 //! | `Effort>2`, `Due<2026-10-20`, `Due<today` | number or date comparison |
 //! | `CREATED:7` | created in the last 7 days |
 //! | `UNDER:42` | inside node 42 |
+//! | `TYPE:task` | tagged with a supertag of that base type |
 //! | `NOT clause` | negation; `OR` between clauses switches to any-of |
 
 use serde::{Deserialize, Serialize};
@@ -97,6 +98,10 @@ pub enum ClauseKind {
     /// References the node (reference node or node-valued field).
     LinksTo {
         node: NodeId,
+    },
+    /// Tagged with any supertag of this base type (`TYPE:task`).
+    BaseType {
+        base: String,
     },
     /// A nested group, in parentheses.
     Group {
@@ -227,6 +232,7 @@ impl Query {
                     ClauseKind::ForDate { date } => format!("DATE:{}", quote(date)),
                     ClauseKind::LinksTo { node } => format!("LINKS:{node}"),
                     ClauseKind::Group { query } => format!("({})", query.describe(g)),
+                    ClauseKind::BaseType { base } => format!("TYPE:{base}"),
                 };
                 if c.not { format!("NOT {body}") } else { body }
             })
@@ -306,6 +312,9 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             n.reference_target() == Some(*node) || crate::format::refs(&n.name).contains(&node.0) || n.has_value(&FieldValue::Node(*node))
         }
         ClauseKind::Group { query } => query.matches(g, id),
+        ClauseKind::BaseType { base } => {
+            n.tags.iter().flat_map(|t| g.tag_lineage(*t)).any(|t| g.tag_def(t).and_then(|d| d.base_type.as_deref()) == Some(base.as_str()))
+        }
         ClauseKind::Tagged { tag } => n.tags.iter().any(|t| g.tag_lineage(*t).contains(tag)),
         ClauseKind::Text { text } => g.text(id).to_lowercase().contains(&text.to_lowercase()),
         ClauseKind::Done => g.checkbox(id) == Some(true),
@@ -435,6 +444,13 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
             return Ok(ClauseKind::Is { what });
         }
         ("IN", ':') if value == "LIBRARY" => return Ok(ClauseKind::InLibrary),
+        ("TYPE", ':') => {
+            let base = value.trim().to_lowercase();
+            if !crate::model::BASE_TYPES.contains(&base.as_str()) {
+                return Err(Error::Invalid(format!("TYPE:{value}: use one of {}", crate::model::BASE_TYPES.join(", "))));
+            }
+            return Ok(ClauseKind::BaseType { base });
+        }
         ("ON", ':') if value == "DAY" => return Ok(ClauseKind::OnDay),
         ("DATE", ':') => {
             Date::parse(&value).ok_or_else(|| Error::Invalid(format!("DATE:{value} is not a date")))?;

@@ -79,6 +79,51 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 if small_button(ui, t, "+ Supertag", false).clicked() {
                     app.acts.push(Act::Pick(PickMode::SearchTag, node, ui.min_rect().left_bottom()));
                 }
+                // Tag fields: the fields of the supertags in the query, as Set / Not set conditions.
+                let g = &app.session.graph;
+                let tags: Vec<NodeId> =
+                    q.clauses.iter().filter_map(|c| if let ClauseKind::Tagged { tag } = c.kind { Some(tag) } else { None }).collect();
+                let fields: Vec<(NodeId, String)> = tags.iter().flat_map(|t| g.template_fields(*t)).map(|f| (f, g.name(f).to_string())).collect();
+                ui.menu_button(RichText::new("Tag fields").size(13.0).color(t.dim), |ui| {
+                    if fields.is_empty() {
+                        ui.label(RichText::new("Add a supertag condition first").color(t.faint));
+                    }
+                    for (_, name) in &fields {
+                        ui.menu_button(name, |ui| {
+                            for (label, not) in [("Set", false), ("Not set", true)] {
+                                if ui.button(label).clicked() {
+                                    app.acts.push(Act::Run(
+                                        "search.addClause".into(),
+                                        json!({"node": node.0, "clause": format!("\"{name}\":*"), "not": not}),
+                                    ));
+                                    ui.close();
+                                }
+                            }
+                        });
+                    }
+                });
+                ui.menu_button(RichText::new("System fields").size(13.0).color(t.dim), |ui| {
+                    for (label, clause) in [
+                        ("Created time: last 7 days", "CREATED:7"),
+                        ("Last edited time: last 7 days", "EDITED:7"),
+                        ("Done time: last 7 days", "DONE:7"),
+                        ("Tags: any", "HAS:TAG"),
+                        ("Date from calendar node: today", "DATE:today"),
+                    ] {
+                        if ui.button(label).clicked() {
+                            app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": clause})));
+                            ui.close();
+                        }
+                    }
+                });
+                ui.menu_button(RichText::new("Tag types").size(13.0).color(t.dim), |ui| {
+                    for b in tanacraft_core::BASE_TYPES {
+                        if ui.button(format!("{b} (base type)")).clicked() {
+                            app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": format!("TYPE:{b}")})));
+                            ui.close();
+                        }
+                    }
+                });
                 ui.menu_button(RichText::new("Search operators").size(13.0).color(t.dim), |ui| {
                     for (label, clause) in [
                         ("TODO", "TODO"),

@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 65 | 27 | 5 | 2 |
-| Screenshots (153) | 116 | 28 | 8 | 1 |
+| Spec sections (99) | 66 | 26 | 5 | 2 |
+| Screenshots (153) | 118 | 26 | 8 | 1 |
 
 ## `00-overview.md`
 
@@ -104,7 +104,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Section | Status | Notes |
 |---|---|---|
 | 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
-| 2. Query builder | partial | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group to type a condition, Search operators menu, the query as text, Run once and Done. Results stay live while editing. Missing: Tag fields / System fields / Field values / Tag types menus, workspace scope. |
+| 2. Query builder | done | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group, menus for Tag fields (Set / Not set), System fields, Tag types (`TYPE:task`) and Search operators, the query as text, Run once and Done. Results stay live while editing; no workspace scope (one workspace per file). Tested. |
 | 3. Command line (Cmd+K) | done | Enter command...: steps for the focused node first (Add tag >, Remove tag, Set <field> >, Move to >, Move and leave reference to >, View as), then commands with shortcuts; steps marked > open a second picker. No node search. Tested. |
 | 4. Search and open (Cmd+S, sidebar magnifier) | partial | Recently viewed, fuzzy search with breadcrumbs, new-tab variant (Cmd+T). Content snippets missing. |
 | 5. Quick add (Cmd+E) | done | Modal with yellow bar, several lines, Cmd+E saves to the end of today, Escape cancels. |
@@ -197,15 +197,15 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `34-slash-menu.png` | done | Slash menu. |
 | `35-search-node-new.png` | done | Create search node. |
 | `36-search-node-result.png` | done | Search node results. |
-| `37-query-builder.png` | partial | Query builder (conditions panel). |
+| `37-query-builder.png` | done | Query builder with group boxes, condition rows, Empty lines and the menus. |
 | `38-view-display-menu.png` | done | Display menu with fields and system fields. |
 | `39-list-with-display-field.png` | done | Display field line. |
 | `40-group-by-menu.jpg` | done | Group by: none, tags, done, owner, created, edited and every field; hidden groups can be shown again. |
 | `41-sort-menu.jpg` | done | Sort menu. |
 | `42-filter-menu.jpg` | done | Filter menu. |
 | `43-search-options-popover.png` | partial | Search options summary in the conditions panel. |
-| `44-query-editor.png` | partial | Query editor. |
-| `45-search-operators.png` | partial | Search operators subset. |
+| `44-query-editor.png` | done | Query editor with nested groups, Run once and Done. |
+| `45-search-operators.png` | partial | Search operators: TODO, DONE, DONE/CREATED/EDITED last N days, HAS TAG/FIELD, IS TAG/FIELD/SEARCH/CALENDAR, IN LIBRARY, ON DAY, FOR DATE; no user, media or chat operators. |
 | `46-search-node-options-menu.png` | partial | Search node options menu subset. |
 | `47-view-as-submenu.jpg` | done | View as submenu. |
 | `48-table-view.png` | done | Table view. |

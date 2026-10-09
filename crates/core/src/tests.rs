@@ -563,3 +563,16 @@ fn timed_date_values() {
     assert_eq!(export::display_value(&g, &v), "2026-10-17 11:15-12:30");
     assert!(export::shown_value(&g, &v).ends_with("11:15 - 12:30"));
 }
+
+#[test]
+fn base_type_query_matches_tags_of_that_type() {
+    let g = garden();
+    let names = |q: &str| {
+        let q = Query::parse(&g, q).unwrap();
+        let mut v: Vec<String> = q.run(&g, NodeId(0)).iter().map(|n| g.name(*n).to_string()).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(names("TYPE:task AND DONE"), ["Order cedar boards"]);
+    assert!(Query::parse(&g, "TYPE:spaceship").is_err());
+}

@@ -1000,8 +1000,18 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
                 detail(app, ui, t, s);
             }
         }
+        // List: a narrow master list; the selected item opens in the panel to the right.
+        ViewKind::List => {
+            ui.vertical(|ui| {
+                ui.set_width(300.0f32.min(ui.available_width()));
+                for i in &items {
+                    entry(ui, app, *i, false);
+                }
+                add_button(app, ui, t, node, None);
+            });
+        }
         _ => {
-            let list_w = if kind == ViewKind::List { 280.0 } else { 180.0 };
+            let list_w = 180.0;
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(list_w);
@@ -1021,6 +1031,9 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
     }
     if let Some(p) = pick {
         app.session.nav_selected.insert(node, p);
+        if kind == ViewKind::List {
+            app.acts.push(Act::ShowBeside(app.session.graph.resolve(p)));
+        }
     }
 }
 

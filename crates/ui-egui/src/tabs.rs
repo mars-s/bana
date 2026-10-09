@@ -76,6 +76,22 @@ impl TanaApp {
         self.load_active();
     }
 
+    /// Shows `node` in the panel to the right of the active one (made when missing), keeping the
+    /// active panel (a list view's detail, spec 04 §7).
+    pub fn show_beside(&mut self, node: NodeId) {
+        self.store_active();
+        let nav = self.session.new_nav(node);
+        if let Some(tab) = self.tabs.get_mut(self.tab) {
+            let at = tab.active + 1;
+            if at < tab.panels.len() {
+                tab.panels[at] = nav;
+            } else {
+                tab.panels.push(nav);
+            }
+        }
+        self.load_active();
+    }
+
     pub fn close_panel(&mut self, i: usize) {
         self.store_active();
         if let Some(tab) = self.tabs.get_mut(self.tab)

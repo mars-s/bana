@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 61 | 31 | 5 | 2 |
+| Spec sections (99) | 63 | 29 | 5 | 2 |
 | Screenshots (153) | 99 | 32 | 21 | 1 |
 
 ## `00-overview.md`
@@ -89,7 +89,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 4. Cards | done | Grid of cards: tag header, checkbox and name, display fields footer, + Add. |
 | 5. Board (cards grouped) | done | Columns per value including empty options and <Field> not set; dragging a card sets the value; + Add per column. |
 | 6. Lanes | done | Each item a lane with its children. |
-| 7. List (navigation view) | partial | Item list with the selected item beside it (same panel, not a second panel). |
+| 7. List (navigation view) | done | A narrow list (name, display fields, + Add); clicking an item opens it in the panel to the right (reused on the next click), the list keeps the focus. Tested. |
 | 8. Side menu | done | Compact menu and selected item content. |
 | 9. Tabs | done | Items as tabs, selected item below. |
 | 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Missing: day length setting, overlapping events side by side. |
@@ -131,7 +131,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Sidebar contents and behaviour | done | Fixed entries, Create new, Search, Pinned with expandable children, workspace items. |
 | 3. Recents and AI chats | partial | Recents page: list beside the selected node. No AI chats. |
 | 4. Tabs | done | Tab strip, Cmd+T (search and open in a new tab), Cmd+W, Ctrl+Tab, Ctrl+Shift+Tab, Cmd+1..9; each tab keeps its panels and history. |
-| 5. Panels | partial | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel. Configure and list views stay in the same panel. |
+| 5. Panels | done | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel; Configure supertag and list-view details open in the panel to the right. |
 | 6. Navigation history | done | Back/forward per panel; zoom out restores the caret. |
 | 7. Breadcrumbs | done | Workspace avatar, clickable ancestors, long chains collapse to first / ... / last two. |
 | 8. Special pages | done | Library, Schema, Inbox (Open capture inbox; explains where captures come from), Trash, Settings (theme, sidebar, autosave). |

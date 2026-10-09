@@ -141,6 +141,8 @@ pub(crate) enum Act {
     /// "Go to date": a month picker that opens the chosen day.
     GoToDate(egui::Pos2),
     ClosePanel(usize),
+    /// Show a node in the panel to the right (list view detail).
+    ShowBeside(NodeId),
     /// `@` typed mid-sentence at this caret.
     PickInline(NodeId, usize, egui::Pos2),
     /// `#` typed at this char index: the tag menu filters by the text after it.
@@ -628,6 +630,7 @@ impl TanaApp {
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::ClosePanel(i) => self.close_panel(i),
+                Act::ShowBeside(n) => self.show_beside(n),
                 Act::PickTagInline(node, hash, at) => {
                     self.open_picker(PickMode::Tag, node, at);
                     if let Some(p) = self.picker.as_mut() {

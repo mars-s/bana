@@ -1033,3 +1033,26 @@ fn table_header_renames_the_field_in_place() {
     assert_eq!(h.state().session.graph.name(pages), "Page count");
     assert!(h.state().header_edit.is_none());
 }
+
+#[test]
+fn list_view_opens_the_selected_item_in_the_next_panel() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Alpha", "Beta"]);
+    h.state_mut().exec("view.set", json!({"kind": "list"})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Beta").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().panel_count(), 2);
+    assert_eq!(h.state().tabs[0].active, 0, "the list keeps the focus");
+    assert_eq!(h.state().tabs[0].panels[1].zoom, ids[1]);
+    h.get_by_label("Alpha").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().panel_count(), 2, "the same panel is reused");
+    assert_eq!(h.state().tabs[0].panels[1].zoom, ids[0]);
+}

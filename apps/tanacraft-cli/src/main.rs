@@ -25,7 +25,7 @@ commands:
   commands                          list every command (id, shortcut, params)
   sample [--out FILE]               write the sample graph
   mcp [--connect HOST:PORT]         MCP server on stdio
-  serve [--port PORT] [--sample] [--web DIR] [--today YYYY-MM-DD]
+  serve [--port PORT] [--sample | --large N] [--web DIR] [--today YYYY-MM-DD]
                                     serve the web UI and its JSON API on 127.0.0.1 (default port 8787);
                                     --sample without --file keeps the sample in memory only
 
@@ -241,8 +241,18 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             let web = take_opt(&mut args, "--web").map(PathBuf::from).unwrap_or_else(default_web_dir);
             let today = take_opt(&mut args, "--today").map(|d| Date::parse(&d).ok_or(format!("--today: bad date `{d}`"))).transpose()?;
             let sample_mode = take_flag(&mut args, "--sample");
-            let session = tanacraft_server::open_session(explicit_file.then_some(file), sample_mode, today)?;
+            let large = take_opt(&mut args, "--large").map(|n| n.parse::<usize>().map_err(|e| format!("--large: {e}"))).transpose()?;
+            let session = match large {
+                // A generated graph of about N nodes, in memory (speed tests).
+                Some(n) => {
+                    let mut s = Session::with_today(sample::large(n.min(2_000_000)).map_err(|e| e.to_string())?, today.unwrap_or_else(Date::today));
+                    s.run("nav.home", &json!({})).map_err(cmd_err)?;
+                    s
+                }
+                None => tanacraft_server::open_session(explicit_file.then_some(file), sample_mode, today)?,
+            };
             let shared = tanacraft_server::http::Shared::new(tanacraft_server::Host::new(session));
+            shared.spawn_autosave();
             eprintln!("{PRODUCT_NAME}: serving http://127.0.0.1:{port}/ (web UI from {})", web.display());
             tanacraft_server::http::serve(shared, port, web)?;
             Ok(String::new())

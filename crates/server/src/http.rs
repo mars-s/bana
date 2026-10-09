@@ -64,10 +64,10 @@ impl Shared {
     }
 }
 
-/// Serves until the process ends. `web` is the built web UI (`web/dist`).
+/// Serves until the process ends. `web` is the built web UI (`web/dist`). Call
+/// [`Shared::spawn_autosave`] once as well.
 pub fn serve(shared: Arc<Shared>, port: u16, web: PathBuf) -> Result<(), String> {
     let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("port {port}: {e}"))?;
-    shared.spawn_autosave();
     for stream in listener.incoming().flatten() {
         let shared = Arc::clone(&shared);
         let web = web.clone();

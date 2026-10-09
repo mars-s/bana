@@ -28,12 +28,14 @@ pub struct Host {
     active: String,
     /// Bumped after every request that may have changed what is shown.
     pub version: u64,
+    /// Page reads served (a health check: a front end is alive and reading).
+    pub reads: u64,
     dirty_since: Option<Instant>,
 }
 
 impl Host {
     pub fn new(session: Session) -> Host {
-        Host { session, panels: HashMap::new(), active: MAIN_PANEL.to_string(), version: 1, dirty_since: None }
+        Host { session, panels: HashMap::new(), active: MAIN_PANEL.to_string(), version: 1, reads: 0, dirty_since: None }
     }
 
     /// Makes `panel` the session's active panel (creating it on the active page if new).
@@ -65,8 +67,14 @@ impl Host {
                     Err(e) => json!({"error": e.to_string()}),
                 }
             }
-            "page" => snapshot::page(&self.session, params),
+            "page" => {
+                self.reads += 1;
+                let mut p = snapshot::page(&self.session, params);
+                p["version"] = json!(self.version);
+                p
+            }
             "sidebar" => snapshot::sidebar(&self.session),
+            "find" => snapshot::find(&self.session, params),
             "commands" => self.session.registry.describe(),
             "panel.open" => {
                 // A new panel showing `node` (or a copy of the active panel's page).
@@ -94,7 +102,7 @@ impl Host {
                 Ok(()) => json!({"ok": true}),
                 Err(e) => json!({"error": e}),
             },
-            "version" => json!({"version": self.version}),
+            "version" => json!({"version": self.version, "reads": self.reads}),
             other => json!({"error": format!("unknown method `{other}`")}),
         }
     }

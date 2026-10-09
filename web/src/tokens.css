@@ -1,0 +1,147 @@
+/* Every design token of the UI, in one place. Dark is the default; light overrides colours only.
+   Values are measured from the spec's screenshots (../tanacraft-spec/screens, 1512x949 window)
+   until ../tanacraft-spec/10-visual-design.md gives exact ones. Screens use only var(--...). */
+
+:root {
+  /* Type */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --fs-body: 15px;
+  --fs-title: 29px;
+  --fs-heading: 20px;
+  --fs-sidebar: 14.5px;
+  --fs-small: 13px;
+  --fs-tiny: 12px;
+  --fs-chip: 12.5px;
+  --lh-body: 21px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Layout */
+  --topbar-h: 44px;
+  --sidebar-w: 225px;
+  --sidebar-pad-x: 15px;
+  --sidebar-row-h: 30px;
+  --panel-inset: 1px;
+  --panel-radius: 8px;
+  --crumbs-h: 40px;
+  --content-left: 36px;
+  --content-max: 760px;
+  --content-top: 28px;
+  --row-h: 28px;
+  --indent: 32px;
+  --bullet-col: 16px;
+  --chevron-w: 16px;
+  --side-card-w: 404px;
+  --tab-w: 178px;
+  --tab-h: 24px;
+
+  /* Shape */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  /* Motion */
+  --dur-fast: 90ms;
+  --dur-med: 160ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Colour: dark */
+  --c-chrome: #232526;
+  --c-panel: #1a1c1d;
+  --c-card: #1e2021;
+  --c-card-border: #2c2e30;
+  --c-hover: #2a2c2e;
+  --c-active: #303234;
+  --c-tab: #363636;
+  --c-tab-hover: #2d2f30;
+  --c-button: #282a2b;
+  --c-button-border: #333537;
+  --c-chip: #363636;
+  --c-chip-text: #8f8f8f;
+  --c-field: #212325;
+  --c-line: #2e3032;
+  --c-guide: #2c2e30;
+  --c-text: #d7d9da;
+  --c-title: #dddcde;
+  --c-sidebar-text: #b3b5b6;
+  --c-dim: #828485;
+  --c-faint: #5a5c5e;
+  --c-bullet: #888a8b;
+  --c-bullet-ring: #303234;
+  --c-link: #7099df;
+  --c-accent: #4c82e6;
+  --c-selection: rgba(76, 130, 230, 0.18);
+  --c-selection-border: rgba(76, 130, 230, 0.55);
+  --c-text-selection: rgba(76, 130, 230, 0.35);
+  --c-warn: #e0b030;
+  --c-danger: #e06c60;
+  --c-highlight: rgba(214, 178, 46, 0.32);
+  --c-code: #de8c50;
+  --c-overlay: rgba(0, 0, 0, 0.45);
+  --c-menu: #26282a;
+  --c-menu-border: #36383a;
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--c-menu-border);
+  --tag-chip-alpha: 22%;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --c-chrome: #f4f4f4;
+  --c-panel: #ffffff;
+  --c-card: #ffffff;
+  --c-card-border: #e6e6e6;
+  --c-hover: #ececec;
+  --c-active: #e4e4e4;
+  --c-tab: #e4e4e4;
+  --c-tab-hover: #ebebeb;
+  --c-button: #f4f4f4;
+  --c-button-border: #e2e2e2;
+  --c-chip: #f4f4f4;
+  --c-chip-text: #828282;
+  --c-field: #f7f7f7;
+  --c-line: #e6e6e6;
+  --c-guide: #e8e8e8;
+  --c-text: #292a2b;
+  --c-title: #292a2b;
+  --c-sidebar-text: #292a2b;
+  --c-dim: #8c8c8c;
+  --c-faint: #b9b9b9;
+  --c-bullet: #828282;
+  --c-bullet-ring: #e8e8e8;
+  --c-link: #427bd3;
+  --c-accent: #2961f6;
+  --c-selection: rgba(41, 97, 246, 0.1);
+  --c-selection-border: rgba(41, 97, 246, 0.45);
+  --c-text-selection: rgba(41, 97, 246, 0.22);
+  --c-highlight: rgba(250, 214, 80, 0.55);
+  --c-code: #c0602c;
+  --c-overlay: rgba(0, 0, 0, 0.18);
+  --c-menu: #ffffff;
+  --c-menu-border: #e2e2e2;
+  --shadow-menu: 0 8px 28px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--c-menu-border);
+  --tag-chip-alpha: 12%;
+  color-scheme: light;
+}
+
+/* Supertag colours (by name, see tanacraft_core::TAG_COLORS). */
+:root {
+  --tag-grey: #8c9098;
+  --tag-red: #e85454;
+  --tag-orange: #ec843c;
+  --tag-amber: #e0a830;
+  --tag-yellow: #cebe3c;
+  --tag-lime: #8cc440;
+  --tag-green: #46b46e;
+  --tag-teal: #2caea0;
+  --tag-cyan: #3cacd6;
+  --tag-blue: #4c84f0;
+  --tag-indigo: #6e70ec;
+  --tag-violet: #9a68e8;
+  --tag-pink: #e254a6;
+  --tag-none: var(--c-chip-text);
+}

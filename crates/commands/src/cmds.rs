@@ -391,6 +391,11 @@ pub fn registry() -> Registry {
         })
         .pure(),
         C::new("focus.set", "Focus node", "View", focus_set).params(r#"{"node": id, "caret"?: chars}"#).pure(),
+        C::new("focus.clear", "Stop editing", "View", |s, _| {
+            s.focus = None;
+            Ok(json!({}))
+        })
+        .pure(),
         // Navigation.
         C::new("nav.zoomIn", "Zoom in", "Navigate", zoom_in).key("Mod+.").params(r#"{"node"?: id}"#).pure(),
         C::new("nav.zoomOut", "Zoom out", "Navigate", zoom_out).key("Mod+,").pure(),

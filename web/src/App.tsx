@@ -1,0 +1,203 @@
+// The window: top bar (sidebar button, history, tabs, right cluster), sidebar and panels.
+
+import { useEffect } from 'react'
+import { Icon, TodayIcon, type IconName } from './icons'
+import { Panel, tagStyle } from './Outline'
+import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
+import { bufferKey, currentEditor, exec, handleKey, inBarrier, runUiCommand } from './controller'
+import { keyInfo } from './keys'
+import { Overlays } from './Overlays'
+import type { SidebarItem } from './engine'
+
+function TopBar() {
+  const tabs = useStore((s) => s.tabs)
+  const tab = useStore((s) => s.tab)
+  const pages = useStore((s) => s.pages)
+  const active = useStore((s) => s.activePanel)
+  const page = pages[active]
+  return (
+    <header className="topbar" data-tauri-drag-region>
+      <div className="topbar-left">
+        <button className="icon-btn" title="Sidebar (full, mini, hidden)" onClick={() => runUiCommand('ui.toggleSidebar')}>
+          <Icon name="sidebar" />
+        </button>
+        <button className="icon-btn" title="Back" disabled={!page?.canBack} onClick={() => void exec('nav.back')}>
+          <Icon name="back" />
+        </button>
+        <button className="icon-btn" title="Forward" disabled={!page?.canForward} onClick={() => void exec('nav.forward')}>
+          <Icon name="forward" />
+        </button>
+      </div>
+      <nav className="tabs" data-tauri-drag-region>
+        {tabs.map((t, i) => (
+          <div
+            key={t.id}
+            className={`tab${i === tab ? ' active' : ''}`}
+            onMouseDown={() => void switchTab(i)}
+            title={t.panels.map((p) => pages[p]?.title ?? '').join(' | ')}
+          >
+            {t.panels.map((p, j) => (
+              <span key={p} className="tab-title">
+                {j > 0 && <span className="tab-div" />}
+                {pages[p]?.title ?? ''}
+              </span>
+            ))}
+            {tabs.length > 1 && (
+              <span
+                className="tab-close"
+                onMouseDown={(e) => {
+                  e.stopPropagation()
+                  void closeTab(i)
+                }}
+              >
+                <Icon name="close" size={11} />
+              </span>
+            )}
+          </div>
+        ))}
+        <button className="icon-btn tab-add" title="New tab" onClick={() => void newTab()}>
+          <Icon name="plus" size={14} />
+        </button>
+      </nav>
+      <div className="topbar-right">
+        <button className="icon-btn" title="Help" onClick={() => void exec('nav.home')}>
+          <Icon name="help" />
+        </button>
+        <button className="icon-btn" title="Keyboard shortcuts" onClick={() => runUiCommand('ui.shortcuts')}>
+          <Icon name="keyboard" />
+        </button>
+        <button className="icon-btn" title="Switch light or dark theme" onClick={() => runUiCommand('ui.toggleTheme')}>
+          <Icon name="user" />
+        </button>
+      </div>
+    </header>
+  )
+}
+
+function SideRow({ icon, label, onClick, active, children }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; children?: React.ReactNode }) {
+  return (
+    <div className={`side-row${active ? ' active' : ''}`} onClick={onClick} role="button" title={label}>
+      <span className="side-icon">{icon}</span>
+      <span className="side-label">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function pinIcon(it: SidebarItem): React.ReactNode {
+  if (it.icon) return <span className="emoji">{it.icon}</span>
+  if (it.kind === 'tag')
+    return (
+      <span className="side-hash" style={tagStyle(it.color ?? 'none')}>
+        #
+      </span>
+    )
+  const map: Record<string, IconName> = { search: 'search', day: 'daily', journal: 'daily', trash: 'trash', library: 'home', inbox: 'inbox' }
+  return map[it.kind] ? <Icon name={map[it.kind]} /> : <span className="side-dot" />
+}
+
+function Sidebar() {
+  const sb = useStore((s) => s.sidebar)
+  const mode = useStore((s) => s.sidebarMode)
+  const active = useStore((s) => s.activePanel)
+  const page = useStore((s) => s.pages[s.activePanel])
+  if (!sb || mode === 2) return null
+  const zoom = page?.zoom
+  const shows = (k: string) => !sb.hidden.includes(k)
+  return (
+    <aside className={`sidebar${mode === 1 ? ' mini' : ''}`} data-panel-for={active}>
+      <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
+      {shows('supertags') && <SideRow icon={<Icon name="hash" />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
+      {shows('recents') && <SideRow icon={<Icon name="clock" />} label="Recents" onClick={() => setState({ overlay: { kind: 'search', query: '', recents: true } })} />}
+      <div className="side-actions">
+        <button className="btn create" onClick={() => void exec('node.createNew')}>
+          <Icon name="compose" />
+          <span className="side-label">Create new</span>
+        </button>
+        <button className="btn icon" title="Search and open" onClick={() => runUiCommand('ui.searchOpen')}>
+          <Icon name="search" />
+        </button>
+      </div>
+      {sb.pinned.length > 0 && <div className="side-head">Pinned</div>}
+      {sb.pinned.map((it) => (
+        <SideRow key={it.id} icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
+      ))}
+      {sb.workspaces.map((ws) => (
+        <div key={ws.id} className="side-ws">
+          <div className="side-ws-head">
+            <Icon name="workspace" size={14} />
+            <span className="side-label">{ws.name}</span>
+            <span className="spacer" />
+            <button className="icon-btn small" title="Add to workspace" onClick={() => void exec('node.add', { name: '', parent: ws.library })}>
+              <Icon name="plus" size={12} />
+            </button>
+          </div>
+          {ws.main && shows('daily_notes') && <SideRow icon={<Icon name="daily" />} label="Daily notes" active={zoom === sb.journal} onClick={() => void exec('nav.dailyNotes')} />}
+          <SideRow icon={<Icon name="home" />} label="Library" active={zoom === ws.library} onClick={() => void exec('nav.open', { node: ws.library })} />
+          <SideRow icon={<Icon name="trash" />} label="Trash" active={zoom === ws.trash} onClick={() => void exec('nav.open', { node: ws.trash })} />
+        </div>
+      ))}
+      <div className="side-foot" onClick={() => void exec('workspace.list')}>
+        Manage workspaces
+      </div>
+    </aside>
+  )
+}
+
+function Toast() {
+  const t = useStore((s) => s.toast)
+  return t ? <div className="toast">{t}</div> : null
+}
+
+export function App() {
+  const theme = useStore((s) => s.theme)
+  const tabs = useStore((s) => s.tabs)
+  const tab = useStore((s) => s.tab)
+  const panels = tabs[tab]?.panels ?? []
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (['Shift', 'Meta', 'Control', 'Alt', 'CapsLock'].includes(e.key) || e.isComposing) return
+      const s = getState()
+      if (s.overlay) return
+      const target = e.target as HTMLElement | null
+      const inOtherInput = target?.closest?.('input, textarea') && !target.closest('.editor-input') && !target.closest('.title-input')
+      if (inOtherInput || target?.closest?.('.title-input')) return
+      const k = keyInfo(e)
+      // A command is moving the caret: the key waits and is replayed where the caret lands.
+      if (inBarrier()) {
+        e.preventDefault()
+        bufferKey(k)
+        return
+      }
+      // The focused line is scrolled away (its editor is not drawn): bring it back first.
+      const page = s.pages[s.activePanel]
+      if (page?.focus != null && !currentEditor()) {
+        e.preventDefault()
+        bufferKey(k)
+        setState((st) => ({ focusScroll: st.focusScroll + 1 }))
+        return
+      }
+      if (handleKey(k)) e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
+  return (
+    <div className="app">
+      <TopBar />
+      <div className="body">
+        <Sidebar />
+        <main className="panels">
+          {panels.map((p) => (
+            <Panel key={p} panel={p} many={panels.length > 1} />
+          ))}
+        </main>
+      </div>
+      <Overlays />
+      <Toast />
+    </div>
+  )
+}

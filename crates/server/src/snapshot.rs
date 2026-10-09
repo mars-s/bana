@@ -362,3 +362,24 @@ pub fn sidebar(s: &Session) -> Value {
         "recents": s.recents.iter().filter(|r| g.get(**r).is_some()).map(|r| json!({"id": r.0, "name": page_title(s, *r), "kind": kind_name(g, *r)})).collect::<Vec<_>>(),
     })
 }
+
+/// "Search and open": fuzzy matches (or recent pages for an empty query) with where they live.
+pub fn find(s: &Session, params: &Value) -> Value {
+    let g = &s.graph;
+    let q = params.get("query").and_then(Value::as_str).unwrap_or_default();
+    let limit = tanacraft_commands::p::usize(params, "limit").unwrap_or(12).min(100);
+    let ids: Vec<NodeId> =
+        if q.trim().is_empty() { s.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(limit).collect() } else { g.fuzzy(q, limit) };
+    let mut refs = BTreeMap::new();
+    Value::Array(
+        ids.into_iter()
+            .map(|id| {
+                let mut v = node_info(s, id, &mut refs);
+                let path: Vec<String> = g.ancestors(id).into_iter().filter(|a| *a != g.sys.root && *a != id).map(|a| page_title(s, a)).collect();
+                v["title"] = json!(page_title(s, id));
+                v["path"] = json!(path.join(" / "));
+                v
+            })
+            .collect(),
+    )
+}

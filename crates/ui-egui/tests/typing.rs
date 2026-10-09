@@ -2193,3 +2193,85 @@ fn diffs_n31_space_after_a_checkbox_field_name_does_nothing() {
     assert_eq!(h.state().session.graph.children(page), &[x], "no stray node");
     assert!(values_of(&h, page, "Outdoors").is_empty() || before == h.state().session.graph.to_json().unwrap());
 }
+
+#[test]
+fn diffs_n32_a_field_value_typed_below_the_first_screen_is_kept_and_scrolled_to() {
+    let mut h = harness();
+    let page = page_with(&mut h, &["Long"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let ids: Vec<_> = (1..=60)
+        .map(|i| {
+            let r = h.state_mut().exec("node.add", json!({"parent": page.0, "name": format!("line {i}")})).unwrap();
+            tanacraft_core::NodeId(r["id"].as_u64().unwrap())
+        })
+        .collect();
+    h.step();
+    focus(&mut h, ids[39], 7);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">FP");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    type_chars(&mut h, "valpos");
+    // The page scrolled to the value being typed.
+    let id = h.ctx.memory(|m| m.focused()).expect("the value editor has the keyboard");
+    let r = h.ctx.read_response(id).unwrap().rect;
+    assert!(r.top() >= 0.0 && r.bottom() <= 800.0, "value editor on screen: {r:?}");
+    assert_eq!(values_of(&h, page, "FP"), ["valpos"]);
+    // A second value after Enter, then Escape.
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, "two");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(values_of(&h, page, "FP"), ["valpos", "two"]);
+}
+
+/// Waits a little over a second of app time, then reads the file as a force-kill would leave it:
+/// no quit hook runs (DIFFS N26).
+fn kill_after_a_second(h: &mut H<'_>) -> Graph {
+    let start = h.ctx.input(|i| i.time);
+    while h.ctx.input(|i| i.time) - start < 1.6 {
+        h.step();
+    }
+    Graph::load(h.state().session.path.as_ref().unwrap()).unwrap()
+}
+
+#[test]
+fn diffs_n26_a_field_name_survives_a_force_kill() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-kill-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut h = harness();
+    h.state_mut().session.path = Some(dir.join("graph.json"));
+    h.state_mut().autosave = true;
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Fresh9");
+    let g = kill_after_a_second(&mut h);
+    let f = g.find_field("Fresh9").expect("field name saved before the kill");
+    assert!(g.get(page).unwrap().fields.iter().any(|e| e.field == f));
+    assert_eq!(g.children(page), &[x], "no blank line in the file");
+    // The name editor is still open and typing goes on; the live graph has no draft field yet.
+    assert!(h.state().picker.is_some());
+    assert!(h.state().session.graph.find_field("Fresh9").is_none());
+    type_chars(&mut h, "x");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    type_chars(&mut h, "val");
+    let g = kill_after_a_second(&mut h);
+    let f = g.find_field("Fresh9x").expect("the longer name");
+    assert_eq!(g.get(page).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(&g, v)).collect::<Vec<_>>(), ["val"]);
+    // Abandoned: the name is typed away and Escape closes the menu; the file loses the draft.
+    let mut h2 = harness();
+    h2.state_mut().session.path = Some(dir.join("graph2.json"));
+    h2.state_mut().autosave = true;
+    let ids = page_with(&mut h2, &["y"]);
+    focus(&mut h2, ids[0], 1);
+    key(&mut h2, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h2, ">Gone");
+    assert!(kill_after_a_second(&mut h2).find_field("Gone").is_some());
+    for _ in 0..4 {
+        key(&mut h2, Key::Backspace, Modifiers::NONE);
+    }
+    key(&mut h2, Key::Escape, Modifiers::NONE);
+    assert!(kill_after_a_second(&mut h2).find_field("Gone").is_none());
+    std::fs::remove_dir_all(&dir).ok();
+}

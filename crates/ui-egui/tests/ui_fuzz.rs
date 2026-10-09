@@ -85,13 +85,16 @@ fn editing(ctx: &egui::Context) -> bool {
     ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some())
 }
 
-fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp> {
+/// `long`: a page of 70 lines in a small window, so most rows sit below the first screen and
+/// editors there must still get every key (DIFFS N32).
+fn run_seed(seed: u64, events: usize, long: bool) -> egui_kittest::Harness<'static, TanaApp> {
     let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
     let s = Session::with_today(sample::sample(today).unwrap_or_else(|e| panic!("{e}")), today);
     let mut app = TanaApp::new(s);
     app.mac = true;
-    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+    let size = if long { egui::vec2(900.0, 500.0) } else { egui::vec2(1200.0, 800.0) };
+    let mut h = egui_kittest::Harness::builder().with_size(size).build_ui_state(
         |ui, app: &mut TanaApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);
@@ -100,6 +103,12 @@ fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp>
         app,
     );
     h.state_mut().exec("nav.today", json!({})).ok();
+    if long {
+        let day = h.state().session.zoom;
+        for i in 0..70 {
+            h.state_mut().exec("node.add", json!({"parent": day.0, "name": format!("Row {i}")})).ok();
+        }
+    }
     h.step();
     let mut log = Vec::new();
     let typing_seeds = std::env::var("UI_FUZZ_TYPING").map(|v| v != "0").unwrap_or(true);
@@ -112,7 +121,7 @@ fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp>
         let before_home = before_focus || h.state().overlay_open() || h.state().session.sel.is_some() || before_target;
         let before_graph = h.state().session.graph.to_json().unwrap_or_default();
         let before_text = h.state().pending_text();
-        let action = r.below(12);
+        let action = r.below(if long { 13 } else { 12 });
         let mut typed_text = "";
         log.push(format!(
             "  (focus {:?}, egui focus {before_focus}, sel {:?}, overlay {:?}, zoom {})",
@@ -124,7 +133,7 @@ fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp>
         match action {
             10 | 11 => {
                 // A click somewhere: buttons, chips, menus, rows.
-                let pos = egui::pos2(r.below(1200) as f32, r.below(800) as f32);
+                let pos = egui::pos2(r.below(size.x as usize) as f32, r.below(size.y as usize) as f32);
                 log.push(format!("click {pos:?}"));
                 let ev = |pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
                 h.input_mut().events.push(Event::PointerMoved(pos));
@@ -148,11 +157,35 @@ fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp>
                 log.push(format!("text {t:?}"));
                 h.input_mut().events.push(Event::Text(t.into()));
             }
+            12 => {
+                // A `>` field row typed under a line low on the page, then on into its value.
+                let rows = h.state().session.rows();
+                if let Some(row) = rows.get(rows.len().saturating_sub(1 + r.below(30))) {
+                    let id = row.id;
+                    log.push(format!("field row under {id}"));
+                    h.state_mut().exec("select.clear", json!({})).ok();
+                    let end = h.state().session.graph.name(id).chars().count();
+                    h.state_mut().exec("focus.set", json!({"node": id.0, "caret": end})).ok();
+                    h.step();
+                    for ev in [
+                        Event::Key { key: Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE },
+                        Event::Text(">".into()),
+                        Event::Text("Fz".into()),
+                        Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE },
+                    ] {
+                        h.input_mut().events.push(ev);
+                        h.step();
+                        h.step();
+                    }
+                }
+            }
             8 => {
                 // Focus a random visible row (what a click does).
                 let rows = h.state().session.rows();
                 if !rows.is_empty() {
-                    let id: NodeId = rows[r.below(rows.len())].id;
+                    // Long pages mostly focus a line below the first screen.
+                    let i = if long && r.below(3) > 0 { rows.len() - 1 - r.below(rows.len() / 2) } else { r.below(rows.len()) };
+                    let id: NodeId = rows[i].id;
                     log.push(format!("focus {id}"));
                     h.state_mut().exec("select.clear", json!({})).ok();
                     h.state_mut().exec("focus.set", json!({"node": id.0, "caret": r.below(6)})).ok();
@@ -192,6 +225,17 @@ fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp>
             if !home && app.outline_shown() && !app.session.rows().is_empty() {
                 let focused = h.query_all(egui_kittest::kittest::by()).find(|n| n.is_focused()).map(|n| format!("{n:?}")).unwrap_or_default();
                 let app = h.state();
+                eprintln!("pending {:?} field row {:?}", app.pending_text(), app.field_sel);
+                if let Some(f) = app.session.focus {
+                    let g = &app.session.graph;
+                    eprintln!(
+                        "focused line shown {}, parent {:?} {:?} expanded {}",
+                        app.session.rows().iter().any(|r| r.id == f),
+                        g.parent(f),
+                        g.parent(f).map(|p| g.name(p).to_string()),
+                        g.parent(f).is_some_and(|p| g.is_expanded(p))
+                    );
+                }
                 panic!(
                     "seed {seed}: the keyboard was lost (focused widget {focused:?}, focus {:?}, zoom {}, status {:?}) after:\n{}",
                     app.session.focus,
@@ -227,7 +271,19 @@ fn random_keys_never_crash_the_ui() {
     let events: usize = std::env::var("UI_FUZZ_EVENTS").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
     let first: u64 = std::env::var("UI_FUZZ_FIRST").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
     for seed in first..=seeds.max(first) {
-        run_seed(seed, events);
+        run_seed(seed, events, false);
+    }
+}
+
+/// The same on long pages: keys typed below the first screen (field names, values, lines) land.
+/// Longer runs: `UI_FUZZ_SEEDS=500 cargo test -p tanacraft-ui-egui --test ui_fuzz --release long`.
+#[test]
+fn random_keys_on_long_pages_never_lose_text() {
+    let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
+    let events: usize = std::env::var("UI_FUZZ_EVENTS").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
+    let first: u64 = std::env::var("UI_FUZZ_FIRST").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
+    for seed in first..=seeds.max(first) {
+        run_seed(seed + 5000, events, true);
     }
 }
 
@@ -238,15 +294,26 @@ fn quitting_at_a_random_point_keeps_typed_text() {
     let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
     let dir = std::env::temp_dir().join(format!("tanacraft-quit-fuzz-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
-    for seed in 1..=seeds {
+    let first: u64 = std::env::var("UI_FUZZ_FIRST").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
+    for seed in first..=seeds.max(first) {
         let events = 20 + (Rng(seed | 1).next() % 120) as usize;
-        let mut h = run_seed(seed + 1000, events);
+        let mut h = run_seed(seed + 1000, events, seed % 2 == 0);
         let editors = h.state().unsaved_text();
         let path = dir.join(format!("{seed}.json"));
         h.state_mut().session.path = Some(path.clone());
-        h.state_mut().exec("ui.quit", json!({})).ok();
-        let before = h.state().session.graph.clone();
-        h.state_mut().save_on_quit().unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        // Every third seed is a force-kill: only what autosave wrote counts, and the editors stay
+        // open as they were.
+        let kill = seed % 3 == 0;
+        let before = if kill {
+            h.state_mut().save_with_editors().unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            assert_eq!(h.state().unsaved_text(), editors, "seed {seed}: autosave changed the open editors");
+            h.state().session.graph.clone()
+        } else {
+            h.state_mut().exec("ui.quit", json!({})).ok();
+            let before = h.state().session.graph.clone();
+            h.state_mut().save_on_quit().unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            before
+        };
         let g = Graph::load(&path).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
         // (Empty format marks are never saved, DIFFS N19.)
         let clean = |s: &str| tanacraft_core::format::strip_empty(s, 0).0;

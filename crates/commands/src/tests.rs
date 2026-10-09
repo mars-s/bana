@@ -1243,3 +1243,13 @@ fn opml_keeps_field_values_and_import_links_names() {
     assert!(kids.iter().any(|k| g.name(*k) == format!("see [[id:{}]] first", phase2.0)), "inline link");
     assert!(kids.iter().any(|k| g.get(*k).unwrap().reference_target() == Some(phase2)), "whole-line reference");
 }
+
+#[test]
+fn indent_never_moves_a_line_under_a_search_node() {
+    let mut s = blank();
+    let search = id(&run(&mut s, "search.create", json!({"query": "compost", "name": "Todo"})), "id");
+    let parent = s.graph.parent(search).unwrap();
+    let line = id(&run(&mut s, "node.add", json!({"parent": parent.0, "name": "after"})), "id");
+    assert!(s.run("node.indent", &json!({"node": line.0})).is_err());
+    assert_eq!(s.graph.parent(line), Some(parent));
+}

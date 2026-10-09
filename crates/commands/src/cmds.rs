@@ -746,6 +746,14 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
 // nodes keep their order.
 fn indent(s: &mut Session, v: &Value) -> CmdResult {
     for id in s.targets(v)? {
+        // A search node lists results, not children: a line moved under it would vanish from view
+        // and take the caret with it (UI fuzz, long pages).
+        let g = &s.graph;
+        let sibs = g.parent(id).map(|p| g.children(p).to_vec()).unwrap_or_default();
+        let prev = sibs.iter().position(|c| *c == id).and_then(|i| i.checked_sub(1)).map(|i| sibs[i]);
+        if prev.is_some_and(|p| g.query(g.resolve(p)).is_some()) {
+            return Err(CmdError::Failed("cannot indent under a search node".into()));
+        }
         s.graph.indent(id)?;
     }
     Ok(s.focus_json())

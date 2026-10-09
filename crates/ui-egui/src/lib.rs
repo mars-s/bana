@@ -410,6 +410,8 @@ pub struct TanaApp {
     /// Calendar views already scrolled to the start of the day.
     cal_scrolled: std::collections::HashSet<NodeId>,
     dirty_since: Option<f64>,
+    /// The editors' text as last written to disk by autosave (DIFFS N26).
+    disk_editors: Vec<String>,
     acts: Vec<Act>,
 }
 
@@ -488,6 +490,7 @@ impl TanaApp {
             cal_resize: None,
             cal_scrolled: Default::default(),
             dirty_since: None,
+            disk_editors: Vec::new(),
             acts: Vec::new(),
         };
         app.tabs.push(first);
@@ -497,6 +500,12 @@ impl TanaApp {
     /// Shows a short notice for a few seconds.
     pub fn toast(&mut self, msg: String) {
         self.toast_msg = Some((msg, f64::NAN));
+    }
+
+    /// The node whose field row has the keyboard: a value being typed, or a selected field row.
+    pub(crate) fn field_owner(&self) -> Option<NodeId> {
+        let g = &self.session.graph;
+        self.field_edit.as_ref().map(|f| g.resolve(f.node)).or(self.field_sel.map(|(n, _)| g.resolve(n)))
     }
 
     /// Starts typing into a field value. One caret at a time: the bullet being edited lets go, or
@@ -905,6 +914,15 @@ impl TanaApp {
             return Ok(json!({}));
         }
         let before = (self.session.focus, self.session.caret);
+        // Leaving the page closes its field and description editors, keeping their text: left
+        // open, they would take the keys typed on the next page (UI fuzz).
+        if id.starts_with("nav.") || id == "node.createNew" || id == "workspace.switch" {
+            self.commit_field_edit();
+            self.field_sel = None;
+            if let Some((node, text)) = self.desc_edit.take() {
+                self.write_description(node, &text);
+            }
+        }
         if id.starts_with("nav.") || id == "node.createNew" || id == "workspace.switch" || id == "focus.set" {
             // An opened search node shows its results; the builder waits for "Open query editor"
             // (spec 05 §1).
@@ -1198,21 +1216,77 @@ impl TanaApp {
         }
     }
 
+    /// Saves about a second after a change to the graph or to the text of an open editor (a field
+    /// name after `>`, a value, a description...). A force-kill runs no quit hook, so editors are
+    /// saved this way too (DIFFS N26).
     fn autosave_tick(&mut self, ctx: &egui::Context) {
-        if !self.autosave || self.session.path.is_none() || !self.session.graph.is_dirty() {
+        if !self.autosave || self.session.path.is_none() {
+            return;
+        }
+        let editors = self.unsaved_text();
+        if !self.session.graph.is_dirty() && editors == self.disk_editors {
             self.dirty_since = None;
             return;
         }
         let now = ctx.input(|i| i.time);
         let since = *self.dirty_since.get_or_insert(now);
         if now - since > 1.0 {
-            if let Err(e) = self.session.run("file.save", &json!({})) {
-                self.session.status = e.to_string();
+            if let Err(e) = self.save_with_editors() {
+                self.session.status = e;
             }
+            self.disk_editors = editors;
             self.dirty_since = None;
         } else {
             ctx.request_repaint_after(std::time::Duration::from_millis(1100));
         }
+    }
+
+    /// Saves the file with the text of every open editor written in, while the editors stay open
+    /// and the live graph stays as it is: the editors are committed, the file saved, then the graph
+    /// and the editors are put back.
+    #[doc(hidden)]
+    pub fn save_with_editors(&mut self) -> Result<(), String> {
+        self.flush();
+        if self.unsaved_text().is_empty() {
+            return self.session.run("file.save", &json!({})).map(drop).map_err(|e| e.to_string());
+        }
+        let graph = self.session.graph.clone();
+        let s = &self.session;
+        let session = (s.focus, s.caret, s.anchor, s.sel, s.status.clone());
+        let editors = (
+            self.field_sel,
+            self.field_edit.clone(),
+            self.picker.clone(),
+            self.desc_edit.clone(),
+            self.header_edit.clone(),
+            self.quick_add.clone(),
+            self.template_buf.clone(),
+            self.option_buf.clone(),
+            self.range_buf.clone(),
+            self.warned_for,
+        );
+        self.commit_editors();
+        let saved = self.session.run("file.save", &json!({})).map(drop).map_err(|e| e.to_string());
+        self.session.graph = graph;
+        if saved.is_ok() {
+            self.session.graph.mark_saved();
+        }
+        let s = &mut self.session;
+        (s.focus, s.caret, s.anchor, s.sel, s.status) = session;
+        (
+            self.field_sel,
+            self.field_edit,
+            self.picker,
+            self.desc_edit,
+            self.header_edit,
+            self.quick_add,
+            self.template_buf,
+            self.option_buf,
+            self.range_buf,
+            self.warned_for,
+        ) = editors;
+        self.acts.clear();
+        saved
     }
 
     fn apply_style(&self, ctx: &egui::Context) {
@@ -1579,7 +1653,7 @@ impl TanaApp {
         // A wide Create new button and a square Search button (spec 00 §3).
         ui.horizontal(|ui| {
             let r = Frame::new().fill(t.hover).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(8, 5)).show(ui, |ui| {
-                ui.set_width(ui.available_width() - 44.0);
+                ui.set_width((ui.available_width() - 44.0).max(0.0));
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), rect, Icon::Plus, t.text);

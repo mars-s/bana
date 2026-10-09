@@ -224,7 +224,7 @@ pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal(|ui| {
         ui.add_space(LEFT);
         ui.vertical(|ui| {
-            ui.set_width(MAX_W.min(ui.available_width() - 40.0));
+            ui.set_width(MAX_W.min(ui.available_width() - 40.0).max(0.0));
             ui.label(RichText::new("Help").size(30.0).strong());
             ui.label(
                 RichText::new(format!(
@@ -304,7 +304,7 @@ pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         });
         ui.add_space(24.0);
         ui.vertical(|ui| {
-            ui.set_width(MAX_W.min(ui.available_width() - 40.0));
+            ui.set_width(MAX_W.min(ui.available_width() - 40.0).max(0.0));
             ui.label(RichText::new(PAGES.get(app.settings_tab).copied().unwrap_or("")).size(26.0).strong());
             ui.add_space(10.0);
             // spec-gap: the spec names Notifications seen, Progress stats and API keys but not
@@ -1263,6 +1263,7 @@ pub(crate) fn field_value(
             }
             if fe.focus_once {
                 resp.request_focus();
+                resp.scroll_to_me(None);
                 fe.focus_once = false;
             } else if resp.lost_focus() {
                 app.commit_field_edit();
@@ -1718,6 +1719,10 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let mut bullet_dx = 10.0;
     // Rows whose subtree is still open: when it closes, field rows placed after that row show.
     let mut open_rows: Vec<usize> = Vec::new();
+    // The node whose field row has the keyboard is always laid out, on screen or not, so its
+    // editor keeps the keys and can scroll itself into view (DIFFS N32).
+    let active = app.field_owner();
+    let desc = app.desc_edit.as_ref().map(|d| d.0);
     let anchored = |app: &TanaApp, id: NodeId| {
         let g = &app.session.graph;
         g.parent(id).and_then(|p| g.get(p)).is_some_and(|p| p.fields.iter().any(|e| e.after == Some(id)))
@@ -1730,9 +1735,9 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             open_rows.pop();
             // Off screen they are left out like the rows around them (cheap for huge outlines).
             let near = ui.cursor().top() <= clip.bottom() && ui.cursor().top() >= clip.top();
-            if near && anchored(app, rows[oi].id) {
-                let r = rows[oi];
-                let parent = app.session.graph.parent(r.id).unwrap_or(app.session.zoom);
+            let r = rows[oi];
+            let parent = app.session.graph.parent(r.id).unwrap_or(app.session.zoom);
+            if (near || active == Some(app.session.graph.resolve(parent))) && anchored(app, r.id) {
                 fields_at(app, ui, t, parent, r.depth as f32 * INDENT + 8.0, Some(r.id));
             }
         }
@@ -1741,7 +1746,9 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         let top = ui.cursor().top();
         let h = app.row_heights.get(&row.id).copied().unwrap_or(ROW_H);
         let offscreen = top > clip.bottom() || top + h < clip.top();
-        if offscreen && !selected && app.session.focus != Some(row.id) {
+        let resolved = app.session.graph.resolve(row.id);
+        let holds_editor = active == Some(resolved) || desc == Some(row.id) || desc == Some(resolved);
+        if offscreen && !selected && app.session.focus != Some(row.id) && !holds_editor {
             bullets.push((row.depth, pos2(left + row.depth as f32 * INDENT + bullet_dx, top + ROW_H / 2.0)));
             ui.add_space(h);
             bottoms.push(ui.cursor().top());
@@ -2129,6 +2136,7 @@ fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, te
     }
     if app.desc_focus {
         resp.request_focus();
+        resp.scroll_to_me(None);
         app.desc_focus = false;
     } else if resp.lost_focus() {
         app.desc_edit = None;
@@ -2331,6 +2339,10 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         .show(edit_ui);
     if let Some(c) = child {
         ui.allocate_rect(c.min_rect(), Sense::hover());
+    }
+    // A line that just took the caret scrolls into view (DIFFS N32).
+    if fresh.is_some() {
+        out.response.scroll_to_me(None);
     }
     if let Some(cr) = out.cursor_range {
         app.session.caret = cr.primary.index.0;

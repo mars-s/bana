@@ -20,6 +20,8 @@ pub enum Icon {
     Person,
     Pin,
     Building,
+    /// Content width: a bar with arrows at both ends.
+    Width,
     /// View toolbar: display fields (lines with an eye), group (rows), sort (arrows), filter
     /// (funnel lines), view as (grid).
     Display,
@@ -117,6 +119,15 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             for (x, y) in [(-0.8, -0.8), (0.1, -0.8), (-0.8, 0.1), (0.1, 0.1)] {
                 p.rect_stroke(Rect::from_min_max(r(x, y), r(x + 0.7, y + 0.7)), 1.0, st, StrokeKind::Middle);
             }
+        }
+        Icon::Width => {
+            p.line_segment([r(-0.9, 0.0), r(0.9, 0.0)], st);
+            for d in [-1.0, 1.0] {
+                p.line_segment([r(0.9 * d, 0.0), r(0.5 * d, -0.35)], st);
+                p.line_segment([r(0.9 * d, 0.0), r(0.5 * d, 0.35)], st);
+            }
+            p.line_segment([r(-0.9, -0.7), r(-0.9, 0.7)], st);
+            p.line_segment([r(0.9, -0.7), r(0.9, 0.7)], st);
         }
         Icon::Pin => {
             p.circle_stroke(r(0.0, -0.35), s * 0.4, st);

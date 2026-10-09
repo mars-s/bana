@@ -604,6 +604,7 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
 
 pub fn help_panel(app: &mut TanaApp, ui: &mut Ui) {
     let t = app.tokens();
+    ui.set_max_width(ui.available_width());
     ui.horizontal(|ui| {
         ui.label(RichText::new("Keyboard shortcuts").size(15.0).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -634,9 +635,11 @@ pub fn help_panel(app: &mut TanaApp, ui: &mut Ui) {
             ui.horizontal(|ui| {
                 ui.allocate_ui_with_layout(vec2(110.0, 22.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.set_min_width(110.0);
-                    ui.label(RichText::new(pretty_shortcut(&sc, app.mac)).size(13.0).color(t.dim));
+                    // The sheet shows the first of alternative keys (the Help page lists them all).
+                    let first = sc.split(" / ").next().unwrap_or(&sc);
+                    ui.add(egui::Label::new(RichText::new(pretty_shortcut(first, app.mac)).size(13.0).color(t.dim)).truncate());
                 });
-                ui.label(RichText::new(label).size(13.5));
+                ui.add(egui::Label::new(RichText::new(label).size(13.5)).truncate());
             });
         }
     });

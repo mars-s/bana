@@ -427,10 +427,7 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(14.0);
                 let label = ["Auto", "Medium", "Full"].get(app.content_width as usize).copied().unwrap_or("Auto");
-                let r = ui
-                    .add(egui::Label::new(RichText::new("<->").size(12.0).color(t.faint)).sense(Sense::click()))
-                    .on_hover_text(format!("Content width: {label}"));
-                r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Set content width"));
+                let r = crate::icon_button(ui, crate::icons::Icon::Width, t.faint, &format!("Content width: {label}"));
                 egui::Popup::menu(&r).show(|ui| {
                     for (i, l) in ["Auto", "Medium", "Full"].iter().enumerate() {
                         if ui.selectable_label(app.content_width as usize == i, *l).clicked() {

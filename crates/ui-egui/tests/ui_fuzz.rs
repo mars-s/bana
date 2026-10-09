@@ -94,7 +94,16 @@ fn run_seed(seed: u64, events: usize) {
     h.step();
     let mut log = Vec::new();
     for _ in 0..events {
-        match r.below(10) {
+        match r.below(12) {
+            10 | 11 => {
+                // A click somewhere: buttons, chips, menus, rows.
+                let pos = egui::pos2(r.below(1200) as f32, r.below(800) as f32);
+                log.push(format!("click {pos:?}"));
+                let ev = |pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+                h.input_mut().events.push(Event::PointerMoved(pos));
+                h.input_mut().events.push(ev(true));
+                h.input_mut().events.push(ev(false));
+            }
             0..=4 => {
                 let k = KEYS[r.below(KEYS.len())];
                 let m = match r.below(5) {

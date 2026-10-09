@@ -9,7 +9,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | Measure | Value |
 |---|---|
 | Commands (every action; CLI, MCP and control channel can run them) | 174 engine commands, plus 31 window commands |
-| Tests | 198 (core 49, commands 61 incl. fuzz tests of random command sequences and of damaged files, and a 50k-node timed test, UI 86 driving the real UI with keys, pointer drags, clicks and panels plus UI fuzz tests (random keys, text, clicks; damaged files in every view; the keyboard is never lost and no typed key is dropped; quitting at a random point keeps every typed character) and a 50k-node frame-time test, MCP 1, CLI 1) |
+| Tests | 207 (core 50, commands 63 incl. fuzz tests of random command sequences and of damaged files, and a 50k-node timed test, UI 92 driving the real UI with keys, pointer drags, clicks and panels plus UI fuzz tests (random keys, text, clicks; damaged files in every view; the keyboard is never lost and no typed key is dropped; quitting or a force-kill at a random point keeps every typed character; long pages in a small window) and a 50k-node frame-time test, MCP 1, CLI 1) |
 | Spec sections (`docs/parity.md`) | 95 mapped: 77 done, 13 partial, 3 missing, 2 notes |
 | Spec screenshots | 160 mapped: 140 done, 14 partial, 5 missing, 1 not behaviour |
 
@@ -36,7 +36,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M16 Robustness, speed, menus | Fuzz test of random command sequences (fixed: untracked day creation clobbered by undo, references picking up child tags, day creation recursion, file repair of loops); 50k-node outline draws only visible rows; native macOS menu bar running commands; HTML plus text on the clipboard; Settings sub-pages (date and time, sidebar entries) | done |
 | M17 Acceptance round 5 | DIFFS N13 and N15 to N25: field values and names saved as typed, keyboard never lost (fuzz-checked after every key), Shift+Tab out of a value below the field, checkbox carried by Enter, no empty format marks, delete question for used nodes, formatted HTML clipboard, notes outlines on references, settings defaults and system theme, folded workspace rows, menu bar keys and clipboard items, query editor by keyboard; OPML keeps fields, imports make `[[Name]]` links | done |
 | M18 Acceptance round 6 | DIFFS N26 to N31 and N23: every open editor is written into the graph on quit, typing on a selected (or invisibly selected) line goes into it, Escape in a new field name selects the field row, a tagged task's checkbox stays with the tag, dialog and notes wording, checkbox field Space, User settings sections; exports keep a reference's notes for this place | done |
-| M19 Next | An open-licence UI font with real bold, AI features (out of scope so far) | next |
+| M19 Acceptance round 7 | DIFFS N32 to N34 and the N26 remainder: rows holding an editor are always laid out and scroll into view (field values below the first screen were lost), open editors autosave within a second so a force-kill keeps a `>` field name, Enter on a selected field row adds a line below and letters extend its name, typing after a cleared selection goes in at the start; Markdown export with descriptions and field rows in place; new event and workspace names kept on blur | done |
+| M20 Next | An open-licence UI font with real bold, AI features (out of scope so far) | next |
 
 ## Later
 

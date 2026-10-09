@@ -85,7 +85,9 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 | Save / load the graph file | 15 ms / 44 ms |
 
 The outline draws only the rows near the viewport (the rest is blank space of their measured
-height). Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
+height). A row holding an editor (a line being typed, a field value or name, a description) is
+always laid out, on screen or not, and every editor scrolls itself into view when it takes the
+keyboard, so typed text never depends on where a row sits. Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
 `cargo test -p tanacraft-ui-egui --test perf --release -- --nocapture`.
 
 A fuzz test runs random sequences of every command (params built from each command's own
@@ -94,12 +96,15 @@ loop, every change undoes and redoes exactly, and save/load round-trips; damaged
 owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
 random commands. A UI fuzz test types random keys and text and clicks random points in the real UI;
 it must never panic, and while you type the keyboard must never go nowhere: after every key an editor
-or a menu still has it, or a line is selected, and typed text always lands somewhere. Bugs these found are fixed and stay covered (undo cutting out structure made
+or a menu still has it, or a line is selected, and typed text always lands somewhere. It also runs
+on a 70-line page in a small window, typing `>` field rows low on the page, and a quit test reloads
+the file after a random run, every third time as a force-kill (only what autosave wrote counts). Bugs these found are fixed and stay covered (undo cutting out structure made
 while navigating, template copies doubling an outline, a crash on a deep recursion, focus left on
-widgets that were not drawn, keys lost after Shift+Tab out of a field, Cmd+K then Escape, Escape in
+widgets that were not drawn, field values typed below the first screen, editors left open on
+another page, a line indented under a search node, keys lost after Shift+Tab out of a field, Cmd+K then Escape, Escape in
 a page title, or egui's own arrow-key focus moving to a button). Longer runs:
 `FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
-`UI_FUZZ_SEEDS=300 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
+`UI_FUZZ_SEEDS=500 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
 
 ## Quick start
 
@@ -148,8 +153,8 @@ Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::ru
 
 Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel), views, the editing
 rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
-Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 6:
-fields saved as typed and on quit, no typed key ever dropped, notes outlines on references and in
+Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 7:
+fields saved as typed, on quit and within a second for a force-kill, on rows below the first screen too, no typed key ever dropped, notes outlines on references and in
 exports, formatted HTML on the clipboard, menu bar with keys and clipboard items). Next: an open-licence UI font with real bold and,
 later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 

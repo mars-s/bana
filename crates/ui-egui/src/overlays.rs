@@ -629,7 +629,13 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                 if let Choice::Existing(id, _) = c
                     && app.session.graph.tag_def(*id).is_some()
                 {
-                    let d = app.session.graph.get(*id).map(|n| n.description.clone()).unwrap_or_default();
+                    let g = &app.session.graph;
+                    let mut d = g.get(*id).map(|n| n.description.clone()).unwrap_or_default();
+                    // With several workspaces, which one the supertag belongs to.
+                    if g.workspaces().len() > 1 {
+                        let ws = g.name(g.workspace_of(*id)).to_string();
+                        d = if d.is_empty() { ws } else { format!("{ws} · {d}") };
+                    }
                     if !d.is_empty() {
                         let room = (rect.right() - lr.right() - 16.0).max(0.0);
                         let short: String = d.chars().take((room / 6.5) as usize).collect();

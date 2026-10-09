@@ -1,124 +1,306 @@
 # TanaCraft parity with the behaviour spec
 
-Maps every item in the clean-room spec (`../tanacraft-spec/`) to its status here. The spec currently
-holds screenshots only (no prose sections yet), so each screenshot is one row. When prose files land,
-each `##` section gets a row too. `cargo xtask parity` lists spec items this file does not mention yet.
+Maps every `##` section of the clean-room spec (`../tanacraft-spec/*.md`) and every screenshot to its
+status here. `cargo xtask parity` fails when a spec section or screenshot is missing from this file.
 
-Status: **done** (behaviour implemented and tested), **partial** (a first version; gaps listed),
-**missing** (not started). Command ids are in parentheses.
+Status: **done** (implemented and tested), **partial** (works, gaps listed), **missing** (not started),
+**n/a** (notes in the spec, not behaviour).
 
 ## Summary
 
-Of the 69 spec screenshots (`cargo xtask parity` recounts):
+| | done | partial | missing | n/a |
+|---|---|---|---|---|
+| Spec sections (93) | 34 | 50 | 8 | 1 |
+| Screenshots (130) | 67 | 35 | 27 | 1 |
 
-| Status | Spec items |
-|---|---|
-| done | 9 |
-| partial | 22 |
-| missing | 38 |
+## `00-overview.md`
 
-## Shell and navigation
-
-| Spec item | Status | Notes |
+| Section | Status | Notes |
 |---|---|---|
-| `01-today-shell-dark.png` | partial | Sidebar (Today, Supertags, Search, Create new, supertag list, workspace, recents), top bar, breadcrumbs, day title "Today, ..." with day chip and prev/next/Today buttons (`nav.today`, `nav.previousDay`, `nav.nextDay`). Missing: right-hand "related content" panel, tabs, pinned items, calendar picker. |
-| `02-shortcuts-panel-1.png` | partial | Shortcuts panel (`ui.shortcuts`, Mod+/). Bindings follow this screenshot: Ctrl+Shift+D today, Cmd+Down/Up expand/collapse, Ctrl+Cmd+Down/Up expand/collapse all, Cmd+. / Cmd+, zoom, Tab / Shift+Tab, Cmd+K command line, Cmd+\ sidebar. Missing: tabs and panels shortcuts (Cmd+T, Cmd+W, Cmd+1..9, Cmd+M). |
-| `03-shortcuts-panel-2.png` | partial | Undo/redo, move up/down (Cmd+Shift+Up/Down), mark done (Cmd+Enter), duplicate (Cmd+Shift+D), delete (Cmd+Shift+Backspace), description (Ctrl+I), `>` field, `@` reference, `#` tag, create new (Cmd+N). Missing: insert node (Shift+Enter), formatting (bold, italic, underline, highlight, code). |
-| `56-command-line.png` | partial | Command line (Cmd+K) searches nodes and all commands. Missing: grouping, recent commands, per-command shortcut recording. |
-| `57-search-panel.png` | partial | Search runs through the command line (`graph.search`). Missing: dedicated search panel. |
-| `58-search-typed.png` | partial | Substring match on node text, outside the trash. Missing: ranking, breadcrumb context in results. |
-| `59-quick-add.png` | missing | Quick add popup. `node.createNew` adds to today instead. |
-| `60-daily-notes-root.png` | partial | Daily notes root with year and week nodes; days sorted by date (ISO weeks). Missing: the root page showing today's content inline. |
-| `61-daily-notes-prev-day.png` | done | Previous/next day buttons and commands (`nav.previousDay`, `nav.nextDay`). |
-| `62-recents.png` | partial | Sidebar recents list (session only). Missing: persisted recents page. |
-| `63-ai-chats.png` | missing | Out of scope for now. |
-| `64-create-new.png` | partial | Create new button and Cmd+N (`node.createNew`) add an empty node on today's page. spec-gap: exact destination and menu. |
-| `65-settings-menu.png` | missing | |
-| `66-settings-page.png` | missing | |
-| `67-today-light-mode.png` | done | Light and dark themes (`ui.toggleTheme`). Our own palette. |
-| `71-sidebar-hidden-two-tabs.png` | partial | Sidebar toggle done (Cmd+\). Tabs missing. |
-| `72-two-panels.png` | missing | Side-by-side panels. |
+| 1. The big picture | done | Single window: top bar, sidebar, panel area; every line is a node; any node opens as a page. |
+| 2. Top bar (full window width, ~44 px tall) | partial | Sidebar button, back/forward, tab strip with +, keyboard-shortcuts toggle. Missing: help, credits, account menu. |
+| 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Search, Create new, Pinned, workspace items (Library, Daily notes, Trash), recents. Missing: Recents and AI chats pages, workspace avatar, Manage workspaces. |
+| 4. Panel area | partial | Breadcrumbs, title, tag chips, ... menu, content column, related-content side card, References. Missing: icon/banner, breadcrumb collapse, AI button, dock button. |
+| 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight. Own palette; default egui font (no Inter); no flash on new live results. |
+| 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Search and open, Create new, pinned, workspace items. Recents and AI chats pages missing. |
+| 7. Native menu bar | missing | Not built (egui window has no native menus). |
+| 8. Global overlays | done | Command line (Cmd+K), Search and open (Cmd+S, Cmd+T), Quick add (Cmd+E), context menus, shortcut sheet. |
 
-## Outline editing
+## `01-data-model.md`
 
-| Spec item | Status | Notes |
+| Section | Status | Notes |
 |---|---|---|
-| `14-node-menu.jpg` | missing | Node "..." menu. The actions exist as commands (duplicate, delete, move, reference). |
-| `29-multi-select.jpg` | missing | Multi-node selection. |
-| `30-text-selection-toolbar.png` | missing | Rich text toolbar. |
-| `31-inline-formatting.png` | missing | Bold, italic, highlight, code inside node text. Names are plain text today. |
-| `34-slash-menu.png` | missing | Slash menu. |
-| `69-bullet-context-menu.png` | missing | Bullet context menu. Bullet click zooms in (`nav.zoomIn`). |
-| `70-trash.png` | partial | Delete moves to Trash with its old place remembered; `node.restore`, `trash.empty`. The Trash page has an explanatory banner (our wording). Missing: references to trashed nodes shown with a trash mark. |
-| (keyboard editing, no screenshot) | done | Enter splits at the caret (end of an expanded parent adds a first child; start of text adds a node above), Tab indent, Shift+Tab outdent (stops at the zoomed node), Backspace at start merges into the node above or removes an empty node, Up/Down move focus, one undo step per word typed. Tested in `crates/commands/src/tests.rs` and through real key events in `crates/ui-egui/tests/typing.rs`. |
-| (expand, collapse, zoom, breadcrumbs) | done | Chevrons, halo bullets on collapsed parents, guide lines, zoom in/out, back/forward, clickable breadcrumbs. |
+| 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields, checkbox, heading, view settings, created/edited/done times, expansion, bullet states. Missing: icon, banner, edited-by, per-place expansion. |
+| 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
+| 3. References and inline references | partial | Reference nodes (dashed ring, live), References section incl. date backlinks. Missing: inline references, reference counter, clone reference, per-context notes. |
+| 4. Supertags (tag definitions) | partial | Colour, base type, extends, template fields and child nodes, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: optional fields, title expression, building block, AI settings. |
+| 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. One value per field (spec allows several). |
+| 6. Search nodes | partial | Live, editable results, magnifier bullet, views. Missing: convert to plain list. |
+| 7. Workspaces | missing | One workspace with Library, Schema, Daily notes, Trash. No Inbox, no multiple workspaces. |
+| 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
+| 9. Trash | done | Delete to trash, restore, banner, empty trash. |
+| 10. Other node kinds observed | missing | Chat, command nodes and settings pages not built. |
+| 11. Undo | done | Every command is one undo step; typing coalesced; failed commands roll back. |
 
-## Supertags and fields
+## `02-outliner-editing.md`
 
-| Spec item | Status | Notes |
+| Section | Status | Notes |
 |---|---|---|
-| `10-supertags-overview.png` | partial | Supertags page lists definitions; the sidebar lists every supertag with its colour. |
-| `11-tag-page-task.png` | partial | Supertag page: what it extends, template fields (inherited marked), tagged nodes with checkbox and location. Missing: views (table, list, calendar), filters. |
-| `12-tag-task-calendar.png` | missing | Calendar view of tagged nodes. |
-| `13-tag-task-list.png` | partial | List of tagged nodes (see above). |
-| `73-new-tag-page-empty.png` | partial | A new supertag (from the `#` picker or `tag.create`) opens to a page with empty template fields and tagged nodes lists. Missing: the empty-state guidance. |
-| `15-configure-supertag-task.png` | partial | Config by command: colour (`tag.setColor`, 12 colours plus grey), extends (`tag.extend`, cycle-safe), template fields (`tag.addField`), checkbox (`tag.setCheckbox`). Missing: config panel UI. |
-| `16-supertag-content-template.png` | partial | Template fields are copied onto tagged nodes with default values. Missing: template child nodes (non-field content). |
-| `17-supertag-config-lower.png` | missing | |
-| `18-supertag-advanced.png` | missing | |
-| `19-field-config-options.png` | partial | Options list (`field.setOptions`), auto-collect of new option values, default value. Missing: hide-field rules, required, config UI. |
-| `75-number-field-config.png` | partial | Number fields accept finite numbers only. Missing: min/max limits and their config UI. |
-| `20-field-type-dropdown.png` | done | Field types: plain, options, options from supertag, date, number, URL, email, checkbox, each validated on input. User type not implemented. |
-| `21-tagged-node-zoomed.png` | done | Zoomed tagged node: checkbox before the title, tag chip, field rows (name column with type glyph, value column, placeholders such as "Add date"), then children. |
-| `22-options-picker.png` | partial | Options are picked from a dropdown. Missing: search inside the picker, creating options inline. |
-| `23-date-picker.png` | missing | Dates are typed (YYYY-MM-DD, today, tomorrow). No calendar picker. |
-| `24-hash-tag-menu.png` | done | Typing `#` opens the supertag picker; Enter applies or creates (`tag.add`). |
-| `25-node-tagged-task-inline.png` | done | Tag chips after the text, bullet in the tag colour, checkbox for checkbox supertags. |
-| `26-tagged-node-expanded-fields.png` | done | Expanded tagged node shows field rows above its children. |
-| `32-field-create-menu.png` | done | `>` on an empty bullet opens the field picker for the parent node; picks or creates a field (`field.add`). |
-| `33-field-name-autocomplete.png` | partial | Field picker filters existing fields by name. |
+| 1. Editing model | partial | One line edits at a time, placeholder hint, title Enter makes the first child. Long text does not wrap while editing. |
+| 2. Enter, Shift+Enter | done | Split, first child when expanded, empty line above at position 0, Shift+Enter inserts below. Tested. |
+| 3. Tab / Shift+Tab | done | Indent under previous sibling (expands it), outdent after parent, stops at the page. Tab inside field rows missing. |
+| 4. Backspace / Delete | done | Merge into previous sibling, no merge with children, empty line deletes, Delete joins next, deletes selections. Tested. |
+| 5. Arrow keys | partial | Up/Down between lines, Up into the title, Shift+Up/Down selection. Left/Right line jumps missing. |
+| 6. Moving nodes | partial | Move up/down crossing branches, drag and drop (between rows, or as first child). Move to... commands missing. |
+| 7. Collapse, expand, zoom | done | Cmd+Up/Down, Ctrl+Cmd+Up/Down, chevrons, halos, zoom in/out with caret restore. Hover card missing. |
+| 8. Node selection mode | partial | Escape selects, Shift+Up/Down extends, Enter/Backspace/Tab/move/tag on selections. Floating toolbar missing. |
+| 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
+| 10. Inline formatting | partial | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. Formatting does not carry on for new typing; links not rendered. |
+| 11. Trigger characters | partial | #, @ (empty line), > and / menus. Missing: inline @ mid-sentence, Space for AI, Cmd+Enter create in menus. |
+| 12. Paste | done | Multi-line text makes siblings, Markdown bullets nest. |
+| 13. Description | partial | Ctrl+I edits a description (in a small dialog, not inline); shown under the line. |
+| 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
+| 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
+| 16. Context menu on a node | partial | Open, expand, add tag/field/checkbox/description, heading, pin, view as, duplicate, move, indent, delete/restore. Missing: copy link, publish, edit log. |
 
-## References
+## `03-supertags-fields.md`
 
-| Spec item | Status | Notes |
+| Section | Status | Notes |
 |---|---|---|
-| `27-at-reference-menu.png` | done | `@` on an empty bullet opens a node search; choosing turns the bullet into a reference (`node.reference` with `replace`). |
-| `28-inline-reference.png` | missing | References inside text. Only whole-node references today. |
-| `68-reference-node.png` | partial | Reference bullets get a dashed ring around a dot; the target's text and children show and edit in place; cycles are cut. |
+| 1. Supertags overview page (sidebar "Supertags") | partial | Filter box and grid of tag tiles, plus fields. Missing: pinned large cards, Browse templates. |
+| 2. Tag page | partial | View tabs (Everything tagged, own views, + Add view), + Create new, table by default, header glow. Missing: help button. |
+| 3. Creating tags | partial | # then Enter creates and applies with an auto colour. Convert to supertag missing. |
+| 4. Applying and removing tags | done | # menu, node menu, command; chip x removes. |
+| 5. Configure supertag panel | partial | Colour swatches, base type, extends, template fields and nodes, show checkbox, done mapping, default child tag, used count, delete (inline section, not a second panel). Missing: optional fields, AI, title expression, related content editing. |
+| 6. Field definition panel | partial | Type, options, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows. |
+| 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
+| 8. Field value pickers | partial | Options picker (other options, create), date picker, number, checkbox, URL/email text. Missing: week numbers, time, date ranges in the date picker; user picker. |
+| 9. Adding fields | partial | > on a line, template New field / Insert existing, table + Add field (adds to the tag template). AI suggestions missing. |
 
-## Search nodes and views
+## `04-views.md`
 
-| Spec item | Status | Notes |
+| Section | Status | Notes |
 |---|---|---|
-| `35-search-node-new.png` | missing | Live search nodes. |
-| `36-search-node-result.png` | missing | |
-| `37-query-builder.png` | missing | |
-| `38-view-display-menu.png` | missing | |
-| `39-list-with-display-field.png` | missing | |
-| `40-group-by-menu.jpg` | missing | |
-| `41-sort-menu.jpg` | missing | |
-| `42-filter-menu.jpg` | missing | |
-| `43-search-options-popover.png` | missing | |
-| `44-query-editor.png` | missing | |
-| `45-search-operators.png` | missing | |
-| `46-search-node-options-menu.png` | missing | |
-| `47-view-as-submenu.jpg` | missing | |
-| `48-table-view.png` | missing | |
-| `49-table-column-menu.png` | missing | |
-| `74-add-field-column.png` | missing | Adding a field as a table column (needs table view). |
-| `50-cards-view.png` | missing | |
-| `51-lanes-view.png` | missing | |
-| `52-calendar-view.png` | missing | |
-| `53-calendar-week-view.png` | missing | |
-| `54-side-menu-view.png` | missing | |
-| `55-list-nav-view.png` | missing | |
+| 1. Where view controls live | partial | Toolbar: quick filter, view as, display, group, sort, filter, active filter chips; options menu. Text buttons rather than icons. |
+| 2. Outline (default) | done | Bullets with display-field line. |
+| 3. Table | partial | Tag-named first column with tag-colour underline, field columns, sort by header, + Add field, in-place cells. Header rename in place missing. |
+| 4. Cards | done | Grid of cards: tag header, checkbox and name, display fields footer, + Add. |
+| 5. Board (cards grouped) | done | Columns per value including empty options and <Field> not set; dragging a card sets the value; + Add per column. |
+| 6. Lanes | done | Each item a lane with its children. |
+| 7. List (navigation view) | partial | Item list with the selected item beside it (same panel, not a second panel). |
+| 8. Side menu | done | Compact menu and selected item content. |
+| 9. Tabs | done | Items as tabs, selected item below. |
+| 10. Calendar | partial | Month grid with week numbers, today circle, chips, Week view (all-day), date field menu, N nodes with no dates. No time grid, day view or calendar drag. |
+| 11. Display menu | partial | Field checkboxes. System fields missing. |
+| 12. Group by | partial | Fields, tags, done; every option gets a group; Not defined. System fields and collapsible group headers missing. |
+| 13. Sort by | partial | Several rules, direction, remove, add, reset; empty values first. Reapply sort and sort-children commands missing. |
+| 14. Filter by | done | Checked state, tags, field values; chips with x; N items filtered out. |
+| 15. View toolbar visibility | done | view.toggleToolbar. |
+
+## `05-search.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
+| 2. Query builder | partial | Conditions panel: AND/OR, NOT, nested groups (text form with parentheses), operators (TODO, DONE, DONE/CREATED/EDITED last N days, HAS TAG/FIELD, IS TAG/FIELD/SEARCH/CALENDAR, IN LIBRARY, ON DAY, DATE, LINKS, UNDER), field comparisons. Results are live; no visual nested group boxes. |
+| 3. Command line (Cmd+K) | partial | Searches nodes and commands; node commands first when a node is focused; shortcuts shown. Two-step commands missing. |
+| 4. Search and open (Cmd+S, sidebar magnifier) | partial | Recently viewed, fuzzy search with breadcrumbs, new-tab variant (Cmd+T). Content snippets missing. |
+| 5. Quick add (Cmd+E) | done | Modal with yellow bar, several lines, Cmd+E saves to the end of today, Escape cancels. |
+
+## `06-daily-notes.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Hierarchy | done | Daily notes, year, ISO week (#week, newest first), day (#day); lazy creation. |
+| 2. Day titles | done | Today, Yesterday, Tomorrow prefixes; year omitted for the current year. |
+| 3. Day page layout (`01-today-shell-dark.png`) | partial | Nav bar, Open tasks card (related content of #day), references. Calendar sync missing. |
+| 4. Navigation | partial | Previous/next day, Today, Go to date picker. Days with content are not marked in the picker. |
+| 5. Daily notes root (`60-daily-notes-root.png`) | done | Today's notes embedded under the title with the nav bar. |
+| 6. Week page (`79-week-node.png`) | partial | Previous/next week, day nodes. Schedule card missing. |
+| 7. Year page (`80-year-node.png`) | done | Previous/next year, weeks newest first. |
+| 8. Adding to today | partial | Typing, quick add, Create new, tag-page Create new. Create new does not open an Untitled page with suggestions. |
+| 9. Dates elsewhere | partial | Date values link to day nodes and show in their References. Inline dates and Insert date commands missing. |
+
+## `07-sidebar-navigation.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Sidebar modes | done | Cmd+\ cycles full, mini (icon rail), hidden. |
+| 2. Sidebar contents and behaviour | partial | Fixed entries, Create new, Search, Pinned (pin from the node menu), workspace items. Expandable pinned rows and hover + missing. |
+| 3. Recents and AI chats | partial | Recents listed in the sidebar; no Recents or AI chats pages. |
+| 4. Tabs | done | Tab strip, Cmd+T (search and open in a new tab), Cmd+W, Ctrl+Tab, Ctrl+Shift+Tab, Cmd+1..9; each tab keeps its panels and history. |
+| 5. Panels | partial | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel. Configure and list views stay in the same panel. |
+| 6. Navigation history | done | Back/forward per panel; zoom out restores the caret. |
+| 7. Breadcrumbs | partial | Clickable ancestors. Avatar and middle collapse missing. |
+| 8. Special pages | partial | Library, Schema, Trash. Inbox and Settings missing. |
+
+## `08-ai-and-extras.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| AI | missing | Out of scope so far. |
+| Voice / meetings | missing |  |
+| Publishing and sharing | missing |  |
+| Import / export | partial | Markdown and JSON export (commands, CLI); Markdown bullet paste. No import of other formats. |
+| Developer / power features | partial | CLI, MCP server and JSON control channel cover scripting. Customize keybindings, edit log missing. |
+| Misc | missing | Progress bar, content width, icons/banners, URL embeds not built. |
+
+## `09-shortcuts.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| Navigating | partial | All bindings except Shift+Cmd+? (ours: Cmd+/) and Ctrl+Shift+PageUp/PageDown (move tab). |
+| Editing | done | Undo, redo, move, mark done, insert node, duplicate, delete, description, > @ #, create new. |
+| Formatting | done | Cmd+B, Cmd+I, Cmd+U, Ctrl+H, backticks. |
+| Other keys observed (not in the sheet) | partial | Enter, Backspace, Delete, Up/Down, Shift+Up/Down, Escape, selection keys, /, Cmd+S, Cmd+E, paste. Missing: Left/Right line jumps, Space AI, Alt+Cmd+Down, Shift+Cmd+C. |
+
+## `INDEX.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| Open gaps (not observed or not verified) | n/a | The spec team's open questions. |
+| Test data left in the demo workspace | missing | Not reviewed yet. |
+
+## Screenshots
+
+| Screenshot | Status | Notes |
+|---|---|---|
+| `01-today-shell-dark.png` | partial | Shell: sidebar, tabs, breadcrumbs, day page with Open tasks card. No AI button. |
+| `02-shortcuts-panel-1.png` | done | Shortcut sheet bindings. |
+| `03-shortcuts-panel-2.png` | partial | Editing and formatting shortcuts; Shift+Cmd+? differs. |
+| `10-supertags-overview.png` | partial | Supertags overview grid; no pinned cards. |
+| `11-tag-page-task.png` | partial | Tag page with view tabs; board default view differs. |
+| `12-tag-task-calendar.png` | done | Task calendar view. |
+| `13-tag-task-list.png` | done | Tag list view. |
+| `14-node-menu.jpg` | partial | Node menu subset. |
+| `15-configure-supertag-task.png` | partial | Configure section (inline). |
+| `16-supertag-content-template.png` | partial | Content template with fields and nodes. |
+| `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
+| `18-supertag-advanced.png` | partial | Default child supertag only. |
+| `19-field-config-options.png` | partial | Field page options. |
+| `20-field-type-dropdown.png` | partial | Field types without user type. |
+| `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |
+| `22-options-picker.png` | done | Options picker lists the other options. |
+| `23-date-picker.png` | partial | Date picker without time or range. |
+| `24-hash-tag-menu.png` | done | # menu. |
+| `25-node-tagged-task-inline.png` | done | Tagged node inline. |
+| `26-tagged-node-expanded-fields.png` | done | Expanded fields. |
+| `27-at-reference-menu.png` | done | @ reference menu. |
+| `28-inline-reference.png` | missing | Inline references. |
+| `29-multi-select.jpg` | done | Multi-select. |
+| `30-text-selection-no-toolbar.png` | n/a | Spec: no toolbar appears on text selection. |
+| `31-inline-formatting.png` | done | Inline formatting. |
+| `32-field-create-menu.png` | done | > field create. |
+| `33-field-name-autocomplete.png` | done | Field name autocomplete. |
+| `34-slash-menu.png` | done | Slash menu. |
+| `35-search-node-new.png` | done | Create search node. |
+| `36-search-node-result.png` | done | Search node results. |
+| `37-query-builder.png` | partial | Query builder (conditions panel). |
+| `38-view-display-menu.png` | partial | Display menu without system fields. |
+| `39-list-with-display-field.png` | done | Display field line. |
+| `40-group-by-menu.jpg` | partial | Group by without system fields. |
+| `41-sort-menu.jpg` | done | Sort menu. |
+| `42-filter-menu.jpg` | done | Filter menu. |
+| `43-search-options-popover.png` | partial | Search options summary in the conditions panel. |
+| `44-query-editor.png` | partial | Query editor. |
+| `45-search-operators.png` | partial | Search operators subset. |
+| `46-search-node-options-menu.png` | partial | Search node options menu subset. |
+| `47-view-as-submenu.jpg` | done | View as submenu. |
+| `48-table-view.png` | done | Table view. |
+| `49-table-column-icon-field-config.png` | partial | Column menu: open field, remove. |
+| `50-cards-view.png` | done | Cards view. |
+| `51-lanes-view.png` | done | Lanes view. |
+| `52-calendar-view.png` | done | Calendar month view. |
+| `53-calendar-week-view.png` | partial | Calendar week view without time grid. |
+| `54-side-menu-view.png` | done | Side menu view. |
+| `55-list-nav-view.png` | partial | List view in one panel. |
+| `56-command-line.png` | done | Command line. |
+| `57-search-panel.png` | done | Search and open. |
+| `58-search-typed.png` | done | Fuzzy results. |
+| `59-quick-add.png` | done | Quick add. |
+| `60-daily-notes-root.png` | done | Daily notes root. |
+| `61-daily-notes-prev-day.png` | done | Previous day. |
+| `62-recents.png` | partial | Recents only in the sidebar. |
+| `63-ai-chats.png` | missing | AI chats. |
+| `64-create-new.png` | partial | Create new adds to today. |
+| `65-settings-menu.png` | missing | Account menu. |
+| `66-settings-page.png` | missing | Settings page. |
+| `67-today-light-mode.png` | done | Light mode. |
+| `68-reference-node.png` | done | Reference node. |
+| `69-bullet-context-menu.png` | partial | Bullet context menu subset. |
+| `70-trash.png` | done | Trash. |
+| `71-sidebar-hidden-two-tabs.png` | done | Sidebar hidden and tabs. |
+| `72-two-panels.png` | done | Two panels. |
+| `73-new-tag-page-empty.png` | done | New tag page with table. |
+| `74-add-field-column.png` | partial | Add field column; no AI suggestions. |
+| `75-number-field-config.png` | done | Number range. |
+| `76-table-number-cell.png` | done | Table number cell. |
+| `77-add-view-menu.png` | done | Add view menu. |
+| `78-description-and-heading.png` | partial | Heading and description (dialog). |
+| `79-week-node.png` | partial | Week page without Schedule. |
+| `80-year-node.png` | done | Year page. |
+| `81-space-ai-prompt.png` | missing | AI prompt. |
+| `82-sidebar-pinned-expanded.png` | missing | Expandable pinned rows. |
+| `83-help-menu.png` | missing | Help menu. |
+| `84-credits-popover.png` | missing | Credits. |
+| `85-library.png` | done | Library. |
+| `86-schema-node.png` | done | Schema. |
+| `87-tag-page-create-new.png` | partial | Tag page Create new (no suggestions). |
+| `88-board-after-drag.png` | done | Board drag. |
+| `89-sort-add-menu.png` | done | Add sort. |
+| `90-filter-checked-submenu.png` | done | Filter checked state. |
+| `91-filtered-not-done.png` | done | Filtered not done. |
+| `92-grouped-outline.png` | done | Grouped outline. |
+| `93-query-with-field-condition.png` | partial | Field condition (text form). |
+| `94-go-to-date-picker.png` | partial | Go to date (no content marks). |
+| `95-future-day-with-dated-task.png` | done | Future day created by a date. |
+| `96-tabs-view.png` | done | Tabs view. |
+| `97-move-down-into-next-branch.jpg` | done | Move down into the next branch. |
+| `98-shift-click-range-select.jpg` | done | Shift+click range select. |
+| `99-multi-drag.jpg` | missing | Dragging several nodes. |
+| `100-drag-into-empty-child-list.jpg` | partial | Drop as first child. |
+| `101-drag-drop-line-depth.jpg` | partial | Drop line depth (child by pointer offset). |
+| `102-cmd-a-select-all.jpg` | missing | Cmd+A. |
+| `103-paste-duplicate-skipped-toast.png` | missing | Paste duplicate toast. |
+| `104-paste-node-as-reference.png` | missing | Paste node as reference. |
+| `105-pasted-url.png` | missing | Pasted URL. |
+| `106-pasted-url-empty-line.png` | missing | Pasted URL on empty line. |
+| `107-system-field-owner-node.jpg` | missing | System field owner node. |
+| `108-field-row-tab-enter.jpg` | missing | Tab and Enter in field rows. |
+| `109-user-field-picker.png` | missing | User field picker. |
+| `110-typed-field-values.png` | done | Typed field values validated. |
+| `111-options-from-supertag-picker.png` | partial | Options from supertag: typed name links or creates. |
+| `112-new-instance-value.png` | done | New instance value. |
+| `113-instance-value-auto-tagged.jpg` | done | Instance value auto-tagged. |
+| `114-template-with-child-node.png` | done | Template child node copied. |
+| `115-required-field-and-template-child.png` | done | Required field and template child. |
+| `116-hidden-empty-field-outline.png` | done | Hidden empty field. |
+| `117-template-change-propagates.png` | partial | New template fields reach tagged nodes; template nodes do not. |
+| `118-extend-supertag.png` | done | Extend supertag. |
+| `119-tag-page-extends.jpg` | done | Tag page shows extends. |
+| `120-extended-tag-instance.png` | done | Extended tag instance gets inherited fields. |
+| `121-parent-tag-includes-extended.png` | done | Searches for the parent tag include extended tags. |
+| `122-query-or-group.png` | done | OR group. |
+| `123-query-or-filled.png` | done | OR group filled. |
+| `124-query-not-group.png` | done | NOT group. |
+| `125-calendar-drag.jpg` | missing | Calendar drag. |
+| `126-calendar-week-timed-drop.jpg` | missing | Timed week drop. |
+| `127-lanes-lab.png` | done | Lanes. |
+| `128-lanes-drag.jpg` | missing | Lanes drag. |
+| `129-content-width-menu.png` | missing | Content width. |
+| `130-panel-resized.png` | missing | Panel resize. |
+| `131-two-tabs.png` | done | Two tabs. |
+| `132-mini-sidebar-pinned-flyout.jpg` | missing | Mini sidebar flyout for pinned items. |
+| `133-mini-sidebar-workspace-flyout.jpg` | missing | Mini sidebar workspace flyout. |
+| `134-manage-workspaces.png` | missing | Manage workspaces. |
+| `135-create-workspace.png` | missing | New, not reviewed yet. |
+| `136-new-workspace.png` | missing | New, not reviewed yet. |
 
 ## Beyond the spec
 
 | Area | Status | Notes |
 |---|---|---|
 | Local file | done | One JSON graph file, atomic saves, autosave, repair of dangling links on load. |
-| Undo/redo | done | Every command is one step (typing coalesced); a failed command changes nothing. |
 | CLI | done | `tanacraft-cli` inspect, view, add, export (Markdown, JSON), search, tags, run, sample, mcp. |
-| MCP | done | `tanacraft-mcp` (or `tanacraft-cli mcp`): headless on a file, or `--connect` to a running app. |
+| MCP | done | `tanacraft-mcp`: headless on a file, or `--connect` to a running app. |
 | Control channel | done | `tanacraft --control PORT`: JSON lines on 127.0.0.1. |

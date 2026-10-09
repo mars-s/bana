@@ -68,6 +68,9 @@ fn parity() -> Result<(), String> {
         for e in std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?.flatten() {
             let p = e.path();
             let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') {
+                continue; // tool metadata, not spec
+            }
             if p.is_dir() {
                 stack.push(p);
             } else if name.ends_with(".md") {
@@ -82,8 +85,15 @@ fn parity() -> Result<(), String> {
     items.sort();
     // A section counts as mapped when its heading text appears; a file when its name does.
     let missing: Vec<&String> = items.iter().filter(|i| !doc.contains(i.rsplit(": ").next().unwrap_or(i))).collect();
-    let count = |s: &str| doc.lines().filter(|l| l.starts_with("| `") && l.contains(&format!("| {s} |"))).count();
-    println!("spec items: {}  done: {}  partial: {}  missing: {}", items.len(), count("done"), count("partial"), count("missing"));
+    let count = |s: &str| doc.lines().filter(|l| l.starts_with("| ") && l.contains(&format!(" | {s} | "))).count();
+    println!(
+        "spec items: {}  rows done: {}  partial: {}  missing: {}  n/a: {}",
+        items.len(),
+        count("done"),
+        count("partial"),
+        count("missing"),
+        count("n/a")
+    );
     if missing.is_empty() {
         return Ok(());
     }

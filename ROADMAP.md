@@ -4,20 +4,31 @@ TanaCraft aims for the core behaviour of the Tana outliner, rebuilt clean-room i
 further on openness, local-first storage and agent control. Status by spec section is in
 [docs/parity.md](docs/parity.md).
 
+## Where we are
+
+| Measure | Value |
+|---|---|
+| Commands (every action; CLI, MCP and control channel can run them) | 115 |
+| Tests | 65 (core 33, commands 23, UI 9 including real key, drag and drop and panel tests, MCP 1, CLI 1) |
+| Spec sections (`docs/parity.md`) | 92 mapped: 34 done, 50 partial, 8 missing |
+| Spec screenshots | 131 mapped: 67 done, 35 partial, 27 missing |
+
 ## Milestones
 
 | Milestone | Scope | State |
 |---|---|---|
 | M0 Scaffold | Workspace, licences, docs, xtask | done |
 | M1 Core | Node graph, supertags, fields, references, daily notes, trash, undo/redo, JSON file | done |
-| M2 Commands | Command registry with ids, params, shortcuts (60 commands) | done |
-| M3 Desktop | egui app: sidebar, outliner, breadcrumbs, keyboard editing, tag chips, field rows, pickers, command line, control channel | done (first version) |
+| M2 Commands | Command registry with ids, params, shortcuts | done |
+| M3 Desktop | egui app: sidebar, outliner, breadcrumbs, keyboard editing, tag chips, field rows, pickers | done |
 | M4 Screenshots | Offscreen `ui_shot`, README images | done |
-| M5 Agents | CLI (inspect, view, add, export, run) and MCP server | done |
-| M6 Parity | `docs/parity.md` maps every spec item; `cargo xtask parity` flags new ones | done |
-| M7 Views | Search nodes, table, list, cards, calendar views, filters, sort, group | next |
-| M8 Rich text | Inline formatting, inline references, links, multi-select, Shift+Enter | next |
-| M9 Panels | Tabs, side-by-side panels, node and bullet menus, supertag config panel, date picker | next |
+| M5 Agents | CLI and MCP server, control channel | done |
+| M6 Parity | `docs/parity.md` maps every spec section and screenshot; `cargo xtask parity` checks | done |
+| M7 Views | Search nodes with a query language (nested groups, operators), outline/table/cards/board/lanes/list/side menu/tabs/calendar, sort/group/filter/display | done (first versions) |
+| M8 Editing per spec 02 | Enter/Backspace/Delete rules, moves across branches, selection mode, multi-select, drag and drop, paste, inline formatting, headings, descriptions | done (first versions) |
+| M9 Shell | Tabs, panels, sidebar modes, Search and open, quick add, slash menu, related content, go to date | done (first versions) |
+| M10 Schema | Supertag page with view tabs and configure section, field definition page, done mapping, templates, auto-initialize, hide and required fields | done (first versions) |
+| M11 Next | Inline references, Recents page, Move to, system fields in display/group/sort, calendar drag and time grid, floating selection toolbar, Settings | next |
 
 ## Later
 
@@ -26,5 +37,7 @@ Multiple workspaces, sync, settings, mobile and web (wasm) builds.
 ## Known simplifications
 
 - One value per field (Tana allows several).
+- Bold is drawn brighter rather than with a bold font (egui's default font has one weight).
+- Search results are live; the spec's "Run once" / "Done" editing step is not modelled.
 - The caret lands at the end when you click a bullet's text.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

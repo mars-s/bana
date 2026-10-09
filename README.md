@@ -22,7 +22,15 @@
 <td width="50%" valign="top"><img src="docs/images/supertag.png" alt="The task supertag page: extends item, shows a checkbox, three template fields and the four tagged nodes with their locations" width="100%"><p align="center"><sub><b>Supertags</b> extend each other, carry typed template fields and list everything tagged with them.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/command-line.png" alt="The command line open over today's page with the query garden matching the Community garden node" width="100%"><p align="center"><sub><b>Command line</b> (Cmd+K): open nodes and run any command.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/board.png" alt="Open tasks as a board: columns Not started, In progress and Done with task cards showing status and due date" width="100%"><p align="center"><sub><b>Board.</b> Cards grouped by a field; drag a card to change its value.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/calendar.png" alt="Open tasks on a month calendar with week numbers, today circled and tasks on their due dates" width="100%"><p align="center"><sub><b>Calendar.</b> Items placed by a date field, month or week.</sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/search-table.png" alt="The Open tasks search node as a table with its conditions panel, sorted by due date" width="100%"><p align="center"><sub><b>Search nodes.</b> Live queries shown as a table, cards, board, list or calendar.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/two-panels.png" alt="Two panels side by side: Community garden on the left, Build four beds on the right" width="100%"><p align="center"><sub><b>Panels and tabs.</b> Cmd+M opens a node beside the current one.</sub></p></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><img src="docs/images/configure-supertag.png" alt="Configuring the task supertag: colour swatches, base type, extends, template fields, checkbox mapping" width="100%"><p align="center"><sub><b>Configure a supertag.</b> Template, inheritance, done mapping, default child tag.</sub></p></td>
 <td width="50%" valign="top"><img src="docs/images/light-shortcuts.png" alt="Light theme with the keyboard shortcuts panel open on the right" width="100%"><p align="center"><sub><b>Light theme</b> and the shortcuts panel.</sub></p></td>
 </tr>
 </table>
@@ -33,12 +41,13 @@ Every screenshot is TanaCraft itself, rendered offscreen by `cargo xtask shots`.
 
 | Area | Highlights |
 |---|---|
-| **Outline** | Enter splits at the caret, Tab and Shift+Tab, Backspace merges, move up and down, expand and collapse (all), zoom in and out, breadcrumbs, back and forward, checkboxes, duplicate, descriptions |
-| **Supertags** | `#` picker creates or applies a supertag; colours; inheritance (extends); checkbox supertags; supertag pages listing template fields and tagged nodes |
-| **Fields** | `>` picker; plain, options (auto-collected), options from supertag, date, number, URL, email and checkbox fields, validated; default values |
-| **References** | `@` picker turns a bullet into a reference; references show and edit their target in place |
-| **Daily notes** | Day nodes under year and ISO week, previous and next day, Ctrl+Shift+D for today |
-| **Trash** | Deleting moves to Trash, restorable to its old place; empty trash |
+| **Outline** | Enter, Shift+Enter, Tab, Shift+Tab, Backspace and Delete as in the spec, move up/down across branches, Escape and Shift+Up/Down selection, drag and drop, paste as nodes, headings, descriptions, inline bold/italic/underline/highlight/code |
+| **Supertags** | `#` picker, colours, extends, base types, template fields and nodes, checkbox and done mapping, default child supertag, supertag pages with view tabs and a configure section |
+| **Fields** | `>` picker; plain, options, options from supertag, date, number, URL, email, checkbox; required, hide rules, auto-initialize, number ranges, option and date pickers |
+| **Search** | Search nodes with a query language (AND, OR, NOT, nested groups, TODO/DONE, field comparisons, date and type operators), Search and open with fuzzy matching, command line |
+| **Views** | Outline, table, cards, board (drag cards between columns), lanes, list, side menu, tabs, calendar (month and week); display fields, several sort rules, group, filter chips |
+| **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, go to date, dates that link to their day |
+| **Shell** | Tabs, side-by-side panels, sidebar full/mini/hidden, pinned items, quick add, slash menu, references footer, trash |
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
 | **Files** | One JSON file (`~/TanaCraft/graph.json` by default), atomic autosave, Markdown and JSON export |
 

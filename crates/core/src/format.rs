@@ -155,6 +155,27 @@ fn set(s: &mut Span, m: Mark, on: bool) {
     }
 }
 
+/// The raw char offset for a char offset in the shown text (marks hidden). `None` when the text
+/// has inline references or links, whose shown text differs from the raw one.
+pub fn shown_to_raw(raw: &str, shown: usize) -> Option<usize> {
+    let pieces = raw_spans(raw);
+    if pieces.iter().any(|(sp, _)| sp.node.is_some() || sp.url.is_some()) {
+        return None;
+    }
+    let (mut seen, mut at) = (0usize, 0usize);
+    for (sp, marker) in pieces {
+        let n = sp.text.chars().count();
+        if !marker {
+            if shown <= seen + n {
+                return Some(at + shown - seen);
+            }
+            seen += n;
+        }
+        at += n;
+    }
+    Some(at)
+}
+
 /// The text without marks (search, titles, exports that want plain text).
 pub fn plain(s: &str) -> String {
     if !s.contains(['*', '_', '=', '`', '[']) {
@@ -235,6 +256,13 @@ mod tests {
         let s = "a **bold** [[id:3]] https://x.org `c`";
         let joined: String = raw_spans(s).into_iter().map(|(sp, _)| sp.text).collect();
         assert_eq!(joined, s);
+    }
+
+    #[test]
+    fn shown_offsets_map_to_raw_ones() {
+        assert_eq!(shown_to_raw("ab **cd** e", 4), Some(6));
+        assert_eq!(shown_to_raw("plain", 3), Some(3));
+        assert_eq!(shown_to_raw("see [[id:4]]", 2), None);
     }
 
     #[test]

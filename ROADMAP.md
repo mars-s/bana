@@ -8,10 +8,10 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 124 |
-| Tests | 73 (core 33, commands 26, UI 12 including real key, drag and drop, paste and panel tests, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 95 mapped: 43 done, 44 partial, 6 missing, 2 notes |
-| Spec screenshots | 153 mapped: 88 done, 37 partial, 27 missing, 1 not behaviour |
+| Commands (every action; CLI, MCP and control channel can run them) | 153 engine commands, plus 22 window commands |
+| Tests | 118 (core 36, commands 36, UI 44 driving the real UI with keys, pointer drags, clicks and panels, MCP 1, CLI 1) |
+| Spec sections (`docs/parity.md`) | 99 mapped: 63 done, 29 partial, 5 missing, 2 notes |
+| Spec screenshots | 153 mapped: 115 done, 29 partial, 8 missing, 1 not behaviour |
 
 ## Milestones
 
@@ -29,7 +29,10 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M9 Shell | Tabs, panels, sidebar modes, Search and open, quick add, slash menu, related content, go to date | done (first versions) |
 | M10 Schema | Supertag page with view tabs and configure section, field definition page, done mapping, templates, auto-initialize, hide and required fields | done (first versions) |
 | M11 Spec round two | Inline references and links, Recents and Settings pages, Move to, system fields, calendar drag and day view, selection toolbar, copy/paste as references, checklists, column resize, template propagation | done (first versions) |
-| M12 Next | Calendar time grid (timed dates, drag to create and resize), several values per field, pinned fields, workspaces and Inbox, AI features, native menus | next |
+| M12 Acceptance round 3 | Every P1, P2 and P3 item of the spec team's DIFFS.md (except AI): caret formatting, `>` field rows, Escape selection, copying selections, quick add focus, nested query groups, configure supertag panel, supertags overview, board and calendar details, context-aware command line, checklist caret, tag page header, shell, link styling, field options outline, inline `#` menu | done |
+| M13 Fields and calendar | Several values per field, pinned and optional fields, title expressions, option sources, invalid-value warnings, date picker with time; calendar time grid with timed dates, drop to time, resize, drag to create | done |
+| M14 Workspaces | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel | done |
+| M15 Next | Native menus, AI features, user fields, per-context notes on references, rich HTML clipboard, import formats | next |
 
 ## Later
 
@@ -38,6 +41,5 @@ Multiple workspaces, sync, settings, mobile and web (wasm) builds.
 ## Known simplifications
 
 - Bold is drawn brighter rather than with a bold font (egui's default font has one weight).
-- Search results are live; the spec's "Run once" / "Done" editing step is not modelled.
-- The caret lands at the end when you click a bullet's text.
+- Search results stay live while the query builder is open; Run once and Done are there but results do not wait for them.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

@@ -1062,7 +1062,11 @@ pub(crate) fn rich_job(g: &Graph, t: &Tokens, text: &str, color: Color32, strike
 
 /// A clickable label with marks, inline references and links. Returns the response and, when the
 /// click landed on a reference or link, its target.
-pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Option<LinkTarget>]) -> (egui::Response, Option<LinkTarget>) {
+pub(crate) fn link_label(
+    ui: &mut Ui,
+    job: egui::text::LayoutJob,
+    targets: &[Option<LinkTarget>],
+) -> (egui::Response, Option<LinkTarget>, Option<usize>) {
     // Laid out here rather than by `Label`, which would replace the job's wrap width.
     let galley = ui.fonts_mut(|f| f.layout_job(job));
     let resp = if galley.rows.len() > 1 {
@@ -1080,8 +1084,10 @@ pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Opt
     let text = galley.text().to_string();
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text.clone()));
     let mut hit = None;
+    let mut at = None;
     if let Some(p) = ui.ctx().pointer_hover_pos().filter(|p| resp.rect.contains(*p)) {
         let c = galley.cursor_from_pos(p - pos);
+        at = Some(c.index.0);
         let byte = galley.job.text.char_indices().nth(c.index.0).map(|(b, _)| b).unwrap_or(galley.job.text.len());
         let sec = galley.job.sections.iter().position(|s| s.byte_range.start.0 <= byte && byte < s.byte_range.end.0);
         hit = sec.and_then(|i| targets.get(i).cloned().flatten());
@@ -1090,7 +1096,7 @@ pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Opt
         }
     }
     let clicked = resp.clicked();
-    (resp, if clicked { hit } else { None })
+    (resp, if clicked { hit } else { None }, at)
 }
 
 /// A clickable label with inline marks rendered; references and links open on click.
@@ -1101,7 +1107,7 @@ pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &To
     if room.is_finite() && room > 60.0 {
         job.wrap.max_width = room;
     }
-    let (resp, hit) = link_label(ui, job, &targets);
+    let (resp, hit, _) = link_label(ui, job, &targets);
     match hit {
         Some(LinkTarget::Node(n)) => app_acts.push(Act::Run("nav.open".into(), json!({"node": n.0}))),
         Some(LinkTarget::Url(u)) => ui.ctx().open_url(egui::OpenUrl::new_tab(u)),
@@ -1452,7 +1458,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             let (mut job, targets) = rich_job_links(&app.session.graph, t, &name, text_color, false, size);
             // Long text wraps, leaving room for the tag chips (spec 02 §1).
             job.wrap.max_width = (ui.available_width() - chips_width(&app.session.graph, id)).max(120.0);
-            let (r, hit) = link_label(ui, job, &targets);
+            let (r, hit, at) = link_label(ui, job, &targets);
             let link_hit = hit.is_some();
             match hit {
                 Some(LinkTarget::Node(n)) => app.acts.push(Act::Run("nav.open".into(), json!({"node": n.0}))),
@@ -1467,7 +1473,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                     app.acts.push(Act::Run("select.set".into(), json!({"from": from.0, "to": id.0})));
                 } else {
                     app.acts.push(Act::Run("select.clear".into(), json!({})));
-                    app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0})));
+                    // The caret goes where the text was clicked (spec 02 §1).
+                    let caret = at.and_then(|c| tanacraft_core::format::shown_to_raw(&name, c)).unwrap_or(usize::MAX);
+                    app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0, "caret": caret})));
                 }
             }
             if focused && is_ref {

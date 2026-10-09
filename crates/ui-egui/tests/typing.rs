@@ -1135,3 +1135,25 @@ fn lanes_drag_a_node_into_another_lane() {
     }
     assert_eq!(h.state().session.graph.parent(tanacraft_core::NodeId(b1)), Some(ids[0]));
 }
+
+#[test]
+fn clicking_text_puts_the_caret_there() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    let ids = page_with(&mut h, &["abcdefghij"]);
+    let r = h.get_by_label("abcdefghij").rect();
+    // Click a little left of the middle: the caret lands inside the word, not at its end.
+    let p = Pos2::new(r.left() + r.width() * 0.45, r.center().y);
+    h.input_mut().events.push(Event::PointerMoved(p));
+    h.step();
+    h.input_mut().events.push(Event::PointerButton { pos: p, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.step();
+    h.input_mut().events.push(Event::PointerButton { pos: p, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, "X");
+    let name = h.state().session.graph.name(ids[0]).to_string();
+    let at = name.find('X').unwrap();
+    assert!((3..=6).contains(&at), "{name}");
+}

@@ -226,7 +226,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `62-recents.png` | done | Recents page. |
 | `63-ai-chats.png` | missing | AI chats. |
 | `64-create-new.png` | done | Create new: untitled page with suggestions. |
-| `65-settings-menu.png` | partial | Account menu: Workspaces, Settings, theme, shortcuts, Help. No account, labs, API tokens or log out (local app). |
+| `65-settings-menu.png` | partial | Account menu: Workspaces, Import content (a .md or .opml file, `import.file`), Settings, theme, shortcuts, Help. No account, labs, API tokens, templates, invite or log out (local app). |
 | `66-settings-page.png` | done | Settings: left nav of sub-pages, preference rows with label, help and checkbox. Tested. |
 | `67-today-light-mode.png` | done | Light mode. |
 | `68-reference-node.png` | done | Reference node. |

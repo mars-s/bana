@@ -918,6 +918,18 @@ impl TanaApp {
                 let mut acts = Vec::new();
                 egui::Popup::menu(&account).show(|ui| {
                     ui.menu_button("Workspaces", |ui| self.workspace_menu(ui, &mut acts));
+                    // Import content: a Markdown or OPML file into the Library (spec 00 account menu).
+                    ui.menu_button("Import content", |ui| {
+                        let id = egui::Id::new("import-path");
+                        let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
+                        let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("Path to a .md or .opml file, Enter").desired_width(280.0));
+                        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
+                            acts.push(Act::Run("import.file".into(), json!({"path": buf.trim()})));
+                            buf.clear();
+                            ui.close();
+                        }
+                        ui.data_mut(|d| d.insert_temp(id, buf));
+                    });
                     for (label, act) in [
                         ("Settings", Act::Ui("ui.settings")),
                         ("Switch light or dark theme", Act::Ui("ui.toggleTheme")),

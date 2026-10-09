@@ -12,7 +12,7 @@ use tanacraft_commands::Session;
 use tanacraft_commands::core::{Date, Graph, Kind, NodeId, sample};
 
 /// Commands that touch the file system or other workspaces.
-const SKIP: &[&str] = &["file.save", "file.open"];
+const SKIP: &[&str] = &["file.save", "file.open", "import.file"];
 
 struct Rng(u64);
 

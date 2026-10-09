@@ -1100,3 +1100,19 @@ fn held_search_results_wait_for_run_once() {
     run(&mut s, "node.add", json!({"name": "apple jam"}));
     assert_eq!(s.graph.view_items(q).len(), 3, "live again");
 }
+
+#[test]
+fn import_file_reads_markdown_and_opml() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-import-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let md = dir.join("notes.md");
+    std::fs::write(&md, "- Trip\n  - [ ] Pack #task\n").unwrap();
+    let opml = dir.join("list.OPML");
+    std::fs::write(&opml, "<opml><body><outline text=\"From OPML\"/></body></opml>").unwrap();
+    let mut s = blank();
+    assert_eq!(run(&mut s, "import.file", json!({"path": md.to_string_lossy()}))["created"], 2);
+    assert_eq!(run(&mut s, "import.file", json!({"path": opml.to_string_lossy()}))["created"], 1);
+    assert_eq!(s.graph.search("From OPML").len(), 1);
+    assert!(s.run("import.file", &json!({"path": dir.join("missing.md").to_string_lossy()})).is_err());
+    std::fs::remove_dir_all(&dir).ok();
+}

@@ -107,14 +107,23 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags)"#),
-        C::new("import.opml", "Import OPML", "File", |s, v| {
-            let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
-            s.graph.node(root)?;
-            let items = tanacraft_core::opml::parse(p::req_str(v, "text")?);
-            let made = import_items(s, root, &items)?;
-            Ok(json!({"created": made, "parent": root.0}))
-        })
+        C::new("import.opml", "Import OPML", "File", import_opml)
         .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note)"#),
+        C::new("import.file", "Import content", "File", |s, v| {
+            let path = p::req_str(v, "path")?;
+            let meta = std::fs::metadata(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+            // A content file, not a disk image: refuse anything huge.
+            if meta.len() > 64 * 1024 * 1024 {
+                return Err(CmdError::Failed(format!("{path} is larger than 64 MB")));
+            }
+            let text = std::fs::read_to_string(path).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+            let mut params = json!({"text": text});
+            if let Some(p) = v.get("parent") {
+                params["parent"] = p.clone();
+            }
+            if path.to_ascii_lowercase().ends_with(".opml") { import_opml(s, &params) } else { import_markdown(s, &params) }
+        })
+        .params(r#"{"path": string, "parent"?: id}  (a Markdown (.md) or OPML (.opml) file)"#),
         C::new("export.opml", "Export as OPML", "Export", |s, v| {
             let id = node_or_zoom(s, v)?;
             Ok(json!({"opml": tanacraft_core::opml::to_opml(&s.graph, &[id], s.graph.name(id))}))
@@ -858,6 +867,14 @@ fn import_line(s: &mut Session, parent: NodeId, body: &str) -> Result<NodeId, Cm
         s.graph.set_done(n, done)?;
     }
     Ok(n)
+}
+
+fn import_opml(s: &mut Session, v: &Value) -> CmdResult {
+    let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+    s.graph.node(root)?;
+    let items = tanacraft_core::opml::parse(p::req_str(v, "text")?);
+    let made = import_items(s, root, &items)?;
+    Ok(json!({"created": made, "parent": root.0}))
 }
 
 /// OPML items under `parent`, line by line as in Markdown import, notes as descriptions.

@@ -11,6 +11,7 @@ import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel
 import { type EditorHandle, exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { ViewBody, ViewToolbar } from './Views'
+import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { keyInfo } from './keys'
 
 const OVERSCAN_ROWS = 150
@@ -1003,6 +1004,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   const focusIndex = page?.rows.focusIndex
   const focusScroll = useStore((s) => s.focusScroll)
   const viewSnap = useStore((s) => s.views[panel])
+  const special = useStore((s) => s.special[panel])
   useEffect(() => {
     if (focusIndex == null || !page) return
     if (focusIndex < first + 1 || focusIndex > last - 1) v.scrollToIndex(focusIndex, { align: 'center' })
@@ -1010,9 +1012,34 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   }, [focusIndex, page?.focus, focusScroll])
 
   if (!page) return <div className="panel" />
+  if (special) {
+    const title = { settings: 'Settings', recents: 'Recents', help: 'Help' }[special]
+    return (
+      <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
+        <div className="crumbs">
+          <button className="icon-btn crumb-back" title="Back" onClick={() => setState((s) => ({ special: { ...s.special, [panel]: undefined } }))}>
+            <Icon name="chevronLeft" size={14} />
+          </button>
+        </div>
+        <div className="scroller">
+          <div className="page">
+            <div className="page-main">
+              <h1 className="title">{title}</h1>
+              <div className="special-body">
+                {special === 'settings' && <SettingsPage panel={panel} />}
+                {special === 'recents' && <RecentsPage panel={panel} />}
+                {special === 'help' && <HelpPage />}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
   const wide = page.related.length > 0
   const vs = viewSnap && viewSnap.node === page.zoom ? viewSnap : null
   const layout = vs && vs.kind !== 'outline' ? vs : null
+  const schema = page.kind === 'schema'
   return (
     <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
       <Crumbs page={page} panel={panel} many={many} />
@@ -1022,6 +1049,11 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
             <div ref={head} className="page-head">
               <div className="title-row">
                 {page.icon && <span className="page-icon">{page.icon}</span>}
+                {page.kind === 'tag' && (
+                  <span className="tag-square title" style={tagStyle(page.tagColor ?? 'grey')}>
+                    #
+                  </span>
+                )}
                 <TitleEditor key={page.zoom} page={page} panel={panel} />
                 {page.tags.length === 0 && <HeadActions />}
               </div>
@@ -1038,10 +1070,12 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               {page.description && <p className="page-desc">{page.description}</p>}
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
+              {page.kind === 'tag' && vs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={vs.tabs} active={page.zoom} />}
               {vs && !layout && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>
+            {schema && <SupertagsPage panel={panel} />}
             {layout && <ViewBody v={layout} panel={panel} />}
-            <div className="rows" style={{ height: layout ? 0 : v.getTotalSize() - headH, display: layout ? 'none' : undefined }}>
+            <div className="rows" style={{ height: layout || schema ? 0 : v.getTotalSize() - headH, display: layout || schema ? 'none' : undefined }}>
               {items.map((vi) => {
                 const row = page.rows.items[vi.index - page.rows.start]
                 return (
@@ -1057,7 +1091,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 )
               })}
             </div>
-            {!layout && <div
+            {!layout && !schema && <div
               className="row ghost"
               onMouseDown={(e) => {
                 e.preventDefault()

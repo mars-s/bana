@@ -315,6 +315,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "name": g.name(zoom),
         "titleEditable": title_editable(g, zoom),
         "kind": kind_name(g, target),
+        "tagColor": g.tag_def(target).map(|d| d.color.clone()),
         "icon": node.and_then(|n| n.icon.clone()),
         "banner": node.and_then(|n| n.banner.clone()),
         "description": node.map(|n| n.description.clone()).unwrap_or_default(),
@@ -567,4 +568,20 @@ pub fn view(s: &Session, params: &Value) -> Value {
         "tabs": tabs,
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
     })
+}
+
+/// The Supertags page: every supertag with its colour, whether it is pinned, and its workspace.
+pub fn tags(s: &Session) -> Value {
+    let g = &s.graph;
+    let tags: Vec<Value> = g
+        .tags()
+        .into_iter()
+        .map(|t| {
+            json!({"id": t.0, "name": g.name(t), "color": g.tag_def(t).map(|d| d.color.clone()).unwrap_or_default(),
+                   "pinned": g.get(t).is_some_and(|n| n.pinned), "workspace": g.workspace_of(t).0, "count": g.tagged(t).len()})
+        })
+        .collect();
+    let workspaces: Vec<Value> =
+        g.workspaces().into_iter().map(|w| json!({"id": w.0, "name": if g.name(w).is_empty() { "Workspace" } else { g.name(w) }})).collect();
+    json!({"tags": tags, "workspaces": workspaces})
 }

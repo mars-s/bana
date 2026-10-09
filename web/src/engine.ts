@@ -217,6 +217,7 @@ export interface Page {
   name: string
   titleEditable: boolean
   kind: string
+  tagColor: string | null
   icon: string | null
   banner: string | null
   description: string

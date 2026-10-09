@@ -89,6 +89,8 @@ export function noteSynced(node: number, caret: number) {
 /** Runs a command that may move the caret; keys typed meanwhile wait and are replayed after. */
 export async function exec(command: string, params: Json = {}, panel = getState().activePanel): Promise<Json> {
   barrier++
+  // Going anywhere leaves a Settings, Recents or Help page.
+  if (command.startsWith('nav.') && getState().special[panel]) setState((s) => ({ special: { ...s.special, [panel]: undefined } }))
   try {
     // The engine learns where the caret is first (arrow keys and clicks move it without a command).
     if (editor && editor.kind === 'line' && editor.panel === panel) {
@@ -255,6 +257,11 @@ function runUi(id: string): boolean {
       }
       return true
     }
+    case 'ui.settings':
+    case 'ui.recents':
+    case 'ui.help':
+      setState({ special: { ...s.special, [s.activePanel]: id.slice(3) as 'settings' | 'recents' | 'help' } })
+      return true
     case 'ui.quickAdd':
       setState({ overlay: { kind: 'quickadd', lines: [''] } })
       return true

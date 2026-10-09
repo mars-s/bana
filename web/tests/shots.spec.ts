@@ -38,3 +38,17 @@ test('views: table, board, calendar', async ({ app, server }) => {
   await app.locator('.calendar').waitFor()
   await app.screenshot(shot('calendar'))
 })
+
+test('supertags, tag page, settings', async ({ app, server }) => {
+  await server.run('nav.supertags')
+  await app.locator('.supertags').waitFor()
+  await app.mouse.move(0, 400)
+  await app.screenshot(shot('supertags'))
+  const tags = (await server.rpc('tags')).tags
+  await server.run('nav.open', { node: tags.find((t: any) => t.name === 'task').id })
+  await app.locator('.tag-tabs').waitFor()
+  await app.screenshot(shot('tag-page'))
+  await app.locator('.topbar-right .icon-btn[title="Settings"]').click()
+  await app.locator('.settings').waitFor()
+  await app.screenshot(shot('settings'))
+})

@@ -60,13 +60,13 @@ function TopBar() {
         </button>
       </nav>
       <div className="topbar-right">
-        <button className="icon-btn" title="Help" onClick={() => void exec('nav.home')}>
+        <button className="icon-btn" title="Help" onClick={() => runUiCommand('ui.help')}>
           <Icon name="help" size={14} />
         </button>
         <button className="icon-btn" title="Keyboard shortcuts" onClick={() => runUiCommand('ui.shortcuts')}>
           <Icon name="keyboard" size={14} />
         </button>
-        <button className="icon-btn" title="Switch light or dark theme" onClick={() => runUiCommand('ui.toggleTheme')}>
+        <button className="icon-btn" title="Settings" onClick={() => runUiCommand('ui.settings')}>
           <Icon name="user" size={14} />
         </button>
       </div>
@@ -117,7 +117,7 @@ function Sidebar() {
     <aside className={`sidebar${mode === 1 ? ' mini' : ''}`} data-panel-for={active}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
       {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
-      {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => setState({ overlay: { kind: 'search', query: '', recents: true } })} />}
+      {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}
       <div className="side-actions">
         <button className="btn create" onClick={() => void exec('node.createNew')}>
           <Icon name="compose" size={14} />

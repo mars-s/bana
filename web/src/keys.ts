@@ -79,4 +79,7 @@ export const UI_COMMANDS: [string, string, string][] = [
   ['ui.searchOpen', 'Search and open', 'Mod+S'],
   ['ui.quickAdd', 'Quick add', 'Mod+E'],
   ['ui.editDescription', 'Add description', 'Ctrl+I'],
+  ['ui.settings', 'Open settings', ''],
+  ['ui.recents', 'Open recents', ''],
+  ['ui.help', 'Help', ''],
 ]

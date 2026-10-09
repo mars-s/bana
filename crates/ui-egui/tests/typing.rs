@@ -892,6 +892,15 @@ fn calendar_time_grid_drag_to_create_and_resize() {
     drag(&mut h, Pos2::new(x, y(12.5 * 60.0) - 4.0), Pos2::new(x, y(13.5 * 60.0)));
     let g = &h.state().session.graph;
     assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-13:30");
+    // A named event is kept when the name box loses the keyboard without Enter.
+    drag(&mut h, Pos2::new(x, y(15.0 * 60.0 + 2.0)), Pos2::new(x, y(16.0 * 60.0)));
+    text(&mut h, "Blurred");
+    h.ctx.memory_mut(|m| m.request_focus(egui::Id::new("elsewhere")));
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.search("Blurred").len(), 1, "created on blur");
+    assert!(h.state().cal_new.is_none());
 }
 
 #[test]
@@ -2317,4 +2326,29 @@ fn diffs_n34_typing_after_a_cleared_shift_down_selection_goes_in_at_the_start() 
     key(&mut h, Key::Escape, Modifiers::NONE);
     type_chars(&mut h, "QR");
     assert_eq!(h.state().session.graph.name(ids[1]), "QRtwo");
+}
+
+#[test]
+fn workspace_rename_box_renames_on_blur() {
+    let mut h = harness();
+    h.get_by_label("Manage workspaces").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.query_all_by_role(egui::accesskit::Role::TextInput).last().expect("rename box").click();
+    h.step();
+    h.step();
+    key(&mut h, Key::End, Modifiers::NONE);
+    text(&mut h, " Home");
+    // Click somewhere else: the box loses the keyboard and the menu closes.
+    let away = egui::pos2(1100.0, 700.0);
+    h.input_mut().events.push(Event::PointerMoved(away));
+    h.input_mut().events.push(Event::PointerButton { pos: away, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    h.step();
+    h.input_mut().events.push(Event::PointerButton { pos: away, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    let g = &h.state().session.graph;
+    assert!(g.name(g.sys.root).ends_with(" Home"), "{}", g.name(g.sys.root));
 }

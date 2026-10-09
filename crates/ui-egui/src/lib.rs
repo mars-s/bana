@@ -1821,7 +1821,7 @@ impl TanaApp {
                     }
                 }
             } else {
-                egui::Popup::menu(&head).show(|ui| self.workspace_menu(ui, &mut acts));
+                egui::Popup::menu(&head).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| self.workspace_menu(ui, &mut acts));
             }
             if !open {
                 continue;
@@ -1845,7 +1845,7 @@ impl TanaApp {
             self.ws_open.insert(ws);
         }
         let manage = side_item(ui, &t, Icon::Building, "Manage workspaces", false);
-        egui::Popup::menu(&manage).show(|ui| self.workspace_menu(ui, &mut acts));
+        egui::Popup::menu(&manage).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| self.workspace_menu(ui, &mut acts));
         self.acts.extend(acts);
     }
 }
@@ -1910,7 +1910,9 @@ impl TanaApp {
         let rid = egui::Id::new("ws-rename");
         let mut name = ui.data_mut(|d| d.get_temp::<String>(rid)).unwrap_or_else(|| self.session.graph.name(self.session.graph.sys.root).to_string());
         let r = ui.add(egui::TextEdit::singleline(&mut name).hint_text("Rename the main workspace").desired_width(220.0));
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.trim().is_empty() {
+        // Enter or leaving the box renames; Escape does not.
+        let changed = name.trim() != self.session.graph.name(self.session.graph.sys.root);
+        if r.lost_focus() && !ui.input(|i| i.key_pressed(egui::Key::Escape)) && !name.trim().is_empty() && changed {
             acts.push(Act::Run("workspace.rename".into(), json!({"name": name.trim()})));
             ui.data_mut(|d| d.remove::<String>(rid));
             ui.close();

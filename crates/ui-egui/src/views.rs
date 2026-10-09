@@ -1935,7 +1935,9 @@ fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, 
                 let g = &app.session.graph;
                 let shown = tanacraft_core::export::shown_value(g, &tanacraft_core::FieldValue::Timed { date: ev.day, start: ev.start, end: ev.end });
                 ui.label(RichText::new(format!("{}: {shown}", g.name(field))).size(12.5).color(t.dim));
-                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                // Enter creates; leaving a typed name (a click elsewhere) keeps it too. Escape cancels.
+                let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+                if r.lost_focus() && !esc && (enter || !ev.name.trim().is_empty()) {
                     create = true;
                 }
             });

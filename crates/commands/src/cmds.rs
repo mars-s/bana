@@ -42,6 +42,27 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "caret"?: number}"#),
         C::new("edit.insertTime", "Insert current time", "Edit", |s, v| insert_text(s, v, &tanacraft_core::fmt_hm(Date::now_minutes())))
             .params(r#"{"node"?: id, "caret"?: number}"#),
+        C::new("node.convertToSupertag", "Convert to supertag", "Node", |s, v| {
+            let id = s.target(v)?;
+            let n = s.graph.tags().len();
+            let color = p::str(v, "color").map(str::to_string).unwrap_or_else(|| TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey").to_string());
+            let tag = s.graph.convert_to_tag(s.graph.resolve(id), &color)?;
+            Ok(json!({"tag": tag.0, "name": s.graph.name(tag)}))
+        })
+        .params(r#"{"node"?: id, "color"?: string}"#),
+        C::new("node.hardDelete", "Hard delete including references", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let refs: Vec<NodeId> = s.graph.iter().filter(|n| n.reference_target() == Some(id)).map(|n| n.id).collect();
+            for r in &refs {
+                s.graph.delete_permanently(*r)?;
+            }
+            s.graph.trash(id)?;
+            if s.focus.is_some_and(|f| s.graph.get(f).is_none() || f == id) {
+                s.focus = None;
+            }
+            Ok(json!({"trashed": id.0, "references_removed": refs.len()}))
+        })
+        .params(r#"{"node"?: id}"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

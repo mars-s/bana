@@ -429,7 +429,7 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
 /// New supertags cycle through the palette so they are told apart at a glance.
 fn next_color(app: &TanaApp) -> &'static str {
     let n = app.session.graph.tags().len();
-    tanacraft_core::TAG_COLORS.get(1 + n % 12).copied().unwrap_or("grey")
+    tanacraft_core::TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey")
 }
 
 pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {

@@ -819,6 +819,33 @@ impl Graph {
         Ok(id)
     }
 
+    /// "Convert to supertag": a plain node becomes a supertag (its children become template
+    /// content). It moves to the Schema and a reference stays where it was.
+    pub fn convert_to_tag(&mut self, id: NodeId, color: &str) -> Result<NodeId> {
+        let n = self.node(id)?.clone();
+        if self.is_system(id) || n.kind != Kind::Plain {
+            return Err(Error::Invalid("only a plain node can become a supertag".into()));
+        }
+        let name = crate::format::plain(&n.name);
+        if name.trim().is_empty() {
+            return Err(Error::Invalid("a supertag needs a name".into()));
+        }
+        if let Some(t) = self.find_tag(&name) {
+            return Err(Error::Invalid(format!("supertag #{} already exists ({t})", self.name(t))));
+        }
+        let (parent, index) = (self.parent(id), self.index_in_parent(id));
+        let color = if TAG_COLORS.contains(&color) || crate::model::is_custom_color(color) { color } else { "grey" };
+        let template = n.children.clone();
+        self.node_mut(id)?.kind = Kind::Tag(TagDef { color: color.to_string(), template, ..TagDef::default() });
+        self.node_mut(id)?.name = name;
+        let schema = self.sys.schema;
+        self.move_to(id, schema, None)?;
+        if let Some(p) = parent {
+            self.create_reference(p, index, id)?;
+        }
+        Ok(id)
+    }
+
     pub fn create_field(&mut self, name: &str, field_type: FieldType) -> Result<NodeId> {
         if name.trim().is_empty() {
             return Err(Error::Invalid("a field needs a name".into()));

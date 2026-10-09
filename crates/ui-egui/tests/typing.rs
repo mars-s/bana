@@ -923,3 +923,15 @@ fn ctrl_shift_page_keys_move_the_tab() {
     key(&mut h, Key::PageDown, Modifiers { ctrl: true, shift: true, ..Modifiers::NONE });
     assert_eq!(h.state().tab, 1);
 }
+
+#[test]
+fn reference_counter_setting_shows_counts() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Target", "Other"]);
+    h.state_mut().exec("node.reference", json!({"target": ids[0].0, "parent": ids[1].0})).unwrap();
+    h.state_mut().ref_counter = true;
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("1");
+}

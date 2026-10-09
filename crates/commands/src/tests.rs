@@ -763,3 +763,26 @@ fn insert_date_links_the_day_at_the_caret() {
     run(&mut s, "edit.insertTime", json!({"node": n.0, "caret": 0}));
     assert!(s.graph.name(n).chars().nth(2) == Some(':'), "{}", s.graph.name(n));
 }
+
+#[test]
+fn convert_to_supertag_and_hard_delete() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Recipe"})), "id");
+    run(&mut s, "node.add", json!({"name": "Ingredients", "parent": n.0}));
+    let v = run(&mut s, "node.convertToSupertag", json!({"node": n.0}));
+    let tag = id(&v, "tag");
+    assert!(s.graph.tag_def(tag).is_some());
+    assert_eq!(s.graph.parent(tag), Some(s.graph.sys.schema));
+    let lib = s.graph.sys.library;
+    assert_eq!(s.graph.resolve(s.graph.children(lib)[0]), tag, "a reference stays");
+    let x = id(&run(&mut s, "node.add", json!({"name": "Pancakes"})), "id");
+    run(&mut s, "tag.add", json!({"node": x.0, "tag": "Recipe"}));
+    assert_eq!(s.graph.name(s.graph.children(x)[0]), "Ingredients", "children became template content");
+    assert!(s.run("node.convertToSupertag", &json!({"node": lib.0})).is_err());
+    // Hard delete removes the node and every reference to it.
+    let v = run(&mut s, "node.hardDelete", json!({"node": x.0}));
+    assert_eq!(v["references_removed"], json!(0));
+    let r = run(&mut s, "node.hardDelete", json!({"node": tag.0}));
+    assert_eq!(r["references_removed"], json!(1));
+    assert!(s.graph.in_trash(tag));
+}

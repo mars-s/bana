@@ -224,6 +224,9 @@ pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             if full != (app.sidebar == 0) {
                 app.sidebar = if full { 0 } else { 2 };
             }
+            let mut counter = app.ref_counter;
+            pref(ui, "Reference counter", "Show how many places reference a node, next to it.", &mut counter);
+            app.ref_counter = counter;
             let mut autosave = app.autosave;
             pref(ui, "Save automatically", "Write the graph file a second after each change.", &mut autosave);
             app.autosave = autosave;
@@ -1091,10 +1094,17 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     if g.query(id).is_some() {
         item(ui, "Convert search node to plain list", run("search.toPlainList"));
     }
+    if g.get(id).is_some_and(|n| n.kind == Kind::Plain && n.reference_target().is_none()) && !g.is_system(id) {
+        item(ui, "Convert to supertag", run("node.convertToSupertag"));
+    }
     if g.in_trash(id) {
         item(ui, "Restore", run("node.restore"));
+    } else if g.get(id).is_some_and(|n| n.reference_target().is_some()) {
+        // A reference: removing it leaves the original alone (spec 01 §3).
+        item(ui, "Remove reference", run("node.delete"));
     } else {
         item(ui, "Delete", run("node.delete"));
+        item(ui, "Hard delete including references", run("node.hardDelete"));
     }
 }
 
@@ -1369,6 +1379,15 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             }
         }
         title_suffix(ui, &app.session.graph, t, id, if heading { 20.0 } else { theme::FONT });
+        // Reference counter (a setting): how many places point at this node.
+        // ponytail: counts by scanning the graph per row; cache per frame if big graphs feel slow.
+        if app.ref_counter {
+            let n = app.session.graph.references_to(target).len();
+            if n > 0 {
+                let r = ui.label(RichText::new(n.to_string()).size(11.0).color(t.faint).background_color(t.hover));
+                r.on_hover_text(format!("Referenced in {n} place(s)"));
+            }
+        }
         // Tag chips (hover the "#" to remove).
         if let Some(n) = &node {
             for tag in n.tags.clone() {

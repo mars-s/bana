@@ -16,3 +16,15 @@
 {"open": "Community garden"}
 {"cmd": "ui.shortcuts"}
 {"shot": "docs/images/light-shortcuts.png"}
+{"theme": "dark"}
+{"cmd": "ui.shortcuts"}
+{"cmd": "nav.home"}
+{"focus": "Ideas"}
+{"key": "End"}
+{"type": " #"}
+{"type": "pro"}
+{"shot": "docs/images/tag-picker.png"}
+{"key": "Escape"}
+{"cmd": "node.delete", "params": {"node": 29}}
+{"cmd": "nav.trash"}
+{"shot": "docs/images/trash.png"}

@@ -36,6 +36,9 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             header(app, ui, &t);
             ui.add_space(10.0);
             let zoom = app.session.zoom;
+            if zoom == app.session.graph.sys.trash {
+                trash_banner(ui, &t);
+            }
             if app.session.graph.tag_def(zoom).is_some() {
                 tag_page(app, ui, &t, zoom);
             } else {
@@ -53,6 +56,17 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
         });
     }
     ui.add_space(80.0);
+}
+
+/// Our own wording: how the Trash works.
+fn trash_banner(ui: &mut Ui, t: &Tokens) {
+    let warm = Color32::from_rgb(232, 128, 96);
+    egui::Frame::new().fill(warm.gamma_multiply(0.12)).stroke(Stroke::new(1.0, warm.gamma_multiply(0.5))).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.label(RichText::new("Deleted nodes wait here").strong().color(warm));
+        ui.label(RichText::new("Restore a node with the command line (Restore from trash), or empty the trash for good (Empty trash).").size(13.5).color(t.dim));
+    });
+    ui.add_space(10.0);
 }
 
 fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
@@ -495,8 +509,14 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
             ui.painter().circle_filled(center, 8.0, t.line);
         }
         if is_ref {
-            ui.painter().circle_stroke(center, 4.5, Stroke::new(1.3, bullet_color));
-            ui.painter().circle_filled(center, 2.0, bullet_color);
+            // Dashed ring: twelve short arcs around the dot.
+            for i in 0..12 {
+                let a0 = i as f32 / 12.0 * std::f32::consts::TAU;
+                let a1 = a0 + std::f32::consts::TAU / 24.0;
+                let at = |a: f32| center + vec2(a.cos(), a.sin()) * 6.0;
+                ui.painter().line_segment([at(a0), at(a1)], Stroke::new(1.2, bullet_color));
+            }
+            ui.painter().circle_filled(center, 2.2, bullet_color);
         } else {
             ui.painter().circle_filled(center, 3.2, bullet_color);
         }

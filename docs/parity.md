@@ -49,7 +49,7 @@ Of the 68 spec screenshots (`cargo xtask parity` recounts):
 | `31-inline-formatting.png` | missing | Bold, italic, highlight, code inside node text. Names are plain text today. |
 | `34-slash-menu.png` | missing | Slash menu. |
 | `69-bullet-context-menu.png` | missing | Bullet context menu. Bullet click zooms in (`nav.zoomIn`). |
-| `70-trash.png` | partial | Delete moves to Trash with its old place remembered; `node.restore`, `trash.empty`. Missing: the explanatory banner on the Trash page, references shown with a trash mark. |
+| `70-trash.png` | partial | Delete moves to Trash with its old place remembered; `node.restore`, `trash.empty`. The Trash page has an explanatory banner (our wording). Missing: references to trashed nodes shown with a trash mark. |
 | (keyboard editing, no screenshot) | done | Enter splits at the caret (end of an expanded parent adds a first child; start of text adds a node above), Tab indent, Shift+Tab outdent (stops at the zoomed node), Backspace at start merges into the node above or removes an empty node, Up/Down move focus, one undo step per word typed. Tested in `crates/commands/src/tests.rs` and through real key events in `crates/ui-egui/tests/typing.rs`. |
 | (expand, collapse, zoom, breadcrumbs) | done | Chevrons, halo bullets on collapsed parents, guide lines, zoom in/out, back/forward, clickable breadcrumbs. |
 
@@ -83,7 +83,7 @@ Of the 68 spec screenshots (`cargo xtask parity` recounts):
 |---|---|---|
 | `27-at-reference-menu.png` | done | `@` on an empty bullet opens a node search; choosing turns the bullet into a reference (`node.reference` with `replace`). |
 | `28-inline-reference.png` | missing | References inside text. Only whole-node references today. |
-| `68-reference-node.png` | partial | Reference bullets get a ring; the target's text and children show and edit in place; cycles are cut. Ours is a solid ring, the spec shows a dashed one. |
+| `68-reference-node.png` | partial | Reference bullets get a dashed ring around a dot; the target's text and children show and edit in place; cycles are cut. |
 
 ## Search nodes and views
 

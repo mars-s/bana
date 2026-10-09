@@ -10,6 +10,7 @@ mod keys;
 mod outline;
 mod overlays;
 pub mod theme;
+mod views;
 
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Ui, vec2};
 use serde_json::{Value, json};
@@ -26,6 +27,8 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.shortcuts", "Keyboard shortcuts", "Mod+/"),
     ("ui.toggleTheme", "Switch light or dark theme", ""),
     ("ui.editDescription", "Add description", "Ctrl+I"),
+    ("ui.quickAdd", "Quick add", "Mod+E"),
+    ("ui.searchOptions", "Show or hide search conditions", ""),
 ];
 
 /// The `#`, `>` and `@` pickers.
@@ -34,6 +37,12 @@ pub enum PickMode {
     Tag,
     Field,
     Reference,
+    /// A supertag condition for a search node.
+    SearchTag,
+    /// A field column for a view.
+    Column,
+    /// A value of an options field (`Picker::field`).
+    Choice,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +53,8 @@ pub struct Picker {
     pub query: String,
     pub selected: usize,
     pub anchor: egui::Pos2,
+    /// The field, for `Choice`.
+    pub field: Option<NodeId>,
     focus_once: bool,
 }
 
@@ -60,7 +71,8 @@ struct EditState {
     node: Option<NodeId>,
     buf: String,
     /// Put the caret here on the next frame (and take keyboard focus).
-    set_cursor: Option<usize>,
+    /// (anchor, caret) in chars.
+    set_cursor: Option<(usize, usize)>,
     selection_empty: bool,
 }
 
@@ -79,6 +91,18 @@ pub(crate) enum Act {
     Ui(&'static str),
     Pick(PickMode, NodeId, egui::Pos2),
     EditField(NodeId, NodeId, String),
+    PickChoice(NodeId, NodeId, egui::Pos2),
+    PickDate(NodeId, NodeId, egui::Pos2),
+}
+
+/// The date picker of a date field.
+#[derive(Debug, Clone)]
+pub struct DatePick {
+    pub node: NodeId,
+    pub field: NodeId,
+    pub month: (i32, u8),
+    pub anchor: egui::Pos2,
+    pub buf: String,
 }
 
 /// A request from the JSON control channel (`tanacraft --control PORT`), answered on `reply`.
@@ -97,6 +121,8 @@ pub struct TanaApp {
     pub help: bool,
     pub palette: Option<Palette>,
     pub picker: Option<Picker>,
+    pub date_pick: Option<DatePick>,
+    pub quick_add: Option<String>,
     pub mac: bool,
     /// Save to `session.path` shortly after changes.
     pub autosave: bool,
@@ -104,6 +130,10 @@ pub struct TanaApp {
     field_edit: Option<FieldEdit>,
     title_buf: (Option<NodeId>, String),
     desc_edit: Option<(NodeId, String)>,
+    /// Search pages: the condition editor is open.
+    pub query_open: bool,
+    clause_buf: String,
+    filter_buf: Option<(NodeId, String)>,
     dirty_since: Option<f64>,
     acts: Vec<Act>,
 }
@@ -118,12 +148,17 @@ impl TanaApp {
             help: false,
             palette: None,
             picker: None,
+            date_pick: None,
+            quick_add: None,
             mac: cfg!(target_os = "macos"),
             autosave: false,
             edit: EditState::default(),
             field_edit: None,
             title_buf: (None, String::new()),
             desc_edit: None,
+            query_open: true,
+            clause_buf: String::new(),
+            filter_buf: None,
             dirty_since: None,
             acts: Vec::new(),
         }
@@ -153,6 +188,8 @@ impl TanaApp {
             "ui.toggleSidebar" => self.sidebar = !self.sidebar,
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => self.dark = !self.dark,
+            "ui.quickAdd" => self.quick_add = Some(String::new()),
+            "ui.searchOptions" => self.query_open = !self.query_open,
             "ui.editDescription" => {
                 if let Some(f) = self.session.focus.or(Some(self.session.zoom)) {
                     let t = self.session.graph.resolve(f);
@@ -166,7 +203,7 @@ impl TanaApp {
 
     /// Opens a picker (`#` tag, `>` field, `@` reference) for `node` at `anchor`.
     pub fn open_picker(&mut self, mode: PickMode, node: NodeId, anchor: egui::Pos2) {
-        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, focus_once: true });
+        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, focus_once: true });
     }
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
@@ -209,12 +246,12 @@ impl TanaApp {
         if self.edit.node != focus {
             self.edit.node = focus;
             self.edit.buf = focus.map(|f| self.session.graph.name(f).to_string()).unwrap_or_default();
-            self.edit.set_cursor = focus.map(|_| self.session.caret);
+            self.edit.set_cursor = focus.map(|_| (self.session.anchor, self.session.caret));
         } else if let Some(f) = focus {
             let name = self.session.graph.name(f);
             if self.edit.buf != name {
                 self.edit.buf = name.to_string();
-                self.edit.set_cursor = Some(self.session.caret);
+                self.edit.set_cursor = Some((self.session.anchor, self.session.caret));
             }
         }
     }
@@ -293,6 +330,8 @@ impl TanaApp {
         overlays::palette(self, &ctx);
         overlays::picker(self, &ctx);
         overlays::description(self, &ctx);
+        overlays::date_picker(self, &ctx);
+        overlays::quick_add(self, &ctx);
         self.flush();
     }
 
@@ -305,6 +344,21 @@ impl TanaApp {
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::EditField(node, field, buf) => self.field_edit = Some(FieldEdit { node, field, buf, focus_once: true }),
+                Act::PickChoice(node, field, at) => {
+                    self.open_picker(PickMode::Choice, node, at);
+                    if let Some(p) = self.picker.as_mut() {
+                        p.field = Some(field);
+                    }
+                }
+                Act::PickDate(node, field, anchor) => {
+                    let current = match self.session.graph.get(node).and_then(|n| n.field_value(field)) {
+                        Some(tanacraft_core::FieldValue::Date(d)) => Some(*d),
+                        _ => None,
+                    };
+                    let d = current.unwrap_or(self.session.today);
+                    self.date_pick =
+                        Some(DatePick { node, field, month: (d.year, d.month), anchor, buf: current.map(|d| d.to_string()).unwrap_or_default() });
+                }
             }
         }
     }

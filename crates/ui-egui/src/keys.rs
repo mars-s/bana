@@ -80,6 +80,9 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
     if app.picker.is_some() {
         return crate::overlays::picker_key(app, &k);
     }
+    if app.quick_add.is_some() || app.date_pick.is_some() {
+        return false; // the overlay reads Enter and Escape itself
+    }
     if app.field_edit.is_some() || app.desc_edit.is_some() {
         if k == "Escape" {
             app.field_edit = None;
@@ -140,7 +143,8 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
     match hit {
         Some(id) => {
             // Editing keys need a focused bullet; leave Tab alone otherwise (egui focus traversal).
-            let needs_focus = matches!(id, "node.indent" | "node.outdent" | "node.enter" | "node.backspace");
+            let needs_focus =
+                matches!(id, "node.indent" | "node.outdent" | "node.enter" | "node.backspace" | "node.insert") || id.starts_with("format.");
             if needs_focus && !editing {
                 return false;
             }

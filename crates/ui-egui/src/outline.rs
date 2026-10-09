@@ -39,13 +39,31 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.trash {
                 trash_banner(ui, &t);
             }
-            if app.session.graph.tag_def(zoom).is_some() {
+            let g = &app.session.graph;
+            let is_tag = g.tag_def(zoom).is_some();
+            let is_search = g.query(zoom).is_some();
+            let kind = g.view_def(zoom).kind;
+            if is_tag {
                 tag_page(app, ui, &t, zoom);
+                crate::views::toolbar(app, ui, &t, zoom);
+                crate::views::render(app, ui, &t, zoom);
+            } else if is_search || kind != tanacraft_core::ViewKind::List {
+                fields(app, ui, &t, zoom, 0.0);
+                if is_search && app.query_open {
+                    crate::views::query_builder(app, ui, &t, zoom);
+                }
+                crate::views::toolbar(app, ui, &t, zoom);
+                if kind == tanacraft_core::ViewKind::List {
+                    rows(app, ui, &t);
+                } else {
+                    crate::views::render(app, ui, &t, zoom);
+                }
             } else {
                 fields(app, ui, &t, zoom, 0.0);
                 ui.add_space(4.0);
                 rows(app, ui, &t);
             }
+            references(app, ui, &t, zoom);
         });
     });
     if !app.session.status.is_empty() {
@@ -108,6 +126,22 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let target = g.resolve(zoom);
     let editable = !g.is_system(zoom) && !matches!(g.get(zoom).map(|n| &n.kind), Some(Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }));
     let title_font = FontId::proportional(30.0);
+    let mut menu_acts = Vec::new();
+    ui.horizontal(|ui| {
+        if !g.is_system(zoom) {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.menu_button(RichText::new("...").size(16.0).color(t.dim), |ui| node_menu(ui, g, zoom, &mut menu_acts));
+                if g.query(zoom).is_some()
+                    && ui.add(egui::Button::new(RichText::new("Conditions").size(12.5).color(t.dim)).fill(t.field_bg)).clicked()
+                {
+                    menu_acts.push(Act::Ui("ui.searchOptions"));
+                }
+            });
+        }
+    });
+    app.acts.extend(menu_acts);
+    let s = &app.session;
+    let g = &s.graph;
     ui.horizontal(|ui| {
         if let Some(done) = g.checkbox(target) {
             if checkbox(ui, t, done, 22.0).clicked() {
@@ -198,27 +232,8 @@ fn tag_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
         });
     }
     ui.add_space(14.0);
-    let tagged = g.tagged(tag);
-    ui.label(RichText::new(format!("Tagged nodes ({})", tagged.len())).size(13.0).color(t.dim));
+    ui.label(RichText::new(format!("Tagged nodes ({})", g.tagged(tag).len())).size(13.0).color(t.dim));
     ui.add_space(4.0);
-    let color = theme::tag_color(&def.color, app.dark).0;
-    for n in tagged.into_iter().take(500) {
-        let resp = ui
-            .horizontal(|ui| {
-                let (rect, _) = ui.allocate_exact_size(vec2(20.0, ROW_H), Sense::hover());
-                ui.painter().circle_filled(rect.center(), 3.5, color);
-                if let Some(done) = g.checkbox(n) {
-                    checkbox(ui, t, done, 15.0);
-                }
-                let crumbs: Vec<&str> = g.ancestors(n).iter().skip(1).map(|a| g.name(*a)).collect();
-                ui.add(egui::Label::new(RichText::new(g.name(n)).size(theme::FONT).color(t.text)).sense(Sense::click()))
-                    | ui.label(RichText::new(crumbs.join(" / ")).size(12.0).color(t.faint))
-            })
-            .inner;
-        if resp.clicked() {
-            app.acts.push(Act::Run("nav.open".into(), json!({"node": n.0})));
-        }
-    }
 }
 
 fn type_label(ty: FieldType) -> &'static str {
@@ -309,7 +324,7 @@ fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn field_value(
+pub(crate) fn field_value(
     app: &mut TanaApp,
     ui: &mut Ui,
     t: &Tokens,
@@ -328,27 +343,16 @@ fn field_value(
                 app.acts.push(set(if on { "no" } else { "yes" }.into()));
             }
         }
-        FieldType::Options => {
+        FieldType::Options | FieldType::Date if !editing => {
             let current = text.clone().unwrap_or_default();
-            let mut picked = None;
-            egui::ComboBox::from_id_salt(("opt", node.0, field.0))
-                .selected_text(
-                    RichText::new(if current.is_empty() { "Select option".to_string() } else { current.clone() }).color(if current.is_empty() {
-                        t.faint
-                    } else {
-                        t.text
-                    }),
-                )
-                .width(220.0)
-                .show_ui(ui, |ui| {
-                    for o in &def.options {
-                        if ui.selectable_label(*o == current, o).clicked() {
-                            picked = Some(o.clone());
-                        }
-                    }
-                });
-            if let Some(p) = picked {
-                app.acts.push(set(p));
+            let (label, color) = if current.is_empty() { (hint(def.field_type).to_string(), t.faint) } else { (current, t.text) };
+            let r = ui.add(egui::Label::new(RichText::new(label).size(14.5).color(color)).sense(Sense::click()));
+            if r.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if r.clicked() {
+                let at = r.rect.left_bottom() + vec2(0.0, 4.0);
+                app.acts.push(if def.field_type == FieldType::Date { Act::PickDate(node, field, at) } else { Act::PickChoice(node, field, at) });
             }
         }
         _ if editing => {
@@ -392,7 +396,126 @@ fn hint(ty: FieldType) -> &'static str {
         FieldType::Url => "Add link",
         FieldType::Email => "Add email",
         FieldType::OptionsFromTag => "Select node",
+        FieldType::Options => "Select option",
         _ => "Empty",
+    }
+}
+
+/// Node text with its inline marks rendered (bold, italic, underline, highlight, code).
+// ponytail: the default font has no bold weight; bold is drawn brighter and slightly spaced. Ship a
+// bold font file (with an ATTRIBUTION row) when that is not enough.
+pub(crate) fn rich_job(t: &Tokens, text: &str, color: Color32, strike: bool, size: f32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    for sp in tanacraft_core::format::spans(text) {
+        let mut f = egui::TextFormat { font_id: FontId::proportional(size), color, italics: sp.italic, ..Default::default() };
+        if sp.bold {
+            f.color = if color == t.text { t.text.gamma_multiply(1.0).linear_multiply(1.15) } else { color };
+            f.extra_letter_spacing = 0.35;
+        }
+        if sp.underline {
+            f.underline = Stroke::new(1.0, color);
+        }
+        if sp.highlight {
+            f.background = Color32::from_rgba_unmultiplied(214, 178, 46, 70);
+        }
+        if sp.code {
+            f.font_id = FontId::monospace(size - 1.5);
+            f.color = Color32::from_rgb(222, 140, 80);
+            f.background = t.hover;
+        }
+        if strike {
+            f.strikethrough = Stroke::new(1.0, color);
+        }
+        job.append(&sp.text, 0.0, f);
+    }
+    if job.text.is_empty() {
+        job.append(" ", 0.0, egui::TextFormat { font_id: FontId::proportional(size), color, ..Default::default() });
+    }
+    job
+}
+
+/// A clickable label with inline marks rendered.
+pub(crate) fn rich_label(ui: &mut Ui, t: &Tokens, text: &str, color: Color32, strike: bool) -> egui::Response {
+    let job = rich_job(t, text, color, strike, theme::FONT);
+    ui.add(egui::Label::new(job).sense(Sense::click()))
+}
+
+/// The node menu (right-click a bullet, or "..." on a page).
+pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>) {
+    let n = json!({"node": id.0});
+    let mut item = |ui: &mut Ui, label: &str, act: Act| {
+        if ui.button(label).clicked() {
+            acts.push(act);
+            ui.close();
+        }
+    };
+    let run = |cmd: &str| Act::Run(cmd.into(), n.clone());
+    item(ui, "Open", run("nav.zoomIn"));
+    item(ui, if g.is_expanded(id) { "Collapse" } else { "Expand" }, run("node.toggleExpand"));
+    ui.separator();
+    let at = ui.min_rect().left_bottom();
+    item(ui, "Add supertag", Act::Pick(PickMode::Tag, g.resolve(id), at));
+    item(ui, "Add field", Act::Pick(PickMode::Field, g.resolve(id), at));
+    item(ui, if g.checkbox(id).is_some() { "Toggle done" } else { "Add checkbox" }, run("node.toggleDone"));
+    item(ui, "Add description", Act::Ui("ui.editDescription"));
+    ui.separator();
+    ui.menu_button("View as", |ui| {
+        for k in tanacraft_core::ViewKind::ALL {
+            if ui.button(k.name()).clicked() {
+                acts.push(Act::Run("view.set".into(), json!({"node": id.0, "kind": k.name()})));
+                ui.close();
+            }
+        }
+    });
+    let mut item = |ui: &mut Ui, label: &str, act: Act| {
+        if ui.button(label).clicked() {
+            acts.push(act);
+            ui.close();
+        }
+    };
+    item(ui, "Duplicate", run("node.duplicate"));
+    item(ui, "Move up", run("node.moveUp"));
+    item(ui, "Move down", run("node.moveDown"));
+    item(ui, "Indent", run("node.indent"));
+    item(ui, "Outdent", run("node.outdent"));
+    ui.separator();
+    if g.in_trash(id) {
+        item(ui, "Restore", run("node.restore"));
+    } else {
+        item(ui, "Delete", run("node.delete"));
+    }
+}
+
+/// The footer of a page: nodes that point at it (references and node-valued fields).
+fn references(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
+    let g = &app.session.graph;
+    let target = g.resolve(node);
+    let refs = g.references_to(target);
+    if refs.is_empty() {
+        return;
+    }
+    ui.add_space(24.0);
+    ui.label(RichText::new(format!("References  {}", refs.len())).size(13.0).strong().color(t.dim));
+    ui.add_space(4.0);
+    for r in refs.into_iter().take(200) {
+        let g = &app.session.graph;
+        // A reference node shows where it sits; a field reference shows the node holding the field.
+        let (open, place) = match g.get(r).and_then(|n| n.reference_target()) {
+            Some(_) => (g.parent(r).unwrap_or(r), g.parent(r).map(|p| page_title(&app.session, p)).unwrap_or_default()),
+            None => (r, g.name(r).to_string()),
+        };
+        let crumbs: Vec<&str> = g.ancestors(open).iter().skip(1).map(|a| g.name(*a)).collect();
+        let resp = ui
+            .horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(14.0, 18.0), Sense::hover());
+                ui.painter().circle_stroke(r.center(), 4.0, Stroke::new(1.2, t.faint));
+                ui.add(egui::Label::new(RichText::new(place).size(14.5).color(t.link)).sense(Sense::click()))
+                    | ui.label(RichText::new(crumbs.join(" / ")).size(12.0).color(t.faint))
+            })
+            .inner;
+        if resp.clicked() {
+            app.acts.push(Act::Run("nav.open".into(), json!({"node": open.0})));
+        }
     }
 }
 
@@ -413,7 +536,7 @@ pub fn chip(ui: &mut Ui, g: &Graph, tag: NodeId, dark: bool) -> egui::Response {
     resp
 }
 
-fn checkbox(ui: &mut Ui, t: &Tokens, done: bool, size: f32) -> egui::Response {
+pub(crate) fn checkbox(ui: &mut Ui, t: &Tokens, done: bool, size: f32) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(size + 4.0, ROW_H.max(size)), Sense::click());
     let b = Rect::from_center_size(rect.center(), vec2(size, size));
     let p = ui.painter();
@@ -517,7 +640,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
         if has_kids && !expanded {
             ui.painter().circle_filled(center, 8.0, t.line);
         }
-        if is_ref {
+        if app.session.graph.query(target).is_some() {
+            crate::icons::paint(ui.painter(), Rect::from_center_size(center, vec2(12.0, 12.0)), crate::icons::Icon::Search, t.dim);
+        } else if is_ref {
             // Dashed ring: twelve short arcs around the dot.
             for i in 0..12 {
                 let a0 = i as f32 / 12.0 * std::f32::consts::TAU;
@@ -532,6 +657,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
+        let mut menu_acts = Vec::new();
+        resp.context_menu(|ui| node_menu(ui, &app.session.graph, id, &mut menu_acts));
+        app.acts.extend(menu_acts);
         if resp.clicked() {
             app.acts.push(Act::Run("nav.zoomIn".into(), json!({"node": id.0})));
         }
@@ -547,14 +675,13 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
         if focused && !is_ref {
             edit_row(app, ui, t, id);
         } else {
-            let mut rt = RichText::new(if name.is_empty() { " ".to_string() } else { name }).size(theme::FONT).color(text_color);
-            if done == Some(true) {
-                rt = rt.strikethrough();
-            }
+            let mut job = rich_job(t, &name, text_color, done == Some(true), theme::FONT);
             if is_ref {
-                rt = rt.underline();
+                for sec in &mut job.sections {
+                    sec.format.underline = Stroke::new(1.0, t.dim);
+                }
             }
-            let r = ui.add(egui::Label::new(rt).sense(Sense::click()));
+            let r = ui.add(egui::Label::new(job).sense(Sense::click()));
             if r.clicked() {
                 if is_ref {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
@@ -590,9 +717,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize) 
 /// bullet opens the field or reference picker.
 fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
     let tid = egui::Id::new(("node-edit", id.0));
-    if let Some(c) = app.edit.set_cursor.take() {
+    if let Some((a, c)) = app.edit.set_cursor.take() {
         let mut st = egui::text_edit::TextEditState::load(ui.ctx(), tid).unwrap_or_default();
-        st.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(c))));
+        st.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(a), CCursor::new(c))));
         st.store(ui.ctx(), tid);
         ui.ctx().memory_mut(|m| m.request_focus(tid));
     }
@@ -608,6 +735,7 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         .show(ui);
     if let Some(cr) = out.cursor_range {
         app.session.caret = cr.primary.index.0;
+        app.session.anchor = cr.secondary.index.0;
         app.edit.selection_empty = cr.primary == cr.secondary;
     }
     if out.response.changed() {

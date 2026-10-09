@@ -99,3 +99,53 @@ fn command_line_runs_commands_and_opens_nodes() {
     assert!(h.state().palette.is_none());
     assert_eq!(h.state().session.graph.name(h.state().session.zoom), "Sat, 10 Oct");
 }
+
+#[test]
+fn every_view_renders_on_search_tag_and_plain_pages() {
+    let today = Date::new(2026, 10, 10).unwrap();
+    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    let g = &h.state().session.graph;
+    let pages = [g.search("Open tasks")[0], g.find_tag("task").unwrap(), g.search("Raised beds")[0]];
+    for page in pages {
+        h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+        for kind in ["list", "table", "cards", "board", "calendar"] {
+            h.state_mut().exec("view.set", json!({"kind": kind})).unwrap();
+            for _ in 0..3 {
+                h.step();
+            }
+        }
+    }
+    // Quick add puts a node on today's page and keeps the current page open.
+    h.state_mut().exec("ui.quickAdd", json!({})).unwrap();
+    h.step();
+    text(&mut h, "Water the seedlings #task");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert!(h.state().quick_add.is_none());
+    let g = &h.state().session.graph;
+    let added = g.search("Water the seedlings")[0];
+    assert_eq!(g.name(g.parent(added).unwrap()), "Sat, 10 Oct");
+    assert_eq!(h.state().session.zoom, pages[2]);
+}
+
+#[test]
+fn shift_enter_and_bold_shortcut() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": ""})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": r["id"]})).unwrap();
+    h.step();
+    text(&mut h, "make bold");
+    key(&mut h, Key::B, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.graph.name(tanacraft_core::NodeId(r["id"].as_u64().unwrap())), "**make bold**");
+    key(&mut h, Key::Enter, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(lines(&mut h), ["  - **make bold**", "> - "]);
+}

@@ -69,7 +69,8 @@ pub fn sample(today: Date) -> Result<Graph> {
 
     let reading = g.create(home, None, "Reading notes")?;
     g.create(reading, None, "Soil is alive: feed it, do not just water it")?;
-    g.create(reading, None, "Mulch keeps moisture in and weeds out")?;
+    g.create(reading, None, "Mulch keeps **moisture** in and ==weeds== out, *most* of the time")?;
+    g.set_expanded(reading, true);
     let ideas = g.create(home, None, "Ideas")?;
     g.create(ideas, None, "A tool library in the old shed")?;
 

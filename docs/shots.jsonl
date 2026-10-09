@@ -6,12 +6,29 @@
 {"shot": "docs/images/outline.png"}
 {"cmd": "nav.supertags"}
 {"open": "task"}
+{"cmd": "view.set", "params": {"kind": "table"}}
 {"shot": "docs/images/supertag.png"}
+{"open": "Open tasks"}
+{"shot": "docs/images/search-table.png"}
+{"cmd": "view.set", "params": {"kind": "board"}}
+{"cmd": "ui.searchOptions"}
+{"shot": "docs/images/board.png"}
+{"cmd": "view.set", "params": {"kind": "cards"}}
+{"shot": "docs/images/cards.png"}
+{"cmd": "view.set", "params": {"kind": "calendar"}}
+{"shot": "docs/images/calendar.png"}
+{"cmd": "view.set", "params": {"kind": "table"}}
+{"cmd": "ui.searchOptions"}
 {"cmd": "nav.today"}
 {"cmd": "ui.commandLine"}
 {"type": "garden"}
 {"shot": "docs/images/command-line.png"}
 {"key": "Escape"}
+{"cmd": "ui.quickAdd"}
+{"type": "Buy twine for the bean poles #task"}
+{"shot": "docs/images/quick-add.png"}
+{"key": "Enter"}
+{"cmd": "node.add", "params": {"name": "Format **bold**, *italic*, ==highlight== and `code` in any node"}}
 {"theme": "light"}
 {"open": "Community garden"}
 {"cmd": "ui.shortcuts"}

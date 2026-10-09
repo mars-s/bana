@@ -107,7 +107,7 @@ struct EditState {
 }
 
 #[derive(Debug, Clone)]
-struct FieldEdit {
+pub(crate) struct FieldEdit {
     node: NodeId,
     field: NodeId,
     /// Which value (the count adds one).

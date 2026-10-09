@@ -599,3 +599,14 @@ fn fields_hold_several_values() {
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(export_md(&mut s, n), "- Launch\n  - Owners:: Kim\n");
 }
+
+#[test]
+fn a_field_value_can_move_out_to_a_node() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Trip"})), "id");
+    run(&mut s, "field.add", json!({"node": n.0, "field": "Who", "type": "plain", "value": "Ada"}));
+    run(&mut s, "field.addValue", json!({"node": n.0, "field": "Who", "value": "Sam"}));
+    let v = run(&mut s, "field.valueToNode", json!({"node": n.0, "field": "Who", "index": 0}));
+    assert_eq!(v["values"], json!(["Sam"]));
+    assert_eq!(s.graph.name(s.graph.children(n)[0]), "Ada");
+}

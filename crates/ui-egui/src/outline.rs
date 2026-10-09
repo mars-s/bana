@@ -377,7 +377,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             if app.title_buf.0 != Some(target) || (!ui.ctx().memory(|m| m.has_focus(title_id)) && app.title_buf.1 != g.name(target)) {
                 app.title_buf = (Some(target), g.name(target).to_string());
             }
-            if app.focus_title && !app.drawing_other_panel {
+            if app.focus_title && !app.drawing_other_panel && app.picker.is_none() {
                 ui.ctx().memory_mut(|m| m.request_focus(title_id));
                 app.focus_title = false;
             }
@@ -1438,7 +1438,8 @@ fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: e
 /// bullet opens the field or reference picker.
 fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
     let tid = egui::Id::new((app.panel_ix, "node-edit", id.0));
-    if let Some((a, c)) = app.edit.set_cursor.take() {
+    // An open picker keeps the keyboard; the caret moves once it closes.
+    if let Some((a, c)) = app.edit.set_cursor.take_if(|_| app.picker.is_none()) {
         let mut st = egui::text_edit::TextEditState::load(ui.ctx(), tid).unwrap_or_default();
         st.cursor.set_char_range(Some(CCursorRange::two(CCursor::new(a), CCursor::new(c))));
         st.store(ui.ctx(), tid);

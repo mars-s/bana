@@ -152,12 +152,37 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         }
         return false;
     }
-    if app.field_edit.is_some() {
-        if k == "Escape" {
-            app.field_edit = None;
-            return true;
+    if let Some(fe) = app.field_edit.clone() {
+        let base = json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index});
+        match k.as_str() {
+            "Escape" => app.field_edit = None,
+            // Enter keeps the value and opens another value line in the same field (spec 02 §3).
+            "Enter" => {
+                let mut p = base.clone();
+                p["value"] = json!(fe.buf);
+                let r = app.exec("field.set", p);
+                app.field_edit = None;
+                match r {
+                    Ok(v) if !fe.buf.trim().is_empty() => {
+                        let index = v["values"].as_array().map(Vec::len).unwrap_or(fe.index + 1);
+                        app.field_edit = Some(crate::FieldEdit { index, buf: String::new(), focus_once: true, ..fe });
+                    }
+                    Ok(_) => {}
+                    Err(e) => app.session.status = e,
+                }
+            }
+            // Shift+Tab moves the value out of the field: it becomes a node under the field row.
+            "Shift+Tab" => {
+                app.field_edit = None;
+                let mut p = base.clone();
+                p["text"] = json!(fe.buf);
+                if let Err(e) = app.exec("field.valueToNode", p) {
+                    app.session.status = e;
+                }
+            }
+            _ => return false,
         }
-        return false;
+        return true;
     }
     // Mod+1..8 go to tab N, Mod+9 to the last tab (spec 09).
     if let Some(d) = k.strip_prefix("Mod+").and_then(|d| d.parse::<usize>().ok()).filter(|d| (1..=9).contains(d)) {

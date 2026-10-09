@@ -454,3 +454,65 @@ fn descriptions_are_edited_in_place() {
     assert_eq!(h.state().session.graph.get(id).unwrap().description, "Why we do this!");
     assert_eq!(h.state().session.focus, Some(id));
 }
+
+#[test]
+fn enter_in_a_field_value_adds_another_and_shift_tab_moves_it_out() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": "Trip"})).unwrap();
+    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    h.state_mut().exec("field.add", json!({"node": id.0, "field": "Who", "type": "plain"})).unwrap();
+    h.state_mut().exec("nav.open", json!({"node": id.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Empty").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, "Ada");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Sam");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "a note, not a value");
+    key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
+    let g = &h.state().session.graph;
+    let who = g.find_field("Who").unwrap();
+    let vals: Vec<String> = g.get(id).unwrap().field_values(who).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect();
+    assert_eq!(vals, ["Ada", "Sam"]);
+    assert_eq!(g.name(g.children(id)[0]), "a note, not a value");
+}
+
+#[test]
+fn field_name_tab_goes_to_the_value_and_enter_starts_a_node() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": "Trip"})).unwrap();
+    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    h.state_mut().exec("nav.open", json!({"node": id.0})).unwrap();
+    let c = h.state_mut().exec("node.add", json!({"parent": id.0, "name": ""})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": c["id"]})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, ">");
+    text(&mut h, "Budget");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    text(&mut h, "300");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let budget = g.find_field("Budget").unwrap();
+    assert_eq!(g.get(id).unwrap().field_values(budget).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect::<Vec<_>>(), ["300"]);
+    // `>` then Enter: the field is added and a fresh node below takes the caret.
+    let c = h.state_mut().exec("node.add", json!({"parent": id.0, "name": ""})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": c["id"]})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, ">");
+    text(&mut h, "Place");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Pack bags");
+    let g = &h.state().session.graph;
+    assert!(g.find_field("Place").is_some());
+    assert!(g.children(id).iter().any(|n| g.name(*n) == "Pack bags"), "{:?}", g.children(id).iter().map(|n| g.name(*n)).collect::<Vec<_>>());
+}

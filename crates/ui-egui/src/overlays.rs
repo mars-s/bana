@@ -5,7 +5,7 @@ use egui::{Align2, FontId, Order, RichText, Sense, Ui, vec2};
 use serde_json::json;
 use tanacraft_core::{NodeId, export};
 
-use crate::{PickMode, TanaApp, theme};
+use crate::{Act, PickMode, TanaApp, theme};
 
 const MAX_ITEMS: usize = 12;
 
@@ -366,9 +366,27 @@ pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
         "Down" => p.selected += 1,
         "Enter" | "Tab" => {
             let items = picker_items(app);
-            let sel = app.picker.as_ref().map(|p| p.selected).unwrap_or(0);
+            let (sel, mode, node) = app.picker.as_ref().map(|p| (p.selected, p.mode, p.node)).unwrap_or((0, PickMode::Tag, NodeId(0)));
             match items.get(sel.min(items.len().saturating_sub(1))).cloned() {
-                Some(c) => apply_choice(app, c),
+                Some(c) => {
+                    let picked = match &c {
+                        Choice::Existing(f, _) => Some(*f),
+                        Choice::Create(_) => None,
+                    };
+                    apply_choice(app, c);
+                    // After `>`: Tab goes on to the value, Enter starts a new node below (spec 02 §3).
+                    if mode == PickMode::Field {
+                        let f = picked.or_else(|| app.session.graph.get(node).and_then(|n| n.fields.last()).map(|e| e.field));
+                        match (k, f) {
+                            ("Tab", Some(f)) => app.acts.push(Act::EditField(node, f, 0, String::new())),
+                            ("Enter", _) => match app.exec("node.add", json!({"parent": node.0, "index": 0, "name": ""})) {
+                                Ok(v) => drop(app.exec("focus.set", json!({"node": v["id"]}))),
+                                Err(e) => app.session.status = e,
+                            },
+                            _ => {}
+                        }
+                    }
+                }
                 None => app.picker = None,
             }
         }

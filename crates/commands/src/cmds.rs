@@ -245,6 +245,8 @@ pub fn registry() -> Registry {
         C::new("field.set", "Set field value", "Field", field_set)
             .params(r#"{"node"?: id, "field": name | id, "value": string, "index"?: number}  (index picks one of several values; empty removes it)"#),
         C::new("field.addValue", "Add field value", "Field", field_add_value).params(r#"{"node"?: id, "field": name | id, "value": string}"#),
+        C::new("field.valueToNode", "Move value out of field", "Field", field_value_to_node)
+            .params(r#"{"node"?: id, "field": name | id, "index": number, "text"?: string}  (text: the value being typed, if any)"#),
         C::new("field.removeValue", "Remove field value", "Field", field_remove_value)
             .params(r#"{"node"?: id, "field": name | id, "index": number}"#),
         C::new("field.remove", "Remove field", "Field", field_remove).params(r#"{"node"?: id, "field": name | id}"#),
@@ -854,6 +856,28 @@ fn field_add_value(s: &mut Session, v: &Value) -> CmdResult {
     let count = s.graph.get(s.graph.resolve(id)).map(|n| n.field_values(field).len()).unwrap_or(0);
     s.graph.set_field_text_at(id, field, count, p::req_str(v, "value")?)?;
     Ok(field_json(s, id, field))
+}
+
+/// Takes value `index` out of the field and makes it the node's first child (Shift+Tab on a value
+/// line, spec 02 §3).
+fn field_value_to_node(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let field = field_param(s, v, false)?;
+    let index = p::usize(v, "index").unwrap_or(0);
+    let owner = s.graph.resolve(id);
+    let stored = s.graph.get(owner).and_then(|n| n.field_values(field).get(index).map(|x| export::display_value(&s.graph, x)));
+    let text = p::str(v, "text").map(str::to_string).or(stored.clone()).unwrap_or_default();
+    if stored.is_some() {
+        s.graph.set_field_at(owner, field, index, None)?;
+    }
+    if text.trim().is_empty() {
+        return Ok(field_json(s, id, field));
+    }
+    let child = s.graph.create(owner, Some(0), &text)?;
+    s.set_focus(child, text.chars().count());
+    let mut out = field_json(s, id, field);
+    out["child"] = json!(child.0);
+    Ok(out)
 }
 
 fn field_remove_value(s: &mut Session, v: &Value) -> CmdResult {

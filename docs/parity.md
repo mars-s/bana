@@ -48,7 +48,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Editing model | done | One line edits at a time, placeholder hint, title Enter makes the first child. Long text wraps (shown and while editing) with the first line level with the bullet; no line breaks inside a node; Home/End go to the node's start/end. Tested. |
 | 2. Enter, Shift+Enter | done | Split, first child when expanded, empty line above at position 0, Shift+Enter inserts below. Tested. |
-| 3. Tab / Shift+Tab | done | Indent under previous sibling (expands it), outdent after parent, stops at the page. Tab inside field rows missing. |
+| 3. Tab / Shift+Tab | done | Indent under previous sibling (expands it), outdent after parent, stops at the page. Field rows: after `>`, Tab goes to the value and Enter starts a node below; Enter in a value adds another value; Shift+Tab moves a value out to a node (`field.valueToNode`). Tested. |
 | 4. Backspace / Delete | done | Merge into previous sibling, no merge with children, empty line deletes, Delete joins next, deletes selections. Tested. |
 | 5. Arrow keys | done | Up/Down between lines, Up into the title, Left at start / Right at end jump lines, Shift+Up/Down selection. |
 | 6. Moving nodes | done | Move up/down crossing branches, drag and drop (between rows, as first child, whole selections), Move to... picker. |

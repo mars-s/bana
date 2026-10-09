@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 50 | 41 | 6 | 2 |
+| Spec sections (99) | 51 | 40 | 6 | 2 |
 | Screenshots (153) | 88 | 37 | 27 | 1 |
 
 ## `00-overview.md`
@@ -67,7 +67,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Supertags overview page (sidebar "Supertags") | partial | Filter box and grid of tag tiles, plus fields. Missing: pinned large cards, Browse templates. |
+| 1. Supertags overview page (sidebar "Supertags") | done | Filter box, pinned supertags as large cards in the tag colour, then every supertag as a tile under the workspace name. Browse templates left out (no template gallery). |
 | 2. Tag page | partial | View tabs (Everything tagged, own views, + Add view), + Create new, table by default, header glow. Missing: help button. |
 | 3. Creating tags | partial | # then Enter creates and applies with an auto colour. Convert to supertag missing. |
 | 4. Applying and removing tags | done | # menu, node menu, command; chip x removes. |

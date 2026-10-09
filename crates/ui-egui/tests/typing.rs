@@ -720,3 +720,17 @@ fn diffs_p2_command_line_lists_steps_for_the_focused_node_not_nodes() {
     key(&mut h, Key::Enter, Modifiers::NONE);
     assert_eq!(h.state().picker.as_ref().map(|p| p.mode), Some(tanacraft_ui_egui::PickMode::Tag));
 }
+
+#[test]
+fn diffs_p2_supertags_overview_has_workspace_section_and_no_field_list() {
+    let mut h = harness();
+    h.state_mut().exec("tag.create", json!({"name": "book"})).unwrap();
+    h.state_mut().exec("field.create", json!({"name": "Pages", "type": "number"})).unwrap();
+    h.state_mut().exec("nav.supertags", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.query_by_label("Fields").is_none());
+    assert!(h.query_by_label("Pages").is_none());
+    assert!(h.query_all_by_label("Workspace").count() >= 2, "sidebar and the overview section");
+}

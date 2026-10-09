@@ -229,14 +229,39 @@ pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 /// The Supertags overview (spec 03 §1): a filter box and a grid of supertag tiles, then fields.
 fn tag_overview(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     ui.add(egui::TextEdit::singleline(&mut app.tag_filter).hint_text("Filter tags").desired_width(ui.available_width()));
-    ui.add_space(10.0);
+    ui.add_space(12.0);
     let q = app.tag_filter.trim().to_lowercase();
     let g = &app.session.graph;
-    let tags: Vec<NodeId> = g.tags().into_iter().filter(|x| g.name(*x).to_lowercase().contains(&q)).collect();
+    let tags: Vec<NodeId> = g.tags().into_iter().filter(|x| *x != g.sys.day_tag && g.name(*x).to_lowercase().contains(&q)).collect();
+    let pinned: Vec<NodeId> = tags.iter().copied().filter(|x| g.get(*x).is_some_and(|n| n.pinned)).collect();
     let w = ui.available_width();
-    let tile_w = ((w - 36.0) / 3.0).floor().max(150.0);
+    let tile_w = ((w - 24.0) / 3.0).floor().max(150.0);
     let mut open = None;
-    ui.label(RichText::new("Supertags").size(13.0).color(t.faint));
+    // Pinned supertags: large cards in the tag colour (spec 03 §1).
+    if !pinned.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(12.0, 12.0);
+            for tag in &pinned {
+                let color = g.tag_def(*tag).map(|d| d.color.clone()).unwrap_or_default();
+                let (strong, _) = theme::tag_color(&color, app.dark);
+                let (r, resp) = ui.allocate_exact_size(vec2(tile_w, 110.0), Sense::click());
+                let fill = if app.dark { strong.gamma_multiply(0.55) } else { strong.gamma_multiply(0.85) };
+                ui.painter().rect_filled(r, 10.0, if resp.hovered() { strong.gamma_multiply(0.7) } else { fill });
+                ui.painter().text(r.left_top() + vec2(14.0, 14.0), Align2::LEFT_TOP, g.name(*tag), FontId::proportional(17.0), Color32::WHITE);
+                let badge = Rect::from_min_size(r.left_bottom() + vec2(14.0, -36.0), vec2(22.0, 22.0));
+                ui.painter().rect_filled(badge, 5.0, Color32::from_black_alpha(70));
+                crate::icons::hash(ui.painter(), badge.shrink(5.0), Color32::WHITE);
+                if resp.clicked() {
+                    open = Some(*tag);
+                }
+            }
+        });
+        ui.add_space(18.0);
+    }
+    // Then every supertag of the workspace as a compact tile, under the workspace's name.
+    let ws = g.name(g.sys.root);
+    ui.label(RichText::new(if ws.is_empty() { "Workspace" } else { ws }).size(15.0).strong().color(t.text));
+    ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(12.0, 10.0);
         for tag in &tags {
@@ -245,34 +270,12 @@ fn tag_overview(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             let (r, resp) = ui.allocate_exact_size(vec2(tile_w, 40.0), Sense::click());
             ui.painter().rect_filled(r, 6.0, if resp.hovered() { t.hover } else { t.field_bg });
             crate::icons::hash(ui.painter(), Rect::from_center_size(r.left_center() + vec2(18.0, 0.0), vec2(14.0, 14.0)), strong);
-            let count = g.tagged(*tag).len();
             ui.painter().text(r.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, g.name(*tag), FontId::proportional(14.5), t.text);
-            ui.painter().text(r.right_center() - vec2(12.0, 0.0), Align2::RIGHT_CENTER, count.to_string(), FontId::proportional(12.0), t.faint);
             if resp.clicked() {
                 open = Some(*tag);
             }
         }
     });
-    let fields: Vec<NodeId> =
-        g.iter().filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q)).map(|n| n.id).collect();
-    if !fields.is_empty() {
-        ui.add_space(16.0);
-        ui.label(RichText::new("Fields").size(13.0).color(t.faint));
-        for f in fields {
-            let ty = g.field_def(f).map(|d| d.field_type).unwrap_or_default();
-            let resp = ui
-                .horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(16.0, 22.0), Sense::hover());
-                    paint_field_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(11.0, 11.0)), ty, t.dim);
-                    ui.add(egui::Label::new(RichText::new(g.name(f)).size(14.5)).sense(Sense::click()))
-                        | ui.label(RichText::new(type_label(ty)).size(12.0).color(t.faint))
-                })
-                .inner;
-            if resp.clicked() {
-                open = Some(f);
-            }
-        }
-    }
     if let Some(o) = open {
         app.acts.push(Act::Run("nav.open".into(), json!({"node": o.0})));
     }

@@ -66,7 +66,8 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             header(app, ui, &t);
             ui.add_space(10.0);
             let zoom = app.session.zoom;
-            if zoom == app.session.graph.sys.trash {
+            let g = &app.session.graph;
+            if zoom == g.workspace_trash(g.workspace_of(zoom)) {
                 trash_banner(ui, &t);
             }
             if Some(zoom) == app.session.graph.sys.inbox {
@@ -491,24 +492,31 @@ fn tag_overview(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         });
         ui.add_space(18.0);
     }
-    // Then every supertag of the workspace as a compact tile, under the workspace's name.
-    let ws = g.name(g.sys.root);
-    ui.label(RichText::new(if ws.is_empty() { "Workspace" } else { ws }).size(15.0).strong().color(t.text));
-    ui.add_space(6.0);
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = vec2(12.0, 10.0);
-        for tag in &tags {
-            let color = g.tag_def(*tag).map(|d| d.color.clone()).unwrap_or_default();
-            let (strong, _) = theme::tag_color(&color, app.dark);
-            let (r, resp) = ui.allocate_exact_size(vec2(tile_w, 40.0), Sense::click());
-            ui.painter().rect_filled(r, 6.0, if resp.hovered() { t.hover } else { t.field_bg });
-            crate::icons::hash(ui.painter(), Rect::from_center_size(r.left_center() + vec2(18.0, 0.0), vec2(14.0, 14.0)), strong);
-            ui.painter().text(r.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, g.name(*tag), FontId::proportional(14.5), t.text);
-            if resp.clicked() {
-                open = Some(*tag);
-            }
+    // Then every supertag as a compact tile, grouped under its workspace's name (spec 01 §7).
+    for ws in g.workspaces() {
+        let in_ws: Vec<NodeId> = tags.iter().copied().filter(|x| g.workspace_of(*x) == ws).collect();
+        if in_ws.is_empty() && ws != g.sys.root {
+            continue;
         }
-    });
+        let name = g.name(ws);
+        ui.label(RichText::new(if name.is_empty() { "Workspace" } else { name }).size(15.0).strong().color(t.text));
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(12.0, 10.0);
+            for tag in &in_ws {
+                let color = g.tag_def(*tag).map(|d| d.color.clone()).unwrap_or_default();
+                let (strong, _) = theme::tag_color(&color, app.dark);
+                let (r, resp) = ui.allocate_exact_size(vec2(tile_w, 40.0), Sense::click());
+                ui.painter().rect_filled(r, 6.0, if resp.hovered() { t.hover } else { t.field_bg });
+                crate::icons::hash(ui.painter(), Rect::from_center_size(r.left_center() + vec2(18.0, 0.0), vec2(14.0, 14.0)), strong);
+                ui.painter().text(r.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, g.name(*tag), FontId::proportional(14.5), t.text);
+                if resp.clicked() {
+                    open = Some(*tag);
+                }
+            }
+        });
+        ui.add_space(14.0);
+    }
     if let Some(o) = open {
         app.acts.push(Act::Run("nav.open".into(), json!({"node": o.0})));
     }

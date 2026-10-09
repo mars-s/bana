@@ -1003,3 +1003,34 @@ fn opml_import_reads_checkboxes_tags_and_notes() {
     let out = run(&mut s, "export.opml", json!({"node": trip.0}));
     assert!(out["opml"].as_str().unwrap().contains("_note=\"in May\""));
 }
+
+#[test]
+fn each_workspace_has_its_own_schema_and_trash() {
+    // Spec 01 §7.
+    let mut s = blank();
+    let ws = id(&run(&mut s, "workspace.create", json!({"name": "Lab"})), "id");
+    let lib = s.graph.workspace_library(ws);
+    let note = id(&run(&mut s, "node.add", json!({"name": "Sample 1", "parent": lib.0})), "id");
+    run(&mut s, "tag.add", json!({"node": note.0, "tag": "specimen"}));
+    let tag = s.graph.find_tag("specimen").unwrap();
+    assert_eq!(s.graph.parent(tag), Some(s.graph.workspace_schema(ws)));
+    assert_eq!(s.graph.workspace_of(tag), ws);
+    run(&mut s, "node.delete", json!({"node": note.0}));
+    assert_eq!(s.graph.parent(note), Some(s.graph.workspace_trash(ws)));
+    assert!(s.graph.in_trash(note));
+    assert!(s.graph.search("Sample").is_empty());
+    // Content dropped on the workspace itself lands in its Library.
+    let other = id(&run(&mut s, "node.add", json!({"name": "Loose", "parent": ws.0})), "id");
+    assert_eq!(s.graph.parent(other), Some(lib));
+    for part in [lib, s.graph.workspace_schema(ws), s.graph.workspace_trash(ws)] {
+        assert!(s.graph.is_system(part));
+    }
+    run(&mut s, "nav.open", json!({"node": lib.0}));
+    assert_eq!(run(&mut s, "trash.empty", json!({}))["deleted"], 1);
+    assert!(s.graph.get(note).is_none());
+    // The main workspace's trash is untouched by that.
+    let home = s.graph.sys.library;
+    let main_note = id(&run(&mut s, "node.add", json!({"name": "Home note", "parent": home.0})), "id");
+    run(&mut s, "node.delete", json!({"node": main_note.0}));
+    assert_eq!(s.graph.parent(main_note), Some(s.graph.sys.trash));
+}

@@ -1124,7 +1124,7 @@ impl TanaApp {
                 v.retain(|(_, l, _)| *l != "Daily notes" || g.settings.shows("daily_notes"));
                 v
             } else {
-                vec![(Icon::Home, "Library", g.workspace_library(ws))]
+                vec![(Icon::Home, "Library", g.workspace_library(ws)), (Icon::Trash, "Trash", g.workspace_trash(ws))]
             };
             for (icon, label, id) in items {
                 ui.horizontal(|ui| {

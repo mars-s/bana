@@ -608,7 +608,15 @@ fn tag_param(s: &mut Session, v: &Value, key: &str, create: bool) -> Result<Node
     if !create {
         return Err(CmdError::Failed(format!("no supertag #{}", name.trim_start_matches('#'))));
     }
-    Ok(s.graph.create_tag(name, p::str(v, "color").unwrap_or("grey"))?)
+    // A new supertag joins the Schema of the workspace you are in (spec 01 §7).
+    let ws = here_workspace(s, v);
+    Ok(s.graph.create_tag_in(ws, name, p::str(v, "color").unwrap_or("grey"))?)
+}
+
+/// The workspace a command acts in: of its `node`, else the focused bullet, else the open page.
+fn here_workspace(s: &Session, v: &Value) -> NodeId {
+    let at = p::node(v, "node").ok().flatten().filter(|n| s.graph.get(*n).is_some()).or(s.focus).unwrap_or(s.zoom);
+    s.graph.workspace_of(at)
 }
 
 fn field_type(v: &Value) -> Result<FieldType, CmdError> {
@@ -1075,8 +1083,10 @@ fn restore(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"node": id.0, "parent": parent.0}))
 }
 
-fn empty_trash(s: &mut Session, _: &Value) -> CmdResult {
-    Ok(json!({"deleted": s.graph.empty_trash()?}))
+/// Empties the trash of the workspace you are in.
+fn empty_trash(s: &mut Session, v: &Value) -> CmdResult {
+    let trash = s.graph.workspace_trash(here_workspace(s, v));
+    Ok(json!({"deleted": s.graph.empty_trash_of(trash)?}))
 }
 
 // ---- view ---------------------------------------------------------------------------------------
@@ -1242,7 +1252,8 @@ fn tag_remove(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn tag_create(s: &mut Session, v: &Value) -> CmdResult {
-    let id = s.graph.create_tag(p::req_str(v, "name")?, p::str(v, "color").unwrap_or("grey"))?;
+    let ws = here_workspace(s, v);
+    let id = s.graph.create_tag_in(ws, p::req_str(v, "name")?, p::str(v, "color").unwrap_or("grey"))?;
     Ok(json!({"tag": id.0}))
 }
 

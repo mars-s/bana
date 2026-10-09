@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 73 | 16 | 4 | 2 |
-| Screenshots (160) | 135 | 19 | 5 | 1 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 74 | 15 | 4 | 2 |
+| Screenshots (160) | 136 | 18 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
@@ -20,7 +20,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. The big picture | done | Single window: top bar, sidebar, panel area; every line is a node; any node opens as a page. |
 | 2. Top bar (full window width, ~44 px tall) | done | Sidebar button, back/forward, tab strip with +, then Help (a page listing every command with shortcut and id), keyboard shortcuts toggle and an Account menu (Workspaces, Settings, theme, shortcuts, Help). Credits left out (no billing). |
-| 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Create new with a square Search button, Pinned (expandable), workspace avatar and name (menu: switch, new, rename), Library, Daily notes, Inbox, Trash. Missing: AI chats. |
+| 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents (each can be hidden in Settings), Create new with a square Search button, Pinned (expandable), Workspaces (one header, or every workspace with chevron and items), Manage workspaces. Missing: AI chats (out of scope). |
 | 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
 | 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight, new search results flash green. Own palette; default egui font (no Inter, bold drawn brighter). |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Recents, Search and open, Create new, pinned, workspace items, Inbox, Help, Settings. No AI chats. |
@@ -37,7 +37,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Building block: promote for base types (first in the # menu), hide from searches and menus (`tag.setBuildingBlock`). Missing: AI settings (out of scope). |
 | 5. Fields | done | Nine types (plain, options, options from supertag, date with optional time range, number, URL, e-mail, checkbox, user), required, hide modes, auto-initialize, number range, option sources, auto-collect, used in; several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Tested. |
 | 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
-| 7. Workspaces | partial | All workspaces live in one graph, side by side: the main one is the root (Library, Schema, Daily notes, Inbox made on first use, Trash); further ones (`workspace.create`) have their own Library; nodes know their workspace (`WORKSPACE:` query condition). Missing (spec-gap): per-workspace Schema, Daily notes and Trash; members. |
+| 7. Workspaces | done | All workspaces live in one graph, side by side: the main one is the root (Library, Schema, Daily notes, Inbox made on first use, Trash); each further one (`workspace.create`) has its own Library, Schema and Trash: new supertags join the Schema of the workspace you are in, deleting goes to that workspace's trash, the Supertags overview groups tags by workspace, `WORKSPACE:` query condition. Daily notes and Today follow the main workspace (spec 07 §2). No members (local app). Tested. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
 | 9. Trash | done | Delete to trash, restore, banner, empty trash. |
 | 10. Other node kinds observed | missing | Chat, command nodes and settings pages not built. |
@@ -297,7 +297,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `133-mini-sidebar-workspace-flyout.jpg` | done | Mini rail Workspaces button: workspace items and Manage workspaces. |
 | `134-manage-workspaces.png` | partial | Manage workspaces menu: open, create, rename. No sharing banner or members (local app). |
 | `135-create-workspace.png` | done | Create workspace by name; it is added to the sidebar beside the others. |
-| `136-new-workspace.png` | partial | A new workspace has its own Library; Daily notes and Trash stay the main workspace's. |
+| `136-new-workspace.png` | done | A new workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace. Tested. |
 | `137-workspace-invite-step.jpg` | missing | Workspace invite. |
 | `138-sidebar-two-workspaces.png` | done | Workspaces section lists every workspace with avatar, name, chevron and its items. Tested. |
 | `139-workspace-home.png` | partial | Workspace home: large round avatar with initials and the name; no member count (local app). |

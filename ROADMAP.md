@@ -10,8 +10,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 |---|---|
 | Commands (every action; CLI, MCP and control channel can run them) | 162 engine commands, plus 22 window commands |
 | Tests | 149 (core 41, commands 47 incl. a fuzz test of random command sequences and a 50k-node timed test, UI 59 driving the real UI with keys, pointer drags, clicks and panels plus a 50k-node frame-time test, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 95 mapped: 73 done, 16 partial, 4 missing, 2 notes |
-| Spec screenshots | 160 mapped: 135 done, 19 partial, 5 missing, 1 not behaviour |
+| Spec sections (`docs/parity.md`) | 95 mapped: 74 done, 15 partial, 4 missing, 2 notes |
+| Spec screenshots | 160 mapped: 136 done, 18 partial, 5 missing, 1 not behaviour |
 
 ## Milestones
 
@@ -34,7 +34,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M14 Workspaces and shell | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel, page icons and banners, custom keybindings, Markdown import, user fields | done |
 | M15 Acceptance round 4 | DIFFS N1 to N14: field values, `>` field rows in place, selection keys, Cmd+. title, page edge moves, workspaces side by side, search builder closed on open, fuller selection toolbar; table header menu with calculations, + Add menu item / tab, hidden-field labels | done |
 | M16 Robustness, speed, menus | Fuzz test of random command sequences (fixed: untracked day creation clobbered by undo, references picking up child tags, day creation recursion, file repair of loops); 50k-node outline draws only visible rows; native macOS menu bar running commands; HTML plus text on the clipboard; Settings sub-pages (date and time, sidebar entries) | done |
-| M17 Next | Per-context notes on references, import from other apps, per-workspace schema and trash | next |
+| M17 Next | Per-context notes on references, import from other apps | next |
 
 ## Later
 

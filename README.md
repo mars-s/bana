@@ -68,8 +68,8 @@ live. TanaCraft rebuilds that model as open source:
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
 | **Files** | One JSON graph file (`~/TanaCraft/graph.json` by default) holding every workspace, atomic autosave, repair of damaged files, Markdown and JSON export |
 
-Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (73 of 95 spec sections
-done, 16 partial; 135 of 160 screenshots done). AI features are out of scope for now.
+Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (74 of 95 spec sections
+done, 15 partial; 136 of 160 screenshots done). AI features are out of scope for now.
 
 ## Speed and robustness
 

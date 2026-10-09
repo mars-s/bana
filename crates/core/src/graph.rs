@@ -198,7 +198,13 @@ impl Graph {
     }
 
     pub fn in_trash(&self, id: NodeId) -> bool {
-        id != self.sys.trash && self.is_ancestor_or_self(self.sys.trash, id)
+        let anc = self.ancestors(id);
+        anc.contains(&self.sys.trash) || anc.iter().any(|a| self.is_workspace_part(*a, 2))
+    }
+
+    /// Part `i` of a further workspace (0 Library, 1 Schema, 2 Trash): its children in that order.
+    fn is_workspace_part(&self, id: NodeId, i: usize) -> bool {
+        self.parent(id).and_then(|p| self.get(p)).is_some_and(|p| p.kind == Kind::Workspace && p.children.get(i) == Some(&id))
     }
 
     pub fn is_system(&self, id: NodeId) -> bool {
@@ -206,8 +212,8 @@ impl Graph {
         [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id)
             || s.inbox == Some(id)
             || self.get(id).is_some_and(|n| n.kind == Kind::Workspace)
-            // A further workspace's Library (its first child).
-            || self.parent(id).and_then(|p| self.get(p)).is_some_and(|p| p.kind == Kind::Workspace && p.children.first() == Some(&id))
+            // A further workspace's Library, Schema and Trash.
+            || (0..3).any(|i| self.is_workspace_part(id, i))
     }
 
     /// Every workspace, the main one (the root) first. All are open together (spec 07 §2).
@@ -226,12 +232,32 @@ impl Graph {
             .unwrap_or(self.sys.root)
     }
 
-    /// A workspace's Library: the main one, or the first child of a further workspace.
+    fn workspace_part(&self, ws: NodeId, i: usize, main: NodeId) -> NodeId {
+        if ws == self.sys.root { main } else { self.children(ws).get(i).copied().unwrap_or(main) }
+    }
+
+    /// Where content put "into" a node goes: a further workspace keeps only its Library, Schema
+    /// and Trash, so content goes to its Library.
+    fn content_parent(&self, parent: NodeId) -> NodeId {
+        if self.get(parent).is_some_and(|n| n.kind == Kind::Workspace) { self.workspace_library(parent) } else { parent }
+    }
+
+    /// A workspace's Library.
     pub fn workspace_library(&self, ws: NodeId) -> NodeId {
         if ws == self.sys.root { self.sys.library } else { self.children(ws).first().copied().unwrap_or(ws) }
     }
 
-    /// Adds a workspace beside the others, with its own Library.
+    /// A workspace's Schema (its supertags and fields).
+    pub fn workspace_schema(&self, ws: NodeId) -> NodeId {
+        self.workspace_part(ws, 1, self.sys.schema)
+    }
+
+    /// A workspace's Trash.
+    pub fn workspace_trash(&self, ws: NodeId) -> NodeId {
+        self.workspace_part(ws, 2, self.sys.trash)
+    }
+
+    /// Adds a workspace beside the others, with its own Library, Schema and Trash (spec 01 §7).
     pub fn create_workspace(&mut self, name: &str) -> Result<NodeId> {
         let name = name.trim();
         if name.is_empty() {
@@ -239,9 +265,10 @@ impl Graph {
         }
         let root = self.sys.root;
         let ws = self.create_raw(root, None, name, Kind::Workspace)?;
-        // ponytail: a further workspace has a Library only; its supertags, daily notes and trash
-        // are the main workspace's until a spec says how they split.
-        self.create_raw(ws, None, "Library", Kind::Plain)?;
+        // ponytail: daily notes stay the main workspace's (Today follows the main one, spec 07 §2).
+        for part in ["Library", "Schema", "Trash"] {
+            self.create_raw(ws, None, part, Kind::Plain)?;
+        }
         Ok(ws)
     }
 
@@ -656,7 +683,7 @@ impl Graph {
     /// Creates a node under `parent` (a reference parent means its target) at `index` (clamped;
     /// `None` appends).
     pub fn create(&mut self, parent: NodeId, index: Option<usize>, name: &str) -> Result<NodeId> {
-        let parent = self.resolve(parent);
+        let parent = self.content_parent(self.resolve(parent));
         self.node(parent)?;
         let id = self.alloc();
         self.put(Node::new(id, clean_name(name), Some(parent)));
@@ -694,7 +721,7 @@ impl Graph {
 
     /// Moves `id` under `parent` at `index` (clamped; `None` appends).
     pub fn move_to(&mut self, id: NodeId, parent: NodeId, index: Option<usize>) -> Result<()> {
-        let parent = self.resolve(parent);
+        let parent = self.content_parent(self.resolve(parent));
         self.node(id)?;
         self.node(parent)?;
         if self.is_system(id) {
@@ -836,7 +863,8 @@ impl Graph {
         }
         let parent = self.parent(id).ok_or(Error::NoNode(id))?;
         let index = self.index_in_parent(id).unwrap_or(0);
-        let trash = self.sys.trash;
+        // Each workspace has its own trash.
+        let trash = self.workspace_trash(self.workspace_of(id));
         self.move_to(id, trash, None)?;
         self.node_mut(id)?.trashed_from = Some(TrashedFrom { parent, index });
         Ok(())
@@ -872,7 +900,15 @@ impl Graph {
     }
 
     pub fn empty_trash(&mut self) -> Result<usize> {
-        let items = self.node(self.sys.trash)?.children.clone();
+        self.empty_trash_of(self.sys.trash)
+    }
+
+    /// Empties one workspace's trash.
+    pub fn empty_trash_of(&mut self, trash: NodeId) -> Result<usize> {
+        if trash != self.sys.trash && !self.is_workspace_part(trash, 2) {
+            return Err(Error::Invalid(format!("node {trash} is not a trash")));
+        }
+        let items = self.node(trash)?.children.clone();
         for id in &items {
             self.delete_permanently(*id)?;
         }
@@ -995,6 +1031,11 @@ impl Graph {
     // ---- supertags and fields -----------------------------------------------------------------
 
     pub fn create_tag(&mut self, name: &str, color: &str) -> Result<NodeId> {
+        self.create_tag_in(self.sys.root, name, color)
+    }
+
+    /// Creates a supertag in workspace `ws`'s Schema.
+    pub fn create_tag_in(&mut self, ws: NodeId, name: &str, color: &str) -> Result<NodeId> {
         let name = name.trim().trim_start_matches('#');
         if name.is_empty() {
             return Err(Error::Invalid("a supertag needs a name".into()));
@@ -1002,8 +1043,9 @@ impl Graph {
         if let Some(t) = self.find_tag(name) {
             return Err(Error::Invalid(format!("supertag #{} already exists ({t})", self.name(t))));
         }
-        let color = if TAG_COLORS.contains(&color) { color } else { "grey" };
-        let id = self.create(self.sys.schema, None, name)?;
+        let color = if TAG_COLORS.contains(&color) || is_custom_color(color) { color } else { "grey" };
+        let schema = self.workspace_schema(ws);
+        let id = self.create(schema, None, name)?;
         self.node_mut(id)?.kind = Kind::Tag(TagDef { color: color.to_string(), ..TagDef::default() });
         Ok(id)
     }

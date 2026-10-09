@@ -842,7 +842,7 @@ impl Graph {
     }
 
     pub fn set_tag_color(&mut self, tag: NodeId, color: &str) -> Result<()> {
-        if !TAG_COLORS.contains(&color) {
+        if !TAG_COLORS.contains(&color) && !crate::model::is_custom_color(color) {
             return Err(Error::Invalid(format!("unknown colour `{color}`; use one of {}", TAG_COLORS.join(", "))));
         }
         self.tag_def_mut(tag)?.color = color.to_string();
@@ -1135,6 +1135,80 @@ impl Graph {
         let id = self.create_search(tag, None, name, query)?;
         self.tag_def_mut(tag)?.related.push(id);
         Ok(id)
+    }
+
+    /// Removes a related-content search from a supertag (the search node goes to the trash).
+    pub fn tag_remove_related(&mut self, tag: NodeId, search: NodeId) -> Result<()> {
+        self.tag_def_mut(tag)?.related.retain(|r| *r != search);
+        if self.get(search).is_some() {
+            self.trash(search)?;
+        }
+        Ok(())
+    }
+
+    pub fn tag_set_optional(&mut self, tag: NodeId, field: NodeId, on: bool) -> Result<()> {
+        self.field_def(field).ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
+        let d = self.tag_def_mut(tag)?;
+        d.optional.retain(|f| *f != field);
+        if on {
+            d.optional.push(field);
+        }
+        Ok(())
+    }
+
+    pub fn tag_set_pinned_field(&mut self, tag: NodeId, field: NodeId, on: bool) -> Result<()> {
+        let d = self.tag_def_mut(tag)?;
+        d.pinned_fields.retain(|f| *f != field);
+        if on {
+            d.pinned_fields.push(field);
+        }
+        Ok(())
+    }
+
+    /// Sets (or clears) a supertag's title expression. It must start with `${name}` so the title
+    /// stays editable.
+    pub fn tag_set_title_expr(&mut self, tag: NodeId, expr: Option<&str>) -> Result<()> {
+        let expr = expr.map(str::trim).filter(|e| !e.is_empty());
+        if let Some(e) = expr
+            && !e.starts_with("${name}")
+        {
+            return Err(Error::Invalid("a title expression starts with ${name}".into()));
+        }
+        self.tag_def_mut(tag)?.title_expr = expr.map(str::to_string);
+        Ok(())
+    }
+
+    /// The computed part of a node's title (after its name), from the title expression of one of
+    /// its own supertags (not ones they extend, spec 03 §10). Each piece is (text, is a missing
+    /// field shown by its name).
+    pub fn title_suffix(&self, node: NodeId) -> Vec<(String, bool)> {
+        let id = self.resolve(node);
+        let Some(n) = self.get(id) else { return Vec::new() };
+        let Some(expr) = n.tags.iter().find_map(|t| self.tag_def(*t).and_then(|d| d.title_expr.clone())) else { return Vec::new() };
+        let mut rest = expr.strip_prefix("${name}").unwrap_or(&expr);
+        let mut out = Vec::new();
+        while let Some(open) = rest.find("${") {
+            if open > 0 {
+                out.push((rest[..open].to_string(), false));
+            }
+            let after = &rest[open + 2..];
+            let Some(close) = after.find('}') else {
+                out.push((rest[open..].to_string(), false));
+                rest = "";
+                break;
+            };
+            let label = &after[..close];
+            let value = self
+                .find_field(label)
+                .map(|f| n.field_values(f).into_iter().map(|v| crate::export::shown_value(self, v)).collect::<Vec<_>>().join(", "))
+                .unwrap_or_default();
+            out.push(if value.is_empty() { (label.to_string(), true) } else { (value, false) });
+            rest = &after[close + 1..];
+        }
+        if !rest.is_empty() {
+            out.push((rest.to_string(), false));
+        }
+        out
     }
 
     /// Related content shown on `node`'s page (from its supertags).

@@ -196,6 +196,15 @@ pub fn registry() -> Registry {
         C::new("tag.setCheckbox", "Supertag shows checkbox", "Supertag", tag_set_checkbox).params(r#"{"tag": name | id, "on": bool}"#),
         C::new("tag.setDoneMap", "Map checkbox to field", "Supertag", tag_set_done_map)
             .params(r#"{"tag": name | id, "field"?: name | id, "checked"?: string, "unchecked"?: string}  (no field clears)"#),
+        C::new("tag.setOptionalField", "Optional field", "Supertag", |s, v| tag_field_flag(s, v, true))
+            .params(r#"{"tag": name | id, "field": name | id, "on"?: bool}  (offered as + Field on tagged nodes)"#),
+        C::new("tag.setPinnedField", "Pinned field", "Supertag", |s, v| tag_field_flag(s, v, false))
+            .params(r#"{"tag": name | id, "field": name | id, "on"?: bool}"#),
+        C::new("tag.setTitleExpression", "Build title from fields", "Supertag", tag_set_title_expr)
+            .params(r#"{"tag": name | id, "expression": string}  (starts with ${name}; ${Field} inserts a field; empty clears)"#),
+        C::new("tag.addRelated", "Add related content", "Supertag", tag_add_related)
+            .params(r#"{"tag": name | id, "query": string, "name"?: string}"#),
+        C::new("tag.removeRelated", "Remove related content", "Supertag", tag_remove_related).params(r#"{"tag": name | id, "node": id}"#),
         C::new("tag.setChildTag", "Default child supertag", "Supertag", tag_set_child_tag).params(r#"{"tag": name | id, "child"?: name | id}"#),
         C::new("tag.setBaseType", "Base type", "Supertag", tag_set_base_type).params(r#"{"tag": name | id, "base"?: "task|meeting|person|..."}"#),
         C::new("tag.addTemplateNode", "Add template content", "Supertag", tag_add_template_node).params(r#"{"tag": name | id, "name": string}"#),
@@ -840,8 +849,8 @@ fn tag_create(s: &mut Session, v: &Value) -> CmdResult {
 fn tag_set_color(s: &mut Session, v: &Value) -> CmdResult {
     let tag = tag_param(s, v, "tag", false)?;
     let color = p::req_str(v, "color")?;
-    if !TAG_COLORS.contains(&color) {
-        return Err(CmdError::Params(format!("`color` must be one of {}", TAG_COLORS.join(", "))));
+    if !TAG_COLORS.contains(&color) && !tanacraft_core::is_custom_color(color) {
+        return Err(CmdError::Params(format!("`color` must be one of {}, or #rrggbb", TAG_COLORS.join(", "))));
     }
     s.graph.set_tag_color(tag, color)?;
     Ok(json!({"tag": tag.0, "color": color}))
@@ -1507,6 +1516,42 @@ fn tag_set_done_map(s: &mut Session, v: &Value) -> CmdResult {
         None
     };
     s.graph.tag_set_done_map(tag, map)?;
+    Ok(json!({"tag": tag.0}))
+}
+
+fn tag_field_flag(s: &mut Session, v: &Value, optional: bool) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let field = field_param(s, v, optional)?;
+    let d = s.graph.tag_def(tag).cloned().unwrap_or_default();
+    let list = if optional { &d.optional } else { &d.pinned_fields };
+    let on = p::bool(v, "on").unwrap_or(!list.contains(&field));
+    if optional {
+        s.graph.tag_set_optional(tag, field, on)?;
+    } else {
+        s.graph.tag_set_pinned_field(tag, field, on)?;
+    }
+    Ok(json!({"tag": tag.0, "field": field.0, "on": on}))
+}
+
+fn tag_set_title_expr(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let expr = p::str(v, "expression");
+    s.graph.tag_set_title_expr(tag, expr)?;
+    Ok(json!({"tag": tag.0, "expression": s.graph.tag_def(tag).and_then(|d| d.title_expr.clone())}))
+}
+
+fn tag_add_related(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let q = parse_query(s, p::req_str(v, "query")?)?;
+    let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| q.describe(&s.graph));
+    let id = s.graph.tag_add_related(tag, &name, q)?;
+    Ok(json!({"tag": tag.0, "node": id.0}))
+}
+
+fn tag_remove_related(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let node = p::node(v, "node")?.ok_or_else(|| CmdError::Params("`node` is required".into()))?;
+    s.graph.tag_remove_related(tag, node)?;
     Ok(json!({"tag": tag.0}))
 }
 

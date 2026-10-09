@@ -27,6 +27,8 @@ impl std::str::FromStr for NodeId {
 /// What a node is. Most nodes are `Plain`.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+// ponytail: tag nodes are few; boxing TagDef would touch every match for no measurable gain.
+#[allow(clippy::large_enum_variant)]
 pub enum Kind {
     #[default]
     Plain,
@@ -53,8 +55,15 @@ pub enum Kind {
     },
 }
 
-/// Supertag colours: twelve hues plus grey. Rendered from the UI theme, not stored as RGB.
-pub const TAG_COLORS: [&str; 13] = ["grey", "red", "orange", "amber", "yellow", "lime", "green", "teal", "cyan", "blue", "indigo", "violet", "pink"];
+/// Supertag colours: "none", twelve hues and grey. Rendered from the UI theme, not stored as RGB.
+/// A custom colour is stored as `#rrggbb` (see [`is_custom_color`]).
+pub const TAG_COLORS: [&str; 14] =
+    ["none", "grey", "red", "orange", "amber", "yellow", "lime", "green", "teal", "cyan", "blue", "indigo", "violet", "pink"];
+
+/// `#rrggbb`.
+pub fn is_custom_color(c: &str) -> bool {
+    c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
+}
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct TagDef {
@@ -89,6 +98,15 @@ pub struct TagDef {
     /// "Open tasks" card).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub related: Vec<NodeId>,
+    /// Optional fields: offered on tagged nodes as "+ Field" buttons, not added up front.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub optional: Vec<NodeId>,
+    /// Template fields marked pinned (offered first in view menus, spec 03 §9).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pinned_fields: Vec<NodeId>,
+    /// Builds tagged nodes' titles from fields: `${name}` then text and `${Field}` placeholders.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_expr: Option<String>,
 }
 
 /// Base types listed in the spec (03 §5).

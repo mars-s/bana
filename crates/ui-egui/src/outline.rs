@@ -376,6 +376,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
+        let has_suffix = !app.session.graph.title_suffix(target).is_empty();
         if editable {
             if app.title_buf.0 != Some(target) || (!ui.ctx().memory(|m| m.has_focus(title_id)) && app.title_buf.1 != g.name(target)) {
                 app.title_buf = (Some(target), g.name(target).to_string());
@@ -384,16 +385,24 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
                 ui.ctx().memory_mut(|m| m.request_focus(title_id));
                 app.focus_title = false;
             }
+            let title_w = if has_suffix {
+                ui.painter().layout_no_wrap(app.title_buf.1.clone(), title_font.clone(), t.text).size().x + 12.0
+            } else {
+                ui.available_width()
+            };
             let out = egui::TextEdit::singleline(&mut app.title_buf.1)
                 .id(title_id)
                 .font(title_font.clone())
                 .text_color(t.text)
                 .frame(egui::Frame::NONE)
                 .hint_text(RichText::new("Untitled").color(t.faint))
-                .desired_width(ui.available_width())
+                .desired_width(title_w)
                 .show(ui);
             if out.response.changed() {
                 app.acts.push(Act::Run("node.setName".into(), json!({"node": target.0, "name": app.title_buf.1})));
+            }
+            if has_suffix {
+                title_suffix(ui, &app.session.graph, t, target, 30.0);
             }
         } else {
             ui.label(RichText::new(page_title(s, zoom)).font(title_font).strong().color(t.text));
@@ -612,11 +621,30 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
             });
         });
     }
-    if !folded.is_empty() {
-        ui.horizontal(|ui| {
+    // Optional fields of the node's supertags are offered the same way until added (spec 03 §5).
+    let g = &app.session.graph;
+    let have: Vec<NodeId> = g.get(target).map(|n| n.fields.iter().map(|e| e.field).collect()).unwrap_or_default();
+    let tags = g.get(target).map(|n| n.tags.clone()).unwrap_or_default();
+    let mut optional: Vec<NodeId> = Vec::new();
+    for tg in tags.iter().flat_map(|x| g.tag_lineage(*x)) {
+        for f in g.tag_def(tg).map(|d| d.optional.clone()).unwrap_or_default() {
+            if !have.contains(&f) && !optional.contains(&f) && g.field_def(f).is_some() {
+                optional.push(f);
+            }
+        }
+    }
+    let optional: Vec<(NodeId, String)> = optional.into_iter().map(|f| (f, g.name(f).to_string())).collect();
+    if !folded.is_empty() || !optional.is_empty() {
+        ui.horizontal_wrapped(|ui| {
             ui.add_space(indent + 4.0);
             for (f, name) in folded {
                 if ui.add(egui::Label::new(RichText::new(format!("+ {name}")).size(12.5).color(t.faint)).sense(Sense::click())).clicked() {
+                    app.acts.push(Act::EditField(target, f, 0, String::new()));
+                }
+            }
+            for (f, name) in optional {
+                if ui.add(egui::Label::new(RichText::new(format!("+ {name}")).size(12.5).color(t.faint)).sense(Sense::click())).clicked() {
+                    app.acts.push(Act::Run("field.add".into(), json!({"node": target.0, "field": f.0})));
                     app.acts.push(Act::EditField(target, f, 0, String::new()));
                 }
             }
@@ -1311,6 +1339,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 ui.painter().rect_stroke(r.rect.expand(2.0), 3.0, Stroke::new(1.0, t.accent), StrokeKind::Outside);
             }
         }
+        title_suffix(ui, &app.session.graph, t, id, if heading { 20.0 } else { theme::FONT });
         // Tag chips (hover the "#" to remove).
         if let Some(n) = &node {
             for tag in n.tags.clone() {
@@ -1411,6 +1440,27 @@ fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, te
             app.acts.push(Act::Run("focus.set".into(), json!({"node": node.0, "caret": usize::MAX})));
         }
     }
+}
+
+/// The computed part of a title from its supertag's title expression, in grey; a field without a
+/// value shows its name, underlined (spec 03 §10).
+pub(crate) fn title_suffix(ui: &mut Ui, g: &Graph, t: &Tokens, id: NodeId, size: f32) {
+    let parts = g.title_suffix(id);
+    if parts.is_empty() {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::default();
+    for (text, missing) in parts {
+        let f = egui::TextFormat {
+            font_id: FontId::proportional(size),
+            color: t.faint,
+            underline: if missing { Stroke::new(1.0, t.faint) } else { Stroke::NONE },
+            ..Default::default()
+        };
+        job.append(&text, 0.0, f);
+    }
+    ui.add_space(-ui.spacing().item_spacing.x);
+    ui.label(job);
 }
 
 /// Rough width of a row's tag chips, so wrapped text leaves room for them.

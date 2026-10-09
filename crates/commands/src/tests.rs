@@ -632,3 +632,37 @@ fn move_to_top_bottom_target_and_leave_reference() {
     assert_eq!(s.graph.resolve(left), b, "a reference stays where b was");
     assert!(blank().run("node.moveToTarget", &json!({"node": 1})).is_err());
 }
+
+#[test]
+fn supertag_title_expression_optional_and_pinned_fields() {
+    let mut s = blank();
+    run(&mut s, "tag.create", json!({"name": "project"}));
+    run(&mut s, "tag.addField", json!({"tag": "project", "field": "Budget", "type": "number"}));
+    assert!(
+        s.run("tag.setTitleExpression", &json!({"tag": "project", "expression": "(${Budget})"})).is_err(),
+        "must start with the name placeholder"
+    );
+    run(&mut s, "tag.setTitleExpression", json!({"tag": "project", "expression": "${name} (budget ${Budget})"}));
+    let n = id(&run(&mut s, "node.add", json!({"name": "two"})), "id");
+    run(&mut s, "tag.add", json!({"node": n.0, "tag": "project"}));
+    assert_eq!(s.graph.title_suffix(n), [(" (budget ".to_string(), false), ("Budget".to_string(), true), (")".to_string(), false)]);
+    run(&mut s, "field.set", json!({"node": n.0, "field": "Budget", "value": "1200"}));
+    let text: String = s.graph.title_suffix(n).into_iter().map(|p| p.0).collect();
+    assert_eq!(text, " (budget 1200)");
+    // Optional fields are offered, not added; pinned toggles.
+    let v = run(&mut s, "tag.setOptionalField", json!({"tag": "project", "field": "Notes"}));
+    assert_eq!(v["on"], json!(true));
+    let m = id(&run(&mut s, "node.add", json!({"name": "three"})), "id");
+    run(&mut s, "tag.add", json!({"node": m.0, "tag": "project"}));
+    let notes = s.graph.find_field("Notes").unwrap();
+    assert!(!s.graph.get(m).unwrap().fields.iter().any(|e| e.field == notes));
+    run(&mut s, "tag.setPinnedField", json!({"tag": "project", "field": "Budget"}));
+    let tag = s.graph.find_tag("project").unwrap();
+    assert_eq!(s.graph.tag_def(tag).unwrap().pinned_fields.len(), 1);
+    run(&mut s, "tag.setColor", json!({"tag": "project", "color": "#12ab9f"}));
+    assert!(s.run("tag.setColor", &json!({"tag": "project", "color": "#12ab9"})).is_err());
+    let r = id(&run(&mut s, "tag.addRelated", json!({"tag": "project", "query": "TODO"})), "node");
+    assert_eq!(s.graph.related_for(n), [r]);
+    run(&mut s, "tag.removeRelated", json!({"tag": "project", "node": r.0}));
+    assert!(s.graph.related_for(n).is_empty());
+}

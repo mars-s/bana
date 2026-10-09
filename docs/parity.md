@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (99) | 51 | 40 | 6 | 2 |
-| Screenshots (153) | 88 | 37 | 27 | 1 |
+| Screenshots (153) | 91 | 37 | 24 | 1 |
 
 ## `00-overview.md`
 
@@ -33,7 +33,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields, checkbox, heading, view settings, created/edited/done times, expansion, bullet states. Missing: icon, banner, edited-by, per-place expansion. |
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks. Missing: reference counter, clone reference, per-context notes. |
-| 4. Supertags (tag definitions) | partial | Colour, base type, extends, template fields and child nodes, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: optional fields, title expression, building block, AI settings. |
+| 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
 | 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. Several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Missing: user type. |
 | 6. Search nodes | partial | Live, editable results, magnifier bullet, views. Missing: convert to plain list. |
 | 7. Workspaces | missing | One workspace with Library, Schema, Daily notes, Trash. No Inbox, no multiple workspaces. |
@@ -71,12 +71,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Tag page | partial | View tabs (Everything tagged, own views, + Add view), + Create new, table by default, header glow. Missing: help button. |
 | 3. Creating tags | partial | # then Enter creates and applies with an auto colour. Convert to supertag missing. |
 | 4. Applying and removing tags | done | # menu, node menu, command; chip x removes. |
-| 5. Configure supertag panel | partial | Colour swatches, base type, extends, template fields and nodes, show checkbox, done mapping, default child tag, used count, delete (inline section, not a second panel). Missing: optional fields, AI, title expression, related content editing. |
+| 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Missing: AI and Commands, Voice chat, building-block promotion, tag description. |
 | 6. Field definition panel | partial | Type, options, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows. |
 | 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
 | 8. Field value pickers | partial | Options picker (other options, create), date picker, number, checkbox, URL/email text. Missing: week numbers, time, date ranges in the date picker; user picker. |
-| 9. Required, hidden, pinned and invalid fields | partial | Empty required fields show an amber ?; hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows. Missing: pinned-field flag; invalid values are refused with a status message instead of a warning icon. |
-| 10. Template behaviour and inheritance | done | Template fields and nodes are copied, later template additions reach existing tagged nodes, extended supertags pass on fields and nodes and match the parent's searches, mixed views title the first column Title. |
+| 9. Required, hidden, pinned and invalid fields | partial | Empty required fields show an amber ?; hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows. Pinned fields (toggle on template rows) come first in view menus. Missing: invalid values are refused with a status message instead of a warning icon. |
+| 10. Template behaviour and inheritance | done | Template fields and nodes are copied, later template additions reach existing tagged nodes, extended supertags pass on fields and nodes and match the parent's searches, mixed views title the first column Title. Title expressions (`${name}` then text and `${Field}`) add a grey computed part after the name on rows, page titles, cards and tables, an empty field shows its name underlined; only the tag's own nodes, not extending tags. Tested. |
 | 11. Adding fields | partial | > on a line, template New field / Insert existing, table + Add field adds to the supertag template. AI suggested fields missing. |
 
 ## `04-views.md`
@@ -175,7 +175,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `12-tag-task-calendar.png` | done | Task calendar view. |
 | `13-tag-task-list.png` | done | Tag list view. |
 | `14-node-menu.jpg` | partial | Node menu subset. |
-| `15-configure-supertag-task.png` | partial | Configure section (inline). |
+| `15-configure-supertag-task.png` | partial | Configure panel to the right with colour row and collapsible cards; no AI or voice sections. |
 | `16-supertag-content-template.png` | partial | Content template with fields and nodes. |
 | `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
 | `18-supertag-advanced.png` | partial | Default child supertag only. |
@@ -317,9 +317,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `154-table-column-resize.jpg` | done | Table column resize (drag a header edge; saved with the view). |
 | `155-calendar-drag-create.png` | missing | Drag to create on the calendar time grid. |
 | `156-calendar-event-resize.jpg` | missing | Resize events on the time grid. |
-| `157-title-expr-default-child-config.png` | missing | New, not reviewed yet. |
-| `158-title-expression-table.png` | missing | New, not reviewed yet. |
-| `159-default-child-supertag.png` | missing | New, not reviewed yet. |
+| `157-title-expr-default-child-config.png` | done | Advanced options: title expression input and default child supertag picker. |
+| `158-title-expression-table.png` | done | Grey computed title part in tables and lists; empty fields show their name underlined. |
+| `159-default-child-supertag.png` | done | New direct children of a tagged node get the default child supertag. |
 
 ## Beyond the spec
 

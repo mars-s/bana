@@ -31,6 +31,8 @@ pub struct NavState {
     pub sel: Option<(NodeId, NodeId)>,
     pub back: Vec<NodeId>,
     pub forward: Vec<NodeId>,
+    /// The panel shows the configuration of the supertag it is on (spec 03 §5).
+    pub config: bool,
 }
 
 pub struct Session {
@@ -61,6 +63,8 @@ pub struct Session {
     pub recents: Vec<NodeId>,
     /// Where "Move to move target" sends nodes.
     pub move_target: Option<NodeId>,
+    /// This panel shows the open supertag's configuration instead of its page.
+    pub config_view: bool,
     /// Last status line (result or error of the last command).
     pub status: String,
     command_count: u64,
@@ -90,6 +94,7 @@ impl Session {
             forward: Vec::new(),
             recents: Vec::new(),
             move_target: None,
+            config_view: false,
             status: String::new(),
             command_count: 0,
         }
@@ -183,6 +188,7 @@ impl Session {
             sel: self.sel,
             back: self.back.clone(),
             forward: self.forward.clone(),
+            config: self.config_view,
         }
     }
 
@@ -195,12 +201,13 @@ impl Session {
         self.sel = n.sel;
         self.back = n.back;
         self.forward = n.forward;
+        self.config_view = n.config;
         self.fix_view();
     }
 
     /// A fresh panel on `id` (no history).
     pub fn new_nav(&self, id: NodeId) -> NavState {
-        NavState { zoom: id, focus: None, caret: 0, anchor: 0, sel: None, back: Vec::new(), forward: Vec::new() }
+        NavState { zoom: id, focus: None, caret: 0, anchor: 0, sel: None, back: Vec::new(), forward: Vec::new(), config: false }
     }
 
     /// What a bullet shows when expanded: its children, or a search node's results, after the
@@ -223,6 +230,7 @@ impl Session {
         }
         self.zoom = id;
         self.focus = None;
+        self.config_view = false;
         let target = self.graph.resolve(id);
         self.recents.retain(|r| *r != target);
         self.recents.insert(0, target);

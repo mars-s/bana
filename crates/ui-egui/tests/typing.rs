@@ -734,3 +734,22 @@ fn diffs_p2_supertags_overview_has_workspace_section_and_no_field_list() {
     assert!(h.query_by_label("Pages").is_none());
     assert!(h.query_all_by_label("Workspace").count() >= 2, "sidebar and the overview section");
 }
+
+#[test]
+fn diffs_p2_configure_supertag_opens_in_its_own_panel() {
+    let mut h = harness();
+    let tag = h.state_mut().exec("tag.create", json!({"name": "book"})).unwrap()["tag"].as_u64().unwrap();
+    h.state_mut().exec("nav.open", json!({"node": tag})).unwrap();
+    h.state_mut().exec("ui.configureSupertag", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().panel_count(), 2);
+    assert!(h.state().session.config_view);
+    h.get_by_label("Building blocks");
+    h.get_by_label("Advanced options");
+    h.state_mut().exec("ui.configureSupertag", json!({})).unwrap();
+    h.step();
+    assert_eq!(h.state().panel_count(), 1);
+    assert!(!h.state().session.config_view);
+}

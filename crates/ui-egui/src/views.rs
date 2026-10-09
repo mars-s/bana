@@ -157,6 +157,10 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
         return;
     }
     let fields = all_fields(app, node);
+    // Pinned fields (a supertag's template marks them) come first in every menu (spec 03 §9).
+    let pinned: Vec<NodeId> = g.tags().into_iter().filter_map(|x| g.tag_def(x)).flat_map(|d| d.pinned_fields.clone()).collect();
+    let mut fields = fields;
+    fields.sort_by_key(|f| !pinned.contains(f));
     let field_names: Vec<(NodeId, String, FieldType)> =
         fields.iter().map(|f| (*f, g.name(*f).to_string(), g.field_def(*f).map(|d| d.field_type).unwrap_or_default())).collect();
     let sort_label = |by: SortBy| match by {
@@ -496,6 +500,7 @@ pub(crate) fn item_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId
     let done = g.checkbox(target) == Some(true);
     let mut link_acts = Vec::new();
     let clicked = rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false).clicked();
+    crate::outline::title_suffix(ui, g, t, target, theme::FONT);
     if !link_acts.is_empty() {
         app.acts.extend(link_acts);
     } else if clicked {
@@ -682,12 +687,17 @@ fn resize_handle(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, col: 
 }
 
 /// A fixed-width table cell: content is clipped, never widens the row.
+/// A table cell `w` wide: at least one row high, taller when its text wraps.
 fn cell(ui: &mut Ui, w: f32, add: impl FnOnce(&mut Ui)) {
-    let (rect, _) = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover());
+    let top = ui.cursor().min;
+    let rect = Rect::from_min_size(top, vec2(w, 30.0));
     let mut child =
         ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink2(vec2(4.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
-    child.set_clip_rect(rect.shrink2(vec2(2.0, 0.0)).intersect(ui.clip_rect()));
+    let clip = Rect::from_min_max(pos2(rect.left() + 2.0, ui.clip_rect().top()), pos2(rect.right() - 2.0, ui.clip_rect().bottom()));
+    child.set_clip_rect(clip.intersect(ui.clip_rect()));
     add(&mut child);
+    let h = child.min_rect().bottom().max(rect.bottom()) - top.y;
+    ui.allocate_rect(Rect::from_min_size(top, vec2(w, h)), Sense::hover());
 }
 
 /// A card: header (bullet + tag chips), body (checkbox + name), footer (display fields).
@@ -727,6 +737,7 @@ fn card(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, item: NodeId, 
                         let done = g.checkbox(target) == Some(true);
                         let mut link_acts = Vec::new();
                         let clicked = rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false).clicked();
+                        crate::outline::title_suffix(ui, g, t, target, theme::FONT);
                         if !link_acts.is_empty() {
                             app.acts.extend(link_acts);
                         } else if clicked {

@@ -67,6 +67,8 @@ pub enum PickMode {
     TemplateField,
     /// `@` mid-sentence: an inline reference inserted at `Picker::caret`.
     InlineRef,
+    /// An optional field for `node` (a supertag).
+    OptionalField,
     /// "Move and leave reference to": like `MoveTo`, a reference stays behind.
     MoveLeaveRef,
     /// "Move to": a new owner for `node`.
@@ -213,7 +215,8 @@ pub struct TanaApp {
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
-    config_open: std::collections::HashSet<NodeId>,
+    /// Configure-supertag sections the user folded.
+    config_closed: std::collections::HashSet<String>,
     tag_tab: std::collections::HashMap<NodeId, NodeId>,
     template_buf: String,
     option_buf: String,
@@ -269,7 +272,7 @@ impl TanaApp {
             node_clip: None,
             toast_msg: None,
             col_drag: None,
-            config_open: Default::default(),
+            config_closed: Default::default(),
             tag_tab: Default::default(),
             template_buf: String::new(),
             option_buf: String::new(),
@@ -357,8 +360,18 @@ impl TanaApp {
             }
             "ui.configureSupertag" => {
                 let z = self.session.zoom;
-                if self.session.graph.tag_def(z).is_some() && !self.config_open.remove(&z) {
-                    self.config_open.insert(z);
+                // Configuration opens in its own panel to the right; Done (or the command again)
+                // closes it (spec 03 §5).
+                if self.session.config_view {
+                    if self.panel_count() > 1 {
+                        let i = self.tabs.get(self.tab).map(|t| t.active).unwrap_or(0);
+                        self.close_panel(i);
+                    } else {
+                        self.session.config_view = false;
+                    }
+                } else if self.session.graph.tag_def(z).is_some() {
+                    self.open_in_panel(z);
+                    self.session.config_view = true;
                 }
             }
             "ui.editDescription" => {

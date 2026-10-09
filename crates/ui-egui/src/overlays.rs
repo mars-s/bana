@@ -236,7 +236,7 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
-        PickMode::Field | PickMode::Column | PickMode::TemplateField => g
+        PickMode::Field | PickMode::Column | PickMode::TemplateField | PickMode::OptionalField => g
             .iter()
             .filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q))
             .map(|n| Choice::Existing(n.id, n.name.clone()))
@@ -397,6 +397,8 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
         (PickMode::Extend, Choice::Existing(base, _)) => app.exec("tag.extend", json!({"tag": node.0, "base": base.0})),
         (PickMode::TemplateField, Choice::Existing(f, _)) => app.exec("tag.addField", json!({"tag": node.0, "field": f.0})),
         (PickMode::TemplateField, Choice::Create(name)) => app.exec("tag.addField", json!({"tag": node.0, "field": name})),
+        (PickMode::OptionalField, Choice::Existing(f, _)) => app.exec("tag.setOptionalField", json!({"tag": node.0, "field": f.0, "on": true})),
+        (PickMode::OptionalField, Choice::Create(name)) => app.exec("tag.setOptionalField", json!({"tag": node.0, "field": name, "on": true})),
         (PickMode::Choice, Choice::Existing(_, v) | Choice::Create(v)) => match p.field {
             Some(f) => app.exec("field.set", json!({"node": node.0, "field": f.0, "index": p.index, "value": v})),
             None => Ok(json!({})),
@@ -478,6 +480,7 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::SearchCreate => "Create search node: find supertag",
         PickMode::Extend => "Extend supertag",
         PickMode::TemplateField => "Add a field to the template",
+        PickMode::OptionalField => "Add an optional field",
         PickMode::InlineRef => "Reference a node inline",
         PickMode::MoveTo => "Move to",
         PickMode::MoveLeaveRef => "Move and leave reference to",

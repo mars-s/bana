@@ -693,3 +693,19 @@ fn opml_round_trips_and_reads_other_outliners() {
         let _ = opml::parse(bad);
     }
 }
+
+#[test]
+fn a_template_never_copies_into_its_own_subtree() {
+    // Found by the fuzz test: tagging a node inside a template doubled the outline every time.
+    let mut g = Graph::new();
+    let tag = g.create_tag("meeting", "grey").unwrap();
+    let t = g.tag_add_template_node(tag, "Agenda").unwrap();
+    let inner = g.create(t, None, "inside the template").unwrap();
+    g.add_tag(inner, tag).unwrap();
+    let before = g.len();
+    for _ in 0..10 {
+        let n = g.create(inner, None, "x").unwrap();
+        g.add_tag(n, tag).unwrap();
+    }
+    assert!(g.len() < before + 40, "grew to {} from {before}", g.len());
+}

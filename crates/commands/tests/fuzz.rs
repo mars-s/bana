@@ -217,7 +217,7 @@ fn run_seed(seed: u64, steps: usize) {
         let v = params(desc, &s, &mut r);
         log.push(format!("{id} {v}"));
         if trace {
-            eprintln!("seed {seed} step {step}: {id} {v}");
+            eprintln!("seed {seed} step {step} ({} nodes): {id} {v}", s.graph.len());
         }
         if let Ok(dir) = std::env::var("FUZZ_DUMP")
             && env("FUZZ_DUMP_STEP", u64::MAX) == step as u64

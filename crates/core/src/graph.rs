@@ -1194,7 +1194,9 @@ impl Graph {
         for t in self.tag_lineage(tag) {
             templates.extend(self.tag_def(t).map(|d| d.template.clone()).unwrap_or_default());
         }
-        templates.retain(|t| self.get(*t).is_some());
+        // A template never copies into its own subtree (that copy would hold the template again,
+        // and every later tagging would double the outline).
+        templates.retain(|t| self.get(*t).is_some() && !self.is_ancestor_or_self(*t, node));
         for t in templates {
             let copy = self.copy_subtree(t, node, 0)?;
             self.node_mut(node)?.children.push(copy);
@@ -1426,7 +1428,8 @@ impl Graph {
         let id = self.create(tag, None, name)?;
         self.tag_def_mut(tag)?.template.push(id);
         // Template edits reach nodes tagged earlier (spec 03 §10).
-        for n in self.nodes_with_lineage(tag) {
+        let targets: Vec<NodeId> = self.nodes_with_lineage(tag).into_iter().filter(|n| !self.is_ancestor_or_self(id, *n)).collect();
+        for n in targets {
             let copy = self.copy_subtree(id, n, 0)?;
             self.node_mut(n)?.children.push(copy);
         }

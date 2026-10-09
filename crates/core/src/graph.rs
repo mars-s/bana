@@ -200,9 +200,25 @@ impl Graph {
         a == b || self.ancestors(b).contains(&a)
     }
 
+    /// Inside a trash (the main one or a workspace's). Walks up without allocating: searches ask
+    /// this of every node.
     pub fn in_trash(&self, id: NodeId) -> bool {
-        let anc = self.ancestors(id);
-        anc.contains(&self.sys.trash) || anc.iter().any(|a| self.is_workspace_part(*a, 2))
+        let mut below = id;
+        let mut cur = self.parent(id);
+        for _ in 0..MAX_DEPTH {
+            let Some(p) = cur else { return false };
+            if p == self.sys.trash {
+                return true;
+            }
+            if let Some(n) = self.get(p)
+                && n.kind == Kind::Workspace
+            {
+                return n.children.get(2) == Some(&below);
+            }
+            below = p;
+            cur = self.parent(p);
+        }
+        false
     }
 
     /// Part `i` of a further workspace (0 Library, 1 Schema, 2 Trash): its children in that order.
@@ -216,7 +232,7 @@ impl Graph {
             || s.inbox == Some(id)
             || self.get(id).is_some_and(|n| n.kind == Kind::Workspace)
             // A further workspace's Library, Schema and Trash.
-            || (0..3).any(|i| self.is_workspace_part(id, i))
+            || self.parent(id).and_then(|p| self.get(p)).is_some_and(|p| p.kind == Kind::Workspace && p.children.iter().take(3).any(|c| *c == id))
     }
 
     /// Every workspace, the main one (the root) first. All are open together (spec 07 §2).

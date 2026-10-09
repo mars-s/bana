@@ -81,7 +81,7 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 | Enter, expand or collapse, undo (engine) | under 0.01 ms |
 | Whole UI frame with all 51,550 rows expanded (typing, idle, expand key) | about 6 ms |
 | First frame after opening that page and expanding everything | 8 ms |
-| Substring search / fuzzy Search and open over every node | 14 ms / 23 ms |
+| Substring search / fuzzy Search and open over every node | 15 ms / 27 ms |
 | Save / load the graph file | 15 ms / 44 ms |
 
 The outline draws only the rows near the viewport (the rest is blank space of their measured

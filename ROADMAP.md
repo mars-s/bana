@@ -10,7 +10,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 |---|---|
 | Commands (every action; CLI, MCP and control channel can run them) | 162 engine commands, plus 22 window commands |
 | Tests | 149 (core 41, commands 47 incl. a fuzz test of random command sequences and a 50k-node timed test, UI 59 driving the real UI with keys, pointer drags, clicks and panels plus a 50k-node frame-time test, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 95 mapped: 72 done, 17 partial, 4 missing, 2 notes |
+| Spec sections (`docs/parity.md`) | 95 mapped: 73 done, 16 partial, 4 missing, 2 notes |
 | Spec screenshots | 160 mapped: 135 done, 19 partial, 5 missing, 1 not behaviour |
 
 ## Milestones

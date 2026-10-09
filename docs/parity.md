@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 72 | 17 | 4 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 73 | 16 | 4 | 2 |
 | Screenshots (160) | 135 | 19 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 

@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 68 | 20 | 5 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 69 | 20 | 4 | 2 |
 | Screenshots (160) | 133 | 20 | 6 | 1 |
 | Beyond the spec | 4 | | | |
 
@@ -24,7 +24,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
 | 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight, new search results flash green. Own palette; default egui font (no Inter, bold drawn brighter). |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Recents, Search and open, Create new, pinned, workspace items, Inbox, Help, Settings. No AI chats. |
-| 7. Native menu bar | missing | Not built (egui window has no native menus). |
+| 7. Native menu bar | done | macOS menu bar (muda): app menu (About, Settings, Hide, Quit with save), Edit (Undo, Redo, Select all, Find, Command line, Quick add), View (actual size, zoom in/out, sidebar, theme, content width, full screen), History (Back, Forward, Today, Recents), Options, Window (minimize, tabs, panels), Help. Every item runs a command (`MENU_BAR`, tested); only Quit takes its key from the menu so typing and the clipboard stay with the window. No updater, spellchecker toggle, local API or meeting items. |
 | 8. Global overlays | done | Command line (Cmd+K), Search and open (Cmd+S, Cmd+T), Quick add (Cmd+E), context menus, shortcut sheet. |
 
 ## `01-data-model.md`

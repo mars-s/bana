@@ -48,7 +48,66 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.insertDate", "Insert date...", ""),
     ("ui.help", "Help", ""),
     ("ui.cycleContentWidth", "Cycle content widths", ""),
+    ("ui.quit", "Quit (saves first)", ""),
+    ("ui.fullScreen", "Toggle full screen", ""),
+    ("ui.minimize", "Minimize window", ""),
+    ("ui.zoomIn", "Zoom in (text size)", ""),
+    ("ui.zoomOut", "Zoom out (text size)", ""),
+    ("ui.zoomReset", "Actual size", ""),
 ];
+
+/// The native menu bar (spec 00 §7): menus of (label, command id, shortcut shown). The desktop app
+/// builds it on macOS; every entry runs a command, so the menu adds no behaviour of its own.
+/// Shortcuts are shown only where the menu itself may take the key (Quit); the others stay with the
+/// window so typing and the clipboard keep working.
+pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
+    ("App", &[("About TanaCraft", "ui.help"), ("Settings...", "ui.settings"), ("Quit", "ui.quit")]),
+    (
+        "Edit",
+        &[
+            ("Undo", "edit.undo"),
+            ("Redo", "edit.redo"),
+            ("Select all", "select.all"),
+            ("Find...", "ui.searchOpen"),
+            ("Command line...", "ui.commandLine"),
+            ("Quick add", "ui.quickAdd"),
+        ],
+    ),
+    (
+        "View",
+        &[
+            ("Actual size", "ui.zoomReset"),
+            ("Zoom in", "ui.zoomIn"),
+            ("Zoom out", "ui.zoomOut"),
+            ("Toggle sidebar", "ui.toggleSidebar"),
+            ("Switch light or dark theme", "ui.toggleTheme"),
+            ("Cycle content width", "ui.cycleContentWidth"),
+            ("Full screen", "ui.fullScreen"),
+        ],
+    ),
+    ("History", &[("Back", "nav.back"), ("Forward", "nav.forward"), ("Today", "nav.today"), ("Recents", "ui.recents")]),
+    ("Options", &[("Customize keybindings and shortcuts", "ui.shortcuts"), ("Settings", "ui.settings")]),
+    (
+        "Window",
+        &[
+            ("Minimize", "ui.minimize"),
+            ("New tab", "ui.newTab"),
+            ("Close tab", "ui.closeTab"),
+            ("Open in new panel", "ui.openInPanel"),
+            ("Single panel", "ui.singlePanel"),
+        ],
+    ),
+    ("Help", &[("Help", "ui.help"), ("Keyboard shortcuts", "ui.shortcuts")]),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum WindowCmd {
+    Close,
+    Minimize,
+    FullScreen,
+    /// Text size step; 0 resets.
+    Zoom(f32),
+}
 
 /// The `#`, `>` and `@` pickers.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -246,6 +305,8 @@ pub struct TanaApp {
     pin_open: std::collections::HashSet<NodeId>,
     /// A navigation view's just-added item: (node, heading being typed, focus it once).
     pub(crate) nav_title: Option<(NodeId, String, bool)>,
+    /// Window requests from commands, carried out in `logic` where the context is at hand.
+    pub(crate) window_cmds: Vec<WindowCmd>,
     /// Workspaces folded in the sidebar (all start open).
     ws_closed: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
@@ -319,6 +380,7 @@ impl TanaApp {
             closed_groups: Default::default(),
             pin_open: Default::default(),
             ws_closed: Default::default(),
+            window_cmds: Vec::new(),
             nav_title: None,
             recents_page: false,
             settings_page: false,
@@ -448,6 +510,12 @@ impl TanaApp {
             "ui.singlePanel" => self.single_panel(),
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => self.dark = !self.dark,
+            "ui.quit" => self.window_cmds.push(WindowCmd::Close),
+            "ui.fullScreen" => self.window_cmds.push(WindowCmd::FullScreen),
+            "ui.minimize" => self.window_cmds.push(WindowCmd::Minimize),
+            "ui.zoomIn" => self.window_cmds.push(WindowCmd::Zoom(0.1)),
+            "ui.zoomOut" => self.window_cmds.push(WindowCmd::Zoom(-0.1)),
+            "ui.zoomReset" => self.window_cmds.push(WindowCmd::Zoom(0.0)),
             "ui.quickAdd" => {
                 // The modal takes the keyboard from the line being edited (DIFFS P1 #5).
                 self.quick_add = Some(vec![String::new()]);
@@ -513,6 +581,20 @@ impl TanaApp {
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        for c in std::mem::take(&mut self.window_cmds) {
+            match c {
+                WindowCmd::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                WindowCmd::Minimize => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                WindowCmd::FullScreen => {
+                    let on = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!on));
+                }
+                WindowCmd::Zoom(step) => {
+                    let z = if step == 0.0 { 1.0 } else { (ctx.zoom_factor() + step).clamp(0.5, 2.5) };
+                    ctx.set_zoom_factor(z);
+                }
+            }
+        }
         self.apply_style(ctx);
         self.serve_control();
         self.sync_edit();

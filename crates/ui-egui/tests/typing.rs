@@ -1387,3 +1387,23 @@ fn hidden_fields_fold_to_a_label_when_not_empty_or_always() {
         assert!(h.query_by_label("+ Budget").is_none(), "{mode}: clicking reveals the row");
     }
 }
+
+#[test]
+fn every_menu_bar_entry_runs_a_known_command() {
+    // Spec 00 §7: the native menu bar only runs commands.
+    let mut h = harness();
+    for (menu, items) in tanacraft_ui_egui::MENU_BAR {
+        for (label, cmd) in *items {
+            let known = h.state().session.registry.get(cmd).is_some() || tanacraft_ui_egui::UI_COMMANDS.iter().any(|(id, _, _)| id == cmd);
+            assert!(known, "{menu} > {label}: unknown command {cmd}");
+        }
+    }
+    h.state_mut().exec("ui.zoomIn", json!({})).unwrap();
+    h.step();
+    h.step();
+    assert!((h.ctx.zoom_factor() - 1.1).abs() < 1e-4, "{}", h.ctx.zoom_factor());
+    h.state_mut().exec("ui.zoomReset", json!({})).unwrap();
+    h.step();
+    h.step();
+    assert!((h.ctx.zoom_factor() - 1.0).abs() < 1e-4);
+}

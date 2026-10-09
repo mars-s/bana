@@ -16,10 +16,19 @@ use tanacraft_commands::Session;
 use tanacraft_core::{Date, Graph, PRODUCT_NAME, sample};
 use tanacraft_ui_egui::{ControlRequest, TanaApp};
 
-struct App(TanaApp);
+struct App(TanaApp, #[cfg(target_os = "macos")] Option<menu::Bar>);
 
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(target_os = "macos")]
+        if let Some(bar) = &self.1 {
+            for cmd in bar.clicked() {
+                if let Err(e) = self.0.exec(&cmd, json!({})) {
+                    self.0.session.status = e;
+                }
+                ctx.request_repaint();
+            }
+        }
         self.0.logic(ctx);
         if self.0.control.is_some() {
             // ponytail: poll the control channel 10 times a second; wake from the thread if idle cost matters.
@@ -82,7 +91,69 @@ fn main() -> Result<(), String> {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 820.0]).with_min_inner_size([640.0, 400.0]).with_title(PRODUCT_NAME),
         ..Default::default()
     };
-    eframe::run_native(PRODUCT_NAME, options, Box::new(|_cc| Ok(Box::new(App(app))))).map_err(|e| e.to_string())
+    eframe::run_native(
+        PRODUCT_NAME,
+        options,
+        Box::new(|_cc| {
+            // The native menu bar is made once the app object exists (spec 00 §7).
+            #[cfg(target_os = "macos")]
+            let app = App(app, menu::Bar::install());
+            #[cfg(not(target_os = "macos"))]
+            let app = App(app);
+            Ok(Box::new(app))
+        }),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// The macOS menu bar, built from `MENU_BAR`: each item runs a command.
+#[cfg(target_os = "macos")]
+mod menu {
+    use muda::accelerator::{Accelerator, Code, Modifiers};
+    use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+    use tanacraft_ui_egui::MENU_BAR;
+
+    pub struct Bar {
+        _menu: Menu,
+        ids: Vec<(muda::MenuId, &'static str)>,
+    }
+
+    impl Bar {
+        pub fn install() -> Option<Bar> {
+            let menu = Menu::new();
+            let mut ids = Vec::new();
+            for (title, items) in MENU_BAR {
+                let sub = Submenu::new(if *title == "App" { tanacraft_core::PRODUCT_NAME } else { title }, true);
+                for (label, cmd) in *items {
+                    // Only Quit takes its key from the menu; the window keeps every other shortcut
+                    // (typing, the clipboard and the app's own keys stay with the outline).
+                    let accel = (*cmd == "ui.quit").then(|| Accelerator::new(Some(Modifiers::SUPER), Code::KeyQ));
+                    if *title == "App" && *cmd == "ui.quit" {
+                        sub.append(&PredefinedMenuItem::separator()).ok()?;
+                        sub.append(&PredefinedMenuItem::hide(None)).ok()?;
+                        sub.append(&PredefinedMenuItem::separator()).ok()?;
+                    }
+                    let item = MenuItem::new(*label, true, accel);
+                    ids.push((item.id().clone(), *cmd));
+                    sub.append(&item).ok()?;
+                }
+                menu.append(&sub).ok()?;
+            }
+            menu.init_for_nsapp();
+            Some(Bar { _menu: menu, ids })
+        }
+
+        /// Commands of the items clicked since the last frame.
+        pub fn clicked(&self) -> Vec<String> {
+            let mut out = Vec::new();
+            while let Ok(ev) = MenuEvent::receiver().try_recv() {
+                if let Some((_, cmd)) = self.ids.iter().find(|(id, _)| *id == ev.id) {
+                    out.push(cmd.to_string());
+                }
+            }
+            out
+        }
+    }
 }
 
 /// Listens on 127.0.0.1 only. Each line is a JSON request; each reply a JSON line.

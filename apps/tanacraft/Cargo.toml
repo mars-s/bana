@@ -16,3 +16,6 @@ tanacraft-ui-egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.17", default-features = false }

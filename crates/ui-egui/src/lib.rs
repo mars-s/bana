@@ -385,7 +385,7 @@ impl TanaApp {
             return Ok(json!({}));
         }
         let before = (self.session.focus, self.session.caret);
-        if id.starts_with("nav.") || id == "node.createNew" {
+        if id.starts_with("nav.") || id == "node.createNew" || id == "workspace.switch" {
             // An opened search node shows its results; the builder waits for "Open query editor"
             // (spec 05 §1).
             self.query_open = false;

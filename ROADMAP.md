@@ -8,10 +8,10 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 158 engine commands, plus 22 window commands |
-| Tests | 133 (core 40, commands 41, UI 50 driving the real UI with keys, pointer drags, clicks and panels, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 99 mapped: 72 done, 20 partial, 5 missing, 2 notes |
-| Spec screenshots | 153 mapped: 124 done, 21 partial, 7 missing, 1 not behaviour |
+| Commands (every action; CLI, MCP and control channel can run them) | 162 engine commands, plus 22 window commands |
+| Tests | 149 (core 41, commands 47 incl. a fuzz test of random command sequences and a 50k-node timed test, UI 59 driving the real UI with keys, pointer drags, clicks and panels plus a 50k-node frame-time test, MCP 1, CLI 1) |
+| Spec sections (`docs/parity.md`) | 95 mapped: 68 done, 20 partial, 5 missing, 2 notes |
+| Spec screenshots | 160 mapped: 133 done, 20 partial, 6 missing, 1 not behaviour |
 
 ## Milestones
 
@@ -32,11 +32,13 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M12 Acceptance round 3 | Every P1, P2 and P3 item of the spec team's DIFFS.md (except AI): caret formatting, `>` field rows, Escape selection, copying selections, quick add focus, nested query groups, configure supertag panel, supertags overview, board and calendar details, context-aware command line, checklist caret, tag page header, shell, link styling, field options outline, inline `#` menu | done |
 | M13 Fields and calendar | Several values per field, pinned and optional fields, title expressions, option sources, invalid-value warnings, date picker with time; calendar time grid with timed dates, drop to time, resize, drag to create | done |
 | M14 Workspaces and shell | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel, page icons and banners, custom keybindings, Markdown import, user fields | done |
-| M15 Next | Native menus, AI features, per-context notes on references, rich HTML clipboard, import from other apps, workspace members | next |
+| M15 Acceptance round 4 | DIFFS N1 to N14: field values, `>` field rows in place, selection keys, Cmd+. title, page edge moves, workspaces side by side, search builder closed on open, fuller selection toolbar; table header menu with calculations, + Add menu item / tab, hidden-field labels | done |
+| M16 Robustness and speed | Fuzz test of random command sequences (fixed: untracked day creation clobbered by undo, references picking up child tags, day creation recursion, file repair of loops); 50k-node outline draws only visible rows | done |
+| M17 Next | Native menus, rich HTML clipboard, settings sub-pages, per-context notes on references, import from other apps, per-workspace schema and trash | next |
 
 ## Later
 
-Multiple workspaces, sync, settings, mobile and web (wasm) builds.
+Sync, workspace members, mobile and web (wasm) builds.
 
 ## Known simplifications
 

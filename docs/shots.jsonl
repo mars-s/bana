@@ -20,7 +20,6 @@
 {"shot": "docs/images/field-definition.png"}
 {"open": "Open tasks"}
 {"shot": "docs/images/search-table.png"}
-{"cmd": "ui.searchOptions"}
 {"cmd": "view.set", "params": {"kind": "cards"}}
 {"cmd": "view.group", "params": {"by": "none"}}
 {"cmd": "view.toggleDisplay", "params": {"field": "Status"}}
@@ -35,7 +34,6 @@
 {"cmd": "view.set", "params": {"kind": "calendar"}}
 {"shot": "docs/images/calendar.png"}
 {"cmd": "view.set", "params": {"kind": "table"}}
-{"cmd": "ui.searchOptions"}
 {"open": "Raised beds"}
 {"cmd": "view.set", "params": {"kind": "outline"}}
 {"cmd": "view.group", "params": {"by": "Status"}}
@@ -80,7 +78,8 @@
 {"type": "pro"}
 {"shot": "docs/images/tag-picker.png"}
 {"key": "Escape"}
-{"cmd": "node.delete", "params": {"node": 29}}
+{"focus": "Water rota"}
+{"cmd": "node.delete"}
 {"cmd": "nav.trash"}
 {"shot": "docs/images/trash.png"}
 {"cmd": "nav.home"}
@@ -92,7 +91,6 @@
 {"key": "Escape"}
 {"key": "Escape"}
 {"open": "Open tasks"}
-{"cmd": "ui.searchOptions"}
 {"cmd": "view.set", "params": {"kind": "calendar"}}
 {"cmd": "view.calendarMode", "params": {"mode": "week"}}
 {"shot": "docs/images/week-grid.png"}
@@ -107,3 +105,6 @@
 {"cmd": "ui.searchOptions"}
 {"cmd": "ui.help"}
 {"shot": "docs/images/help.png"}
+{"cmd": "workspace.create", "params": {"name": "Lab Notes"}}
+{"cmd": "workspace.switch", "params": {"name": "Lab Notes"}}
+{"shot": "docs/images/workspaces.png"}

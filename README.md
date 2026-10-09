@@ -64,12 +64,35 @@ live. TanaCraft rebuilds that model as open source:
 | **Search** | Search nodes with nested AND/OR/NOT groups, field comparisons, date, type and base-type operators; new results flash; Search and open with fuzzy matching and snippets; a context-aware command line |
 | **Views** | Outline, table (full width, rename columns in place, resize), cards, board, lanes (drag between lanes), list (detail in the next panel), side menu, tabs, calendar (month, week and day with a time grid); display, sort, group and filter from an icon toolbar |
 | **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, week Schedule, go to date, insert date, dates that link to their day |
-| **Shell** | Tabs, resizable panels, sidebar full/mini/hidden with flyouts, pinned items, quick add, capture Inbox, workspaces (switch, create, rename), page icons and banners, content width, Help page, settings, trash |
+| **Shell** | Tabs, resizable panels, sidebar full/mini/hidden with flyouts, pinned items, quick add, capture Inbox, several workspaces side by side in one graph, page icons and banners, content width, Help page, settings, trash |
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
-| **Files** | One JSON file per workspace (`~/TanaCraft/graph.json` by default), atomic autosave, Markdown and JSON export |
+| **Files** | One JSON graph file (`~/TanaCraft/graph.json` by default) holding every workspace, atomic autosave, repair of damaged files, Markdown and JSON export |
 
-Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (72 of 99 sections done,
-124 of 153 screenshots). AI features are out of scope for now.
+Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (68 of 95 spec sections
+done, 20 partial; 133 of 160 screenshots done). AI features are out of scope for now.
+
+## Speed and robustness
+
+Measured on a generated 50,000-node workspace (`sample::large`), release build, Apple Silicon laptop:
+
+| Action | Time |
+|---|---|
+| Typing one character (engine) | 0.001 ms |
+| Enter, expand or collapse, undo (engine) | under 0.01 ms |
+| Whole UI frame with all 51,550 rows expanded (typing, idle, expand key) | about 10 ms |
+| First frame after opening that page and expanding everything | 14 ms |
+| Substring search / fuzzy Search and open over every node | 14 ms / 23 ms |
+| Save / load the graph file | 15 ms / 44 ms |
+
+The outline draws only the rows near the viewport (the rest is blank space of their measured
+height). Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
+`cargo test -p tanacraft-ui-egui --test perf --release -- --nocapture`.
+
+A fuzz test runs random sequences of every command (params built from each command's own
+description) and checks after each step that owners and children agree, nothing is orphaned or in a
+loop, every change undoes and redoes exactly, and save/load round-trips; damaged files (loops, double
+owners, dangling ids) load into a sound graph. Longer runs:
+`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`.
 
 ## Quick start
 
@@ -85,7 +108,7 @@ Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** 
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the control channel. `tanacraft-cli commands` lists all 158 with their parameters.
+server and the control channel. `tanacraft-cli commands` lists all 162 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params

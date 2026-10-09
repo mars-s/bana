@@ -95,6 +95,8 @@ pub struct Palette {
     pub query: String,
     pub selected: usize,
     focus_once: bool,
+    /// Scroll the highlighted row into view (after arrow keys).
+    scroll_to: bool,
 }
 
 /// The bullet being typed into.

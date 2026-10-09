@@ -772,9 +772,7 @@ pub(crate) fn field_value(
         }
         _ => {
             let (label, color) = match &text {
-                Some(s) if !s.is_empty() => {
-                    (s.clone(), if matches!(def.field_type, FieldType::Url | FieldType::Email | FieldType::OptionsFromTag) { t.link } else { t.text })
-                }
+                Some(s) if !s.is_empty() => (s.clone(), if def.field_type == FieldType::OptionsFromTag { t.link } else { t.text }),
                 _ => (hint(def.field_type).to_string(), t.faint),
             };
             let r = ui.add(egui::Label::new(RichText::new(label).size(14.5).color(color)).sense(Sense::click()));
@@ -844,10 +842,8 @@ pub(crate) fn rich_job_links(
             }
             (_, Some(u)) => {
                 f.color = t.link;
-                f.underline = Stroke::new(1.0, t.link.gamma_multiply(0.6));
                 if !link_only {
-                    let arrow = egui::TextFormat { underline: Stroke::NONE, ..f.clone() };
-                    job.append("\u{2197}\u{2009}", 0.0, arrow);
+                    job.append("\u{2197}\u{2009}", 0.0, f.clone());
                     targets.push(Some(LinkTarget::Url(u.clone())));
                 }
                 (sp.text.clone(), Some(LinkTarget::Url(u.clone())))
@@ -1288,11 +1284,6 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         } else {
             let size = if heading { 20.0 } else { theme::FONT };
             let (mut job, targets) = rich_job_links(&app.session.graph, t, &name, text_color, false, size);
-            if is_ref {
-                for sec in &mut job.sections {
-                    sec.format.underline = Stroke::new(1.0, t.dim);
-                }
-            }
             // Long text wraps, leaving room for the tag chips (spec 02 §1).
             job.wrap.max_width = (ui.available_width() - chips_width(&app.session.graph, id)).max(120.0);
             let (r, hit) = link_label(ui, job, &targets);

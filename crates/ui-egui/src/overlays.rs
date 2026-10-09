@@ -7,32 +7,70 @@ use tanacraft_core::{NodeId, export};
 
 use crate::{Act, PickMode, TanaApp, theme};
 
-const MAX_ITEMS: usize = 12;
-
 /// One command-line result.
 #[derive(Debug, Clone)]
 pub enum Item {
-    Command { id: String, label: String, shortcut: String },
-    Node { id: NodeId, line: String },
+    Command {
+        id: String,
+        label: String,
+        shortcut: String,
+    },
+    /// A context step for the focused node; non-command steps open a picker next.
+    Step {
+        label: String,
+        act: Act,
+    },
 }
 
-/// Results for a command-line query: matching nodes first, then commands.
-pub fn palette_items(app: &TanaApp, query: &str) -> Vec<Item> {
-    let mut out = Vec::new();
-    let q = query.trim();
-    if !q.is_empty() {
-        for id in app.session.graph.search(q).into_iter().take(6) {
-            out.push(Item::Node { id, line: export::node_line(&app.session.graph, id) });
+/// Where a second-step picker opens.
+const STEP_AT: egui::Pos2 = egui::pos2(380.0, 150.0);
+
+/// Context steps for `node` (spec 05 §3): add or remove tags, set its fields, move it, view as.
+fn context_steps(app: &TanaApp, node: NodeId) -> Vec<Item> {
+    let g = &app.session.graph;
+    let target = g.resolve(node);
+    let step = |label: String, act: Act| Item::Step { label, act };
+    let mut out = vec![step("Add tag".into(), Act::Pick(PickMode::Tag, target, STEP_AT))];
+    if let Some(n) = g.get(target) {
+        for t in &n.tags {
+            out.push(step(format!("Remove tag #{}", g.name(*t)), Act::Run("tag.remove".into(), json!({"node": target.0, "tag": t.0}))));
+        }
+        for e in &n.fields {
+            let Some(def) = g.field_def(e.field) else { continue };
+            let act = match def.field_type {
+                tanacraft_core::FieldType::Options => Act::PickChoice(target, e.field, 0, STEP_AT),
+                tanacraft_core::FieldType::Date => Act::PickDate(target, e.field, 0, STEP_AT),
+                _ => Act::EditField(target, e.field, 0, String::new()),
+            };
+            out.push(step(format!("Set {}", g.name(e.field)), act));
         }
     }
+    out.push(step("Move to".into(), Act::Pick(PickMode::MoveTo, node, STEP_AT)));
+    out.push(step("Move and leave reference to".into(), Act::Pick(PickMode::MoveLeaveRef, node, STEP_AT)));
+    for k in tanacraft_core::ViewKind::ALL {
+        out.push(step(format!("View as {}", k.name()), Act::Run("view.set".into(), json!({"node": target.0, "kind": k.name()}))));
+    }
+    out
+}
+
+/// Results for a command-line query: steps for the focused node first, then commands (spec 05 §3).
+pub fn palette_items(app: &TanaApp, query: &str) -> Vec<Item> {
+    let q = query.trim();
     let words: Vec<String> = q.split_whitespace().map(str::to_lowercase).collect();
-    for (id, label, shortcut) in crate::UI_COMMANDS {
+    let hit = |label: &str, id: &str| {
         let hay = format!("{label} {id}").to_lowercase();
-        if words.iter().all(|w| hay.contains(w.as_str())) {
+        words.iter().all(|w| hay.contains(w.as_str()))
+    };
+    let mut out: Vec<Item> = Vec::new();
+    if let Some(node) = app.session.focus.or(app.session.sel.map(|s| s.1)) {
+        out.extend(context_steps(app, node).into_iter().filter(|i| matches!(i, Item::Step { label, .. } if hit(label, ""))));
+    }
+    for (id, label, shortcut) in crate::UI_COMMANDS {
+        if hit(label, id) {
             out.push(Item::Command { id: id.to_string(), label: label.to_string(), shortcut: shortcut.to_string() });
         }
     }
-    // Context first: with a bullet focused or selected, its node commands lead (spec 05 §3).
+    // With a bullet focused or selected, its node commands lead.
     let mut cmds = app.session.registry.search(q);
     if app.session.focus.is_some() || app.session.sel.is_some() {
         cmds.sort_by_key(|c| !matches!(c.location, "Node" | "Supertag" | "Field" | "Format"));
@@ -40,7 +78,7 @@ pub fn palette_items(app: &TanaApp, query: &str) -> Vec<Item> {
     for c in cmds {
         out.push(Item::Command { id: c.id.to_string(), label: c.label.to_string(), shortcut: c.shortcut.to_string() });
     }
-    out.truncate(MAX_ITEMS + 6);
+    out.truncate(40);
     out
 }
 
@@ -52,8 +90,9 @@ fn run_item(app: &mut TanaApp, item: Item) {
                 app.session.status = e;
             }
         }
-        Item::Node { id, .. } => {
-            let _ = app.exec("nav.open", json!({"node": id.0}));
+        Item::Step { act, .. } => {
+            app.acts.push(act);
+            app.flush();
         }
     }
 }
@@ -62,8 +101,14 @@ pub fn palette_key(app: &mut TanaApp, k: &str) -> bool {
     let Some(p) = app.palette.as_mut() else { return false };
     match k {
         "Escape" | "Mod+K" => app.palette = None,
-        "Up" => p.selected = p.selected.saturating_sub(1),
-        "Down" => p.selected += 1,
+        "Up" => {
+            p.selected = p.selected.saturating_sub(1);
+            p.scroll_to = true;
+        }
+        "Down" => {
+            p.selected += 1;
+            p.scroll_to = true;
+        }
         "Enter" => {
             let items = palette_items(app, &app.palette.as_ref().map(|p| p.query.clone()).unwrap_or_default());
             let sel = app.palette.as_ref().map(|p| p.selected).unwrap_or(0);
@@ -95,7 +140,7 @@ pub fn palette(app: &mut TanaApp, ctx: &egui::Context) {
                     egui::TextEdit::singleline(&mut p.query)
                         .id(egui::Id::new("palette-query"))
                         .font(FontId::proportional(17.0))
-                        .hint_text("Search nodes or run a command")
+                        .hint_text("Enter command...")
                         .frame(egui::Frame::NONE)
                         .desired_width(w),
                 );
@@ -111,26 +156,31 @@ pub fn palette(app: &mut TanaApp, ctx: &egui::Context) {
                 if items.is_empty() {
                     ui.label(RichText::new("No matches").color(t.faint));
                 }
-                for (i, item) in items.iter().enumerate() {
-                    let (label, right, is_node) = match item {
-                        Item::Command { label, shortcut, .. } => (label.clone(), pretty_shortcut(shortcut, app.mac), false),
-                        Item::Node { line, .. } => (line.clone(), "Open".to_string(), true),
-                    };
-                    let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
-                    if i == p.selected || resp.hovered() {
-                        ui.painter().rect_filled(rect, 5.0, t.hover);
+                egui::ScrollArea::vertical().max_height(440.0).show(ui, |ui| {
+                    for (i, item) in items.iter().enumerate() {
+                        let (label, right) = match item {
+                            Item::Command { label, shortcut, .. } => (label.clone(), pretty_shortcut(shortcut, app.mac)),
+                            // Steps that open a picker next show ">" on the right.
+                            Item::Step { label, act } => (label.clone(), if matches!(act, Act::Run(..)) { String::new() } else { ">".to_string() }),
+                        };
+                        let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
+                        if i == p.selected || resp.hovered() {
+                            ui.painter().rect_filled(rect, 5.0, t.hover);
+                        }
+                        let painter = ui.painter();
+                        painter.text(rect.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(14.5), t.text);
+                        painter.text(rect.right_center() - vec2(10.0, 0.0), Align2::RIGHT_CENTER, right, FontId::proportional(12.5), t.faint);
+                        if i == p.selected && p.scroll_to {
+                            resp.scroll_to_me(None);
+                        }
+                        if resp.clicked() {
+                            chosen = Some(item.clone());
+                        }
                     }
-                    let painter = ui.painter();
-                    let lead = if is_node { "\u{2022}" } else { ">" };
-                    painter.text(rect.left_center() + vec2(10.0, 0.0), Align2::LEFT_CENTER, lead, FontId::proportional(14.0), t.faint);
-                    painter.text(rect.left_center() + vec2(28.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(14.5), t.text);
-                    painter.text(rect.right_center() - vec2(10.0, 0.0), Align2::RIGHT_CENTER, right, FontId::proportional(12.5), t.faint);
-                    if resp.clicked() {
-                        chosen = Some(item.clone());
-                    }
-                }
+                });
             });
         });
+    p.scroll_to = false;
     let outside = ctx.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|p| !area.response.rect.contains(p)));
     if outside && chosen.is_none() {
         close = true;

@@ -709,3 +709,14 @@ fn diffs_p2_board_ends_with_a_not_set_column_without_counts() {
     h.get_by_label("Status not set");
     h.get_by_label("Done");
 }
+
+#[test]
+fn diffs_p2_command_line_lists_steps_for_the_focused_node_not_nodes() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["garden plan"]);
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::K, CMD);
+    text(&mut h, "add tag");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert_eq!(h.state().picker.as_ref().map(|p| p.mode), Some(tanacraft_ui_egui::PickMode::Tag));
+}

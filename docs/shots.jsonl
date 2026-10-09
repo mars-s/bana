@@ -41,11 +41,12 @@
 {"cmd": "view.group", "params": {"by": "Status"}}
 {"cmd": "view.toggleDisplay", "params": {"field": "Due"}}
 {"shot": "docs/images/grouped-outline.png"}
-{"cmd": "nav.today"}
+{"open": "Community garden"}
+{"focus": "Build four beds"}
 {"cmd": "ui.commandLine"}
-{"type": "garden"}
 {"shot": "docs/images/command-line.png"}
 {"key": "Escape"}
+{"cmd": "nav.today"}
 {"cmd": "ui.searchOpen"}
 {"type": "comp"}
 {"shot": "docs/images/search-open.png"}

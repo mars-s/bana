@@ -140,6 +140,10 @@
   --c-drop-line: #6a96df;
   --c-done: #5aa67a;
   --c-toggle-on: #437c5d;
+  --c-toggle-off: #4b4b4c;
+  --c-knob: #cdcdcd;
+  --c-on-accent: #ffffff;
+  --c-shade: #000000;
   --c-confirm: #94cba0;
   --c-ai: #d66ed1;
   --c-today: #d34e2c;
@@ -160,6 +164,7 @@
   --shadow-float: 0 1.5px 1.5px rgba(0, 0, 0, 0.2), 0 1.5px 1.5px rgba(0, 0, 0, 0.25), 0 11.25px 22.5px rgba(0, 0, 0, 0.3);
   --shadow-tooltip: 0 1.5px 1.5px rgba(0, 0, 0, 0.2), 0 1.5px 1.5px rgba(0, 0, 0, 0.25);
   --shadow-chip: 0 0.5px 0 0.5px rgba(0, 0, 0, 0.2);
+  --shadow-knob: 0 2.8px 8.4px rgba(0, 0, 0, 0.3);
   --fw-text: var(--fw-regular);
   color-scheme: dark;
 
@@ -239,6 +244,8 @@
   --c-segment-text: #284c82;
   --c-drop-line: #a2bdec;
   --c-toggle-on: #7ac090;
+  --c-toggle-off: #dcdddd;
+  --c-knob: #ffffff;
   --c-confirm: #437c5d;
   --c-ai: #c745b9;
   --c-code-text: #cd7389;

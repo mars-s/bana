@@ -839,7 +839,7 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--c-on-accent);
   cursor: pointer;
 }
 
@@ -1311,12 +1311,12 @@ button:focus-visible {
 
 .dialog-item.sel {
   background: var(--c-active-item);
-  color: #ffffff;
+  color: var(--c-on-accent);
 }
 
 .dialog-item.sel kbd,
 .dialog-item.sel .dialog-path {
-  color: #ffffff;
+  color: var(--c-on-accent);
 }
 
 .dialog-head {
@@ -1936,7 +1936,7 @@ kbd {
 
 .cal-day.today {
   background: var(--c-today);
-  color: #ffffff;
+  color: var(--c-on-accent);
   font-weight: var(--fw-bold);
 }
 
@@ -2152,7 +2152,7 @@ kbd {
   width: 27px;
   height: 27px;
   font-size: var(--fs-body);
-  background: color-mix(in srgb, black 25%, var(--tag-t2));
+  background: color-mix(in srgb, var(--c-shade) 25%, var(--tag-t2));
 }
 
 .tag-square.title {
@@ -2302,13 +2302,9 @@ kbd {
   width: 29.4px;
   height: 18.2px;
   border-radius: var(--r-full);
-  background: #4b4b4c;
+  background: var(--c-toggle-off);
   flex: none;
   transition: background var(--t-small);
-}
-
-:root[data-theme='light'] .toggle {
-  background: var(--c-outline);
 }
 
 .toggle.on {
@@ -2322,13 +2318,9 @@ kbd {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--c-text);
-  box-shadow: 0 2.8px 8.4px rgba(0, 0, 0, 0.3);
+  background: var(--c-knob);
+  box-shadow: var(--shadow-knob);
   transition: transform var(--t-small);
-}
-
-:root[data-theme='light'] .toggle .knob {
-  background: #ffffff;
 }
 
 .toggle.on .knob {

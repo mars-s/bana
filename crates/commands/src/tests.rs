@@ -1253,3 +1253,14 @@ fn indent_never_moves_a_line_under_a_search_node() {
     assert!(s.run("node.indent", &json!({"node": line.0})).is_err());
     assert_eq!(s.graph.parent(line), Some(parent));
 }
+
+#[test]
+fn markdown_export_then_import_keeps_descriptions_and_field_places() {
+    let mut s = blank();
+    let md = "- Page\n  about the page\n  - a\n  - Prio:: High\n  - b\n";
+    run(&mut s, "import.markdown", json!({"text": md}));
+    let page = s.graph.children(s.graph.sys.library)[0];
+    assert_eq!(s.graph.get(page).unwrap().description, "about the page");
+    let out = run(&mut s, "export.markdown", json!({"node": page.0}));
+    assert_eq!(out["markdown"], md);
+}

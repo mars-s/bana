@@ -850,6 +850,15 @@ fn import_markdown(s: &mut Session, v: &Value) -> CmdResult {
         }
         let bullet = t.strip_prefix("- ").or_else(|| t.strip_prefix("* ")).or_else(|| t.strip_prefix("+ "));
         let body = bullet.unwrap_or(t);
+        // A plain line under a bullet is its description (as the Markdown export writes it).
+        if bullet.is_none()
+            && let Some(&(w, n)) = stack.last()
+            && indent > w
+            && s.graph.get(n).is_some_and(|x| x.description.is_empty())
+        {
+            s.graph.set_description(n, t)?;
+            continue;
+        }
         while stack.last().is_some_and(|(w, _)| *w >= indent) {
             stack.pop();
         }
@@ -879,10 +888,16 @@ fn import_field(s: &mut Session, parent: NodeId, body: &str) -> Result<bool, Cmd
         None => s.graph.create_field(name, tanacraft_core::FieldType::Plain)?,
     };
     let count = s.graph.get(parent).map_or(0, |n| n.field_values(f).len());
+    // A new field row after some lines stays where it was written, below them.
+    let after = s.graph.children(parent).last().copied();
+    let new_row = count == 0 && s.graph.get(parent).is_some_and(|n| n.field_value(f).is_none() && !n.fields.iter().any(|e| e.field == f));
     if value.trim().is_empty() {
         s.graph.set_field_at(parent, f, count, None)?;
     } else {
         s.graph.set_field_text_at(parent, f, count, value.trim())?;
+    }
+    if new_row && after.is_some() {
+        s.graph.set_field_after(parent, f, after)?;
     }
     Ok(true)
 }

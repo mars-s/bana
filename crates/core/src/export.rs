@@ -95,19 +95,30 @@ fn md_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     // A reference's content is exported where it lives; its notes and fields for this place
     // (spec 01 §3) are exported here, as its children.
     let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
-    if let Some(n) = g.get(id) {
-        if is_ref && !n.description.is_empty() {
-            out.push_str(&format!("{pad}  - {}\n", n.description));
-        }
-        for f in &n.fields {
-            let v = entry_text(g, f);
-            let v = if v.is_empty() { v } else { format!(" {v}") };
-            out.push_str(&format!("{pad}  - {}::{v}\n", g.name(f.field)));
-        }
-    }
+    let Some(n) = g.get(id) else { return };
     let kids = if is_ref { context_notes(g, id) } else { g.children(id).to_vec() };
-    for c in kids {
-        md_node(g, c, depth + 1, out);
+    if is_ref && !n.description.is_empty() {
+        out.push_str(&format!("{pad}  - {}\n", n.description));
+    } else if !n.description.is_empty() {
+        // A description is a line of text under its node, not a child (spec 02 §13).
+        out.push_str(&format!("{pad}  {}\n", n.description));
+    }
+    // Field rows sit where they are in the outline: after the child they were typed below, or
+    // above the children.
+    let field_line = |f: &crate::FieldEntry, out: &mut String| {
+        let v = entry_text(g, f);
+        let v = if v.is_empty() { v } else { format!(" {v}") };
+        out.push_str(&format!("{pad}  - {}::{v}\n", g.name(f.field)));
+    };
+    let anchored = |f: &crate::FieldEntry| f.after.filter(|a| kids.contains(a));
+    for f in n.fields.iter().filter(|f| anchored(f).is_none()) {
+        field_line(f, out);
+    }
+    for c in &kids {
+        md_node(g, *c, depth + 1, out);
+        for f in n.fields.iter().filter(|f| anchored(f) == Some(*c)) {
+            field_line(f, out);
+        }
     }
 }
 

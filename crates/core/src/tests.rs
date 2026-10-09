@@ -756,3 +756,18 @@ fn loading_strips_empty_format_marks() {
     let g2 = Graph::from_json(&g.to_json().unwrap()).unwrap();
     assert_eq!(g2.name(a), "please");
 }
+
+#[test]
+fn markdown_export_has_descriptions_and_fields_in_place() {
+    let mut g = Graph::new();
+    let root = g.sys.library;
+    let page = g.create(root, None, "Page").unwrap();
+    g.set_description(page, "about the page").unwrap();
+    let a = g.create(page, None, "a").unwrap();
+    g.create(page, None, "b").unwrap();
+    let f = g.create_field("Prio", crate::FieldType::Plain).unwrap();
+    g.set_field_text(page, f, "High").unwrap();
+    g.set_field_after(page, f, Some(a)).unwrap();
+    let md = crate::export::to_markdown(&g, page, false);
+    assert_eq!(md, "- Page\n  about the page\n  - a\n  - Prio:: High\n  - b\n");
+}

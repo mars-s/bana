@@ -1755,3 +1755,53 @@ fn diffs_n16_n17_shift_tab_leaves_the_value_to_a_line_below_the_field() {
     let names: Vec<&str> = g.children(page).iter().map(|c| g.name(*c)).collect();
     assert_eq!(names, ["x", "Bob!"]);
 }
+
+/// The keyboard never goes nowhere (DIFFS N16 sweep): each case once lost it.
+#[test]
+fn keys_and_menus_hand_the_keyboard_back() {
+    // Cmd+K then Escape: typing goes on in the line.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two"]);
+    focus(&mut h, ids[0], 3);
+    key(&mut h, Key::K, CMD);
+    assert!(h.state().palette.is_some());
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    text(&mut h, "X");
+    assert_eq!(h.state().session.graph.name(ids[0]), "oneX");
+
+    // Deleting a selection selects the line that takes its place.
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::Backspace, Modifiers::NONE);
+    assert_eq!(h.state().session.sel, Some((ids[1], ids[1])));
+
+    // A whole-line reference takes typing: it edits the node it points at.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Target", ""]);
+    h.state_mut().exec("node.reference", json!({"target": ids[0].0, "replace": ids[1].0})).unwrap();
+    let r = *h.state().session.graph.children(h.state().session.zoom).last().unwrap();
+    focus(&mut h, r, 6);
+    text(&mut h, "!");
+    assert_eq!(h.state().session.graph.name(ids[0]), "Target!");
+
+    // Escape in a page title selects the first line; Up from it does not jump to a button.
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let a = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, a, 0);
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    text(&mut h, "Z");
+    assert_eq!(h.state().session.graph.name(page), "PageZ");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(h.state().session.sel, Some((a, a)));
+
+    // Deleting a line that is already in the trash leaves the caret where it is.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["gone"]);
+    h.state_mut().exec("node.delete", json!({"node": ids[0].0})).unwrap();
+    h.state_mut().exec("nav.trash", json!({})).unwrap();
+    focus(&mut h, ids[0], 0);
+    assert!(h.state_mut().exec("node.delete", json!({})).is_err());
+    assert_eq!(h.state().session.focus, Some(ids[0]));
+}

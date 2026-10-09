@@ -142,13 +142,15 @@ pub fn palette(app: &mut TanaApp, ctx: &egui::Context) {
                 ui.set_width(w);
                 let r = ui.add(
                     egui::TextEdit::singleline(&mut p.query)
+                        .event_filter(crate::KEEP_KEYS)
                         .id(egui::Id::new("palette-query"))
                         .font(FontId::proportional(17.0))
                         .hint_text("Enter command...")
                         .frame(egui::Frame::NONE)
                         .desired_width(w),
                 );
-                if p.focus_once {
+                // An open overlay keeps the keyboard: a stray click must not leave typing with nowhere to go.
+                if p.focus_once || !r.has_focus() {
                     r.request_focus();
                     p.focus_once = false;
                 }
@@ -568,7 +570,7 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
     let at = if p.anchor.y + est > ctx.content_rect().bottom() { egui::pos2(p.anchor.x, p.anchor.y - est - 30.0) } else { p.anchor };
     // A `>` field row sits on the line itself.
     let at = if p.mode == PickMode::Field && p.line.is_some() { at - vec2(16.0, 30.0) } else { at };
-    egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(at).show(ctx, |ui| {
+    let area = egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(at).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {
             ui.set_width(300.0);
             // The `#` menu filters by what is typed in the line itself (spec 02 §11); other menus
@@ -585,6 +587,7 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                         r = Some(
                             ui.add(
                                 egui::TextEdit::singleline(&mut p.query)
+                                    .event_filter(crate::KEEP_KEYS)
                                     .id(egui::Id::new("picker-query"))
                                     .frame(egui::Frame::NONE)
                                     .hint_text("Field name")
@@ -596,7 +599,8 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                     });
                 });
                 if let Some(r) = r {
-                    if p.focus_once {
+                    // An open overlay keeps the keyboard: a stray click must not leave typing with nowhere to go.
+                    if p.focus_once || !r.has_focus() {
                         r.request_focus();
                         p.focus_once = false;
                     }
@@ -606,9 +610,15 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                 }
             } else if !inline {
                 ui.label(RichText::new(title).size(12.0).color(t.faint));
-                let r = ui
-                    .add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("picker-query")).hint_text("Type to search").desired_width(300.0));
-                if p.focus_once {
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut p.query)
+                        .event_filter(crate::KEEP_KEYS)
+                        .id(egui::Id::new("picker-query"))
+                        .hint_text("Type to search")
+                        .desired_width(300.0),
+                );
+                // An open overlay keeps the keyboard: a stray click must not leave typing with nowhere to go.
+                if p.focus_once || !r.has_focus() {
                     r.request_focus();
                     p.focus_once = false;
                 }
@@ -673,6 +683,9 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
     app.picker = Some(p);
     if let Some(c) = chosen {
         apply_choice(app, c);
+    } else if ctx.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|at| !area.response.rect.contains(at))) {
+        // A click elsewhere closes the menu like Escape (a typed `>` field name is kept).
+        picker_key(app, "Escape");
     }
 }
 
@@ -937,6 +950,7 @@ pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
                             ui.painter().circle_filled(r.center(), 3.0, t.dim);
                             let resp = ui.add(
                                 egui::TextEdit::singleline(line)
+                                    .event_filter(crate::KEEP_KEYS)
                                     .id(egui::Id::new(("quick-add-input", i)))
                                     .frame(egui::Frame::NONE)
                                     .hint_text("Type a node, #tag at the end")
@@ -1039,9 +1053,15 @@ pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
             egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(12.0).show(ui, |ui| {
                 ui.set_width(w);
                 ui.label(RichText::new(if app.search_new_tab { "Search and open in a new tab" } else { "Search and open" }).size(15.0).strong());
-                let r =
-                    ui.add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("search-open-query")).hint_text("Search...").desired_width(w));
-                if p.focus_once {
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut p.query)
+                        .event_filter(crate::KEEP_KEYS)
+                        .id(egui::Id::new("search-open-query"))
+                        .hint_text("Search...")
+                        .desired_width(w),
+                );
+                // An open overlay keeps the keyboard: a stray click must not leave typing with nowhere to go.
+                if p.focus_once || !r.has_focus() {
                     r.request_focus();
                     p.focus_once = false;
                 }

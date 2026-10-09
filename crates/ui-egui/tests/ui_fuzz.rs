@@ -3,6 +3,7 @@
 //! Longer runs: `UI_FUZZ_SEEDS=200 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
 
 use egui::{Event, Key, Modifiers};
+use egui_kittest::kittest::Queryable;
 use serde_json::json;
 use tanacraft_commands::Session;
 use tanacraft_core::{Date, Graph, NodeId, sample};
@@ -76,6 +77,12 @@ fn sound(g: &Graph) -> Result<(), String> {
     Ok(())
 }
 
+/// A text box has the keyboard (egui's Tab traversal can also focus buttons; typing there is not
+/// typing into anything).
+fn editing(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some())
+}
+
 fn run_seed(seed: u64, events: usize) {
     let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
@@ -93,8 +100,28 @@ fn run_seed(seed: u64, events: usize) {
     h.state_mut().exec("nav.today", json!({})).ok();
     h.step();
     let mut log = Vec::new();
+    let typing_seeds = std::env::var("UI_FUZZ_TYPING").map(|v| v != "0").unwrap_or(true);
     for _ in 0..events {
-        match r.below(12) {
+        // Was the person typing? (an editor or an overlay box had the keyboard; one more frame
+        // lets egui drop the focus of a box that just closed)
+        h.step();
+        let before_focus = editing(&h.ctx);
+        let before_home = before_focus || h.state().overlay_open() || h.state().session.sel.is_some();
+        let before_graph = h.state().session.graph.to_json().unwrap_or_default();
+        let before_text = h.state().pending_text();
+        let action = r.below(12);
+        let mut typed_text = "";
+        // Escape on a selection clears it on purpose (spec 02 §8): nothing holds the keyboard then.
+        let mut escape_on_selection = false;
+        let before_sel = h.state().session.sel.is_some();
+        log.push(format!(
+            "  (focus {:?}, egui focus {before_focus}, sel {:?}, overlay {:?}, zoom {})",
+            h.state().session.focus,
+            h.state().session.sel,
+            h.state().overlay_name(),
+            h.state().session.zoom
+        ));
+        match action {
             10 | 11 => {
                 // A click somewhere: buttons, chips, menus, rows.
                 let pos = egui::pos2(r.below(1200) as f32, r.below(800) as f32);
@@ -113,10 +140,12 @@ fn run_seed(seed: u64, events: usize) {
                     _ => Modifiers::NONE,
                 };
                 log.push(format!("key {k:?} {m:?}"));
+                escape_on_selection = k == Key::Escape && before_sel;
                 h.input_mut().events.push(Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
             }
             5..=7 => {
                 let t = TEXT[r.below(TEXT.len())];
+                typed_text = t;
                 log.push(format!("text {t:?}"));
                 h.input_mut().events.push(Event::Text(t.into()));
             }
@@ -126,6 +155,7 @@ fn run_seed(seed: u64, events: usize) {
                 if !rows.is_empty() {
                     let id: NodeId = rows[r.below(rows.len())].id;
                     log.push(format!("focus {id}"));
+                    h.state_mut().exec("select.clear", json!({})).ok();
                     h.state_mut().exec("focus.set", json!({"node": id.0, "caret": r.below(6)})).ok();
                 }
             }
@@ -142,6 +172,49 @@ fn run_seed(seed: u64, events: usize) {
         if let Err(e) = sound(&h.state().session.graph) {
             panic!("seed {seed}: {e} after:\n{}", log.iter().rev().take(15).rev().cloned().collect::<Vec<_>>().join("\n"));
         }
+        // The keyboard never goes nowhere while typing: after a key, an editor or overlay still
+        // has it, or a node is selected (DIFFS N16). Typed text always lands somewhere.
+        if typing_seeds && before_home && action <= 7 {
+            for _ in 0..2 {
+                h.step();
+            }
+            let app = h.state();
+            let page = app.recents_page || app.settings_page || app.help_page;
+            let home = editing(&h.ctx) || app.overlay_open() || app.session.sel.is_some() || page;
+            let tail = || {
+                log.iter()
+                    .rev()
+                    .take(std::env::var("UI_FUZZ_TAIL").ok().and_then(|v| v.parse().ok()).unwrap_or(12))
+                    .rev()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            if !home && !escape_on_selection && app.outline_shown() && !app.session.rows().is_empty() {
+                let focused = h.query_all(egui_kittest::kittest::by()).find(|n| n.is_focused()).map(|n| format!("{n:?}")).unwrap_or_default();
+                let app = h.state();
+                panic!(
+                    "seed {seed}: the keyboard was lost (focused widget {focused:?}, focus {:?}, zoom {}, status {:?}) after:\n{}",
+                    app.session.focus,
+                    app.session.zoom,
+                    app.session.status,
+                    tail()
+                );
+            }
+            // (Spaces alone may be trimmed when saved.)
+            let typed = !typed_text.trim().is_empty() && before_focus;
+            // It shows in the text box that has the keyboard, or it changed the graph or an editor.
+            let shown_in_box =
+                h.query_all(egui_kittest::kittest::by()).any(|n| n.is_focused() && n.value().is_some_and(|v| v.contains(typed_text.trim())));
+            let app = h.state();
+            let landed = shown_in_box
+                || app.session.graph.to_json().unwrap_or_default() != before_graph
+                || app.pending_text() != before_text
+                || app.overlay_open();
+            if typed && !landed {
+                panic!("seed {seed}: typed text vanished after:\n{}", tail());
+            }
+        }
     }
 }
 
@@ -149,7 +222,8 @@ fn run_seed(seed: u64, events: usize) {
 fn random_keys_never_crash_the_ui() {
     let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
     let events: usize = std::env::var("UI_FUZZ_EVENTS").ok().and_then(|v| v.parse().ok()).unwrap_or(150);
-    for seed in 1..=seeds {
+    let first: u64 = std::env::var("UI_FUZZ_FIRST").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
+    for seed in first..=seeds.max(first) {
         run_seed(seed, events);
     }
 }

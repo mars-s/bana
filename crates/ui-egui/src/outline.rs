@@ -694,6 +694,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
                 ui.available_width()
             };
             let out = egui::TextEdit::singleline(&mut app.title_buf.1)
+                .event_filter(crate::KEEP_KEYS)
                 .id(title_id)
                 .font(title_font.clone())
                 .text_color(t.text)
@@ -1219,6 +1220,7 @@ pub(crate) fn field_value(
             let id = egui::Id::new((app.panel_ix, "field-edit", node.0, field.0));
             let resp = ui.add(
                 egui::TextEdit::singleline(&mut fe.buf)
+                    .event_filter(crate::KEEP_KEYS)
                     .id(id)
                     .frame(egui::Frame::NONE)
                     .desired_width(ui.available_width())
@@ -1892,7 +1894,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         // Text.
         let name = app.session.graph.name(id).to_string();
         let text_color = if done == Some(true) { t.dim } else { t.text };
-        if focused && !is_ref {
+        // A focused reference edits its target's name (spec 01 §3: the edit shows everywhere), so
+        // typing on it is never lost.
+        if focused {
             edit_row(app, ui, t, id);
         } else {
             let size = if heading { 20.0 } else { theme::FONT };
@@ -1919,9 +1923,6 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                     app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0, "caret": caret})));
                 }
             }
-            if focused && is_ref {
-                ui.painter().rect_stroke(r.rect.expand(2.0), 3.0, Stroke::new(1.0, t.accent), StrokeKind::Outside);
-            }
         }
         title_suffix(ui, &app.session.graph, t, id, if heading { 20.0 } else { theme::FONT });
         // Reference counter (a setting): how many places point at this node.
@@ -1947,7 +1948,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         }
         // Click on the empty part of the row focuses it.
         let rest = ui.available_rect_before_wrap();
-        if rest.width() > 4.0 && (!focused || is_ref) {
+        if rest.width() > 4.0 && !focused {
             let r = ui.interact(
                 Rect::from_min_size(rest.min, vec2(rest.width(), ROW_H)),
                 egui::Id::new((app.panel_ix, "row-rest", id.0)),
@@ -2066,6 +2067,7 @@ fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, te
     let Some((_, buf)) = app.desc_edit.as_mut() else { return };
     let resp = ui.add(
         egui::TextEdit::singleline(buf)
+            .event_filter(crate::KEEP_KEYS)
             .id(id)
             .frame(egui::Frame::NONE)
             .font(FontId::proportional(size))
@@ -2350,8 +2352,10 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
             None => app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": buf, "caret": caret}))),
         }
     }
-    if out.response.lost_focus() && app.picker.is_none() && app.session.focus == Some(id) && !ui.ctx().memory(|m| m.focused().is_some()) {
-        // Clicked elsewhere: stop editing (the next click may focus another bullet).
+    let clicked = ui.input(|i| i.pointer.any_pressed() || i.pointer.any_released());
+    if out.response.lost_focus() && clicked && app.picker.is_none() && app.session.focus == Some(id) && !ui.ctx().memory(|m| m.focused().is_some()) {
+        // Clicked elsewhere: stop editing (the next click may focus another bullet). Only a click
+        // does this; a key that moved egui's focus must not leave typing with nowhere to go.
         app.session.focus = None;
         app.edit.node = None;
     }

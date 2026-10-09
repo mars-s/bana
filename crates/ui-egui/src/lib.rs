@@ -100,6 +100,10 @@ pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
     ("Help", &[("Help", "ui.help"), ("Keyboard shortcuts", "ui.shortcuts")]),
 ];
 
+/// Text boxes the outline drives itself: Tab and the arrow keys stay with the box (the app reads
+/// them), so egui never moves the keyboard to some other widget mid-typing (DIFFS N16).
+pub(crate) const KEEP_KEYS: egui::EventFilter = egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false };
+
 /// Writes (html, plain text) to the system clipboard.
 pub type RichClipboard = Box<dyn FnMut(&str, &str)>;
 
@@ -288,6 +292,8 @@ pub struct TanaApp {
     pub autosave: bool,
     edit: EditState,
     field_edit: Option<FieldEdit>,
+    /// What held the keyboard last frame (see `keyboard_owner`).
+    kb_owner: Option<NodeId>,
     title_buf: (Option<NodeId>, String),
     desc_edit: Option<(NodeId, String)>,
     /// Give the description editor keyboard focus on the next frame.
@@ -392,6 +398,7 @@ impl TanaApp {
             autosave: false,
             edit: EditState::default(),
             field_edit: None,
+            kb_owner: None,
             title_buf: (None, String::new()),
             desc_edit: None,
             desc_focus: false,
@@ -530,6 +537,71 @@ impl TanaApp {
         }
     }
 
+    /// Text typed into editors that is not a node's name yet (field value, page title, description
+    /// and overlay boxes). Tests use it to check that typed text always lands somewhere.
+    #[doc(hidden)]
+    pub fn pending_text(&self) -> String {
+        let mut out = vec![self.title_buf.1.clone(), self.edit.buf.clone()];
+        out.extend(self.field_edit.as_ref().map(|f| f.buf.clone()));
+        out.extend(self.desc_edit.as_ref().map(|d| d.1.clone()));
+        out.extend(self.palette.as_ref().map(|p| p.query.clone()));
+        out.extend(self.search_open.as_ref().map(|p| p.query.clone()));
+        out.extend(self.picker.as_ref().map(|p| p.query.clone()));
+        out.extend(self.quick_add.iter().flatten().cloned());
+        out.extend(self.date_pick.as_ref().map(|d| d.buf.clone()));
+        out.join("\u{1}")
+    }
+
+    /// An overlay that reads the keyboard itself is open (command line, a picker, quick add...).
+    #[doc(hidden)]
+    pub fn overlay_open(&self) -> bool {
+        self.overlay_name().is_some()
+    }
+
+    #[doc(hidden)]
+    pub fn overlay_name(&self) -> Option<&'static str> {
+        [
+            (self.palette.is_some(), "command line"),
+            (self.picker.is_some(), "picker"),
+            (self.search_open.is_some(), "search"),
+            (self.quick_add.is_some(), "quick add"),
+            (self.date_pick.is_some(), "date picker"),
+        ]
+        .into_iter()
+        .find(|o| o.0)
+        .map(|o| o.1)
+    }
+
+    /// After a menu or editor closes with nothing left holding the keyboard: select `near` (or the
+    /// first line), or put the caret in the page title, so the next keys still do something.
+    pub(crate) fn keyboard_home(&mut self, near: NodeId) {
+        if self.session.focus.is_some() || self.session.sel.is_some() || self.field_edit.is_some() || self.desc_edit.is_some() {
+            return;
+        }
+        let rows = if self.outline_shown() { self.session.rows() } else { Vec::new() };
+        let row = rows.iter().find(|r| r.id == near || self.session.graph.resolve(r.id) == near).or(rows.first()).map(|r| r.id);
+        match row {
+            Some(r) if near != self.session.zoom || !crate::outline::title_editable(&self.session.graph, self.session.zoom) => {
+                drop(self.exec("select.set", json!({"from": r.0})))
+            }
+            _ => self.focus_title = crate::outline::title_editable(&self.session.graph, self.session.zoom),
+        }
+    }
+
+    /// The page is drawn as a plain outline of its children (not a view layout, tag page or search
+    /// results), so the session's rows are the lines on screen.
+    #[doc(hidden)]
+    pub fn outline_shown(&self) -> bool {
+        let z = self.session.zoom;
+        !self.lineless_page() && !crate::views::uses_layout(self, z) && self.session.graph.query(z).is_none() && !self.session.config_view
+    }
+
+    /// Pages with no outline lines at all (the Supertags overview, a supertag or field page).
+    fn lineless_page(&self) -> bool {
+        let (g, z) = (&self.session.graph, self.session.zoom);
+        z == g.sys.schema || g.tag_def(z).is_some() || g.field_def(z).is_some()
+    }
+
     /// Forget the text field state (another panel or tab is now active).
     pub(crate) fn edit_reset(&mut self) {
         self.edit.node = None;
@@ -546,7 +618,7 @@ impl TanaApp {
             return Ok(json!({}));
         }
         let before = (self.session.focus, self.session.caret);
-        if id.starts_with("nav.") || id == "node.createNew" || id == "workspace.switch" {
+        if id.starts_with("nav.") || id == "node.createNew" || id == "workspace.switch" || id == "focus.set" {
             // An opened search node shows its results; the builder waits for "Open query editor"
             // (spec 05 §1).
             self.query_open = false;
@@ -568,6 +640,10 @@ impl TanaApp {
             }
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
+        // A caret or selection in a line that is not drawn would take keys (even Delete) unseen.
+        if self.lineless_page() {
+            (self.session.focus, self.session.sel) = (None, None);
+        }
         if id == "file.open" && r.is_ok() {
             self.reset_tabs();
         }
@@ -649,17 +725,23 @@ impl TanaApp {
             }
             "ui.recents" => {
                 self.recents_page = true;
+                // The outline is hidden: no caret left in a line that cannot be seen.
+                (self.session.focus, self.session.sel) = (None, None);
                 self.settings_page = false;
                 self.help_page = false;
             }
             "ui.settings" => {
                 self.settings_page = true;
+                // The outline is hidden: no caret left in a line that cannot be seen.
+                (self.session.focus, self.session.sel) = (None, None);
                 self.recents_page = false;
                 self.help_page = false;
             }
             "ui.cycleContentWidth" => self.content_width = (self.content_width + 1) % 3,
             "ui.help" => {
                 self.help_page = !self.help_page;
+                // The outline is hidden: no caret left in a line that cannot be seen.
+                (self.session.focus, self.session.sel) = (None, None);
                 self.settings_page = false;
                 self.recents_page = false;
             }
@@ -704,6 +786,23 @@ impl TanaApp {
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        // Arrow keys belong to the outline. egui's own arrow-key focus moving would carry the
+        // keyboard off to a nearby button while typing (DIFFS N16), so it is cancelled.
+        let arrows = ctx.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key {
+                        key: egui::Key::ArrowUp | egui::Key::ArrowDown | egui::Key::ArrowLeft | egui::Key::ArrowRight,
+                        pressed: true,
+                        ..
+                    }
+                )
+            })
+        });
+        if arrows {
+            ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+        }
         for c in std::mem::take(&mut self.window_cmds) {
             match c {
                 WindowCmd::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
@@ -863,6 +962,28 @@ impl TanaApp {
         overlays::search_open(self, &ctx);
         self.toast_ui(&ctx);
         self.flush();
+        // A menu, dialog or value editor that closed with nothing else taking the keyboard hands
+        // it back to the page, so the next keys are not lost (DIFFS N16).
+        let owner = self.keyboard_owner();
+        if let (Some(was), None) = (self.kb_owner, owner) {
+            // The caret goes back into the line it was in, or the page gets a selection.
+            self.edit.node = None;
+            self.keyboard_home(was);
+        }
+        self.kb_owner = owner;
+    }
+
+    /// The node behind whatever reads the keyboard instead of the outline (an overlay, a field
+    /// value or a description editor).
+    fn keyboard_owner(&self) -> Option<NodeId> {
+        let z = self.session.zoom;
+        self.picker
+            .as_ref()
+            .map(|p| p.node)
+            .or(self.field_edit.as_ref().map(|f| f.node))
+            .or(self.desc_edit.as_ref().map(|d| d.0))
+            .or(self.date_pick.as_ref().map(|d| d.node))
+            .or((self.palette.is_some() || self.quick_add.is_some() || self.search_open.is_some()).then_some(z))
     }
 
     fn toast_ui(&mut self, ctx: &egui::Context) {

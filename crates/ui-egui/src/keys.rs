@@ -214,11 +214,21 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         }
     }
     let editing = app.session.focus.is_some();
-    let title_focused = ctx.memory(|m| m.focused()) == Some(app.title_id);
+    // (egui itself drops focus on Escape before keys reach here, hence "last frame".)
+    let title_focused = ctx.memory(|m| m.focused() == Some(app.title_id) || k == "Escape" && m.had_focus_last_frame(app.title_id));
     if title_focused {
-        if k == "Enter" || k == "Down" {
+        if k == "Enter" || k == "Shift+Enter" || k == "Down" {
             app.exec("node.enter", json!({"node": app.session.zoom.0})).ok();
             ctx.memory_mut(|m| m.surrender_focus(app.title_id));
+            return true;
+        }
+        // Escape leaves the title for the first line (selected), or stays when there is none.
+        if k == "Escape" {
+            if let Some(r) = app.session.rows().first().filter(|_| app.outline_shown()) {
+                let first = r.id;
+                ctx.memory_mut(|m| m.surrender_focus(app.title_id));
+                app.exec("select.set", json!({"from": first.0})).ok();
+            }
             return true;
         }
         if !k.contains("Mod+") {
@@ -241,10 +251,20 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             return true;
         }
         "Backspace" | "Delete" if selecting => {
-            if let Err(e) = app.exec("node.delete", json!({})) {
-                app.session.status = e;
+            // The line that takes the deleted lines' place is selected next, so the keyboard
+            // still has somewhere to go. A failed delete keeps the selection.
+            let rows = app.session.rows();
+            let first = app.session.sel.and_then(|(a, h)| rows.iter().position(|r| r.id == a || r.id == h));
+            match app.exec("node.delete", json!({})) {
+                Ok(_) => {
+                    app.session.sel = None;
+                    let rows = app.session.rows();
+                    if let Some(r) = first.and_then(|i| rows.get(i).or(rows.last())) {
+                        app.exec("select.set", json!({"from": r.id.0})).ok();
+                    }
+                }
+                Err(e) => app.session.status = e,
             }
-            app.session.sel = None;
             return true;
         }
         // Up / Down leave selection mode with the caret in the neighbouring line (spec 02 §8).
@@ -277,6 +297,11 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         // Cmd+. zooms in and puts the caret in the new page's title (spec 02 §7).
         "Mod+." if editing => {
             match app.exec("nav.zoomIn", json!({})) {
+                // Day, week and year titles are fixed: the caret goes to the first line instead.
+                Ok(_) if !crate::outline::title_editable(&app.session.graph, app.session.zoom) => {
+                    let zoom = app.session.zoom;
+                    app.keyboard_home(zoom);
+                }
                 Ok(_) => app.focus_title = true,
                 Err(e) => app.session.status = e,
             }

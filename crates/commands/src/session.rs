@@ -146,6 +146,13 @@ impl Session {
         {
             self.focus = None;
         }
+        // A selection left on another page would let Delete remove lines that are not on screen.
+        if let Some((a, b)) = self.sel {
+            let rows = self.rows();
+            if !rows.iter().any(|r| r.id == a) || !rows.iter().any(|r| r.id == b) {
+                self.sel = None;
+            }
+        }
         if let Some(f) = self.focus {
             let n = self.graph.name(f).chars().count();
             self.caret = self.caret.min(n);

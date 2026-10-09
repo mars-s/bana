@@ -987,6 +987,9 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         return Ok(json!({"trashed": ids.iter().map(|i| i.0).collect::<Vec<_>>()}));
     }
     let id = ids[0];
+    if s.graph.in_trash(id) {
+        return Err(CmdError::Failed("already in the trash (empty the trash to delete for good)".into()));
+    }
     let was_selected = s.sel.is_some();
     // The caret goes to the start of the next line (outside the deleted subtree), else to the end of
     // the previous one (spec 02 §4, §8).
@@ -1215,6 +1218,8 @@ fn select_set(s: &mut Session, v: &Value) -> CmdResult {
 fn focus_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let caret = p::usize(v, "caret").unwrap_or(usize::MAX);
+    // A caret ends selection mode.
+    s.sel = None;
     s.set_focus(id, caret);
     Ok(s.focus_json())
 }

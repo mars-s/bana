@@ -1805,3 +1805,27 @@ fn keys_and_menus_hand_the_keyboard_back() {
     assert!(h.state_mut().exec("node.delete", json!({})).is_err());
     assert_eq!(h.state().session.focus, Some(ids[0]));
 }
+
+#[test]
+fn diffs_n19_bold_toggled_off_leaves_no_empty_marks() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &[""]);
+    focus(&mut h, ids[0], 0);
+    text(&mut h, "Mulch ");
+    key(&mut h, Key::B, CMD);
+    text(&mut h, "now");
+    key(&mut h, Key::B, CMD);
+    text(&mut h, " please");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Next");
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(ids[0]), "Mulch **now** please");
+    assert_eq!(g.name(h.state().session.focus.unwrap()), "Next");
+    // Bold on, then off with nothing typed: the line keeps no marks once the caret leaves.
+    key(&mut h, Key::B, CMD);
+    key(&mut h, Key::B, CMD);
+    key(&mut h, Key::B, CMD);
+    let next = h.state().session.focus.unwrap();
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(h.state().session.graph.name(next), "Next");
+}

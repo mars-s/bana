@@ -108,8 +108,17 @@ impl Session {
         // day node, the inbox). That is not an undo step, but history must learn about it, or a
         // later undo would cut the new day out of its week.
         self.graph.begin();
+        let left = self.focus;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (spec.run)(self, params)))
             .unwrap_or_else(|_| Err(CmdError::Failed(format!("`{id}` crashed; nothing was changed"))));
+        // The line the caret left keeps no empty format marks (DIFFS N19).
+        if let Some(l) = left.filter(|l| result.is_ok() && self.focus != Some(*l)) {
+            let name = self.graph.name(l);
+            let (clean, _) = tanacraft_core::format::strip_empty(name, 0);
+            if clean != name {
+                let _ = self.graph.set_name(l, &clean);
+            }
+        }
         match &result {
             Ok(_) if !spec.mutates => self.graph.commit_silent(),
             Ok(_) => {

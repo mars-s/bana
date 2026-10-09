@@ -214,10 +214,38 @@ pub fn toggle_at(s: &str, at: usize, mark: Mark) -> (String, usize) {
         out.extend(&chars[at + n..]);
         return (out.into_iter().collect(), at - n);
     }
+    // At the end of a run of this format: toggling off steps over its closing mark, so nothing
+    // empty is left behind (DIFFS N19).
+    let opened = chars[..at].windows(n).enumerate().filter(|(i, w)| *w == &tok[..] && (n == 1 || *i == 0 || chars[i - 1] != tok[0])).count();
+    if chars.get(at..at + n) == Some(&tok[..]) && opened % 2 == 1 {
+        return (s.to_string(), at + n);
+    }
     out.extend(&tok);
     out.extend(&tok);
     out.extend(&chars[at..]);
     (out.into_iter().collect(), at + n)
+}
+
+/// Removes empty format runs (`****`, `____`, `====`, two backticks) that toggling left behind.
+/// `caret` (chars) moves with the text. Single-star italic pairs are left alone (`**` is bold).
+pub fn strip_empty(s: &str, caret: usize) -> (String, usize) {
+    let mut chars: Vec<char> = s.chars().collect();
+    let mut caret = caret.min(chars.len());
+    for pair in ["****", "____", "====", "``"] {
+        let p: Vec<char> = pair.chars().collect();
+        let mut i = 0;
+        while i + p.len() <= chars.len() {
+            if chars[i..i + p.len()] == p[..] {
+                chars.drain(i..i + p.len());
+                if caret > i {
+                    caret = caret.saturating_sub(p.len()).max(i);
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+    (chars.into_iter().collect(), caret)
 }
 
 fn toggle_range(chars: &[char], a: usize, b: usize, mark: Mark) -> (String, usize, usize) {
@@ -250,6 +278,17 @@ fn toggle_range(chars: &[char], a: usize, b: usize, mark: Mark) -> (String, usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn toggling_off_at_the_end_of_a_run_leaves_no_empty_marks() {
+        // "Mulch ", Cmd+B, "now", Cmd+B, " please" (DIFFS N19).
+        let (s, c) = toggle_at("Mulch ", 6, Mark::Bold);
+        let s = format!("{}now{}", &s[..c], &s[c..]);
+        let (s2, c2) = toggle_at(&s, c + 3, Mark::Bold);
+        assert_eq!((s2.as_str(), c2), ("Mulch **now**", 13));
+        assert_eq!(strip_empty("Mulch **now** please****", 24), ("Mulch **now** please".to_string(), 20));
+        assert_eq!(strip_empty("a``b", 2), ("ab".to_string(), 1));
+    }
 
     #[test]
     fn raw_spans_join_back_into_the_text() {

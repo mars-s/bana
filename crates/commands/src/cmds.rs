@@ -722,7 +722,9 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
         let new = s.graph.create(parent, Some(at + 1), "")?;
         s.set_focus(new, 0);
     } else {
-        let (head, tail) = char_split(s.graph.name(id), caret);
+        // Empty format marks at the caret would be split into both lines (DIFFS N19).
+        let (clean, caret) = tanacraft_core::format::strip_empty(s.graph.name(id), caret);
+        let (head, tail) = char_split(&clean, caret);
         s.graph.set_name(id, &head)?;
         let new = s.graph.create(parent, Some(at + 1), &tail)?;
         // The line after a checkbox item is a checkbox item too, unchecked (DIFFS N18).
@@ -1664,7 +1666,10 @@ fn format_mark(s: &mut Session, v: &Value, mark: Mark) -> CmdResult {
         let (t, c) = tanacraft_core::format::toggle_at(s.graph.name(id), a, mark);
         (t, c, c)
     } else {
-        tanacraft_core::format::toggle(s.graph.name(id), a, b, mark)
+        let (t, a2, b2) = tanacraft_core::format::toggle(s.graph.name(id), a, b, mark);
+        // Formatting an empty range leaves no empty marks (DIFFS N19).
+        let (t, b2) = tanacraft_core::format::strip_empty(&t, b2);
+        (t, a2.min(b2), b2)
     };
     s.graph.set_name(id, &text)?;
     if focused {

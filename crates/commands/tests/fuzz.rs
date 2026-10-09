@@ -255,10 +255,14 @@ fn run_on(graph: Graph, seed: u64, steps: usize) {
         if step % 20 == 0 || step + 1 == steps {
             let text = s.graph.to_json().unwrap_or_else(|e| panic!("{}: save: {e}", ctx()));
             let back = Graph::from_json(&text).unwrap_or_else(|e| panic!("{}: load: {e}", ctx()));
-            let (x, y) = (
-                serde_json::to_string_pretty(&snapshot(&s.graph)).unwrap_or_default(),
-                serde_json::to_string_pretty(&snapshot(&back)).unwrap_or_default(),
-            );
+            // (Saving drops empty format marks, DIFFS N19.)
+            let mut mem = snapshot(&s.graph);
+            for n in mem.as_array_mut().into_iter().flatten() {
+                if let Some(name) = n["name"].as_str() {
+                    n["name"] = json!(tanacraft_core::format::strip_empty(name, 0).0);
+                }
+            }
+            let (x, y) = (serde_json::to_string_pretty(&mem).unwrap_or_default(), serde_json::to_string_pretty(&snapshot(&back)).unwrap_or_default());
             assert!(x == y, "{}: save/load changed the graph\n{}", ctx(), first_diff(&x, &y));
             let again = back.to_json().unwrap_or_default();
             if again != text {

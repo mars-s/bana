@@ -736,3 +736,11 @@ fn scope_child_sibling_and_command_operators() {
         assert_eq!(Query::parse(&g, &parsed.describe(&g)).unwrap(), parsed, "{q}");
     }
 }
+
+#[test]
+fn loading_strips_empty_format_marks() {
+    let mut g = Graph::new();
+    let a = g.create(g.sys.library, None, "please****").unwrap();
+    let g2 = Graph::from_json(&g.to_json().unwrap()).unwrap();
+    assert_eq!(g2.name(a), "please");
+}

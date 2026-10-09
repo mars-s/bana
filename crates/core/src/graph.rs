@@ -1782,7 +1782,16 @@ impl Graph {
             system: self.sys,
             expanded: self.expanded.iter().copied().collect(),
             settings: self.settings.clone(),
-            nodes: self.nodes.values().cloned().collect(),
+            // Empty format marks of a line still being typed are not saved (DIFFS N19).
+            nodes: self
+                .nodes
+                .values()
+                .cloned()
+                .map(|mut n| {
+                    n.name = crate::format::strip_empty(&n.name, 0).0;
+                    n
+                })
+                .collect(),
         };
         serde_json::to_string_pretty(&file).map_err(|e| Error::Format(e.to_string()))
     }
@@ -1814,6 +1823,8 @@ impl Graph {
         let kinds: BTreeMap<NodeId, (bool, bool)> =
             nodes.values().map(|n| (n.id, (matches!(n.kind, Kind::Tag(_)), matches!(n.kind, Kind::Field(_))))).collect();
         for n in nodes.values_mut() {
+            // Empty format marks left by older versions (DIFFS N19).
+            n.name = crate::format::strip_empty(&n.name, 0).0;
             let builtin = [s.root, s.library, s.journal, s.schema, s.trash].contains(&n.id);
             if builtin && n.kind != Kind::Plain {
                 n.kind = Kind::Plain;

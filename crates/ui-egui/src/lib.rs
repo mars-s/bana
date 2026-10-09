@@ -311,6 +311,8 @@ pub struct TanaApp {
     /// Puts (html, plain text) on the system clipboard; set by the desktop app. Without it, copying
     /// nodes puts plain text only (egui's clipboard).
     pub rich_clipboard: Option<RichClipboard>,
+    /// The open Settings sub-page.
+    pub settings_tab: usize,
     /// Window requests from commands, carried out in `logic` where the context is at hand.
     pub(crate) window_cmds: Vec<WindowCmd>,
     /// Workspaces folded in the sidebar (all start open).
@@ -387,6 +389,7 @@ impl TanaApp {
             pin_open: Default::default(),
             ws_closed: Default::default(),
             window_cmds: Vec::new(),
+            settings_tab: 0,
             rich_clipboard: None,
             nav_title: None,
             recents_page: false,
@@ -877,10 +880,12 @@ impl TanaApp {
                     }
                 });
                 self.acts.extend(acts);
-                if icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
+                // Settings > Preferences can hide these (spec 07 §1).
+                let shows = |w: &str| self.session.graph.settings.shows(w);
+                if shows("shortcuts") && icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
                     self.acts.push(Act::Ui("ui.shortcuts"));
                 }
-                if icon_button(ui, Icon::Help, if self.help_page { t.text } else { t.dim }, "Help").clicked() {
+                if shows("help") && icon_button(ui, Icon::Help, if self.help_page { t.text } else { t.dim }, "Help").clicked() {
                     self.acts.push(Act::Ui("ui.help"));
                 }
                 let dirty = if self.session.graph.is_dirty() && self.session.path.is_some() { " (unsaved)" } else { "" };
@@ -954,10 +959,10 @@ impl TanaApp {
         if side_item(ui, &t, Icon::Today, "Today", today_open).clicked() {
             acts.push(Act::Run("nav.today".into(), json!({})));
         }
-        if side_item(ui, &t, Icon::Tag, "Supertags", zoom == g.sys.schema).clicked() {
+        if g.settings.shows("supertags") && side_item(ui, &t, Icon::Tag, "Supertags", zoom == g.sys.schema).clicked() {
             acts.push(Act::Run("nav.supertags".into(), json!({})));
         }
-        if side_item(ui, &t, Icon::Recent, "Recents", self.recents_page).clicked() {
+        if g.settings.shows("recents") && side_item(ui, &t, Icon::Recent, "Recents", self.recents_page).clicked() {
             acts.push(Act::Ui("ui.recents"));
         }
         ui.add_space(8.0);
@@ -1086,7 +1091,10 @@ impl TanaApp {
             ui.add_space(2.0);
             let g = &self.session.graph;
             let items: Vec<(Icon, &str, NodeId)> = if ws == g.sys.root {
-                vec![(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
+                let mut v =
+                    vec![(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)];
+                v.retain(|(_, l, _)| *l != "Daily notes" || g.settings.shows("daily_notes"));
+                v
             } else {
                 vec![(Icon::Home, "Library", g.workspace_library(ws))]
             };

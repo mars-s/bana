@@ -482,6 +482,43 @@ pub fn registry() -> Registry {
         C::new("export.json", "Export as JSON", "Export", |s, v| Ok(export::to_json_tree(&s.graph, node_or_zoom(s, v)?)))
             .params(r#"{"node"?: id}"#)
             .pure(),
+        // Settings saved with the graph (spec 07 §8): Date/Time and what the sidebar and top bar show.
+        C::new("settings.get", "Show settings", "Settings", |s, _| settings_json(s)).pure(),
+        C::new("settings.set", "Change a setting", "Settings", |s, v| {
+            let key = p::req_str(v, "key")?;
+            let val = v.get("value").ok_or_else(|| CmdError::Params("`value` is required".into()))?;
+            let text = val.as_str().map(str::to_ascii_lowercase);
+            let flag = || val.as_bool().ok_or_else(|| CmdError::Params(format!("`{key}` takes true or false")));
+            let set = s.graph.settings_mut();
+            match key {
+                "time_format" => {
+                    set.time_12h = match text.as_deref() {
+                        Some("12h") => true,
+                        Some("24h") => false,
+                        _ => return Err(CmdError::Params("time_format: 12h or 24h".into())),
+                    }
+                }
+                "week_start" => {
+                    set.week_starts_sunday = match text.as_deref() {
+                        Some("sunday") => true,
+                        Some("monday") => false,
+                        _ => return Err(CmdError::Params("week_start: monday or sunday".into())),
+                    }
+                }
+                k if tanacraft_core::Settings::HIDEABLE.iter().any(|h| format!("show_{h}") == k) => {
+                    let what = k.trim_start_matches("show_").to_string();
+                    let show = flag()?;
+                    set.hidden.retain(|h| *h != what);
+                    if !show {
+                        set.hidden.push(what);
+                    }
+                }
+                other => return Err(CmdError::Params(format!("unknown setting `{other}`"))),
+            }
+            settings_json(s)
+        })
+        .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts", "value": "12h|24h" | "monday|sunday" | bool}"#)
+        .pure(),
         // What copying nodes puts on the clipboard: HTML plus a Markdown list (spec 02 §12).
         C::new("export.clipboard", "Copy as HTML and text", "Export", |s, v| {
             let ids = if v.get("nodes").is_some() || v.get("node").is_some() || s.sel.is_some() { s.targets(v)? } else { vec![node_or_zoom(s, v)?] };
@@ -1307,6 +1344,18 @@ fn capture(s: &mut Session, v: &Value) -> CmdResult {
         s.graph.add_tag(id, tag)?;
     }
     Ok(json!({"id": id.0, "inbox": inbox.0}))
+}
+
+fn settings_json(s: &Session) -> CmdResult {
+    let st = &s.graph.settings;
+    let shows: serde_json::Map<String, Value> =
+        tanacraft_core::Settings::HIDEABLE.iter().map(|h| (format!("show_{h}"), json!(st.shows(h)))).collect();
+    let mut v =
+        json!({"time_format": if st.time_12h { "12h" } else { "24h" }, "week_start": if st.week_starts_sunday { "sunday" } else { "monday" }});
+    if let Some(o) = v.as_object_mut() {
+        o.extend(shows);
+    }
+    Ok(v)
 }
 
 fn workspace_param(s: &Session, v: &Value) -> Result<NodeId, CmdError> {

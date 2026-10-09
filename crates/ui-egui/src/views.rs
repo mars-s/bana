@@ -1387,12 +1387,12 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     let Some(first) = Date::new(y, m, 1) else { return };
     let field = app.session.graph.calendar_field(node);
     let anchor = app.calendar_week_anchor.unwrap_or(today);
-    let week_start = anchor.add_days(-(anchor.weekday() as i64));
+    let week_start = app.session.graph.week_start(anchor);
     ui.horizontal(|ui| {
         let title = if day_mode {
             format!("{}, {}", anchor.day_title(), anchor.year)
         } else if week_mode {
-            let (wy, wk) = week_start.iso_week();
+            let (wy, wk) = week_start.add_days(3).iso_week();
             format!("Week {wk}, {wy}")
         } else {
             format!("{} {y}", MONTHS.get(m as usize - 1).copied().unwrap_or(""))
@@ -1445,8 +1445,8 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     let col_w = (w / 7.0).floor();
     let painter = ui.painter().clone();
     let (hr, _) = ui.allocate_exact_size(vec2(w, 22.0), Sense::hover());
-    let start = if week_mode { week_start } else { first.add_days(-(first.weekday() as i64)) };
-    for (i, d) in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].iter().enumerate() {
+    let start = if week_mode { week_start } else { app.session.graph.week_start(first) };
+    for (i, d) in app.session.graph.weekday_names().iter().enumerate() {
         let label = if week_mode {
             let day = start.add_days(i as i64);
             format!("{d} {:02}/{:02}", day.day, day.month)
@@ -1469,7 +1469,7 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
         for k in 0..7usize {
             let d = day.add_days(k as i64);
             let cell = Rect::from_min_size(pos2(rr.left() + col_w * k as f32, rr.top()), vec2(col_w, rr.height()));
-            painter.rect_filled(cell, 0.0, if k >= 5 { t.field_bg } else { t.panel });
+            painter.rect_filled(cell, 0.0, if d.weekday() >= 5 { t.field_bg } else { t.panel });
             // Drop an item on a day to move it there (sets the calendar's date field).
             let drop = ui.interact(cell, egui::Id::new((app.panel_ix, "cal-day", node.0, d.to_days())), Sense::hover());
             if drop.dnd_hover_payload::<CardDrag>().is_some() {
@@ -1491,7 +1491,7 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                 painter.text(
                     cell.left_top() + vec2(6.0, 12.0),
                     Align2::LEFT_CENTER,
-                    format!("W{}", d.iso_week().1),
+                    format!("W{}", d.add_days(3).iso_week().1),
                     FontId::proportional(11.5),
                     t.faint,
                 );
@@ -1742,7 +1742,7 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
         for h in h0..h1 {
             let y = grid.top() + h as f32 * HOUR_H;
             p.line_segment([pos2(grid.left() + GUTTER, y), pos2(grid.right(), y)], Stroke::new(1.0, t.line));
-            p.text(pos2(grid.left() + 4.0, y + 2.0), Align2::LEFT_TOP, format!("{h:02}:00"), FontId::proportional(11.0), t.faint);
+            p.text(pos2(grid.left() + 4.0, y + 2.0), Align2::LEFT_TOP, app.session.graph.fmt_time(h * 60), FontId::proportional(11.0), t.faint);
         }
         let at = |pos: egui::Pos2| -> Option<(usize, u16)> {
             let i = ((pos.x - grid.left() - GUTTER) / col_w).floor();
@@ -1835,7 +1835,7 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
                     pos2(x0, grid.top() + a as f32 / 60.0 * HOUR_H + 1.0),
                     pos2(x0 + slot_w - 1.0, grid.top() + b_shown as f32 / 60.0 * HOUR_H - 1.0),
                 );
-                let sub = format!("{} - {}", tanacraft_core::fmt_hm(a), tanacraft_core::fmt_hm(b_shown));
+                let sub = format!("{} - {}", app.session.graph.fmt_time(a), app.session.graph.fmt_time(b_shown));
                 paint_chip(app, t, &p, r, target, Some(sub));
                 let body = Rect::from_min_max(r.min, pos2(r.right(), (r.bottom() - 7.0).max(r.top() + 4.0)));
                 let resp = ui.interact(body, egui::Id::new((app.panel_ix, "timed", node.0, item.0)), Sense::click_and_drag());

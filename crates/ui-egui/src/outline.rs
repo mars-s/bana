@@ -270,45 +270,189 @@ pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 }
 
 pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    // Left nav of sub-pages, the form on the right (spec 07 §8, `66-settings-page.png`).
+    const PAGES: [&str; 5] = ["Preferences", "Date and time", "Journaling", "Move targets", "Keybindings"];
     ui.add_space(12.0);
-    ui.horizontal(|ui| {
-        ui.add_space(LEFT);
+    ui.horizontal_top(|ui| {
+        ui.add_space(LEFT * 0.5);
+        ui.vertical(|ui| {
+            ui.set_width(170.0);
+            ui.label(RichText::new("Settings").size(22.0).strong());
+            ui.add_space(8.0);
+            for (i, p) in PAGES.iter().enumerate() {
+                let on = app.settings_tab == i;
+                if ui
+                    .add(egui::Button::new(RichText::new(*p).size(14.0).color(if on { t.text } else { t.dim })).fill(if on {
+                        t.hover
+                    } else {
+                        Color32::TRANSPARENT
+                    }))
+                    .clicked()
+                {
+                    app.settings_tab = i;
+                }
+            }
+        });
+        ui.add_space(24.0);
         ui.vertical(|ui| {
             ui.set_width(MAX_W.min(ui.available_width() - 40.0));
-            ui.label(RichText::new("Settings").size(30.0).strong());
+            ui.label(RichText::new(PAGES.get(app.settings_tab).copied().unwrap_or("")).size(26.0).strong());
             ui.add_space(10.0);
-            let pref = |ui: &mut Ui, label: &str, help: &str, on: &mut bool| {
-                egui::Frame::new().fill(t.field_bg).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label(RichText::new(label).strong());
-                            ui.label(RichText::new(help).size(12.5).color(t.dim));
-                        });
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.checkbox(on, ""));
-                    });
-                });
-                ui.add_space(6.0);
-            };
-            let mut dark = app.dark;
-            pref(ui, "Dark mode", "Use the dark theme.", &mut dark);
-            app.dark = dark;
-            let mut full = app.sidebar == 0;
-            pref(ui, "Show sidebar", "Show the full sidebar (Cmd+\\ cycles full, mini, hidden).", &mut full);
-            if full != (app.sidebar == 0) {
-                app.sidebar = if full { 0 } else { 2 };
+            match app.settings_tab {
+                1 => date_time_settings(app, ui, t),
+                2 => journaling_settings(app, ui, t),
+                3 => move_target_settings(app, ui, t),
+                4 => keybinding_settings(app, ui, t),
+                _ => preferences(app, ui, t),
             }
-            let mut counter = app.ref_counter;
-            pref(ui, "Reference counter", "Show how many places reference a node, next to it.", &mut counter);
-            app.ref_counter = counter;
-            let mut autosave = app.autosave;
-            pref(ui, "Save automatically", "Write the graph file a second after each change.", &mut autosave);
-            app.autosave = autosave;
-            let path =
-                app.session.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "Not saved to a file (sample or scratch graph)".into());
-            ui.label(RichText::new(format!("Graph file: {path}")).size(12.5).color(t.faint));
         });
     });
+}
+
+/// One preference: bold label, grey help, a checkbox on the right.
+fn pref_row(ui: &mut Ui, t: &Tokens, label: &str, help: &str, on: &mut bool) -> bool {
+    let mut changed = false;
+    egui::Frame::new().fill(t.field_bg).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(RichText::new(label).strong());
+                ui.label(RichText::new(help).size(12.5).color(t.dim));
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| changed = ui.checkbox(on, "").changed());
+        });
+    });
+    ui.add_space(6.0);
+    changed
+}
+
+fn preferences(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    let mut dark = app.dark;
+    pref_row(ui, t, "Dark mode", "Use the dark theme.", &mut dark);
+    app.dark = dark;
+    let mut full = app.sidebar == 0;
+    if pref_row(ui, t, "Show sidebar", "Show the full sidebar (Cmd+\\ cycles full, mini, hidden).", &mut full) {
+        app.sidebar = if full { 0 } else { 2 };
+    }
+    // Saved with the graph, through `settings.set`.
+    for (key, label, help) in [
+        ("daily_notes", "Show Daily notes in sidebar", "The Daily notes entry of the workspace."),
+        ("recents", "Show Recents in sidebar", "The Recents entry under Today."),
+        ("supertags", "Show Supertags in sidebar", "The Supertags entry under Today."),
+        ("shortcuts", "Show keyboard shortcuts in the top bar", "The keyboard button at the top right."),
+        ("help", "Show help in the top bar", "The help button at the top right."),
+    ] {
+        let mut on = app.session.graph.settings.shows(key);
+        if pref_row(ui, t, label, help, &mut on) {
+            app.acts.push(Act::Run("settings.set".into(), json!({"key": format!("show_{key}"), "value": on})));
+        }
+    }
+    let mut counter = app.ref_counter;
+    pref_row(ui, t, "Reference counter", "Show how many places reference a node, next to it.", &mut counter);
+    app.ref_counter = counter;
+    let mut autosave = app.autosave;
+    pref_row(ui, t, "Save automatically", "Write the graph file a second after each change.", &mut autosave);
+    app.autosave = autosave;
+    let path = app.session.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "Not saved to a file (sample or scratch graph)".into());
+    ui.label(RichText::new(format!("Graph file: {path}")).size(12.5).color(t.faint));
+}
+
+fn choice_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, label: &str, key: &str, options: &[(&str, &str)], current: &str) {
+    egui::Frame::new().fill(t.field_bg).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(label).strong());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                for (value, shown) in options.iter().rev() {
+                    if ui.selectable_label(current == *value, *shown).clicked() {
+                        app.acts.push(Act::Run("settings.set".into(), json!({"key": key, "value": value})));
+                    }
+                }
+            });
+        });
+    });
+    ui.add_space(6.0);
+}
+
+fn date_time_settings(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    let st = app.session.graph.settings.clone();
+    choice_row(
+        app,
+        ui,
+        t,
+        "Time format",
+        "time_format",
+        &[("24h", "24 hour (14:30)"), ("12h", "12 hour (2:30 PM)")],
+        if st.time_12h { "12h" } else { "24h" },
+    );
+    choice_row(
+        app,
+        ui,
+        t,
+        "First day of week",
+        "week_start",
+        &[("monday", "Monday"), ("sunday", "Sunday")],
+        if st.week_starts_sunday { "sunday" } else { "monday" },
+    );
+    ui.label(RichText::new("Times follow this computer's time zone.").size(12.5).color(t.faint));
+}
+
+fn journaling_settings(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    let g = &app.session.graph;
+    let week = g.find_tag("week");
+    let rows = [("Day tag", Some(g.sys.day_tag)), ("Week tag", week), ("Journal", Some(g.sys.journal))];
+    for (label, node) in rows {
+        let name = node.map(|n| g.name(n).to_string()).unwrap_or_else(|| "made with the first week".into());
+        egui::Frame::new().fill(t.field_bg).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(label).strong());
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let shown = if label == "Journal" { name.clone() } else { format!("#{name}") };
+                    if ui.add(egui::Label::new(RichText::new(shown).color(t.link)).sense(Sense::click())).clicked()
+                        && let Some(n) = node
+                    {
+                        app.acts.push(Act::Run("nav.open".into(), json!({"node": n.0})));
+                    }
+                });
+            });
+        });
+        ui.add_space(6.0);
+    }
+}
+
+fn move_target_settings(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.label(RichText::new("Move to move target sends nodes here. Set it from a node's menu (Set as move target).").size(13.0).color(t.dim));
+    ui.add_space(6.0);
+    match app.session.move_target {
+        Some(m) => {
+            let name = app.session.graph.text(m);
+            if ui.add(egui::Label::new(RichText::new(name).size(15.0).color(t.link)).sense(Sense::click())).clicked() {
+                app.acts.push(Act::Run("nav.open".into(), json!({"node": m.0})));
+            }
+        }
+        None => {
+            ui.label(RichText::new("No move target yet.").color(t.faint));
+        }
+    }
+}
+
+fn keybinding_settings(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.label(
+        RichText::new("Custom shortcuts come from keybindings.json beside the default graph file: {\"Mod+Shift+H\": \"node.toggleHeading\"}.")
+            .size(13.0)
+            .color(t.dim),
+    );
+    ui.add_space(6.0);
+    if app.keymap.is_empty() {
+        ui.label(RichText::new("No custom shortcuts.").color(t.faint));
+    }
+    for (key, cmd) in app.keymap.clone() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(key).monospace());
+            ui.label(RichText::new(cmd).color(t.dim));
+        });
+    }
 }
 
 /// The Supertags overview (spec 03 §1): a filter box and a grid of supertag tiles, then fields.
@@ -982,7 +1126,9 @@ pub(crate) fn field_value(
                 None => None,
             };
             let time = match value {
-                Some(FieldValue::Timed { start, end, .. }) => format!(", {} - {}", tanacraft_core::fmt_hm(*start), tanacraft_core::fmt_hm(*end)),
+                Some(FieldValue::Timed { start, end, .. }) => {
+                    format!(", {} - {}", app.session.graph.fmt_time(*start), app.session.graph.fmt_time(*end))
+                }
                 _ => String::new(),
             };
             let label = match date {

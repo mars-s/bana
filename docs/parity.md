@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (95 rows, spec files 00 to 09 and INDEX) | 70 | 19 | 4 | 2 |
-| Screenshots (160) | 133 | 20 | 6 | 1 |
+| Screenshots (160) | 134 | 20 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
@@ -135,7 +135,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 5. Panels | done | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel; Configure supertag and list-view details open in the panel to the right. |
 | 6. Navigation history | done | Back/forward per panel; zoom out restores the caret. |
 | 7. Breadcrumbs | done | Workspace avatar, clickable ancestors, long chains collapse to first / ... / last two. |
-| 8. Special pages | done | Library, Schema, Inbox (reached by command, no sidebar row; explains captures), Trash, Settings (theme, sidebar, autosave). |
+| 8. Special pages | done | Library, Schema, Inbox (reached by command, no sidebar row; explains captures), Trash, Settings with a left nav: Preferences (theme, sidebar and top bar entries, reference counter, autosave), Date and time (12/24 hour, week starts Monday or Sunday; saved with the graph, `settings.*`), Journaling, Move targets, Keybindings. No API keys or progress stats (local app). Tested. |
 
 ## `08-ai-and-extras.md`
 
@@ -227,7 +227,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `63-ai-chats.png` | missing | AI chats. |
 | `64-create-new.png` | done | Create new: untitled page with suggestions. |
 | `65-settings-menu.png` | partial | Account menu: Workspaces, Settings, theme, shortcuts, Help. No account, labs, API tokens or log out (local app). |
-| `66-settings-page.png` | partial | Settings page with our preferences. |
+| `66-settings-page.png` | done | Settings: left nav of sub-pages, preference rows with label, help and checkbox. Tested. |
 | `67-today-light-mode.png` | done | Light mode. |
 | `68-reference-node.png` | done | Reference node. |
 | `69-bullet-context-menu.png` | partial | Bullet context menu (see 14); no AI, publish or appearance. |
@@ -301,7 +301,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `137-workspace-invite-step.jpg` | missing | Workspace invite. |
 | `138-sidebar-two-workspaces.png` | done | Workspaces section lists every workspace with avatar, name, chevron and its items. Tested. |
 | `139-workspace-home.png` | partial | Workspace home: large round avatar with initials and the name; no member count (local app). |
-| `140-workspace-settings-other-ws.jpg` | missing | Workspace settings. |
+| `140-workspace-settings-other-ws.jpg` | partial | Date and time settings exist, saved with the graph for all its workspaces (not per workspace). |
 | `141-settings-api-keys.png` | missing | API keys settings. |
 | `142-invalid-value-warning.jpg` | done | Invalid URL / e-mail keeps the text and shows a yellow ? at the row's end. |
 | `143-board-column-add.png` | done | Board column + Add. |

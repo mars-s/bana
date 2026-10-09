@@ -26,7 +26,7 @@ pub fn shown_value(g: &Graph, v: &FieldValue) -> String {
         FieldValue::Date(d) => format!("{}, {}", d.day_title(), d.year),
         FieldValue::Timed { date, start, end } => {
             let day = shown_value(g, &FieldValue::Date(*date));
-            format!("{day}, {} - {}", crate::model::fmt_hm(*start), crate::model::fmt_hm(*end))
+            format!("{day}, {} - {}", g.fmt_time(*start), g.fmt_time(*end))
         }
         other => display_value(g, other),
     }

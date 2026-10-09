@@ -47,6 +47,29 @@ struct Step {
     key: Option<String>,
 }
 
+/// Settings saved with the graph (Settings > Date/Time and Preferences, spec 07 §8). Not undoable.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Settings {
+    /// Times read "2:30 PM" instead of "14:30".
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub time_12h: bool,
+    /// Calendar weeks start on Sunday instead of Monday.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub week_starts_sunday: bool,
+    /// Sidebar entries and top bar buttons switched off (`daily_notes`, `recents`, `supertags`,
+    /// `help`, `shortcuts`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden: Vec<String>,
+}
+
+impl Settings {
+    pub const HIDEABLE: [&'static str; 5] = ["daily_notes", "recents", "supertags", "help", "shortcuts"];
+
+    pub fn shows(&self, what: &str) -> bool {
+        !self.hidden.iter().any(|h| h == what)
+    }
+}
+
 /// The node graph of one workspace.
 #[derive(Debug, Clone)]
 pub struct Graph {
@@ -55,6 +78,7 @@ pub struct Graph {
     pub sys: SystemNodes,
     /// Expanded nodes (view state; saved with the file, not undoable).
     expanded: BTreeSet<NodeId>,
+    pub settings: Settings,
     txn: Option<PreImages>,
     undo: Vec<Step>,
     redo: Vec<Step>,
@@ -84,6 +108,7 @@ impl Graph {
             next_id: 7,
             sys: ids,
             expanded: BTreeSet::new(),
+            settings: Settings::default(),
             txn: None,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -412,6 +437,37 @@ impl Graph {
     }
 
     /// Unsaved changes since the last save or load.
+    /// A time of day as the settings want it: `14:30` or `2:30 PM`.
+    pub fn fmt_time(&self, min: u16) -> String {
+        if !self.settings.time_12h {
+            return fmt_hm(min);
+        }
+        let (h, m) = (min / 60 % 24, min % 60);
+        let h12 = if h % 12 == 0 { 12 } else { h % 12 };
+        format!("{h12}:{m:02} {}", if h < 12 { "AM" } else { "PM" })
+    }
+
+    /// The first day of the week holding `d` (Monday, or Sunday when set).
+    pub fn week_start(&self, d: crate::Date) -> crate::Date {
+        let off = if self.settings.week_starts_sunday { (d.weekday() + 1) % 7 } else { d.weekday() };
+        d.add_days(-(off as i64))
+    }
+
+    /// Weekday names in calendar order.
+    pub fn weekday_names(&self) -> [&'static str; 7] {
+        if self.settings.week_starts_sunday {
+            ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        } else {
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        }
+    }
+
+    /// Changing settings is a change to save (not an undo step).
+    pub fn settings_mut(&mut self) -> &mut Settings {
+        self.dirty = true;
+        &mut self.settings
+    }
+
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
@@ -1509,6 +1565,7 @@ impl Graph {
             next_id: self.next_id,
             system: self.sys,
             expanded: self.expanded.iter().copied().collect(),
+            settings: self.settings.clone(),
             nodes: self.nodes.values().cloned().collect(),
         };
         serde_json::to_string_pretty(&file).map_err(|e| Error::Format(e.to_string()))
@@ -1559,6 +1616,7 @@ impl Graph {
             next_id: file.next_id.max(max + 1),
             sys: s,
             expanded: file.expanded.into_iter().collect(),
+            settings: file.settings,
             txn: None,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -1638,7 +1696,13 @@ struct GraphFile {
     system: SystemNodes,
     #[serde(default)]
     expanded: Vec<NodeId>,
+    #[serde(default, skip_serializing_if = "is_default_settings")]
+    settings: Settings,
     nodes: Vec<Node>,
+}
+
+fn is_default_settings(s: &Settings) -> bool {
+    *s == Settings::default()
 }
 
 fn n_kind_week(k: &Kind) -> bool {

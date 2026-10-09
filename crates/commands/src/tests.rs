@@ -927,3 +927,24 @@ fn table_header_menu_moves_calculates_hides_and_deletes_columns() {
     assert_eq!(r["values_removed"], 3);
     assert!(s.graph.children(list).iter().all(|c| s.graph.get(*c).unwrap().fields.iter().all(|e| e.field != price)));
 }
+
+#[test]
+fn settings_change_time_format_week_start_and_survive_save() {
+    let mut s = blank();
+    assert_eq!(run(&mut s, "settings.get", json!({}))["time_format"], "24h");
+    run(&mut s, "settings.set", json!({"key": "time_format", "value": "12h"}));
+    run(&mut s, "settings.set", json!({"key": "week_start", "value": "sunday"}));
+    run(&mut s, "settings.set", json!({"key": "show_recents", "value": false}));
+    assert_eq!(s.graph.fmt_time(14 * 60 + 5), "2:05 PM");
+    assert_eq!(s.graph.fmt_time(0), "12:00 AM");
+    let sat = Date::new(2026, 10, 10).unwrap();
+    assert_eq!(s.graph.week_start(sat), Date::new(2026, 10, 4).unwrap(), "a Sunday");
+    assert!(!s.graph.settings.shows("recents"));
+    assert!(s.graph.is_dirty());
+    let back = Graph::from_json(&s.graph.to_json().unwrap()).unwrap();
+    assert_eq!(back.settings, s.graph.settings);
+    assert!(s.run("settings.set", &json!({"key": "time_format", "value": "13h"})).is_err());
+    assert!(s.run("settings.set", &json!({"key": "nope", "value": true})).is_err());
+    run(&mut s, "settings.set", json!({"key": "week_start", "value": "monday"}));
+    assert_eq!(s.graph.week_start(sat), Date::new(2026, 10, 5).unwrap());
+}

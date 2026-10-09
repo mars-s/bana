@@ -16,7 +16,7 @@ pub mod sample;
 pub mod view;
 
 pub use date::Date;
-pub use graph::{Graph, SystemNodes};
+pub use graph::{Graph, Settings, SystemNodes};
 pub use model::*;
 pub use query::Query;
 pub use view::{GroupBy, Sort, SortBy, SystemField, ViewDef, ViewKind};

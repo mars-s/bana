@@ -1426,3 +1426,35 @@ fn copying_selected_nodes_puts_html_and_text_on_the_clipboard() {
     let r = h.state_mut().exec("export.clipboard", json!({"node": ids[0].0})).unwrap();
     assert_eq!(r["html"], html);
 }
+
+#[test]
+fn settings_sub_pages_change_time_format_and_sidebar() {
+    // Spec 07 §8: Settings has a left nav of sub-pages.
+    let mut h = harness();
+    h.state_mut().exec("ui.settings", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    for p in ["Preferences", "Date and time", "Journaling", "Move targets", "Keybindings"] {
+        assert!(h.query_all_by_label(p).count() >= 1, "{p}");
+    }
+    h.get_by_label("Date and time").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("12 hour (2:30 PM)").click();
+    h.get_by_label("Sunday").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    let st = &h.state().session.graph.settings;
+    assert!(st.time_12h && st.week_starts_sunday);
+    h.get_by_label("Recents");
+    h.state_mut().exec("settings.set", json!({"key": "show_recents", "value": false})).unwrap();
+    h.query_all_by_label("Preferences").next().unwrap().click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.query_by_label("Recents").is_none(), "hidden from the sidebar");
+    h.get_by_label("Show Recents in sidebar");
+}

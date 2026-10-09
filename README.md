@@ -69,7 +69,7 @@ live. TanaCraft rebuilds that model as open source:
 | **Files** | One JSON graph file (`~/TanaCraft/graph.json` by default) holding every workspace, atomic autosave, repair of damaged files, Markdown and JSON export |
 
 Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (70 of 95 spec sections
-done, 19 partial; 133 of 160 screenshots done). AI features are out of scope for now.
+done, 19 partial; 134 of 160 screenshots done). AI features are out of scope for now.
 
 ## Speed and robustness
 

@@ -253,7 +253,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `90-filter-checked-submenu.png` | done | Filter checked state. |
 | `91-filtered-not-done.png` | done | Filtered not done. |
 | `92-grouped-outline.png` | done | Grouped outline. |
-| `93-query-with-field-condition.png` | partial | Field condition (text form). |
+| `93-query-with-field-condition.png` | done | Field conditions show the field's type icon and name, then the value. |
 | `94-go-to-date-picker.png` | done | Go to date marks days with notes. |
 | `95-future-day-with-dated-task.png` | done | Future day created by a date. |
 | `96-tabs-view.png` | done | Tabs view. |

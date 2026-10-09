@@ -217,7 +217,26 @@ fn group_box(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, q: &Query
                             if c.not {
                                 ui.label(RichText::new("NOT").size(11.5).color(Color32::from_rgb(232, 128, 96)));
                             }
-                            ui.label(RichText::new(text).size(13.5).color(color));
+                            if let ClauseKind::Field { field, op, value } = &c.kind {
+                                // A field condition: type icon and name, then the value (spec 05 §2).
+                                let ty = g.field_def(*field).map(|d| d.field_type).unwrap_or_default();
+                                let (r, _) = ui.allocate_exact_size(vec2(14.0, 18.0), Sense::hover());
+                                crate::outline::paint_field_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(11.0, 11.0)), ty, t.dim);
+                                ui.label(RichText::new(g.name(*field)).size(13.5).color(t.dim));
+                                let (op_text, shown) = match op {
+                                    tanacraft_core::query::Op::Set => ("", "is set".to_string()),
+                                    tanacraft_core::query::Op::Eq => ("", value.clone()),
+                                    tanacraft_core::query::Op::Lt => ("<", value.clone()),
+                                    tanacraft_core::query::Op::Gt => (">", value.clone()),
+                                };
+                                ui.add_space(12.0);
+                                if !op_text.is_empty() {
+                                    ui.label(RichText::new(op_text).size(13.5).color(t.faint));
+                                }
+                                ui.label(RichText::new(shown).size(13.5).color(t.text));
+                            } else {
+                                ui.label(RichText::new(text).size(13.5).color(color));
+                            }
                             let hovered = ui.rect_contains_pointer(ui.max_rect());
                             let neg = ui.add(
                                 egui::Label::new(RichText::new(if c.not { "un-NOT" } else { "NOT" }).size(11.0).color(if hovered {

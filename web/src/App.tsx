@@ -5,7 +5,7 @@ import { Icon, TodayIcon, type IconName } from './icons'
 import { Panel, tagStyle } from './Outline'
 import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
 import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
-import { keyInfo } from './keys'
+import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import type { SidebarItem } from './engine'
 
@@ -190,6 +190,17 @@ export function App() {
         e.preventDefault()
         bufferKey(k)
         return
+      }
+      // A line holds the caret but the keyboard is elsewhere (a menu or dialog just closed): the
+      // key goes into the line, and the line takes the keyboard back (DIFFS N16, N27).
+      const holder = currentEditor()
+      if (holder && !target?.closest?.('input, textarea, [contenteditable]')) {
+        holder.focus()
+        if (isTextKey(k)) {
+          e.preventDefault()
+          holder.insert(k.key)
+          return
+        }
       }
       // The key landed in a line editor that no longer holds the caret: it waits for the right one.
       const ed = currentEditor()

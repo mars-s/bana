@@ -24,6 +24,8 @@ export interface EditorHandle {
   setSel(anchor: number, caret: number): void
   /** Plain editing keys replayed from the buffer (Backspace, arrows). */
   native(k: KeyInfo): void
+  /** Takes the keyboard back (after a menu or dialog closed). */
+  focus(): void
 }
 
 export interface TitleHandle {
@@ -330,11 +332,66 @@ export function handleKey(k: KeyInfo): boolean {
   return false
 }
 
+// ---- copy and paste (spec 02 §12; DIFFS N12, N21) ---------------------------------------------------
+
+/** The nodes copied last and the text that went to the clipboard: pasting that text back makes
+ * references to the same nodes. */
+let lastCopy: { text: string; ids: number[] } | null = null
+
+async function copySelection(panel: string) {
+  const r = await call('run', { command: 'export.clipboard', params: {}, panel })
+  const out = r?.result
+  if (!out) return
+  lastCopy = { text: out.text, ids: out.nodes }
+  try {
+    const item = new ClipboardItem({ 'text/plain': new Blob([out.text], { type: 'text/plain' }), 'text/html': new Blob([out.html], { type: 'text/html' }) })
+    await navigator.clipboard.write([item])
+  } catch {
+    try {
+      await navigator.clipboard.writeText(out.text)
+    } catch {
+      showToast('Could not reach the clipboard')
+    }
+  }
+}
+
+/** Text pasted into a line: copied nodes come back as references; several lines become nodes. */
+export function pasteInto(panel: string, node: number, lineText: string, text: string): boolean {
+  if (lastCopy && text.trim() === lastCopy.text.trim()) {
+    const ids = lastCopy.ids
+    void withBarrier(async () => {
+      const page = getState().pages[panel]
+      const row = page?.rows.items.find((r) => r.k === 'node' && r.id === node) as NodeRow | undefined
+      if (!row || row.parent == null) return
+      let index = (row.index ?? 0) + 1
+      // Pasting into an empty line: the first reference takes that line's place (DIFFS N12).
+      let replace: number | null = lineText === '' ? node : null
+      for (const target of ids) {
+        const params: Json = { target, parent: row.parent, index }
+        if (replace != null) {
+          params.replace = replace
+          replace = null
+        } else index++
+        await exec('node.reference', params, panel)
+      }
+    })
+    return true
+  }
+  if (text.includes('\n')) {
+    void exec('node.paste', { node, text }, panel)
+    return true
+  }
+  return false
+}
+
 function selectionKey(k: KeyInfo, sc: string, p: Page): boolean {
   const panel = getState().activePanel
   const head = p.sel[p.sel.length - 1]
   const first = p.sel[0]
   switch (sc) {
+    case 'Mod+C':
+      void copySelection(panel)
+      return true
     case 'Escape':
       // The selection goes, but typing still lands in its last line, at its start (N27, N34).
       setGhost(panel, head, true)

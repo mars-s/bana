@@ -74,9 +74,13 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
     if (proc.exitCode === null) proc.kill('SIGKILL')
   },
   app: async ({ page, server }, use) => {
+    // Any error thrown in the page fails the test.
+    const errors: string[] = []
+    page.on('pageerror', (e) => errors.push(e.message))
     await page.goto(server.url)
     await expect(page.locator('.panel .title')).toBeVisible()
     await use(page)
+    expect(errors, 'errors thrown in the page').toEqual([])
   },
 })
 

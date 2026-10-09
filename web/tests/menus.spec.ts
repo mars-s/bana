@@ -53,3 +53,22 @@ test('dropping just right of a bullet nests the dragged line under it', async ({
   await src.dragTo(dst, { targetPosition: { x: 50, y: 12 } })
   await expect.poll(async () => ((await tree(server, ids[0])).children ?? []).map((c: any) => c.name)).toEqual(['two'])
 })
+
+test('pasting several lines makes nodes; copied lines paste back as references', async ({ app, server, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const { page, ids } = await pageWith(server, app, ['first', ''])
+  await focus(server, app, ids[1], 0)
+  await app.evaluate(() => navigator.clipboard.writeText('alpha\nbeta\ngamma'))
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['first', 'alpha', 'beta', 'gamma'])
+  // Copy "first" as a node, then paste it into a new empty line: a reference.
+  await focus(server, app, ids[0], 5)
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Meta+c')
+  await app.waitForTimeout(100)
+  const last = (await tree(server, page)).children.at(-1).id
+  await focus(server, app, last, 5)
+  await app.keyboard.press('Enter')
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => (await tree(server, page)).children.at(-1).ref).toBe(ids[0])
+})

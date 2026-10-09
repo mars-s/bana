@@ -51,32 +51,49 @@ function useListKeys(n: number, pick: (i: number) => void) {
   return { sel, setSel, onKeyDown }
 }
 
+/** The command line (Cmd+K): steps for the focused or selected line first (DIFFS P2), then every
+ * command with its shortcut. */
 function Palette() {
   const commands = useStore((s) => s.commands)
+  const activePanel = useStore((s) => s.activePanel)
+  const page = useStore((s) => s.pages[s.activePanel])
+  const focusId = page?.focus ?? page?.sel[0]
+  const focusRow = page?.rows.items.find((r) => r.k === 'node' && r.id === focusId) as NodeRow | undefined
+  const ctx = focusRow ? { row: focusRow, panel: activePanel } : null
   const [q, setQ] = useState('')
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-  const all: { id: string; label: string; shortcut: string; ui: boolean }[] = [
-    ...UI_COMMANDS.map(([id, label, sc]) => ({ id, label, shortcut: sc, ui: true })),
-    ...commands.map((c) => ({ id: c.id, label: c.label, shortcut: c.shortcut, ui: false })),
+  type Entry = { id: string; label: string; shortcut: string; run: () => void }
+  const steps: Entry[] = []
+  if (ctx) {
+    const { row, panel } = ctx
+    const at = { panel, at: -1, x: window.innerWidth - 520, y: 180 }
+    steps.push({ id: 'step.tag', label: 'Add supertag', shortcut: '', run: () => openPicker({ ...at, mode: 'tag', node: row.target }) })
+    for (const t of row.tags) steps.push({ id: `step.untag.${t.id}`, label: `Remove #${t.name}`, shortcut: '', run: () => void exec('tag.remove', { node: row.target, tag: t.id }, panel) })
+    steps.push({ id: 'step.field', label: 'Add field', shortcut: '', run: () => openPicker({ ...at, mode: 'field', node: row.target, owner: row.target }) })
+    steps.push({ id: 'step.done', label: row.done === null ? 'Add checkbox' : 'Toggle done', shortcut: 'Mod+Enter', run: () => void exec('node.toggleDone', { node: row.id }, panel) })
+    steps.push({ id: 'step.move', label: 'Move to…', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id }) })
+    for (const k of ['outline', 'table', 'cards', 'calendar']) steps.push({ id: `step.view.${k}`, label: `View as ${k}`, shortcut: '', run: () => void exec('view.set', { node: row.id, kind: k }, panel) })
+  }
+  const all: Entry[] = [
+    ...steps,
+    ...UI_COMMANDS.map(([id, label, sc]) => ({ id, label, shortcut: sc, run: () => runUiCommand(id) })),
+    ...commands.map((c) => ({ id: c.id, label: c.label, shortcut: c.shortcut, run: () => void exec(c.id, {}) })),
   ]
   const list = all.filter((c) => words.every((w) => `${c.label} ${c.id}`.toLowerCase().includes(w))).slice(0, 60)
   const pick = (i: number) => {
     const c = list[i]
     close()
-    if (!c) return
-    if (c.ui) runUiCommand(c.id)
-    else void exec(c.id, {})
+    c?.run()
   }
   const { sel, setSel, onKeyDown } = useListKeys(list.length, pick)
   return (
     <div className="dialog palette" role="dialog" aria-label="Command line">
       <div className="dialog-input">
-        
         <input autoFocus value={q} placeholder="Enter command…" onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} />
       </div>
       <div className="dialog-list">
         {list.map((c, i) => (
-          <div key={c.id} className={`dialog-item${i === sel ? ' sel' : ''}`} onMouseEnter={() => setSel(i)} onMouseDown={(e) => (e.preventDefault(), pick(i))}>
+          <div key={c.id} className={`dialog-item${i === sel ? ' sel' : ''}${c.id.startsWith('step.') ? ' step' : ''}`} onMouseEnter={() => setSel(i)} onMouseDown={(e) => (e.preventDefault(), pick(i))}>
             <span className="grow">{c.label}</span>
             {c.shortcut && <kbd>{prettyKey(c.shortcut)}</kbd>}
           </div>

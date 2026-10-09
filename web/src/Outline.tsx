@@ -8,7 +8,7 @@ import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel, useStore } from './store'
-import { type EditorHandle, exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { type EditorHandle, exec, focusLine, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { ViewBody, ViewToolbar } from './Views'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
@@ -214,6 +214,9 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         }
         textChanged(next, at)
       },
+      focus() {
+        ta.current?.focus({ preventScroll: true })
+      },
       setSel(a: number, c: number) {
         const el = ta.current
         if (!el) return
@@ -228,6 +231,13 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         const v = valueRef.current
         if ((k.metaKey || k.ctrlKey) && k.code === 'KeyA') {
           el.setSelectionRange(0, v.length)
+          return
+        }
+        // A paste that waited behind a command: read the clipboard now.
+        if ((k.metaKey || k.ctrlKey) && k.code === 'KeyV') {
+          void navigator.clipboard?.readText().then((text) => {
+            if (!pasteInto(panel, row.id, valueRef.current, text)) h.insert(text)
+          })
           return
         }
         let s0 = el.selectionStart
@@ -266,6 +276,10 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         spellCheck={false}
         placeholder=""
         onChange={(e) => textChanged(e.target.value, e.target.selectionEnd)}
+        onPaste={(e) => {
+          const text = e.clipboardData.getData('text/plain')
+          if (pasteInto(panel, row.id, valueRef.current, text)) e.preventDefault()
+        }}
       />
     </span>
   )
@@ -686,6 +700,9 @@ export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow;
         send(next)
       },
       setSel() {},
+      focus() {
+        ref.current?.focus({ preventScroll: true })
+      },
       native(k: { key: string; code: string; metaKey: boolean; ctrlKey: boolean }) {
         const el = ref.current
         if (el && (k.metaKey || k.ctrlKey) && k.code === 'KeyA') {

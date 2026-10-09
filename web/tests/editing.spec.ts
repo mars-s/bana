@@ -110,3 +110,23 @@ test('bold shortcut wraps the selection in marks', async ({ app, server }) => {
   await app.keyboard.press('Meta+b')
   await expect.poll(() => nameOf(server, ids[0])).toBe('make this **bold**')
 })
+
+test('Cmd+K then Escape: typing goes on in the line', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['one', 'two'])
+  await focus(server, app, ids[0], 3)
+  await app.keyboard.press('Meta+k')
+  await expect(app.locator('.dialog.palette')).toBeVisible()
+  await app.keyboard.press('Escape')
+  await app.keyboard.type('X')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('oneX')
+})
+
+test('the command line offers steps for the focused line first', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['one'])
+  await focus(server, app, ids[0], 3)
+  await app.keyboard.press('Meta+k')
+  await expect(app.locator('.dialog-item').first()).toHaveText(/Add supertag/)
+  await app.keyboard.type('toggle done')
+  await app.keyboard.press('Enter')
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .checkbox`)).toBeVisible()
+})

@@ -10,8 +10,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 72 | 20 | 5 | 2 |
-| Screenshots (153) | 124 | 21 | 7 | 1 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 68 | 20 | 5 | 2 |
+| Screenshots (160) | 133 | 20 | 6 | 1 |
+| Beyond the spec | 4 | | | |
 
 ## `00-overview.md`
 
@@ -36,7 +37,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
 | 5. Fields | done | Nine types (plain, options, options from supertag, date with optional time range, number, URL, e-mail, checkbox, user), required, hide modes, auto-initialize, number range, option sources, auto-collect, used in; several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Tested. |
 | 6. Search nodes | done | Live, editable results, magnifier bullet, views, convert to plain list (`search.toPlainList`). |
-| 7. Workspaces | partial | Each workspace is its own graph file in one folder: list, create, switch (saves first), rename (`workspace.*`); sidebar avatar and name open the workspace menu. Library, Schema, Daily notes, Inbox (made on first use; `node.capture`, `tanacraft-cli capture`), Trash. Missing: tags grouped by several workspaces in one overview, cross-workspace search. |
+| 7. Workspaces | partial | All workspaces live in one graph, side by side: the main one is the root (Library, Schema, Daily notes, Inbox made on first use, Trash); further ones (`workspace.create`) have their own Library; nodes know their workspace (`WORKSPACE:` query condition). Missing (spec-gap): per-workspace Schema, Daily notes and Trash; members. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
 | 9. Trash | done | Delete to trash, restore, banner, empty trash. |
 | 10. Other node kinds observed | missing | Chat, command nodes and settings pages not built. |
@@ -85,13 +86,13 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Where view controls live | done | View toolbar of square icon buttons: magnifier (quick filter), view as, display, group, sort, filter by, date fields (calendar); active ones get a blue outline and the tooltip summarises them (Displaying:, Grouped by:, Sorted by:); filter chips; options menu. |
 | 2. Outline (default) | done | Bullets with display-field line. |
-| 3. Table | done | Full panel width; tag-named first column (Title when mixed) with tag-colour underline; field columns with type icon (opens the field) and name (click renames in place); a supertag's template fields are columns even before anything is tagged; resizable columns; + Add field; in-place cells that grow with wrapped text; sort from the toolbar or the header's context menu. Tested. |
+| 3. Table | done | Full panel width; tag-named first column (Title when mixed) with tag-colour underline; field columns with type icon (opens the field) and name (click renames in place); a supertag's template fields are columns even before anything is tagged; resizable columns; + Add field; in-place cells that grow with wrapped text; header context menu: change type, configure, filter, Calculate (sum, average, median, min, max, counts; shown under the rows), sort, move column left/right, hide, hide others, delete column and values. Tested. |
 | 4. Cards | done | Grid of cards: tag header, checkbox and name, display fields footer, + Add. |
 | 5. Board (cards grouped) | done | Columns per value including empty options and <Field> not set; dragging a card sets the value; + Add per column. |
 | 6. Lanes | done | Each item a lane with its children. |
 | 7. List (navigation view) | done | A narrow list (name, display fields, + Add); clicking an item opens it in the panel to the right (reused on the next click), the list keeps the focus. Tested. |
-| 8. Side menu | done | Compact menu and selected item content. |
-| 9. Tabs | done | Items as tabs, selected item below. |
+| 8. Side menu | done | Compact menu and selected item content; + Add menu item adds an empty item, selects it and puts the caret in its heading. Tested. |
+| 9. Tabs | done | Items as tabs, selected item below; + Add tab works like + Add menu item. Tested. |
 | 10. Calendar | done | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, hour grid (scrolled to 08:00, or the day length you set), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range, overlapping ones side by side; drop an item on an hour to time it; drag an event's bottom edge to resize; drag on empty grid opens a New event popover. Date fields and Day length menus; N nodes with no dates. Tested. |
 | 11. Display menu | done | Field checkboxes and system fields (created, edited, done time, owner, tags, references). |
 | 12. Group by | done | Fields, tags, done, owner, created and edited day; every option gets a group; Not defined; group headers collapse. |
@@ -128,13 +129,13 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Section | Status | Notes |
 |---|---|---|
 | 1. Sidebar modes | done | Cmd+\ cycles full, mini (icon rail), hidden. |
-| 2. Sidebar contents and behaviour | done | Fixed entries, Create new, Search, Pinned with expandable children, workspace items. |
+| 2. Sidebar contents and behaviour | done | Fixed entries, Create new, Search, Pinned with expandable children; one workspace shows its name as the header, several are listed under Workspaces with chevrons and their items; Manage workspaces (create, rename, open). Tested (DIFFS N6). |
 | 3. Recents and AI chats | partial | Recents page: list beside the selected node. No AI chats. |
 | 4. Tabs | done | Tab strip, Cmd+T (search and open in a new tab), Cmd+W, Ctrl+Tab, Ctrl+Shift+Tab, Cmd+1..9; each tab keeps its panels and history. |
 | 5. Panels | done | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel; Configure supertag and list-view details open in the panel to the right. |
 | 6. Navigation history | done | Back/forward per panel; zoom out restores the caret. |
 | 7. Breadcrumbs | done | Workspace avatar, clickable ancestors, long chains collapse to first / ... / last two. |
-| 8. Special pages | done | Library, Schema, Inbox (Open capture inbox; explains where captures come from), Trash, Settings (theme, sidebar, autosave). |
+| 8. Special pages | done | Library, Schema, Inbox (reached by command, no sidebar row; explains captures), Trash, Settings (theme, sidebar, autosave). |
 
 ## `08-ai-and-extras.md`
 
@@ -294,12 +295,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `131-two-tabs.png` | done | Two tabs. |
 | `132-mini-sidebar-pinned-flyout.jpg` | done | Mini rail Pinned button opens a flyout of pinned nodes. Tested. |
 | `133-mini-sidebar-workspace-flyout.jpg` | done | Mini rail Workspaces button: workspace items and Manage workspaces. |
-| `134-manage-workspaces.png` | partial | Workspace menu: switch, new, rename. No members or settings per workspace. |
-| `135-create-workspace.png` | partial | New workspace by name from the workspace menu (a new graph file). |
-| `136-new-workspace.png` | partial | A new workspace opens on today with its own Library, Daily notes and Trash. |
+| `134-manage-workspaces.png` | partial | Manage workspaces menu: open, create, rename. No sharing banner or members (local app). |
+| `135-create-workspace.png` | done | Create workspace by name; it is added to the sidebar beside the others. |
+| `136-new-workspace.png` | partial | A new workspace has its own Library; Daily notes and Trash stay the main workspace's. |
 | `137-workspace-invite-step.jpg` | missing | Workspace invite. |
-| `138-sidebar-two-workspaces.png` | partial | One workspace shows at a time; others are a switch away in the menu. |
-| `139-workspace-home.png` | missing | Workspace home. |
+| `138-sidebar-two-workspaces.png` | done | Workspaces section lists every workspace with avatar, name, chevron and its items. Tested. |
+| `139-workspace-home.png` | partial | Workspace home: large round avatar with initials and the name; no member count (local app). |
 | `140-workspace-settings-other-ws.jpg` | missing | Workspace settings. |
 | `141-settings-api-keys.png` | missing | API keys settings. |
 | `142-invalid-value-warning.jpg` | done | Invalid URL / e-mail keeps the text and shows a yellow ? at the row's end. |
@@ -320,6 +321,13 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `157-title-expr-default-child-config.png` | done | Advanced options: title expression input and default child supertag picker. |
 | `158-title-expression-table.png` | done | Grey computed title part in tables and lists; empty fields show their name underlined. |
 | `159-default-child-supertag.png` | done | New direct children of a tagged node get the default child supertag. |
+| `160-side-menu-add-item.jpg` | done | + Add menu item: new empty item selected, caret in its heading, typing names it. Tested. |
+| `161-tabs-add-tab.jpg` | done | + Add tab: new last tab, active, caret in its heading. Tested. |
+| `162-search-node-opened-no-builder.jpg` | done | An opened search node shows toolbar and results; the builder opens from Open query editor. Tested (DIFFS N10). |
+| `163-table-header-menu.jpg` | done | Header context menu in five groups (type, configure, filter; Calculate; sort; move column; hide, hide others, delete column and values). Tested. |
+| `164-hide-when-not-empty.jpg` | done | A filled "hide when not empty" field folds to a grey + Field label; clicking opens the row. Tested. |
+| `165-hide-always.jpg` | done | "Always hide" folds the same way regardless of the value. Tested. |
+| `166-multi-value-field.jpg` | done | Several values stack, one bulleted line each; Enter in a value adds another (DIFFS N1, N8). Tested. |
 
 ## Beyond the spec
 

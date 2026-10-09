@@ -244,6 +244,8 @@ pub struct TanaApp {
     node_clip: Option<(String, Vec<NodeId>)>,
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
+    /// A navigation view's just-added item: (node, heading being typed, focus it once).
+    pub(crate) nav_title: Option<(NodeId, String, bool)>,
     /// Workspaces folded in the sidebar (all start open).
     ws_closed: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
@@ -317,6 +319,7 @@ impl TanaApp {
             closed_groups: Default::default(),
             pin_open: Default::default(),
             ws_closed: Default::default(),
+            nav_title: None,
             recents_page: false,
             settings_page: false,
             help_page: false,

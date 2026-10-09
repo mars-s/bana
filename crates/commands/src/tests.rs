@@ -888,3 +888,42 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
     assert_eq!(s.graph.children(h).len(), 1);
     assert_eq!(s.graph.name(s.graph.children(h)[0]), "kid");
 }
+
+#[test]
+fn table_header_menu_moves_calculates_hides_and_deletes_columns() {
+    // Spec 04 §2 header context menu (`163-table-header-menu.jpg`).
+    let mut s = blank();
+    let list = id(&run(&mut s, "node.add", json!({"name": "Costs"})), "id");
+    for (name, n) in [("a", "3"), ("b", "5"), ("c", "")] {
+        let item = id(&run(&mut s, "node.add", json!({"name": name, "parent": list.0})), "id");
+        run(&mut s, "field.add", json!({"node": item.0, "field": "Price", "type": "number", "value": n}));
+        run(&mut s, "field.add", json!({"node": item.0, "field": "Shop", "value": "Corner"}));
+    }
+    run(&mut s, "view.set", json!({"node": list.0, "kind": "table"}));
+    run(&mut s, "view.addColumn", json!({"node": list.0, "field": "Price"}));
+    run(&mut s, "view.addColumn", json!({"node": list.0, "field": "Shop"}));
+    let price = s.graph.find_field("Price").unwrap();
+    let shop = s.graph.find_field("Shop").unwrap();
+    run(&mut s, "view.moveColumn", json!({"node": list.0, "field": "Shop", "direction": "left"}));
+    assert_eq!(s.graph.view_columns(list), [shop, price]);
+    assert!(s.run("view.moveColumn", &json!({"node": list.0, "field": "Shop", "direction": "left"})).is_err());
+    for (calc, want) in [
+        ("sum", "8"),
+        ("average", "4"),
+        ("median", "4"),
+        ("min", "3"),
+        ("max", "5"),
+        ("count_all", "3"),
+        ("count_values", "2"),
+        ("count_unique", "2"),
+    ] {
+        let r = run(&mut s, "view.calculate", json!({"node": list.0, "field": "Price", "calc": calc}));
+        assert_eq!(r["result"], want, "{calc}");
+    }
+    assert_eq!(s.graph.view_def(list).calcs, [(price, "count_unique".to_string())]);
+    run(&mut s, "view.hideOtherColumns", json!({"node": list.0, "field": "Price"}));
+    assert_eq!(s.graph.view_columns(list), [price]);
+    let r = run(&mut s, "view.deleteColumn", json!({"node": list.0, "field": "Price"}));
+    assert_eq!(r["values_removed"], 3);
+    assert!(s.graph.children(list).iter().all(|c| s.graph.get(*c).unwrap().fields.iter().all(|e| e.field != price)));
+}

@@ -808,10 +808,10 @@ pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId
             tanacraft_core::HideMode::WhenDefault => is_default,
             tanacraft_core::HideMode::Always => true,
         };
+        // A hidden field folds to a compact "+ Field" label; clicking it opens the row again
+        // (spec 03 §6, `164`, `165`).
         if hidden && !editing {
-            if def.hide == tanacraft_core::HideMode::WhenEmpty {
-                folded.push((e.field, name));
-            }
+            folded.push((e.field, name));
             continue;
         }
         let missing = def.required && empty;
@@ -872,7 +872,14 @@ pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId
             ui.add_space(indent + 4.0);
             for (f, name) in folded {
                 if ui.add(egui::Label::new(RichText::new(format!("+ {name}")).size(12.5).color(t.faint)).sense(Sense::click())).clicked() {
-                    app.acts.push(Act::EditField(target, f, 0, String::new()));
+                    let current = app
+                        .session
+                        .graph
+                        .get(target)
+                        .and_then(|n| n.field_value(f))
+                        .map(|v| export::display_value(&app.session.graph, v))
+                        .unwrap_or_default();
+                    app.acts.push(Act::EditField(target, f, 0, current));
                 }
             }
             for (f, name) in optional {

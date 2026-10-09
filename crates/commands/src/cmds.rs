@@ -230,6 +230,58 @@ pub fn registry() -> Registry {
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
         C::new("view.removeColumn", "Remove column", "Views", view_remove_column).params(r#"{"node"?: id, "field": name | id}"#),
+        // The table header menu (spec 04 §2, `163`).
+        C::new("view.moveColumn", "Move column", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let f = field_param(s, v, false)?;
+            let mut cols = s.graph.view_columns(id);
+            let at = cols.iter().position(|c| *c == f).ok_or_else(|| CmdError::Params("not a column of this view".into()))?;
+            let to = if p::str(v, "direction") == Some("left") { at.checked_sub(1) } else { Some(at + 1).filter(|i| *i < cols.len()) };
+            let to = to.ok_or_else(|| CmdError::Disabled("the column is already at the edge".into()))?;
+            cols.swap(at, to);
+            s.graph.view_mut(id)?.columns = cols;
+            view_json(s, id)
+        })
+        .params(r#"{"node"?: id, "field": name | id, "direction": "left|right"}"#),
+        C::new("view.calculate", "Calculate column", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let f = field_param(s, v, false)?;
+            let calc = p::req_str(v, "calc")?;
+            if calc != "none" && !tanacraft_core::view::CALCS.contains(&calc) {
+                return Err(CmdError::Params(format!("`calc`: none or one of {}", tanacraft_core::view::CALCS.join(", "))));
+            }
+            let view = s.graph.view_mut(id)?;
+            view.calcs.retain(|(c, _)| *c != f);
+            if calc != "none" {
+                view.calcs.push((f, calc.to_string()));
+            }
+            let items = s.graph.view_items(id);
+            Ok(json!({"node": id.0, "field": f.0, "calc": calc, "result": s.graph.column_calc(&items, f, calc)}))
+        })
+        .params(r#"{"node"?: id, "field": name | id, "calc": "none|sum|average|median|min|max|count_all|count_values|count_unique"}"#),
+        C::new("view.hideOtherColumns", "Hide all other columns", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let f = field_param(s, v, false)?;
+            s.graph.view_mut(id)?.columns = vec![f];
+            view_json(s, id)
+        })
+        .params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.deleteColumn", "Delete column and values", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let f = field_param(s, v, false)?;
+            let mut removed = 0;
+            for item in s.graph.view_items(id) {
+                let target = s.graph.resolve(item);
+                if s.graph.get(target).is_some_and(|n| n.fields.iter().any(|e| e.field == f)) {
+                    s.graph.remove_field(target, f)?;
+                    removed += 1;
+                }
+            }
+            let cols: Vec<NodeId> = s.graph.view_columns(id).into_iter().filter(|c| *c != f).collect();
+            s.graph.view_mut(id)?.columns = cols;
+            Ok(json!({"node": id.0, "field": f.0, "values_removed": removed}))
+        })
+        .params(r#"{"node"?: id, "field": name | id}  (removes the field from every item in the view)"#),
         C::new("view.dayLength", "Calendar day length", "Views", |s, v| {
             let id = view_target(s, v)?;
             let hours = match (p::usize(v, "start"), p::usize(v, "end")) {

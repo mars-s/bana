@@ -188,7 +188,13 @@ pub struct ViewDef {
     /// Calendar week and day views show these hours (start, end); `None`: the whole day.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub day_hours: Option<(u8, u8)>,
+    /// Table column calculations shown under the rows (field, calculation name).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calcs: Vec<(NodeId, String)>,
 }
+
+/// Table column calculations (spec 04 §2, header menu "Calculate").
+pub const CALCS: [&str; 8] = ["sum", "average", "median", "min", "max", "count_all", "count_values", "count_unique"];
 
 /// One group of items (a board lane, a table section). Ungrouped views have one group, label "".
 #[derive(Debug, Clone, PartialEq)]
@@ -200,6 +206,38 @@ pub struct Group {
 pub const NO_VALUE: &str = "Not defined";
 
 impl Graph {
+    /// A column calculation over `items` for `field` (`sum`, `average`, `median`, `min`, `max` on
+    /// number values; `count_all`, `count_values`, `count_unique`). `None` for an unknown name.
+    pub fn column_calc(&self, items: &[NodeId], field: NodeId, calc: &str) -> Option<String> {
+        let values: Vec<Vec<&FieldValue>> =
+            items.iter().map(|i| self.get(self.resolve(*i)).map(|n| n.field_values(field)).unwrap_or_default()).collect();
+        let mut nums: Vec<f64> = values.iter().flatten().filter_map(|v| if let FieldValue::Number(x) = v { Some(*x) } else { None }).collect();
+        nums.sort_by(f64::total_cmp);
+        let fmt = |x: f64| if x.fract() == 0.0 && x.abs() < 1e15 { format!("{}", x as i64) } else { format!("{x:.2}") };
+        let none = || "-".to_string();
+        Some(match calc {
+            "sum" => fmt(nums.iter().sum()),
+            "average" if nums.is_empty() => none(),
+            "average" => fmt(nums.iter().sum::<f64>() / nums.len() as f64),
+            "median" if nums.is_empty() => none(),
+            "median" => {
+                let m = nums.len() / 2;
+                fmt(if nums.len() % 2 == 0 { (nums[m - 1] + nums[m]) / 2.0 } else { nums[m] })
+            }
+            "min" => nums.first().map(|x| fmt(*x)).unwrap_or_else(none),
+            "max" => nums.last().map(|x| fmt(*x)).unwrap_or_else(none),
+            "count_all" => items.len().to_string(),
+            "count_values" => values.iter().filter(|v| !v.is_empty()).count().to_string(),
+            "count_unique" => {
+                let mut seen: Vec<String> = values.iter().flatten().map(|v| display_value(self, v)).collect();
+                seen.sort();
+                seen.dedup();
+                seen.len().to_string()
+            }
+            _ => return None,
+        })
+    }
+
     /// The items a node shows: a search node's results, a supertag's tagged nodes, or its children.
     pub fn view_items(&self, id: NodeId) -> Vec<NodeId> {
         let target = self.resolve(id);

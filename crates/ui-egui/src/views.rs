@@ -888,20 +888,79 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                     app.header_edit = Some((*f, g.name(*f).to_string()));
                 }
             }
+            // Header menu in five groups (spec 04 §2, `163`).
             resp.context_menu(|ui| {
-                if ui.button("Sort by this field").clicked() {
-                    let desc = sort.first().is_some_and(|s| s.by == SortBy::Field(*f) && !s.desc);
-                    app.acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": f.0.to_string(), "desc": desc})));
+                let run = |acts: &mut Vec<Act>, id: &str, extra: serde_json::Value| {
+                    let mut p = json!({"node": node.0, "field": f.0});
+                    if let (Some(p), Some(e)) = (p.as_object_mut(), extra.as_object()) {
+                        p.extend(e.clone());
+                    }
+                    acts.push(Act::Run(id.into(), p));
+                };
+                let mut acts = Vec::new();
+                ui.menu_button("Change field type", |ui| {
+                    for ty in ["plain", "options", "options_from_tag", "date", "number", "url", "email", "checkbox", "user"] {
+                        if ui.button(ty.replace('_', " ")).clicked() {
+                            acts.push(Act::Run("field.setType".into(), json!({"field": f.0, "type": ty})));
+                            ui.close();
+                        }
+                    }
+                });
+                if ui.button("Configure field...").clicked() {
+                    acts.push(Act::Run("nav.open".into(), json!({"node": f.0})));
                     ui.close();
                 }
-                if ui.button("Open field").clicked() {
-                    app.acts.push(Act::Run("nav.open".into(), json!({"node": f.0})));
+                if ui.button("Filter on this value").on_hover_text("Items where this field is set").clicked() {
+                    acts.push(Act::Run("view.addFilter".into(), json!({"node": node.0, "clause": format!("\"{}\":SET", g.name(*f))})));
                     ui.close();
                 }
-                if ui.button("Remove column").clicked() {
-                    app.acts.push(Act::Run("view.removeColumn".into(), json!({"node": node.0, "field": f.0})));
+                ui.separator();
+                ui.menu_button("Calculate", |ui| {
+                    for (label, calc) in [
+                        ("None", "none"),
+                        ("Sum", "sum"),
+                        ("Average", "average"),
+                        ("Median", "median"),
+                        ("Min", "min"),
+                        ("Max", "max"),
+                        ("Count all", "count_all"),
+                        ("Count values", "count_values"),
+                        ("Count unique", "count_unique"),
+                    ] {
+                        if ui.button(label).clicked() {
+                            run(&mut acts, "view.calculate", json!({"calc": calc}));
+                            ui.close();
+                        }
+                    }
+                });
+                ui.separator();
+                for (label, desc) in [("Sort ascending", false), ("Sort descending", true)] {
+                    if ui.button(label).clicked() {
+                        acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": f.0.to_string(), "desc": desc})));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                for (label, dir) in [("Move column left", "left"), ("Move column right", "right")] {
+                    if ui.button(label).clicked() {
+                        run(&mut acts, "view.moveColumn", json!({"direction": dir}));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                if ui.button("Hide column").clicked() {
+                    run(&mut acts, "view.removeColumn", json!({}));
                     ui.close();
                 }
+                if ui.button("Hide all other columns").clicked() {
+                    run(&mut acts, "view.hideOtherColumns", json!({}));
+                    ui.close();
+                }
+                if ui.button(RichText::new("Delete column and values").color(Color32::from_rgb(232, 128, 96))).clicked() {
+                    run(&mut acts, "view.deleteColumn", json!({}));
+                    ui.close();
+                }
+                app.acts.extend(acts);
             });
         }
         if ui
@@ -936,6 +995,25 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
             flash(app, ui, *item, Rect::from_min_max(r.min, pos2(line_end, r.max.y)));
             ui.painter().line_segment([r.left_bottom(), pos2(line_end, r.bottom())], Stroke::new(1.0, t.line));
         }
+    }
+    // Column calculations under the rows.
+    let calcs = app.session.graph.view_def(node).calcs.clone();
+    if !calcs.is_empty() {
+        let items: Vec<NodeId> = groups.iter().flat_map(|g| g.items.iter().copied()).collect();
+        ui.horizontal(|ui| {
+            ui.set_min_height(26.0);
+            cell(ui, name_w, |_| {});
+            for (ci, f) in cols.iter().enumerate() {
+                cell(ui, col_ws.get(ci).copied().unwrap_or(160.0), |ui| {
+                    if let Some((_, c)) = calcs.iter().find(|(x, _)| x == f)
+                        && let Some(v) = app.session.graph.column_calc(&items, *f, c)
+                    {
+                        let label = c.replace('_', " ");
+                        ui.label(RichText::new(format!("{}{} {v}", label[..1].to_uppercase(), &label[1..])).size(12.5).color(t.faint));
+                    }
+                });
+            }
+        });
     }
     ui.add_space(4.0);
     add_button(app, ui, t, node, None);
@@ -1196,6 +1274,7 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
                 for i in &items {
                     entry(ui, app, *i, true);
                 }
+                add_entry(app, ui, t, node, "+ Add tab");
             });
             ui.separator();
             if let Some(s) = selected {
@@ -1220,7 +1299,7 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
                     for i in &items {
                         entry(ui, app, *i, kind == ViewKind::SideMenu);
                     }
-                    add_button(app, ui, t, node, None);
+                    add_entry(app, ui, t, node, "+ Add menu item");
                 });
                 ui.separator();
                 ui.vertical(|ui| {
@@ -1239,16 +1318,53 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
     }
 }
 
+/// "+ Add menu item" / "+ Add tab": a new empty last item, selected, with the caret in its heading
+/// (spec 04 §8-9, `160`, `161`).
+fn add_entry(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, label: &str) {
+    if ui.add(egui::Label::new(RichText::new(label).size(13.0).color(t.faint)).sense(Sense::click())).clicked() {
+        match app.exec("view.addItem", json!({"node": node.0, "stay": true})) {
+            Ok(v) => {
+                let id = NodeId(v["id"].as_u64().unwrap_or(0));
+                app.session.nav_selected.insert(node, id);
+                app.nav_title = Some((id, String::new(), true));
+            }
+            Err(e) => app.session.status = e,
+        }
+    }
+}
+
 /// The selected item of a navigation view: title, tags, fields and children.
 fn detail(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId) {
     let target = app.session.graph.resolve(item);
-    ui.horizontal(|ui| {
-        let g = &app.session.graph;
-        let r = ui.add(egui::Label::new(crate::outline::rich_job(g, t, g.name(target), t.text, false, 22.0)).sense(Sense::click()));
-        if r.on_hover_text("Open").clicked() {
-            app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+    // A just-added item: its heading is typed in place and names the entry live.
+    if let Some((id, buf, focus)) = app.nav_title.as_mut().filter(|(id, _, _)| *id == target) {
+        let r = ui.add(
+            egui::TextEdit::singleline(buf)
+                .id(egui::Id::new(("nav-title", id.0)))
+                .font(FontId::proportional(22.0))
+                .frame(egui::Frame::NONE)
+                .hint_text("Untitled"),
+        );
+        if *focus {
+            r.request_focus();
+            *focus = false;
         }
-    });
+        let (id, name) = (*id, buf.clone());
+        if r.changed() {
+            app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": name})));
+        }
+        if r.lost_focus() {
+            app.nav_title = None;
+        }
+    } else {
+        ui.horizontal(|ui| {
+            let g = &app.session.graph;
+            let r = ui.add(egui::Label::new(crate::outline::rich_job(g, t, g.name(target), t.text, false, 22.0)).sense(Sense::click()));
+            if r.on_hover_text("Open").clicked() {
+                app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+            }
+        });
+    }
     ui.horizontal(|ui| {
         let g = &app.session.graph;
         for tag in g.get(target).map(|n| n.tags.clone()).unwrap_or_default() {

@@ -1340,3 +1340,50 @@ fn diffs_n12_pasting_copied_nodes_into_an_empty_line_replaces_it() {
     assert_eq!(kids.len(), 1, "the empty line became the reference");
     assert_eq!(g.resolve(kids[0]), ids[0]);
 }
+
+#[test]
+fn side_menu_and_tabs_add_an_item_and_type_its_heading() {
+    // Spec 04 §8-9 (`160`, `161`).
+    for (kind, label) in [("side_menu", "+ Add menu item"), ("tabs", "+ Add tab")] {
+        let mut h = harness();
+        let page = page_with(&mut h, &["Menu"])[0];
+        h.state_mut().exec("node.add", json!({"parent": page.0, "name": "First"})).unwrap();
+        h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+        h.state_mut().exec("view.set", json!({"kind": kind})).unwrap();
+        for _ in 0..3 {
+            h.step();
+        }
+        h.get_by_label(label).click();
+        for _ in 0..3 {
+            h.step();
+        }
+        text(&mut h, "Second");
+        let g = &h.state().session.graph;
+        let kids = g.children(page);
+        assert_eq!(kids.len(), 2, "{kind}");
+        assert_eq!(g.name(kids[1]), "Second", "{kind}");
+        assert_eq!(h.state().session.nav_selected.get(&page), Some(&kids[1]), "{kind}");
+    }
+}
+
+#[test]
+fn hidden_fields_fold_to_a_label_when_not_empty_or_always() {
+    // Spec 03 §6 (`164`, `165`).
+    for mode in ["when_not_empty", "always"] {
+        let mut h = harness();
+        let page = page_with(&mut h, &["Trip"])[0];
+        h.state_mut().exec("field.add", json!({"node": page.0, "field": "Budget", "value": "ninety"})).unwrap();
+        h.state_mut().exec("field.setHide", json!({"field": "Budget", "mode": mode})).unwrap();
+        h.state_mut().exec("node.expand", json!({"node": page.0})).unwrap();
+        for _ in 0..3 {
+            h.step();
+        }
+        h.get_by_label("+ Budget");
+        assert!(h.query_by_label("ninety").is_none(), "{mode}");
+        h.get_by_label("+ Budget").click();
+        for _ in 0..3 {
+            h.step();
+        }
+        assert!(h.query_by_label("+ Budget").is_none(), "{mode}: clicking reveals the row");
+    }
+}

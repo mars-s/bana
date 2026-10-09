@@ -1,6 +1,8 @@
 //! Inline formatting inside a node's text, stored as light marks (our own format, close to
 //! Markdown): `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `` `code` ``. A mark with
 //! no partner later in the text is shown as typed.
+//!
+//! Inline references are `[[id:42]]` (shown as the target's name); `http(s)://` words are links.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mark {
@@ -43,6 +45,28 @@ pub struct Span {
     pub underline: bool,
     pub highlight: bool,
     pub code: bool,
+    /// An inline reference to this node (`text` is empty; show the target's name).
+    pub node: Option<u64>,
+    /// A link (`text` is the URL).
+    pub url: Option<String>,
+}
+
+/// The inline reference token for node `id`.
+pub fn ref_token(id: u64) -> String {
+    format!("[[id:{id}]]")
+}
+
+/// An inline reference at byte `i`: (node id, token length).
+fn ref_at(s: &str, i: usize) -> Option<(u64, usize)> {
+    let rest = s.get(i..)?.strip_prefix("[[id:")?;
+    let end = rest.find("]]")?;
+    let id = rest.get(..end)?.parse().ok()?;
+    Some((id, 5 + end + 2))
+}
+
+/// Node ids referenced inline in `s`.
+pub fn refs(s: &str) -> Vec<u64> {
+    spans(s).into_iter().filter_map(|sp| sp.node).collect()
 }
 
 /// Marks in matching order: longer tokens first so `**` is not read as two `*`.
@@ -59,6 +83,30 @@ pub fn spans(s: &str) -> Vec<Span> {
     let mut cur = Span::default();
     let mut i = 0;
     while i < s.len() {
+        if !cur.code
+            && let Some((id, len)) = ref_at(s, i)
+        {
+            if !cur.text.is_empty() {
+                out.push(cur.clone());
+                cur.text.clear();
+            }
+            out.push(Span { text: String::new(), node: Some(id), ..cur.clone() });
+            i += len;
+            continue;
+        }
+        let at_word = i == 0 || s.get(..i).and_then(|b| b.chars().last()).is_some_and(char::is_whitespace);
+        if !cur.code && at_word && s.get(i..).is_some_and(|r| r.starts_with("http://") || r.starts_with("https://")) {
+            let rest = s.get(i..).unwrap_or("");
+            let len = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            let url = rest.get(..len).unwrap_or("").to_string();
+            if !cur.text.is_empty() {
+                out.push(cur.clone());
+                cur.text.clear();
+            }
+            out.push(Span { text: url.clone(), url: Some(url), ..cur.clone() });
+            i += len;
+            continue;
+        }
         let mark = if cur.code { s.get(i..).filter(|r| r.starts_with('`')).map(|_| Mark::Code) } else { mark_at(s, i) };
         if let Some(m) = mark {
             let tok = m.token();
@@ -106,7 +154,7 @@ fn set(s: &mut Span, m: Mark, on: bool) {
 
 /// The text without marks (search, titles, exports that want plain text).
 pub fn plain(s: &str) -> String {
-    if !s.contains(['*', '_', '=', '`']) {
+    if !s.contains(['*', '_', '=', '`', '[']) {
         return s.to_string();
     }
     spans(s).into_iter().map(|sp| sp.text).collect()
@@ -170,6 +218,12 @@ mod tests {
         assert_eq!(plain("2 * 3 = 6"), "2 * 3 = 6");
         assert_eq!(plain("snake_case"), "snake_case");
         assert!(!is_formatted("plain text"));
+        let sp = spans("see [[id:42]] and https://example.org now");
+        assert_eq!(sp.iter().find_map(|x| x.node), Some(42));
+        assert_eq!(sp.iter().find_map(|x| x.url.clone()).as_deref(), Some("https://example.org"));
+        assert_eq!(refs("a [[id:1]] b [[id:2]]"), vec![1, 2]);
+        assert_eq!(plain("a [[id:1]] b"), "a  b");
+        assert_eq!(plain("[[not a ref]]"), "[[not a ref]]");
     }
 
     #[test]

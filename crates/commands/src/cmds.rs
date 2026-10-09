@@ -51,6 +51,22 @@ pub fn registry() -> Registry {
         C::new("search.addClause", "Add search condition", "Search", search_add_clause).params(r#"{"node"?: id, "clause": string, "not"?: bool}"#),
         C::new("search.removeClause", "Remove search condition", "Search", search_remove_clause).params(r#"{"node"?: id, "index": number}"#),
         C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not).params(r#"{"node"?: id, "index": number}"#),
+        C::new("search.toPlainList", "Convert search node to plain list", "Search", |s, v| {
+            let id = search_target(s, v)?;
+            let n = s.graph.search_to_plain(id)?;
+            Ok(json!({"node": id.0, "references": n}))
+        })
+        .params(r#"{"node"?: id}"#),
+        C::new("node.sortChildren", "Sort children", "Node", sort_children).params(r#"{"node"?: id, "by": "name|created|done", "desc"?: bool}"#),
+        C::new("select.all", "Select all", "View", |s, _| {
+            let rows = s.rows();
+            let (Some(a), Some(b)) = (rows.first(), rows.last()) else { return Ok(json!({})) };
+            s.sel = Some((a.id, b.id));
+            s.focus = None;
+            Ok(json!({"selected": s.selected().len()}))
+        })
+        .key("Mod+A")
+        .pure(),
         C::new("search.setMode", "Match all or any", "Search", search_set_mode).params(r#"{"node"?: id, "any": bool}"#),
         // Views.
         C::new("view.set", "View as", "Views", view_set)
@@ -1441,4 +1457,16 @@ fn field_remove_option(s: &mut Session, v: &Value) -> CmdResult {
     let o = p::req_str(v, "option")?.to_string();
     s.graph.field_def_mut(f)?.options.retain(|x| *x != o);
     Ok(json!({"field": f.0}))
+}
+
+fn sort_children(s: &mut Session, v: &Value) -> CmdResult {
+    let id = p::node(v, "node")?.or(s.focus).unwrap_or(s.zoom);
+    let by = match p::req_str(v, "by")? {
+        "name" => SortBy::Name,
+        "created" => SortBy::Created,
+        "done" => SortBy::Done,
+        other => return Err(CmdError::Params(format!("sort children by name, created or done, not `{other}`"))),
+    };
+    s.graph.sort_children(id, by, p::bool(v, "desc").unwrap_or(false))?;
+    Ok(json!({"node": id.0}))
 }

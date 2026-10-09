@@ -372,7 +372,7 @@ fn groups_for(app: &TanaApp, node: NodeId) -> Vec<Group> {
     let mut groups = g.view_groups(node);
     if let Some(q) = app.quick_filter.get(&node).map(|q| q.trim().to_lowercase()).filter(|q| !q.is_empty()) {
         for gr in &mut groups {
-            gr.items.retain(|i| tanacraft_core::format::plain(g.name(*i)).to_lowercase().contains(&q));
+            gr.items.retain(|i| g.text(*i).to_lowercase().contains(&q));
         }
     }
     groups
@@ -464,7 +464,11 @@ pub(crate) fn item_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId
     }
     let g = &app.session.graph;
     let done = g.checkbox(target) == Some(true);
-    if rich_label(ui, t, g.name(target), if done { t.dim } else { t.text }, false).clicked() {
+    let mut link_acts = Vec::new();
+    let clicked = rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false).clicked();
+    if !link_acts.is_empty() {
+        app.acts.extend(link_acts);
+    } else if clicked {
         app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
     }
     if with_chips {
@@ -629,7 +633,11 @@ fn card(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, item: NodeId, 
                         }
                         let g = &app.session.graph;
                         let done = g.checkbox(target) == Some(true);
-                        if rich_label(ui, t, g.name(target), if done { t.dim } else { t.text }, false).clicked() {
+                        let mut link_acts = Vec::new();
+                        let clicked = rich_label(ui, &mut link_acts, g, t, g.name(target), if done { t.dim } else { t.text }, false).clicked();
+                        if !link_acts.is_empty() {
+                            app.acts.extend(link_acts);
+                        } else if clicked {
                             app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
                         }
                     });
@@ -729,7 +737,7 @@ fn navigation(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, kind: Vi
     let mut entry = |ui: &mut Ui, app: &TanaApp, item: NodeId, compact: bool| {
         let g = &app.session.graph;
         let active = Some(item) == selected;
-        let name = tanacraft_core::format::plain(g.name(item));
+        let name = g.text(item);
         let label = RichText::new(if name.is_empty() { "Untitled".to_string() } else { name })
             .size(if compact { 13.5 } else { 14.5 })
             .color(if active { t.text } else { t.dim });
@@ -785,7 +793,7 @@ fn detail(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, item: NodeId) {
     let target = app.session.graph.resolve(item);
     ui.horizontal(|ui| {
         let g = &app.session.graph;
-        let r = ui.add(egui::Label::new(crate::outline::rich_job(t, g.name(target), t.text, false, 22.0)).sense(Sense::click()));
+        let r = ui.add(egui::Label::new(crate::outline::rich_job(g, t, g.name(target), t.text, false, 22.0)).sense(Sense::click()));
         if r.on_hover_text("Open").clicked() {
             app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
         }
@@ -914,7 +922,7 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                 painter.rect_filled(r, 3.0, color.1);
                 painter.rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 1.0, color.0);
                 let done = g.checkbox(target) == Some(true);
-                let name = tanacraft_core::format::plain(g.name(target));
+                let name = g.text(target);
                 let mut x = r.left() + 8.0;
                 if let Some(d) = g.checkbox(target) {
                     let b = Rect::from_center_size(pos2(x + 5.0, r.center().y), vec2(10.0, 10.0));

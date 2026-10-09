@@ -246,7 +246,7 @@ impl Graph {
     fn sort_key_cmp(&self, a: NodeId, b: NodeId, by: SortBy) -> std::cmp::Ordering {
         let (na, nb) = (self.get(a), self.get(b));
         match by {
-            SortBy::Name => crate::format::plain(self.name(a)).to_lowercase().cmp(&crate::format::plain(self.name(b)).to_lowercase()),
+            SortBy::Name => self.text(a).to_lowercase().cmp(&self.text(b).to_lowercase()),
             SortBy::Created => na.map(|n| n.created).cmp(&nb.map(|n| n.created)).then(a.cmp(&b)),
             SortBy::Done => self.checkbox(a).cmp(&self.checkbox(b)),
             SortBy::Field(f) => {

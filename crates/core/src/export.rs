@@ -31,7 +31,7 @@ pub fn node_line(g: &Graph, id: NodeId) -> String {
     if n.reference_target().is_some() {
         s.push_str(&format!("[[{}]]", t.name));
     } else {
-        s.push_str(&t.name);
+        s.push_str(&inline_refs_as_names(g, &t.name));
     }
     for tag in &t.tags {
         s.push_str(&format!(" #{}", tag_token(g.name(*tag))));
@@ -41,6 +41,18 @@ pub fn node_line(g: &Graph, id: NodeId) -> String {
 
 fn tag_token(name: &str) -> String {
     if name.contains(' ') { format!("[[{name}]]") } else { name.to_string() }
+}
+
+/// `[[id:42]]` becomes `[[Name]]` in exports.
+fn inline_refs_as_names(g: &Graph, s: &str) -> String {
+    if !s.contains("[[id:") {
+        return s.to_string();
+    }
+    let mut out = s.to_string();
+    for r in crate::format::refs(s) {
+        out = out.replace(&crate::format::ref_token(r), &format!("[[{}]]", g.name(NodeId(r))));
+    }
+    out
 }
 
 /// Markdown outline of `id` and its subtree. The root line is included unless `children_only`.

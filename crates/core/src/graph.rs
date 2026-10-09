@@ -180,16 +180,28 @@ impl Graph {
         self.dirty = true;
     }
 
+    /// A node's text as people read it: marks removed, inline references replaced by names.
+    pub fn text(&self, id: NodeId) -> String {
+        let raw = self.name(id);
+        if !raw.contains("[[id:") {
+            return crate::format::plain(raw);
+        }
+        crate::format::spans(raw)
+            .into_iter()
+            .map(|sp| match sp.node {
+                Some(n) => crate::format::plain(self.name(NodeId(n))),
+                None => sp.text,
+            })
+            .collect()
+    }
+
     /// Case-insensitive substring search over names, outside the trash.
     pub fn search(&self, query: &str) -> Vec<NodeId> {
         let q = query.to_lowercase();
         self.nodes
             .values()
             .filter(|n| {
-                n.reference_target().is_none()
-                    && !self.is_system(n.id)
-                    && crate::format::plain(&n.name).to_lowercase().contains(&q)
-                    && !self.in_trash(n.id)
+                n.reference_target().is_none() && !self.is_system(n.id) && self.text(n.id).to_lowercase().contains(&q) && !self.in_trash(n.id)
             })
             .map(|n| n.id)
             .collect()
@@ -206,7 +218,7 @@ impl Graph {
             .nodes
             .values()
             .filter(|n| n.reference_target().is_none() && !self.is_system(n.id) && !self.in_trash(n.id))
-            .filter_map(|n| fuzzy_score(&q, &crate::format::plain(&n.name).to_lowercase()).map(|s| (s, n.id)))
+            .filter_map(|n| fuzzy_score(&q, &self.text(n.id).to_lowercase()).map(|s| (s, n.id)))
             .collect();
         hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
         hits.into_iter().take(limit).map(|(_, id)| id).collect()
@@ -223,6 +235,7 @@ impl Graph {
             .values()
             .filter(|n| {
                 n.reference_target() == Some(target)
+                    || (n.name.contains("[[id:") && crate::format::refs(&n.name).contains(&target.0))
                     || n.fields
                         .iter()
                         .any(|f| f.value == Some(FieldValue::Node(target)) || day_date.is_some_and(|d| f.value == Some(FieldValue::Date(d))))
@@ -1053,6 +1066,37 @@ impl Graph {
         self.view_mut(id)?.kind = kind;
         self.tag_def_mut(tag)?.views.push(id);
         Ok(id)
+    }
+
+    /// Turns a search node into a plain node whose children are references to today's results.
+    pub fn search_to_plain(&mut self, id: NodeId) -> Result<usize> {
+        let id = self.resolve(id);
+        let results = self.view_items(id);
+        if self.query(id).is_none() {
+            return Err(Error::Invalid(format!("node {id} is not a search node")));
+        }
+        self.node_mut(id)?.kind = Kind::Plain;
+        for r in &results {
+            self.create_reference(id, None, *r)?;
+        }
+        Ok(results.len())
+    }
+
+    /// Reorders children for good: by name, created time, or not done first.
+    pub fn sort_children(&mut self, id: NodeId, by: crate::view::SortBy, desc: bool) -> Result<()> {
+        let id = self.resolve(id);
+        let mut kids = self.node(id)?.children.clone();
+        kids.sort_by(|a, b| {
+            let (a, b) = (self.resolve(*a), self.resolve(*b));
+            let o = match by {
+                crate::view::SortBy::Name => self.text(a).to_lowercase().cmp(&self.text(b).to_lowercase()),
+                crate::view::SortBy::Done => self.checkbox(a).unwrap_or(false).cmp(&self.checkbox(b).unwrap_or(false)),
+                _ => self.get(a).map(|n| n.created).cmp(&self.get(b).map(|n| n.created)),
+            };
+            if desc { o.reverse() } else { o }
+        });
+        self.node_mut(id)?.children = kids;
+        Ok(())
     }
 
     /// Adds related content to a supertag: a search shown beside every tagged node's page.

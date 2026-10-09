@@ -301,10 +301,14 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             n.fields.iter().any(|f| f.value == Some(FieldValue::Date(d)))
                 || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
         }
-        ClauseKind::LinksTo { node } => n.reference_target() == Some(*node) || n.fields.iter().any(|f| f.value == Some(FieldValue::Node(*node))),
+        ClauseKind::LinksTo { node } => {
+            n.reference_target() == Some(*node)
+                || crate::format::refs(&n.name).contains(&node.0)
+                || n.fields.iter().any(|f| f.value == Some(FieldValue::Node(*node)))
+        }
         ClauseKind::Group { query } => query.matches(g, id),
         ClauseKind::Tagged { tag } => n.tags.iter().any(|t| g.tag_lineage(*t).contains(tag)),
-        ClauseKind::Text { text } => crate::format::plain(&n.name).to_lowercase().contains(&text.to_lowercase()),
+        ClauseKind::Text { text } => g.text(id).to_lowercase().contains(&text.to_lowercase()),
         ClauseKind::Done => g.checkbox(id) == Some(true),
         ClauseKind::Todo => g.checkbox(id) == Some(false),
         ClauseKind::CreatedWithin { days } => {

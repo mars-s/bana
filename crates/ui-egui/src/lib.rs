@@ -63,6 +63,10 @@ pub enum PickMode {
     Extend,
     /// A field for the template of `node` (a supertag).
     TemplateField,
+    /// `@` mid-sentence: an inline reference inserted at `Picker::caret`.
+    InlineRef,
+    /// "Move to": a new owner for `node`.
+    MoveTo,
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +79,8 @@ pub struct Picker {
     pub anchor: egui::Pos2,
     /// The field, for `Choice`.
     pub field: Option<NodeId>,
+    /// Where an inline reference goes (chars), for `InlineRef`.
+    pub caret: Option<usize>,
     focus_once: bool,
 }
 
@@ -116,6 +122,8 @@ pub(crate) enum Act {
     /// "Go to date": a month picker that opens the chosen day.
     GoToDate(egui::Pos2),
     ClosePanel(usize),
+    /// `@` typed mid-sentence at this caret.
+    PickInline(NodeId, usize, egui::Pos2),
 }
 
 /// The date picker of a date field.
@@ -300,7 +308,7 @@ impl TanaApp {
 
     /// Opens a picker (`#` tag, `>` field, `@` reference) for `node` at `anchor`.
     pub fn open_picker(&mut self, mode: PickMode, node: NodeId, anchor: egui::Pos2) {
-        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, focus_once: true });
+        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, caret: None, focus_once: true });
     }
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
@@ -448,6 +456,12 @@ impl TanaApp {
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::ClosePanel(i) => self.close_panel(i),
+                Act::PickInline(node, caret, at) => {
+                    self.open_picker(PickMode::InlineRef, node, at);
+                    if let Some(p) = self.picker.as_mut() {
+                        p.caret = Some(caret);
+                    }
+                }
                 Act::GoToDate(anchor) => {
                     let d = self.session.today;
                     self.date_pick = Some(DatePick { node: self.session.zoom, field: None, month: (d.year, d.month), anchor, buf: String::new() });

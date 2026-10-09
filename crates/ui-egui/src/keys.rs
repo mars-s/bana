@@ -176,6 +176,33 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             }
             return false;
         }
+        // Left at the start / Right at the end jump to the neighbouring line (spec 02 §5).
+        "Left" | "Right" if editing && app.edit.selection_empty => {
+            let Some(f) = app.session.focus else { return false };
+            let len = app.session.graph.name(f).chars().count();
+            let left = k == "Left";
+            if (left && app.session.caret > 0) || (!left && app.session.caret < len) {
+                return false;
+            }
+            let rows = app.session.rows();
+            let at = rows.iter().position(|r| r.id == f);
+            let next = at.and_then(|i| if left { i.checked_sub(1) } else { Some(i + 1) }).and_then(|i| rows.get(i)).map(|r| r.id);
+            if let Some(n) = next {
+                app.exec("focus.set", json!({"node": n.0, "caret": if left { usize::MAX } else { 0 }})).ok();
+                return true;
+            }
+            return false;
+        }
+        // Cmd+A selects the text first, then (all text already selected) every bullet.
+        "Mod+A" if editing => {
+            let len = app.session.focus.map(|f| app.session.graph.name(f).chars().count()).unwrap_or(0);
+            let all = app.session.anchor.min(app.session.caret) == 0 && app.session.anchor.max(app.session.caret) == len;
+            if !all {
+                return false;
+            }
+            app.exec("select.all", json!({})).ok();
+            return true;
+        }
         // Up from the first bullet goes into the page title (spec 02 §5).
         "Up" if editing && app.session.rows().first().map(|r| r.id) == app.session.focus => {
             app.session.focus = None;

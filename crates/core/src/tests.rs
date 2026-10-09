@@ -434,7 +434,9 @@ fn nested_groups_and_operators() {
     assert!(names(&g, "IN:LIBRARY AND seed").contains(&"Seed list".to_string()));
     assert_eq!(names(&g, "DONE:7"), ["Order cedar boards"], "checked just now (in the sample)");
     let robin = g.search("Robin Ash")[0];
-    assert_eq!(names(&g, &format!("LINKS:{robin}")), ["Community garden"]);
+    let links = names(&g, &format!("LINKS:{robin}"));
+    assert_eq!(links.len(), 2, "the Owner field and the inline reference: {links:?}");
+    assert!(links.contains(&"Community garden".to_string()));
     for text in ["(#meeting OR #person) AND NOT Outdoors:Yes", "IS:TAG", "DATE:today", "HAS:FIELD AND ON:DAY"] {
         let q = Query::parse(&g, text).unwrap();
         assert_eq!(Query::parse(&g, &q.describe(&g)).unwrap(), q, "{text}");
@@ -522,4 +524,17 @@ fn supertag_configuration_behaviours() {
     assert_eq!(related.len(), 1);
     assert_eq!(g.name(related[0]), "Open tasks");
     assert_eq!(HideMode::parse("when empty"), Some(HideMode::WhenEmpty));
+}
+
+#[test]
+fn inline_references_are_backlinks_and_export_as_names() {
+    let mut g = garden();
+    let garden_id = g.search("Community garden")[0];
+    let n = g.create(g.sys.library, None, &format!("Ask about {} tomorrow", format::ref_token(garden_id.0))).unwrap();
+    assert!(g.references_to(garden_id).contains(&n));
+    assert_eq!(g.text(n), "Ask about Community garden tomorrow");
+    assert_eq!(g.search("about community")[0], n, "search sees the name");
+    assert!(export::to_markdown(&g, n, false).contains("Ask about [[Community garden]] tomorrow"));
+    let q = Query::parse(&g, &format!("LINKS:{garden_id}")).unwrap();
+    assert!(q.run(&g, NodeId(0)).contains(&n));
 }

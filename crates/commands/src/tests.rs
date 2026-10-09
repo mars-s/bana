@@ -503,3 +503,22 @@ fn configuration_commands() {
 fn export_md(s: &mut Session, n: NodeId) -> String {
     run(s, "export.markdown", json!({"node": n.0}))["markdown"].as_str().unwrap().to_string()
 }
+
+#[test]
+fn convert_search_sort_children_select_all() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let open = s.graph.search("Open tasks")[0];
+    let r = run(&mut s, "search.toPlainList", json!({"node": open.0}));
+    assert_eq!(r["references"], 3);
+    assert!(s.graph.query(open).is_none());
+    assert_eq!(s.graph.children(open).len(), 3);
+    let beds = s.graph.search("Raised beds")[0];
+    run(&mut s, "node.sortChildren", json!({"node": beds.0, "by": "name"}));
+    let names: Vec<&str> = s.graph.children(beds).iter().map(|c| s.graph.name(*c)).collect();
+    assert_eq!(names, ["Build four beds", "Fill with compost", "Order cedar boards"]);
+    run(&mut s, "node.sortChildren", json!({"node": beds.0, "by": "done"}));
+    assert_eq!(s.graph.name(s.graph.children(beds)[2]), "Order cedar boards", "not done first");
+    run(&mut s, "nav.open", json!({"node": beds.0}));
+    run(&mut s, "select.all", json!({}));
+    assert_eq!(s.selected().len(), 3);
+}

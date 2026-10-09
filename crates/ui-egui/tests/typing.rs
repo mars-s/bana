@@ -289,3 +289,35 @@ fn tabs_and_panels_keep_their_own_pages() {
         assert_eq!(h.state().sidebar, want);
     }
 }
+
+#[test]
+fn inline_reference_left_right_and_select_all() {
+    let mut h = harness();
+    let a = h.state_mut().exec("node.add", json!({"name": "Target note"})).unwrap();
+    let b = h.state_mut().exec("node.add", json!({"name": ""})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": b["id"]})).unwrap();
+    h.step();
+    text(&mut h, "see ");
+    text(&mut h, "@");
+    assert!(h.state().picker.is_some(), "@ mid-sentence opens the inline picker");
+    text(&mut h, "target");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let bid = tanacraft_core::NodeId(b["id"].as_u64().unwrap());
+    let aid = tanacraft_core::NodeId(a["id"].as_u64().unwrap());
+    assert_eq!(g.text(bid), "see Target note");
+    assert!(g.references_to(aid).contains(&bid));
+    // Left at the start goes to the end of the line above.
+    h.state_mut().exec("focus.set", json!({"node": bid.0, "caret": 0})).unwrap();
+    h.step();
+    key(&mut h, Key::ArrowLeft, Modifiers::NONE);
+    assert_eq!(h.state().session.focus, Some(aid));
+    assert_eq!(h.state().session.caret, "Target note".len());
+    key(&mut h, Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(h.state().session.focus, Some(bid));
+    // Cmd+A twice: text, then every bullet.
+    let cmd = Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE };
+    key(&mut h, Key::A, cmd);
+    key(&mut h, Key::A, cmd);
+    assert_eq!(h.state().session.selected().len(), 2);
+}

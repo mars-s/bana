@@ -216,6 +216,27 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
+        PickMode::InlineRef | PickMode::MoveTo if q.is_empty() => app
+            .session
+            .recents
+            .iter()
+            .copied()
+            .filter(|r| *r != p.node && g.get(*r).is_some())
+            .take(8)
+            .map(|n| Choice::Existing(n, export::node_line(g, n)))
+            .collect(),
+        PickMode::InlineRef => g.fuzzy(&q, 10).into_iter().filter(|n| *n != p.node).map(|n| Choice::Existing(n, export::node_line(g, n))).collect(),
+        PickMode::MoveTo => {
+            let mut v: Vec<Choice> = [g.sys.library, g.sys.journal]
+                .into_iter()
+                .filter(|n| g.name(*n).to_lowercase().contains(&q))
+                .map(|n| Choice::Existing(n, g.name(n).to_string()))
+                .collect();
+            v.extend(
+                g.fuzzy(&q, 10).into_iter().filter(|n| !g.is_ancestor_or_self(p.node, *n)).map(|n| Choice::Existing(n, export::node_line(g, n))),
+            );
+            v
+        }
         PickMode::Reference if q.is_empty() => Vec::new(),
         PickMode::Reference => {
             g.search(&q).into_iter().filter(|n| *n != p.node).take(10).map(|n| Choice::Existing(n, export::node_line(g, n))).collect()
@@ -225,7 +246,10 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
     let exact = out.iter().any(|c| matches!(c, Choice::Existing(_, name) if name.trim_start_matches('#').eq_ignore_ascii_case(&q)));
     if !q.is_empty()
         && !exact
-        && !matches!(p.mode, PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate | PickMode::Extend)
+        && !matches!(
+            p.mode,
+            PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate | PickMode::Extend | PickMode::MoveTo
+        )
     {
         out.push(Choice::Create(p.query.trim().trim_start_matches('#').to_string()));
     }
@@ -278,6 +302,30 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
             app.exec("search.create", json!({"query": format!("#\"{name}\""), "name": format!("List of {name}"), "replace": node.0}))
         }
         (PickMode::Slash | PickMode::SearchCreate | PickMode::Extend, Choice::Create(_)) => Ok(json!({})),
+        (PickMode::InlineRef, choice) => {
+            // Insert `[[id:N]]` where the `@` was; "Create" makes a new node in the Library first.
+            let target = match choice {
+                Choice::Existing(n, _) => Ok(n),
+                Choice::Create(name) => app
+                    .exec("node.add", json!({"parent": app.session.graph.sys.library.0, "name": name}))
+                    .map(|v| NodeId(v["id"].as_u64().unwrap_or(0))),
+            };
+            match target {
+                Ok(n) if app.session.graph.get(n).is_some() => {
+                    let name = app.session.graph.name(node).to_string();
+                    let at = p.caret.unwrap_or(name.chars().count()).min(name.chars().count());
+                    let byte = name.char_indices().nth(at).map(|(b, _)| b).unwrap_or(name.len());
+                    let token = tanacraft_core::format::ref_token(n.0);
+                    let new = format!("{}{}{}", &name[..byte], token, &name[byte..]);
+                    let caret = at + token.chars().count();
+                    app.exec("node.setName", json!({"node": node.0, "name": new, "caret": caret}))
+                }
+                Ok(_) => Ok(json!({})),
+                Err(e) => Err(e),
+            }
+        }
+        (PickMode::MoveTo, Choice::Existing(dest, _)) => app.exec("node.move", json!({"node": node.0, "parent": dest.0})),
+        (PickMode::MoveTo, Choice::Create(_)) => Ok(json!({})),
         (PickMode::Extend, Choice::Existing(base, _)) => app.exec("tag.extend", json!({"tag": node.0, "base": base.0})),
         (PickMode::TemplateField, Choice::Existing(f, _)) => app.exec("tag.addField", json!({"tag": node.0, "field": f.0})),
         (PickMode::TemplateField, Choice::Create(name)) => app.exec("tag.addField", json!({"tag": node.0, "field": name})),
@@ -336,6 +384,8 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::SearchCreate => "Create search node: find supertag",
         PickMode::Extend => "Extend supertag",
         PickMode::TemplateField => "Add a field to the template",
+        PickMode::InlineRef => "Reference a node inline",
+        PickMode::MoveTo => "Move to",
     };
     egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(p.anchor).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {

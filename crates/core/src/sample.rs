@@ -96,6 +96,9 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.add_tag(t, task)?;
     g.set_field_text(t, due, &today.add_days(2).to_string())?;
     g.create_reference(day, None, garden)?;
+    if let Some(r) = robin {
+        g.create(day, None, &format!("Ask {} for the shed key, map at https://example.org/shed", crate::format::ref_token(r.0)))?;
+    }
 
     // Supertag view tabs and pins.
     let board = g.tag_add_view(task, crate::view::ViewKind::Cards)?;

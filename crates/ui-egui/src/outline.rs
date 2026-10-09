@@ -559,15 +559,32 @@ fn hint(ty: FieldType) -> &'static str {
     }
 }
 
-/// Node text with its inline marks rendered (bold, italic, underline, highlight, code).
+/// What an inline reference or link in node text points at.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum LinkTarget {
+    Node(NodeId),
+    Url(String),
+}
+
+/// Node text with its inline marks rendered (bold, italic, underline, highlight, code), inline
+/// references shown as the target's name and links in blue. Returns the job and, per section, what
+/// clicking it opens.
 // ponytail: the default font has no bold weight; bold is drawn brighter and slightly spaced. Ship a
 // bold font file (with an ATTRIBUTION row) when that is not enough.
-pub(crate) fn rich_job(t: &Tokens, text: &str, color: Color32, strike: bool, size: f32) -> egui::text::LayoutJob {
+pub(crate) fn rich_job_links(
+    g: &Graph,
+    t: &Tokens,
+    text: &str,
+    color: Color32,
+    strike: bool,
+    size: f32,
+) -> (egui::text::LayoutJob, Vec<Option<LinkTarget>>) {
     let mut job = egui::text::LayoutJob::default();
+    let mut targets = Vec::new();
     for sp in tanacraft_core::format::spans(text) {
         let mut f = egui::TextFormat { font_id: FontId::proportional(size), color, italics: sp.italic, ..Default::default() };
         if sp.bold {
-            f.color = if color == t.text { t.text.gamma_multiply(1.0).linear_multiply(1.15) } else { color };
+            f.color = if color == t.text { t.text.linear_multiply(1.15) } else { color };
             f.extra_letter_spacing = 0.35;
         }
         if sp.underline {
@@ -584,18 +601,78 @@ pub(crate) fn rich_job(t: &Tokens, text: &str, color: Color32, strike: bool, siz
         if strike {
             f.strikethrough = Stroke::new(1.0, color);
         }
-        job.append(&sp.text, 0.0, f);
+        let (shown, target) = match (sp.node, &sp.url) {
+            (Some(n), _) => {
+                f.color = t.link;
+                let name = g.text(NodeId(n));
+                (
+                    if g.get(NodeId(n)).is_none() {
+                        "(missing node)".to_string()
+                    } else if name.is_empty() {
+                        "Untitled".to_string()
+                    } else {
+                        name
+                    },
+                    Some(LinkTarget::Node(NodeId(n))),
+                )
+            }
+            (_, Some(u)) => {
+                f.color = t.link;
+                f.underline = Stroke::new(1.0, t.link.gamma_multiply(0.6));
+                (sp.text.clone(), Some(LinkTarget::Url(u.clone())))
+            }
+            _ => (sp.text.clone(), None),
+        };
+        if shown.is_empty() {
+            continue;
+        }
+        job.append(&shown, 0.0, f);
+        targets.push(target);
     }
     if job.text.is_empty() {
         job.append(" ", 0.0, egui::TextFormat { font_id: FontId::proportional(size), color, ..Default::default() });
+        targets.push(None);
     }
-    job
+    (job, targets)
 }
 
-/// A clickable label with inline marks rendered.
-pub(crate) fn rich_label(ui: &mut Ui, t: &Tokens, text: &str, color: Color32, strike: bool) -> egui::Response {
-    let job = rich_job(t, text, color, strike, theme::FONT);
-    ui.add(egui::Label::new(job).sense(Sense::click()))
+pub(crate) fn rich_job(g: &Graph, t: &Tokens, text: &str, color: Color32, strike: bool, size: f32) -> egui::text::LayoutJob {
+    rich_job_links(g, t, text, color, strike, size).0
+}
+
+/// A clickable label with marks, inline references and links. Returns the response and, when the
+/// click landed on a reference or link, its target.
+pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Option<LinkTarget>]) -> (egui::Response, Option<LinkTarget>) {
+    let (pos, galley, resp) = egui::Label::new(job).sense(Sense::click()).layout_in_ui(ui);
+    ui.painter().galley(pos, galley.clone(), Color32::WHITE);
+    // Keep the text visible to accessibility (and to UI tests).
+    let text = galley.text().to_string();
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text.clone()));
+    let mut hit = None;
+    if let Some(p) = ui.ctx().pointer_hover_pos().filter(|p| resp.rect.contains(*p)) {
+        let c = galley.cursor_from_pos(p - pos);
+        let byte = galley.job.text.char_indices().nth(c.index.0).map(|(b, _)| b).unwrap_or(galley.job.text.len());
+        let sec = galley.job.sections.iter().position(|s| s.byte_range.start.0 <= byte && byte < s.byte_range.end.0);
+        hit = sec.and_then(|i| targets.get(i).cloned().flatten());
+        if hit.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+    }
+    let clicked = resp.clicked();
+    (resp, if clicked { hit } else { None })
+}
+
+/// A clickable label with inline marks rendered; references and links open on click.
+pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &Tokens, text: &str, color: Color32, strike: bool) -> egui::Response {
+    let (job, targets) = rich_job_links(g, t, text, color, strike, theme::FONT);
+    let (resp, hit) = link_label(ui, job, &targets);
+    match hit {
+        Some(LinkTarget::Node(n)) => app_acts.push(Act::Run("nav.open".into(), json!({"node": n.0}))),
+        Some(LinkTarget::Url(u)) => ui.ctx().open_url(egui::OpenUrl::new_tab(u)),
+        None => return resp,
+    }
+    // The link handled the click; the caller should not also act on it.
+    resp.clone().on_hover_text("Open")
 }
 
 /// The node menu (right-click a bullet, or "..." on a page).
@@ -635,11 +712,15 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
         }
     };
     item(ui, "Duplicate", run("node.duplicate"));
+    item(ui, "Move to...", Act::Pick(PickMode::MoveTo, id, at));
     item(ui, "Move up", run("node.moveUp"));
     item(ui, "Move down", run("node.moveDown"));
     item(ui, "Indent", run("node.indent"));
     item(ui, "Outdent", run("node.outdent"));
     ui.separator();
+    if g.query(id).is_some() {
+        item(ui, "Convert search node to plain list", run("search.toPlainList"));
+    }
     if g.in_trash(id) {
         item(ui, "Restore", run("node.restore"));
     } else {
@@ -878,14 +959,20 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             edit_row(app, ui, t, id);
         } else {
             let size = if heading { 20.0 } else { theme::FONT };
-            let mut job = rich_job(t, &name, text_color, false, size);
+            let (mut job, targets) = rich_job_links(&app.session.graph, t, &name, text_color, false, size);
             if is_ref {
                 for sec in &mut job.sections {
                     sec.format.underline = Stroke::new(1.0, t.dim);
                 }
             }
-            let r = ui.add(egui::Label::new(job).sense(Sense::click()));
-            if r.clicked() {
+            let (r, hit) = link_label(ui, job, &targets);
+            let link_hit = hit.is_some();
+            match hit {
+                Some(LinkTarget::Node(n)) => app.acts.push(Act::Run("nav.open".into(), json!({"node": n.0}))),
+                Some(LinkTarget::Url(u)) => ui.ctx().open_url(egui::OpenUrl::new_tab(u)),
+                None => {}
+            }
+            if r.clicked() && !link_hit {
                 if is_ref {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
                 } else if ui.input(|i| i.modifiers.shift) {
@@ -1008,6 +1095,7 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
             Some('#') => Some(PickMode::Tag),
             Some('>') if buf == ">" => Some(PickMode::Field),
             Some('@') if buf == "@" => Some(PickMode::Reference),
+            Some('@') => Some(PickMode::InlineRef),
             Some('/') if buf == "/" => Some(PickMode::Slash),
             _ => None,
         };
@@ -1020,7 +1108,11 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
                     app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": cleaned, "caret": caret - 1})));
                 }
                 let node = if mode == PickMode::Field { app.session.graph.parent(id).unwrap_or(id) } else { id };
-                app.acts.push(Act::Pick(mode, node, anchor));
+                if mode == PickMode::InlineRef {
+                    app.acts.push(Act::PickInline(id, caret - 1, anchor));
+                } else {
+                    app.acts.push(Act::Pick(mode, node, anchor));
+                }
                 if mode == PickMode::Field {
                     // `>` on an empty bullet becomes a field of the parent: the bullet goes away.
                     app.acts.push(Act::Run("node.backspace".into(), json!({"node": id.0})));

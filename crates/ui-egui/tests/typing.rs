@@ -927,7 +927,8 @@ fn diffs_n23_settings_defaults_and_system_theme() {
         h.step();
     }
     h.get_by_label("Use system theme");
-    assert!(h.query_all_by_label("Settings").count() >= 2, "breadcrumb and heading");
+    h.get_by_label("User settings");
+    assert!(h.query_all_by_label("Settings").count() >= 1, "heading");
     h.state_mut().exec("ui.toggleTheme", json!({})).unwrap();
     assert!(!h.state().system_theme, "picking a theme stops following the system");
 }
@@ -1477,7 +1478,7 @@ fn settings_sub_pages_change_time_format_and_sidebar() {
     for _ in 0..3 {
         h.step();
     }
-    for p in ["Preferences", "Date and time", "Journaling", "Move targets", "Keybindings"] {
+    for p in ["Preferences", "Notifications seen", "Progress stats", "Date and time", "Move targets", "Journaling", "API keys", "Keybindings"] {
         assert!(h.query_all_by_label(p).count() >= 1, "{p}");
     }
     h.get_by_label("Date and time").click();
@@ -1563,7 +1564,7 @@ fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
     let lines: Vec<&str> = g.children(notes).iter().map(|c| g.name(*c)).collect();
     assert_eq!(lines, ["for Sunday", "double it"]);
     assert!(g.children(ids[0]).is_empty(), "the referenced node is untouched");
-    h.get_by_label("Notes about Recipe in Plan");
+    h.get_by_label("Notes and fields about Recipe, stored in Plan");
     // Shift+Tab does not carry a note out into the referenced node.
     key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(h.state().session.graph.children(notes).len(), 2);
@@ -1893,6 +1894,9 @@ fn diffs_n20_deleting_a_node_used_elsewhere_asks_first() {
     key(&mut h, Key::Backspace, del);
     assert_eq!(h.state().confirm_delete.as_ref().map(|c| c.2), Some(1));
     assert!(!h.state().session.graph.in_trash(ids[0]));
+    // The question's wording (DIFFS N30).
+    h.get_by_label("Kickoff is used in 1 place. What would you like to do?");
+    h.get_by_label("Show where it's used");
     key(&mut h, Key::Escape, Modifiers::NONE);
     assert!(h.state().confirm_delete.is_none());
     assert!(!h.state().session.graph.in_trash(ids[0]));
@@ -2167,4 +2171,25 @@ fn diffs_n28_escape_in_a_new_field_name_selects_the_row_and_tab_edits_the_value(
     h.step();
     type_chars(&mut h, "e");
     assert_eq!(values_of(&h, page, "Ppl"), ["Anne"]);
+}
+
+#[test]
+fn diffs_n31_space_after_a_checkbox_field_name_does_nothing() {
+    let mut h = harness();
+    h.state_mut().exec("field.create", json!({"name": "Outdoors", "type": "checkbox"})).unwrap();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Outdoors");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    let f = h.state().session.graph.find_field("Outdoors").unwrap();
+    assert_eq!(h.state().field_sel, Some((page, f)));
+    let before = h.state().session.graph.to_json().unwrap();
+    key(&mut h, Key::Space, Modifiers::NONE);
+    type_chars(&mut h, " ");
+    key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.graph.children(page), &[x], "no stray node");
+    assert!(values_of(&h, page, "Outdoors").is_empty() || before == h.state().session.graph.to_json().unwrap());
 }

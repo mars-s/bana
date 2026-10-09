@@ -530,7 +530,14 @@ pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
                                     // The line became the field row.
                                     drop(app.exec("node.delete", json!({"node": l.0})));
                                 }
-                                app.acts.push(Act::EditField(node, f, 0, String::new()));
+                                // A checkbox has no text to type: the row stays selected, and
+                                // Space does nothing (DIFFS N31).
+                                if crate::is_checkbox_field(app, f) {
+                                    app.field_sel = Some((node, f));
+                                    (app.session.focus, app.session.sel) = (None, None);
+                                } else {
+                                    app.acts.push(Act::EditField(node, f, 0, String::new()));
+                                }
                             }
                             // The empty line stays, just below the new field row.
                             ("Enter", _, Some(l)) => drop(app.exec("focus.set", json!({"node": l.0}))),
@@ -1135,22 +1142,22 @@ pub fn confirm_delete(app: &mut TanaApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(14.0).show(ui, |ui| {
                 ui.set_width(w);
-                let places = if used == 1 { "1 other place".to_string() } else { format!("{used} other places") };
-                let name = if name.trim().is_empty() { "This node".to_string() } else { format!("\"{name}\"") };
-                ui.label(RichText::new(format!("{name} is referenced in {places}. Delete it?")).size(14.5));
+                // Wording per DIFFS N30.
+                let places = if used == 1 { "1 place".to_string() } else { format!("{used} places") };
+                let name = if name.trim().is_empty() { "This node".to_string() } else { name };
+                ui.label(RichText::new(format!("{name} is used in {places}. What would you like to do?")).size(14.5));
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
                     if ui.button("Cancel").clicked() {
                         answer = Some(None);
                     }
-                    if ui.button("Show references").clicked() {
+                    if ui.button("Show where it's used").clicked() {
                         answer = Some(Some(false));
                     }
                     if ui.button(RichText::new("Delete anyway").color(egui::Color32::from_rgb(220, 70, 60))).clicked() {
                         answer = Some(Some(true));
                     }
                 });
-                ui.label(RichText::new("Enter deletes, Escape cancels").size(11.5).color(t.faint));
             });
         });
     if let Some(a) = answer {

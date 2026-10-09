@@ -221,6 +221,10 @@ pub(crate) struct FieldEdit {
     focus_once: bool,
 }
 
+pub(crate) fn is_checkbox_field(app: &TanaApp, field: NodeId) -> bool {
+    app.session.graph.field_def(field).is_some_and(|d| d.field_type == tanacraft_core::FieldType::Checkbox)
+}
+
 /// Deferred UI actions (collected while drawing, applied after).
 #[derive(Debug, Clone)]
 pub(crate) enum Act {
@@ -597,6 +601,9 @@ impl TanaApp {
 
     /// Types `text` where `typing_target` says: a field row's value, or the end of a line.
     pub(crate) fn type_into_target(&mut self, text: &str) -> bool {
+        if self.field_sel.is_some_and(|(_, f)| is_checkbox_field(self, f)) {
+            return true; // a checkbox takes no text (DIFFS N31)
+        }
         if let Some((owner, field)) = self.field_sel.take() {
             self.edit_field_value(owner, field, text);
             return true;
@@ -636,6 +643,7 @@ impl TanaApp {
     pub(crate) fn field_row_key(&mut self, k: &str) -> bool {
         let Some((owner, field)) = self.field_sel else { return false };
         match k {
+            "Tab" | "Enter" | "Space" if is_checkbox_field(self, field) => {}
             "Tab" | "Enter" => {
                 self.field_sel = None;
                 self.edit_field_value(owner, field, "");

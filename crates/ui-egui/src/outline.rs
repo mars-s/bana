@@ -272,12 +272,14 @@ pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 
 pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     // Left nav of sub-pages, the form on the right (spec 07 §8, `66-settings-page.png`).
-    const PAGES: [&str; 5] = ["Preferences", "Date and time", "Journaling", "Move targets", "Keybindings"];
+    // The sections in the spec's order (DIFFS N23), then Keybindings (Customize keybindings).
+    const PAGES: [&str; 8] =
+        ["Preferences", "Notifications seen", "Progress stats", "Date and time", "Move targets", "Journaling", "API keys", "Keybindings"];
     // A breadcrumb like other pages (DIFFS N23); the page reopens on the section used last.
     ui.add_space(12.0);
     ui.horizontal(|ui| {
         ui.add_space(20.0);
-        ui.label(RichText::new("Settings").size(13.0).color(t.dim));
+        ui.label(RichText::new("User settings").size(13.0).color(t.dim));
     });
     ui.add_space(6.0);
     ui.horizontal_top(|ui| {
@@ -305,11 +307,17 @@ pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             ui.set_width(MAX_W.min(ui.available_width() - 40.0));
             ui.label(RichText::new(PAGES.get(app.settings_tab).copied().unwrap_or("")).size(26.0).strong());
             ui.add_space(10.0);
-            match app.settings_tab {
-                1 => date_time_settings(app, ui, t),
-                2 => journaling_settings(app, ui, t),
-                3 => move_target_settings(app, ui, t),
-                4 => keybinding_settings(app, ui, t),
+            // spec-gap: the spec names Notifications seen, Progress stats and API keys but not
+            // what they hold here; they show what this app has (nothing yet).
+            let empty = |ui: &mut Ui, text: &str| ui.label(RichText::new(text).color(t.dim));
+            match PAGES.get(app.settings_tab).copied().unwrap_or("") {
+                "Notifications seen" => drop(empty(ui, "No notifications yet.")),
+                "Progress stats" => drop(empty(ui, "User guidance: no hints shown yet.")),
+                "API keys" => drop(empty(ui, "No keys. Nothing here talks to an outside service.")),
+                "Date and time" => date_time_settings(app, ui, t),
+                "Journaling" => journaling_settings(app, ui, t),
+                "Move targets" => move_target_settings(app, ui, t),
+                "Keybindings" => keybinding_settings(app, ui, t),
                 _ => preferences(app, ui, t),
             }
         });
@@ -1744,7 +1752,7 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         if let Some(holder) = g.parent(row.id).filter(|h| g.is_context(*h) && g.children(*h).first() == Some(&row.id)) {
             let reference = g.parent(holder).unwrap_or(holder);
             let place = g.parent(reference).map(|p| page_title(&app.session, p)).unwrap_or_default();
-            let label = format!("Notes about {} in {place}", g.name(reference));
+            let label = format!("Notes and fields about {}, stored in {place}", g.name(reference));
             ui.horizontal(|ui| {
                 ui.add_space(row.depth as f32 * INDENT + 26.0);
                 ui.label(RichText::new(label).size(12.5).color(t.faint));

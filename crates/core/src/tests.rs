@@ -171,7 +171,12 @@ fn field_value_parsing() {
     assert!(FieldValue::parse(FieldType::Number, "NaN").is_err());
     assert_eq!(FieldValue::parse(FieldType::Checkbox, "Yes"), Ok(FieldValue::Checkbox(true)));
     assert!(FieldValue::parse(FieldType::Checkbox, "maybe").is_err());
-    assert!(FieldValue::parse(FieldType::Email, "nope").is_err());
+    // Invalid URLs and e-mails are kept and flagged, not refused.
+    let bad = FieldValue::parse(FieldType::Email, "nope").unwrap();
+    assert!(!bad.is_valid());
+    assert!(FieldValue::parse(FieldType::Email, "a@b.org").unwrap().is_valid());
+    assert!(!FieldValue::parse(FieldType::Url, "example.org").unwrap().is_valid());
+    assert!(FieldValue::parse(FieldType::Url, "https://example.org").unwrap().is_valid());
     assert_eq!(FieldType::parse("URL"), Some(FieldType::Url));
 }
 

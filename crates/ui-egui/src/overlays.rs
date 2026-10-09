@@ -247,15 +247,24 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
                 .field
                 .and_then(|f| Some(g.get(p.node)?.field_values(f).into_iter().map(|v| export::display_value(g, v)).collect()))
                 .unwrap_or_default();
-            p.field
-                .map(|f| {
-                    g.field_options(f)
-                        .into_iter()
-                        .filter(|o| !current.contains(o) && o.to_lowercase().contains(&q))
-                        .map(|o| Choice::Existing(NodeId(0), o))
-                        .collect()
-                })
-                .unwrap_or_default()
+            // Options from a supertag: every node with that tag (spec 03 §8).
+            let source =
+                p.field.and_then(|f| g.field_def(f)).filter(|d| d.field_type == tanacraft_core::FieldType::OptionsFromTag).and_then(|d| d.source_tag);
+            match (source, p.field) {
+                (Some(tag), _) => g
+                    .tagged(tag)
+                    .into_iter()
+                    .filter(|n| !g.in_trash(*n) && !current.contains(&g.text(*n)) && g.text(*n).to_lowercase().contains(&q))
+                    .map(|n| Choice::Existing(n, g.text(n)))
+                    .collect(),
+                (None, Some(f)) => g
+                    .field_options(f)
+                    .into_iter()
+                    .filter(|o| !current.contains(o) && o.to_lowercase().contains(&q))
+                    .map(|o| Choice::Existing(NodeId(0), o))
+                    .collect(),
+                _ => Vec::new(),
+            }
         }
         PickMode::Slash => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "Command line"]
             .into_iter()
@@ -427,6 +436,12 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
 }
 
 /// New supertags cycle through the palette so they are told apart at a glance.
+/// The source supertag of the field an options picker sets, if it takes options from one.
+fn tag_source(app: &TanaApp, p: &crate::Picker) -> Option<NodeId> {
+    let d = app.session.graph.field_def(p.field?)?;
+    (d.field_type == tanacraft_core::FieldType::OptionsFromTag).then_some(d.source_tag).flatten()
+}
+
 fn next_color(app: &TanaApp) -> &'static str {
     let n = app.session.graph.tags().len();
     tanacraft_core::TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey")
@@ -540,6 +555,9 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                         (name.clone(), color)
                     }
                     Choice::Create(name) if p.mode == PickMode::Tag => (format!("Create and apply \"#{name}\""), t.dim),
+                    Choice::Create(name) if p.mode == PickMode::Choice && tag_source(app, &p).is_some() => {
+                        (format!("Tag as #{}: {name}", tag_source(app, &p).map(|t| app.session.graph.name(t).to_string()).unwrap_or_default()), t.dim)
+                    }
                     Choice::Create(name) => (format!("Create \"{name}\""), t.dim),
                 };
                 let create = matches!(c, Choice::Create(_));
@@ -619,6 +637,16 @@ pub fn help_panel(app: &mut TanaApp, ui: &mut Ui) {
 
 // ---- date picker and quick add ------------------------------------------------------------------
 
+/// The picked day plus the typed time range, as a field value text.
+fn date_with_time(dp: &crate::DatePick) -> String {
+    let (a, b) = (dp.time.0.trim(), dp.time.1.trim());
+    match (a.is_empty(), b.is_empty()) {
+        (true, _) => dp.buf.trim().to_string(),
+        (false, true) => format!("{} {a}", dp.buf.trim()),
+        (false, false) => format!("{} {a}-{b}", dp.buf.trim()),
+    }
+}
+
 pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
     let Some(mut dp) = app.date_pick.take() else { return };
     let t = app.tokens();
@@ -627,10 +655,13 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
     let mut close = false;
     let area = egui::Area::new(egui::Id::new("date-picker")).order(Order::Foreground).fixed_pos(dp.anchor).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(10.0).show(ui, |ui| {
-            ui.set_width(252.0);
-            let r = ui.add(egui::TextEdit::singleline(&mut dp.buf).hint_text("YYYY-MM-DD, today, tomorrow").desired_width(252.0));
+            ui.set_width(286.0);
+            // Date fields: pick a day, optionally a time range, then OK (spec 03 §8). Go to date
+            // and Insert date take the day at once.
+            let is_field = dp.field.is_some();
+            let r = ui.add(egui::TextEdit::singleline(&mut dp.buf).hint_text("YYYY-MM-DD, today, tomorrow").desired_width(286.0));
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                pick = Some(dp.buf.clone());
+                pick = Some(if is_field { date_with_time(&dp) } else { dp.buf.clone() });
             }
             ui.horizontal(|ui| {
                 let (y, m) = dp.month;
@@ -646,6 +677,7 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
             let start = first.add_days(-(first.weekday() as i64));
             let cell = 36.0;
             ui.horizontal(|ui| {
+                ui.allocate_exact_size(vec2(26.0, 18.0), Sense::hover());
                 for d in ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] {
                     let (r, _) = ui.allocate_exact_size(vec2(cell, 18.0), Sense::hover());
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, d, FontId::proportional(11.5), t.faint);
@@ -653,19 +685,29 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
             });
             for w in 0..6 {
                 ui.horizontal(|ui| {
+                    // ISO week number at the start of each row.
+                    let (wr, _) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::hover());
+                    ui.painter().text(
+                        wr.center(),
+                        Align2::CENTER_CENTER,
+                        format!("W{}", start.add_days(w * 7).iso_week().1),
+                        FontId::proportional(10.5),
+                        t.faint,
+                    );
                     for k in 0..7 {
                         let d = start.add_days(w * 7 + k);
                         let (r, resp) = ui.allocate_exact_size(vec2(cell, 26.0), Sense::click());
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, d.to_string()));
                         let selected = dp.buf == d.to_string();
                         if selected {
                             ui.painter().rect_filled(r.shrink(2.0), 5.0, t.accent);
+                        } else if d == today {
+                            ui.painter().circle_filled(r.center(), 11.0, egui::Color32::from_rgb(226, 92, 64));
                         } else if resp.hovered() {
                             ui.painter().rect_filled(r.shrink(2.0), 5.0, t.hover);
                         }
-                        let color = if selected {
+                        let color = if selected || d == today {
                             egui::Color32::WHITE
-                        } else if d == today {
-                            egui::Color32::from_rgb(226, 92, 64)
                         } else if d.month == dp.month.1 {
                             t.text
                         } else {
@@ -677,22 +719,42 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                             ui.painter().circle_filled(r.center_bottom() - vec2(0.0, 4.0), 2.0, t.accent);
                         }
                         if resp.clicked() {
-                            pick = Some(d.to_string());
+                            if is_field {
+                                dp.buf = d.to_string();
+                            } else {
+                                pick = Some(d.to_string());
+                            }
                         }
                     }
                 });
             }
+            if is_field {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Time").size(12.5).color(t.dim));
+                    ui.add(egui::TextEdit::singleline(&mut dp.time.0).hint_text("-- : --").desired_width(52.0));
+                    ui.label(RichText::new("to").size(12.5).color(t.dim));
+                    ui.add(egui::TextEdit::singleline(&mut dp.time.1).hint_text("end").desired_width(52.0));
+                });
+            }
             ui.horizontal(|ui| {
                 if ui.button("Today").clicked() {
-                    pick = Some(today.to_string());
+                    if is_field {
+                        dp.buf = today.to_string();
+                    } else {
+                        pick = Some(today.to_string());
+                    }
                 }
                 if ui.button("Clear").clicked() {
                     pick = Some(String::new());
                 }
+                if is_field && ui.button("OK").clicked() {
+                    pick = Some(date_with_time(&dp));
+                }
             });
         });
     });
-    let outside = ctx.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|p| !area.response.rect.contains(p)));
+    let outside = dp.drawn && ctx.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|p| !area.response.rect.contains(p)));
+    dp.drawn = true;
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) || outside {
         close = true;
     }

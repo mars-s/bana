@@ -159,6 +159,10 @@ pub struct DatePick {
     pub month: (i32, u8),
     pub anchor: egui::Pos2,
     pub buf: String,
+    /// Date fields: optional start and end times ("HH:MM").
+    pub time: (String, String),
+    /// Drawn at least once (the click that opened it does not close it).
+    pub drawn: bool,
 }
 
 /// A request from the JSON control channel (`tanacraft --control PORT`), answered on `reply`.
@@ -367,6 +371,8 @@ impl TanaApp {
                         month: (d.year, d.month),
                         anchor: egui::pos2(380.0, 160.0),
                         buf: String::new(),
+                        time: Default::default(),
+                        drawn: false,
                     });
                 }
             }
@@ -630,6 +636,8 @@ impl TanaApp {
                         month: (d.year, d.month),
                         anchor,
                         buf: String::new(),
+                        time: Default::default(),
+                        drawn: false,
                     });
                 }
                 Act::EditField(node, field, index, buf) => self.field_edit = Some(FieldEdit { node, field, index, buf, focus_once: true }),
@@ -641,9 +649,11 @@ impl TanaApp {
                     }
                 }
                 Act::PickDate(node, field, index, anchor) => {
-                    let current = match self.session.graph.get(node).and_then(|n| n.field_values(field).get(index).copied()) {
-                        Some(v) => v.date(),
-                        None => None,
+                    let value = self.session.graph.get(node).and_then(|n| n.field_values(field).get(index).copied()).cloned();
+                    let current = value.as_ref().and_then(tanacraft_core::FieldValue::date);
+                    let time = match value {
+                        Some(tanacraft_core::FieldValue::Timed { start, end, .. }) => (tanacraft_core::fmt_hm(start), tanacraft_core::fmt_hm(end)),
+                        _ => Default::default(),
                     };
                     let d = current.unwrap_or(self.session.today);
                     self.date_pick = Some(DatePick {
@@ -654,6 +664,8 @@ impl TanaApp {
                         month: (d.year, d.month),
                         anchor,
                         buf: current.map(|d| d.to_string()).unwrap_or_default(),
+                        time,
+                        drawn: false,
                     });
                 }
             }

@@ -310,6 +310,18 @@ fn parse_date_value(s: &str) -> Result<FieldValue, String> {
 }
 
 impl FieldValue {
+    /// Whether a URL or e-mail value looks right (the UI warns otherwise; spec 03 §8).
+    pub fn is_valid(&self) -> bool {
+        match self {
+            FieldValue::Url(u) => (u.starts_with("https://") || u.starts_with("http://")) && u.len() > 8 && !u.contains(' '),
+            FieldValue::Email(e) => {
+                let (user, host) = e.split_once('@').unwrap_or(("", ""));
+                !user.is_empty() && host.contains('.') && !host.starts_with('.') && !host.ends_with('.') && !e.contains(' ')
+            }
+            _ => true,
+        }
+    }
+
     /// The day of a date value (timed or not).
     pub fn date(&self) -> Option<Date> {
         match self {
@@ -332,8 +344,8 @@ impl FieldValue {
                 _ => return Err(format!("`{s}` is not yes/no")),
             }),
             FieldType::Url => FieldValue::Url(s.to_string()),
-            FieldType::Email if s.contains('@') => FieldValue::Email(s.to_string()),
-            FieldType::Email => return Err(format!("`{s}` is not an email address")),
+            // Kept as typed; an invalid address only gets a warning (spec 03 §8).
+            FieldType::Email => FieldValue::Email(s.to_string()),
         })
     }
 }

@@ -616,6 +616,7 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
             continue;
         }
         let missing = def.required && empty;
+        let invalid = values.iter().any(|v| !v.is_valid());
         // Narrow panels stack the name above the value (spec 03 §9).
         let narrow = ui.available_width() - indent < 420.0;
         ui.horizontal(|ui| {
@@ -627,13 +628,15 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
                         ui.end_row();
                     }
                     field_values(app, ui, t, target, e.field, &def, &values, edit_ix);
-                    if missing {
+                    if missing || invalid {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
                             let amber = Color32::from_rgb(224, 176, 48);
                             ui.painter().circle_stroke(r.center(), 7.0, Stroke::new(1.4, amber));
                             ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, "?", FontId::proportional(11.0), amber);
-                            resp.on_hover_text("Required");
+                            let tip = if invalid { "Not a valid value for this field type" } else { "Required" };
+                            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, tip));
+                            resp.on_hover_text(tip);
                         });
                     }
                 };
@@ -798,9 +801,10 @@ pub(crate) fn field_value(
                 app.acts.push(Act::Run("nav.day".into(), json!({"date": d.to_string()})));
             }
         }
-        FieldType::Options if !editing => {
+        FieldType::Options | FieldType::OptionsFromTag if !editing => {
             let current = text.clone().unwrap_or_default();
-            let (label, color) = if current.is_empty() { (hint(def.field_type).to_string(), t.faint) } else { (current, t.text) };
+            let set_color = if def.field_type == FieldType::OptionsFromTag { t.link } else { t.text };
+            let (label, color) = if current.is_empty() { (hint(def.field_type).to_string(), t.faint) } else { (current, set_color) };
             let r = ui.add(egui::Label::new(RichText::new(label).size(14.5).color(color)).sense(Sense::click()));
             if r.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

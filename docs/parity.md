@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 57 | 35 | 5 | 2 |
-| Screenshots (153) | 96 | 35 | 21 | 1 |
+| Spec sections (99) | 58 | 34 | 5 | 2 |
+| Screenshots (153) | 99 | 32 | 21 | 1 |
 
 ## `00-overview.md`
 
@@ -74,8 +74,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Missing: AI and Commands, Voice chat, building-block promotion, tag description. |
 | 6. Field definition panel | partial | Type, pre-determined options as a small outline (dashed rings, Empty line to add), sources of options (nodes whose children become options), auto-collect toggle, source tag, min/max, auto-initialize, required, hide, used in. Missing: make discoverable, AI rows, field description. |
 | 7. How a tagged node renders | done | Collapsed chips and coloured bullet; expanded field rows before children; zoomed page. |
-| 8. Field value pickers | partial | Options picker (other options, create), date picker, number, checkbox, URL/email text. Missing: week numbers, time, date ranges in the date picker; user picker. |
-| 9. Required, hidden, pinned and invalid fields | partial | Empty required fields show an amber ?; hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows. Pinned fields (toggle on template rows) come first in view menus. Missing: invalid values are refused with a status message instead of a warning icon. |
+| 8. Field value pickers | partial | Options picker (other options, auto-collected values, create), options-from-supertag picker listing tagged nodes (Tag as #X to create), date picker with ISO week numbers, today circle, selected day, time range and OK (day click alone no longer commits; the opening click no longer closes it), number, checkbox, URL/email as plain text. Missing: user type, date ranges across days. Tested. |
+| 9. Required, hidden, pinned and invalid fields | done | Empty required fields show an amber ?; invalid URL and e-mail values are kept and get the same ? (Not a valid value); hide-when-empty folds to a + Field button in outlines but stays on the node's page; narrow panels stack field rows; pinned fields come first in view menus. Tested. |
 | 10. Template behaviour and inheritance | done | Template fields and nodes are copied, later template additions reach existing tagged nodes, extended supertags pass on fields and nodes and match the parent's searches, mixed views title the first column Title. Title expressions (`${name}` then text and `${Field}`) add a grey computed part after the name on rows, page titles, cards and tables, an empty field shows its name underlined; only the tag's own nodes, not extending tags. Tested. |
 | 11. Adding fields | partial | > on a line, template New field / Insert existing, table + Add field adds to the supertag template. AI suggested fields missing. |
 
@@ -183,7 +183,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `20-field-type-dropdown.png` | partial | Field types without user type. |
 | `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |
 | `22-options-picker.png` | done | Options picker lists the other options. |
-| `23-date-picker.png` | partial | Date picker; a time range can be typed (`2026-10-17 11:00-12:00`); no week numbers or date ranges across days. |
+| `23-date-picker.png` | done | Week numbers, today circle, selected day, time and end inputs, OK. |
 | `24-hash-tag-menu.png` | done | # menu. |
 | `25-node-tagged-task-inline.png` | done | Tagged node inline. |
 | `26-tagged-node-expanded-fields.png` | done | Expanded fields. |
@@ -271,7 +271,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `108-field-row-tab-enter.jpg` | missing | Tab and Enter in field rows. |
 | `109-user-field-picker.png` | missing | User field picker. |
 | `110-typed-field-values.png` | done | Typed field values validated. |
-| `111-options-from-supertag-picker.png` | partial | Options from supertag: typed name links or creates. |
+| `111-options-from-supertag-picker.png` | done | Options from supertag: dropdown of tagged nodes; a new name is tagged on commit. |
 | `112-new-instance-value.png` | done | New instance value. |
 | `113-instance-value-auto-tagged.jpg` | done | Instance value auto-tagged. |
 | `114-template-with-child-node.png` | done | Template child node copied. |
@@ -302,7 +302,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `139-workspace-home.png` | missing | Workspace home. |
 | `140-workspace-settings-other-ws.jpg` | missing | Workspace settings. |
 | `141-settings-api-keys.png` | missing | API keys settings. |
-| `142-invalid-value-warning.jpg` | partial | Invalid values are refused with a message, no warning icon. |
+| `142-invalid-value-warning.jpg` | done | Invalid URL / e-mail keeps the text and shows a yellow ? at the row's end. |
 | `143-board-column-add.png` | done | Board column + Add. |
 | `144-board-hidden-column.png` | done | Hidden board column. |
 | `145-group-menu-hidden-groups.png` | done | Group menu lists hidden groups. |

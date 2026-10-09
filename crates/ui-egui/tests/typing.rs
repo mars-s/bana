@@ -935,3 +935,62 @@ fn reference_counter_setting_shows_counts() {
     }
     h.get_by_label("1");
 }
+
+#[test]
+fn options_from_supertag_picker_and_invalid_value_warning() {
+    let mut h = harness();
+    let s = h.state_mut();
+    s.exec("tag.create", json!({"name": "person"})).unwrap();
+    let ada = s.exec("node.add", json!({"name": "Ada"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("tag.add", json!({"node": ada, "tag": "person"})).unwrap();
+    s.exec("field.create", json!({"name": "Owner", "type": "options_from_tag"})).unwrap();
+    s.exec("field.setSourceTag", json!({"field": "Owner", "tag": "person"})).unwrap();
+    let n = s.exec("node.add", json!({"name": "Plan"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("field.add", json!({"node": n, "field": "Owner"})).unwrap();
+    s.exec("field.add", json!({"node": n, "field": "Site", "type": "url", "value": "example.org"})).unwrap();
+    s.exec("nav.open", json!({"node": n})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Not a valid value for this field type");
+    h.get_by_label("Select node").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let owner = g.find_field("Owner").unwrap();
+    assert_eq!(g.get(tanacraft_core::NodeId(n)).unwrap().field_value(owner), Some(&tanacraft_core::FieldValue::Node(tanacraft_core::NodeId(ada))));
+}
+
+#[test]
+fn date_picker_takes_a_day_and_a_time_then_ok() {
+    let mut h = harness();
+    let s = h.state_mut();
+    let n = s.exec("node.add", json!({"name": "Dentist"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("field.add", json!({"node": n, "field": "When", "type": "date"})).unwrap();
+    s.exec("nav.open", json!({"node": n})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Add date").click();
+    h.step();
+    h.step();
+    h.step();
+    assert!(h.state().date_pick.is_some(), "the picker opened");
+    h.get_by_label("2026-10-15").click();
+    h.step();
+    assert!(h.state().date_pick.is_some(), "a day click alone does not close the picker");
+    if let Some(dp) = h.state_mut().date_pick.as_mut() {
+        dp.time = ("09:30".into(), "10:15".into());
+    }
+    h.step();
+    h.get_by_label("OK").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    let g = &h.state().session.graph;
+    let when = g.find_field("When").unwrap();
+    let v = g.get(tanacraft_core::NodeId(n)).unwrap().field_value(when).unwrap();
+    assert_eq!(tanacraft_core::export::display_value(g, v), "2026-10-15 09:30-10:15");
+}

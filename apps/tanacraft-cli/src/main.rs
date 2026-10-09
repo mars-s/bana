@@ -17,8 +17,8 @@ commands:
   add NAME [--parent NODE | --today] [--tag TAG]...
                                     add a node; prints its id
   capture TEXT [--tag TAG]          add a node to the capture inbox; prints its id
-  import FILE.md [--parent NODE]    import a Markdown outline (default: into the Library)
-  export [NODE] [--format md|json]  export a subtree (default: Markdown of Home)
+  import FILE [--parent NODE]       import a Markdown (.md) or OPML (.opml) outline (default: into the Library)
+  export [NODE] [--format md|json|opml]  export a subtree (default: Markdown of Home)
   search QUERY                      find nodes
   tags                              list supertags with their fields
   run --cmd 'ID={json}' ...         run commands in order, then save
@@ -119,7 +119,8 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             if let Some(par) = parent {
                 p["parent"] = json!(node_arg(&mut s, Some(&par))?.0);
             }
-            let r = s.run("import.markdown", &p).map_err(cmd_err)?;
+            let cmd = if path.to_ascii_lowercase().ends_with(".opml") { "import.opml" } else { "import.markdown" };
+            let r = s.run(cmd, &p).map_err(cmd_err)?;
             save(&mut s)?;
             Ok(format!("imported {} nodes", r["created"]))
         }
@@ -165,7 +166,12 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             match format.as_str() {
                 "md" | "markdown" => Ok(tanacraft_core::export::to_markdown(&s.graph, id, args.is_empty()).trim_end().to_string()),
                 "json" => Ok(pretty(&tanacraft_core::export::to_json_tree(&s.graph, id))),
-                other => Err(format!("unknown format `{other}` (md or json)")),
+                // Without a node: the Library's pages; with one: that node and its subtree.
+                "opml" => {
+                    let ids = if args.is_empty() { s.graph.children(id).to_vec() } else { vec![id] };
+                    Ok(tanacraft_core::opml::to_opml(&s.graph, &ids, s.graph.name(id)))
+                }
+                other => Err(format!("unknown format `{other}` (md, json or opml)")),
             }
         }
         "search" => {

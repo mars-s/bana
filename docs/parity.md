@@ -144,9 +144,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | AI | missing | Out of scope so far. |
 | Voice / meetings | missing |  |
 | Publishing and sharing | missing |  |
-| Import / export | partial | Markdown and JSON export (commands, CLI); Markdown import (`import.markdown`, `tanacraft-cli import FILE.md`: nesting, headings, checkboxes, #tags); Markdown bullet paste. No import from other apps' formats. |
+| Import / export | done | Markdown, JSON and OPML export (commands, CLI `--format md|json|opml`); Markdown import (nesting, headings, checkboxes, #tags) and OPML import from other outliners (text, notes as descriptions, the same checkbox and #tag rules; `import.opml`, `tanacraft-cli import FILE.opml`); HTML plus text on the clipboard; Markdown bullet paste. Tested. |
 | Developer / power features | done | CLI, MCP server and JSON control channel cover scripting; custom keybindings from `keybindings.json` (shortcut: command id, checked before the defaults); Show edit log; Help page listing every command. |
-| Misc | partial | Progress bar. Content width, icons/banners, URL embeds missing. |
+| Misc | partial | Progress bar, content width, page icons and banners. URL embeds missing. |
 
 ## `09-shortcuts.md`
 

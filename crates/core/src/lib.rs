@@ -11,6 +11,7 @@ pub mod export;
 pub mod format;
 pub mod graph;
 pub mod model;
+pub mod opml;
 pub mod query;
 pub mod sample;
 pub mod view;

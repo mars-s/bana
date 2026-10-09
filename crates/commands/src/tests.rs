@@ -984,3 +984,22 @@ fn context_notes_live_on_the_reference_not_the_target() {
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(s.graph.get(r).unwrap().description, "");
 }
+
+#[test]
+fn opml_import_reads_checkboxes_tags_and_notes() {
+    let mut s = blank();
+    let r = run(
+        &mut s,
+        "import.opml",
+        json!({"text": "<opml><body><outline text=\"Trip\" _note=\"in May\"><outline text=\"[x] Book train #task\"/></outline></body></opml>"}),
+    );
+    assert_eq!(r["created"], 2);
+    let trip = s.graph.search("Trip")[0];
+    assert_eq!(s.graph.get(trip).unwrap().description, "in May");
+    let book = s.graph.children(trip)[0];
+    assert_eq!(s.graph.name(book), "Book train");
+    assert_eq!(s.graph.checkbox(book), Some(true));
+    assert_eq!(s.graph.get(book).unwrap().tags.len(), 1);
+    let out = run(&mut s, "export.opml", json!({"node": trip.0}));
+    assert!(out["opml"].as_str().unwrap().contains("_note=\"in May\""));
+}

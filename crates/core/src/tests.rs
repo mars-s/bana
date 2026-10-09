@@ -653,3 +653,43 @@ fn date_spans_cover_their_days() {
     assert_eq!(Query::parse(&g, "Trip:2026-10-16").unwrap().run(&g, NodeId(0)), [n]);
     assert!(g.get(n).unwrap().has_date(d(17)));
 }
+
+#[test]
+fn opml_round_trips_and_reads_other_outliners() {
+    let src = r#"<?xml version="1.0"?><opml version="2.0"><head><title>x</title></head><body>
+      <outline text="Groceries &amp; more" _note="for Sunday">
+        <outline text="Milk"/>
+        <outline title="Bread"></outline>
+      </outline>
+      <outline text='Call &#77;um'/>
+    </body></opml>"#;
+    let items = opml::parse(src);
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0].text, "Groceries & more");
+    assert_eq!(items[0].note, "for Sunday");
+    assert_eq!(items[0].children.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(), ["Milk", "Bread"]);
+    assert_eq!(items[1].text, "Call Mum");
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let a = g.create(lib, None, "Groceries & more").unwrap();
+    g.set_description(a, "for Sunday").unwrap();
+    g.create(a, None, "Milk").unwrap();
+    g.create(a, None, "Bread").unwrap();
+    g.create(lib, None, "Call Mum").unwrap();
+    let out = opml::to_opml(&g, g.children(lib), "Library");
+    let again = opml::parse(&out);
+    assert_eq!(
+        again,
+        items
+            .iter()
+            .map(|i| opml::Item {
+                children: i.children.iter().map(|c| opml::Item { text: c.text.clone(), ..Default::default() }).collect(),
+                ..i.clone()
+            })
+            .collect::<Vec<_>>()
+    );
+    // Hostile input never panics.
+    for bad in ["<outline", "<outline text=\"unterminated>", "</outline></outline>", "<outline text=&amp;>", "&#xFFFFFFFF;"] {
+        let _ = opml::parse(bad);
+    }
+}

@@ -107,6 +107,20 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags)"#),
+        C::new("import.opml", "Import OPML", "File", |s, v| {
+            let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+            s.graph.node(root)?;
+            let items = tanacraft_core::opml::parse(p::req_str(v, "text")?);
+            let made = import_items(s, root, &items)?;
+            Ok(json!({"created": made, "parent": root.0}))
+        })
+        .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note)"#),
+        C::new("export.opml", "Export as OPML", "Export", |s, v| {
+            let id = node_or_zoom(s, v)?;
+            Ok(json!({"opml": tanacraft_core::opml::to_opml(&s.graph, &[id], s.graph.name(id))}))
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
         C::new("node.contextNote", "Notes for this context", "Node", |s, v| {
             let id = s.target(v)?;
             if let Some(text) = p::str(v, "text") {
@@ -765,33 +779,52 @@ fn import_markdown(s: &mut Session, v: &Value) -> CmdResult {
             stack.pop();
         }
         let parent = stack.last().map(|(_, p)| *p).unwrap_or(section);
-        let (done, body) = match body {
-            b if b.starts_with("[ ] ") => (Some(false), &b[4..]),
-            b if b.starts_with("[x] ") || b.starts_with("[X] ") => (Some(true), &b[4..]),
-            b => (None, b),
-        };
-        // Trailing `#tag` words become supertags (made when missing).
-        let mut words: Vec<&str> = body.split(' ').collect();
-        let mut tags = Vec::new();
-        while words.last().is_some_and(|w| w.len() > 1 && w.starts_with('#') && !w[1..].contains('#')) {
-            tags.push(words.pop().unwrap_or_default().trim_start_matches('#').to_string());
-        }
-        let n = s.graph.create(parent, None, words.join(" ").trim())?;
-        for tag in tags.into_iter().rev() {
-            let t = match s.graph.find_tag(&tag) {
-                Some(t) => t,
-                None => s.graph.create_tag(&tag, "grey")?,
-            };
-            s.graph.add_tag(n, t)?;
-        }
-        if done.is_some() {
-            s.graph.set_done(n, done)?;
-        }
+        let n = import_line(s, parent, body)?;
         s.graph.set_expanded(parent, true);
         stack.push((indent, n));
         made += 1;
     }
     Ok(json!({"parent": root.0, "created": made}))
+}
+
+/// One imported line under `parent`: `[ ]` / `[x]` make a checkbox, trailing `#tag` words become
+/// supertags (made when missing).
+fn import_line(s: &mut Session, parent: NodeId, body: &str) -> Result<NodeId, CmdError> {
+    let (done, body) = match body {
+        b if b.starts_with("[ ] ") => (Some(false), &b[4..]),
+        b if b.starts_with("[x] ") || b.starts_with("[X] ") => (Some(true), &b[4..]),
+        b => (None, b),
+    };
+    let mut words: Vec<&str> = body.split(' ').collect();
+    let mut tags = Vec::new();
+    while words.last().is_some_and(|w| w.len() > 1 && w.starts_with('#') && !w[1..].contains('#')) {
+        tags.push(words.pop().unwrap_or_default().trim_start_matches('#').to_string());
+    }
+    let n = s.graph.create(parent, None, words.join(" ").trim())?;
+    for tag in tags.into_iter().rev() {
+        let t = match s.graph.find_tag(&tag) {
+            Some(t) => t,
+            None => s.graph.create_tag(&tag, "grey")?,
+        };
+        s.graph.add_tag(n, t)?;
+    }
+    if done.is_some() {
+        s.graph.set_done(n, done)?;
+    }
+    Ok(n)
+}
+
+/// OPML items under `parent`, line by line as in Markdown import, notes as descriptions.
+fn import_items(s: &mut Session, parent: NodeId, items: &[tanacraft_core::opml::Item]) -> Result<usize, CmdError> {
+    let mut made = 0;
+    for it in items {
+        let n = import_line(s, parent, it.text.trim())?;
+        if !it.note.is_empty() {
+            s.graph.set_description(n, &it.note)?;
+        }
+        made += 1 + import_items(s, n, &it.children)?;
+    }
+    Ok(made)
 }
 
 fn paste(s: &mut Session, v: &Value) -> CmdResult {

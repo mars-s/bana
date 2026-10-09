@@ -8,8 +8,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 162 engine commands, plus 22 window commands |
-| Tests | 149 (core 41, commands 47 incl. a fuzz test of random command sequences and a 50k-node timed test, UI 59 driving the real UI with keys, pointer drags, clicks and panels plus a 50k-node frame-time test, MCP 1, CLI 1) |
+| Commands (every action; CLI, MCP and control channel can run them) | 172 engine commands, plus 28 window commands |
+| Tests | 173 (core 46, commands 54 incl. a fuzz test of random command sequences, damaged-file loading and a 50k-node timed test, UI 71 driving the real UI with keys, pointer drags, clicks and panels plus a UI fuzz test and a 50k-node frame-time test, MCP 1, CLI 1) |
 | Spec sections (`docs/parity.md`) | 95 mapped: 77 done, 13 partial, 3 missing, 2 notes |
 | Spec screenshots | 160 mapped: 140 done, 14 partial, 5 missing, 1 not behaviour |
 
@@ -44,4 +44,6 @@ Sync, workspace members, mobile and web (wasm) builds.
 
 - Bold is drawn brighter rather than with a bold font (egui's default font has one weight).
 - Search results stay live while the query builder is open; Run once and Done are there but results do not wait for them.
+- A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
+- One local editor: "edited by" is the computer's user.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

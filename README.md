@@ -108,7 +108,7 @@ Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** 
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the control channel. `tanacraft-cli commands` lists all 162 with their parameters.
+server and the control channel. `tanacraft-cli commands` lists all 172 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params

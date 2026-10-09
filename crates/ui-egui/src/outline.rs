@@ -71,7 +71,7 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             }
             if Some(zoom) == app.session.graph.sys.inbox {
                 ui.label(
-                    RichText::new("Captures land here: `tanacraft-cli capture`, the MCP `node.capture` tool and the Capture to inbox command. Move them where they belong.")
+                    RichText::new("Quick captures from elsewhere land here (on other devices, from the command line or an agent). Sort them into your pages when you have a moment.")
                         .size(13.0)
                         .color(t.dim),
                 );
@@ -454,6 +454,14 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let title_id = egui::Id::new((app.panel_ix, "page-title"));
     if !app.drawing_other_panel {
         app.title_id = title_id;
+    }
+    // A workspace's home shows a large round avatar with its initials (spec 07 §2, `139`).
+    if g.get(zoom).is_some_and(|n| n.kind == Kind::Workspace) {
+        let initials: String = g.name(zoom).split_whitespace().filter_map(|w| w.chars().next()).take(2).flat_map(char::to_uppercase).collect();
+        ui.add_space(12.0);
+        let (r, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
+        ui.painter().circle_filled(r.center(), 32.0, t.accent.gamma_multiply(0.75));
+        ui.painter().text(r.center(), Align2::CENTER_CENTER, initials, FontId::proportional(24.0), Color32::WHITE);
     }
     let mut menu_acts = Vec::new();
     ui.horizontal(|ui| {

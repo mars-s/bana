@@ -709,11 +709,7 @@ fn option_sources_and_auto_collect() {
 
 #[test]
 fn inbox_capture_and_workspaces() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-ws-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
     let mut s = blank();
-    s.path = Some(dir.join("graph.json"));
-    run(&mut s, "file.save", json!({}));
     let v = run(&mut s, "node.capture", json!({"name": "Call the plumber", "tag": "task"}));
     let inbox = id(&v, "inbox");
     assert_eq!(s.graph.name(inbox), "Inbox");
@@ -721,19 +717,30 @@ fn inbox_capture_and_workspaces() {
     run(&mut s, "nav.inbox", json!({}));
     assert_eq!(s.zoom, inbox);
     run(&mut s, "workspace.rename", json!({"name": "Home"}));
-    // A second workspace is its own file; switching saves the first.
-    run(&mut s, "workspace.create", json!({"name": "Work Projects"}));
-    assert_eq!(s.graph.name(s.graph.sys.root), "Work Projects");
-    assert!(s.graph.search("plumber").is_empty());
+    // DIFFS N6: a second workspace sits beside the first in the same graph; nothing switches and
+    // no file is written.
+    let w = run(&mut s, "workspace.create", json!({"name": "Work Projects"}));
+    let ws = id(&w, "id");
+    let lib = id(&w, "library");
+    assert_eq!(s.graph.name(s.graph.sys.root), "Home");
+    assert_eq!(s.zoom, inbox, "creating does not leave the page");
+    assert_eq!(s.graph.search("plumber").len(), 1);
     let list = run(&mut s, "workspace.list", json!({}));
     let names: Vec<&str> = list["workspaces"].as_array().unwrap().iter().map(|w| w["name"].as_str().unwrap()).collect();
-    assert_eq!(names, ["graph", "work-projects"]);
-    run(&mut s, "workspace.switch", json!({"name": "graph"}));
-    assert_eq!(s.graph.name(s.graph.sys.root), "Home");
-    assert_eq!(s.graph.search("plumber").len(), 1);
+    assert_eq!(names, ["Home", "Work Projects"]);
+    let page = id(&run(&mut s, "node.add", json!({"name": "Q4 plan", "parent": lib.0})), "id");
+    assert_eq!(s.graph.workspace_of(page), ws);
+    assert_eq!(s.graph.workspace_of(inbox), s.graph.sys.root);
+    run(&mut s, "workspace.switch", json!({"name": "Work Projects"}));
+    assert_eq!(s.zoom, ws);
     assert!(s.run("workspace.switch", &json!({"name": "nope"})).is_err());
-    assert!(s.run("workspace.create", &json!({"name": "Work Projects"})).is_err(), "exists");
-    std::fs::remove_dir_all(&dir).ok();
+    assert!(s.run("node.delete", &json!({"node": ws.0})).is_err(), "a workspace is built in");
+    run(&mut s, "workspace.rename", json!({"name": "Work", "workspace": "Work Projects"}));
+    assert_eq!(s.graph.name(ws), "Work");
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.graph.get(ws).is_none(), "creating a workspace undoes");
 }
 
 #[test]

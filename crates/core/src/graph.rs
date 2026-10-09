@@ -175,7 +175,44 @@ impl Graph {
 
     pub fn is_system(&self, id: NodeId) -> bool {
         let s = self.sys;
-        [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id) || s.inbox == Some(id)
+        [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id)
+            || s.inbox == Some(id)
+            || self.get(id).is_some_and(|n| n.kind == Kind::Workspace)
+    }
+
+    /// Every workspace, the main one (the root) first. All are open together (spec 07 §2).
+    pub fn workspaces(&self) -> Vec<NodeId> {
+        let root = self.sys.root;
+        std::iter::once(root).chain(self.children(root).iter().copied().filter(|c| self.get(*c).is_some_and(|n| n.kind == Kind::Workspace))).collect()
+    }
+
+    /// The workspace a node belongs to.
+    pub fn workspace_of(&self, id: NodeId) -> NodeId {
+        self.ancestors(id)
+            .into_iter()
+            .chain(std::iter::once(id))
+            .rev()
+            .find(|a| self.get(*a).is_some_and(|n| n.kind == Kind::Workspace))
+            .unwrap_or(self.sys.root)
+    }
+
+    /// A workspace's Library: the main one, or the first child of a further workspace.
+    pub fn workspace_library(&self, ws: NodeId) -> NodeId {
+        if ws == self.sys.root { self.sys.library } else { self.children(ws).first().copied().unwrap_or(ws) }
+    }
+
+    /// Adds a workspace beside the others, with its own Library.
+    pub fn create_workspace(&mut self, name: &str) -> Result<NodeId> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("a workspace needs a name".into()));
+        }
+        let root = self.sys.root;
+        let ws = self.create_raw(root, None, name, Kind::Workspace)?;
+        // ponytail: a further workspace has a Library only; its supertags, daily notes and trash
+        // are the main workspace's until a spec says how they split.
+        self.create_raw(ws, None, "Library", Kind::Plain)?;
+        Ok(ws)
     }
 
     /// The capture inbox (spec 01 §7), created under the workspace on first use.

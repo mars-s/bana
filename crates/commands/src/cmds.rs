@@ -290,22 +290,33 @@ pub fn registry() -> Registry {
         })
         .pure(),
         C::new("node.capture", "Capture to inbox", "Node", capture).params(r#"{"name": string, "tag"?: name | id}"#),
-        // Workspaces: one graph file each, side by side in one folder.
+        // Workspaces: all in this graph, open side by side (spec 07 §2). The main one is the root.
         C::new("workspace.list", "List workspaces", "Workspace", workspace_list).pure(),
-        C::new("workspace.create", "New workspace", "Workspace", workspace_create).params(r#"{"name": string}"#).pure(),
-        C::new("workspace.switch", "Switch workspace", "Workspace", workspace_switch)
-            .params(r#"{"name": string}  (a name from workspace.list)"#)
-            .pure(),
+        C::new("workspace.create", "New workspace", "Workspace", |s, v| {
+            let ws = s.graph.create_workspace(p::req_str(v, "name")?)?;
+            Ok(json!({"id": ws.0, "name": s.graph.name(ws), "library": s.graph.workspace_library(ws).0}))
+        })
+        .params(r#"{"name": string}  (added beside the others in the sidebar)"#),
+        C::new("workspace.switch", "Open workspace", "Workspace", |s, v| {
+            let ws = workspace_param(s, v)?;
+            s.open(ws)?;
+            Ok(json!({"workspace": s.graph.name(ws), "id": ws.0}))
+        })
+        .params(r#"{"name": name | id}  (opens the workspace's home; all workspaces stay open)"#)
+        .pure(),
         C::new("workspace.rename", "Rename workspace", "Workspace", |s, v| {
             let name = p::req_str(v, "name")?.trim();
             if name.is_empty() {
                 return Err(CmdError::Params("`name` must not be empty".into()));
             }
-            let root = s.graph.sys.root;
-            s.graph.set_name(root, name)?;
-            Ok(json!({"name": name}))
+            let ws = match v.get("workspace") {
+                Some(w) => workspace_param(s, &json!({"name": w}))?,
+                None => s.graph.sys.root,
+            };
+            s.graph.set_name(ws, name)?;
+            Ok(json!({"name": name, "id": ws.0}))
         })
-        .params(r#"{"name": string}"#),
+        .params(r#"{"name": string, "workspace"?: name | id}  (default: the main workspace)"#),
         // Supertags.
         C::new("tag.add", "Add supertag", "Supertag", tag_add)
             .key("#")
@@ -1235,81 +1246,27 @@ fn capture(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id.0, "inbox": inbox.0}))
 }
 
-/// The folder that holds the workspaces: the current file's, else the default one.
-fn workspace_dir(s: &Session) -> std::path::PathBuf {
-    let p = s.path.clone().unwrap_or_else(tanacraft_core::default_graph_path);
-    p.parent().map(std::path::Path::to_path_buf).unwrap_or_default()
-}
-
-fn workspace_files(s: &Session) -> Vec<std::path::PathBuf> {
-    let mut v: Vec<std::path::PathBuf> = std::fs::read_dir(workspace_dir(s))
-        .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect())
-        .unwrap_or_default();
-    v.sort();
-    v.truncate(200);
-    v
-}
-
-fn file_name(p: &std::path::Path) -> String {
-    p.file_stem().map(|x| x.to_string_lossy().to_string()).unwrap_or_default()
+fn workspace_param(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
+    let all = s.graph.workspaces();
+    let found = match v.get("name") {
+        Some(Value::String(n)) => {
+            all.iter().find(|w| s.graph.name(**w) == n).copied().or_else(|| n.parse::<NodeId>().ok().filter(|i| all.contains(i)))
+        }
+        Some(Value::Number(n)) => n.as_u64().map(NodeId).filter(|i| all.contains(i)),
+        _ => return Err(CmdError::Params("`name` (workspace name or id) is required".into())),
+    };
+    found.ok_or_else(|| CmdError::Failed("no such workspace".into()))
 }
 
 fn workspace_list(s: &mut Session, _: &Value) -> CmdResult {
-    let current = s.path.clone();
-    let list: Vec<Value> = workspace_files(s)
+    let g = &s.graph;
+    let current = g.workspace_of(s.zoom);
+    let list: Vec<Value> = g
+        .workspaces()
         .iter()
-        .map(|p| json!({"name": file_name(p), "path": p.display().to_string(), "current": Some(p) == current.as_ref()}))
+        .map(|w| json!({"id": w.0, "name": g.name(*w), "main": *w == g.sys.root, "current": *w == current, "library": g.workspace_library(*w).0}))
         .collect();
-    Ok(json!({"workspaces": list, "current": s.graph.name(s.graph.sys.root)}))
-}
-
-/// Saves the open workspace, then makes `graph` (stored at `path`) the open one.
-fn switch_to(s: &mut Session, graph: tanacraft_core::Graph, path: std::path::PathBuf) -> CmdResult {
-    if s.path.is_some() && s.graph.is_dirty() {
-        let p = s.path.clone().unwrap_or_default();
-        s.graph.save(&p)?;
-    }
-    s.graph = graph;
-    s.path = Some(path.clone());
-    s.zoom = s.graph.sys.library;
-    s.focus = None;
-    s.sel = None;
-    s.recents.clear();
-    s.move_target = None;
-    let day = s.graph.day(s.today)?;
-    s.open(day)?;
-    Ok(json!({"workspace": s.graph.name(s.graph.sys.root), "path": path.display().to_string()}))
-}
-
-fn workspace_create(s: &mut Session, v: &Value) -> CmdResult {
-    let name = p::req_str(v, "name")?.trim().to_string();
-    let slug: String = name.chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
-    let slug = slug.trim_matches('-').to_string();
-    if slug.is_empty() {
-        return Err(CmdError::Params("`name` needs a letter or digit".into()));
-    }
-    let path = workspace_dir(s).join(format!("{slug}.json"));
-    if path.exists() {
-        return Err(CmdError::Failed(format!("a workspace file `{slug}.json` already exists")));
-    }
-    let mut g = tanacraft_core::Graph::new();
-    let root = g.sys.root;
-    g.set_name(root, &name)?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| CmdError::Failed(e.to_string()))?;
-    }
-    g.save(&path)?;
-    switch_to(s, g, path)
-}
-
-fn workspace_switch(s: &mut Session, v: &Value) -> CmdResult {
-    let name = p::req_str(v, "name")?;
-    let path = workspace_files(s).into_iter().find(|p| file_name(p) == name).ok_or_else(|| CmdError::Failed(format!("no workspace `{name}`")))?;
-    if s.path.as_ref() == Some(&path) {
-        return Ok(json!({"workspace": s.graph.name(s.graph.sys.root)}));
-    }
-    let g = tanacraft_core::Graph::load(&path)?;
-    switch_to(s, g, path)
+    Ok(json!({"workspaces": list, "current": g.name(current)}))
 }
 
 fn open_file(s: &mut Session, v: &Value) -> CmdResult {

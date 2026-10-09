@@ -889,25 +889,24 @@ fn calendar_time_grid_drag_to_create_and_resize() {
 }
 
 #[test]
-fn switching_workspace_resets_tabs_and_shows_inbox_in_the_sidebar() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-ui-ws-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+fn diffs_n6_n14_workspaces_side_by_side_and_no_inbox_row() {
     let mut h = harness();
-    h.state_mut().session.path = Some(dir.join("graph.json"));
     h.state_mut().exec("node.capture", json!({"name": "idea"})).unwrap();
     for _ in 0..3 {
         h.step();
     }
-    h.get_by_label("Inbox");
+    assert!(h.query_by_label("Inbox").is_none(), "the inbox is reached by command, not a sidebar row");
     h.state_mut().exec("ui.openInPanel", json!({})).unwrap();
     assert_eq!(h.state().panel_count(), 2);
     h.state_mut().exec("workspace.create", json!({"name": "Second"})).unwrap();
     for _ in 0..3 {
         h.step();
     }
-    assert_eq!(h.state().panel_count(), 1);
+    assert_eq!(h.state().panel_count(), 2, "nothing switches");
+    h.get_by_label("Workspaces");
     h.get_by_label("Second");
-    std::fs::remove_dir_all(&dir).ok();
+    h.get_by_label("Workspace");
+    h.get_by_label("Manage workspaces");
 }
 
 #[test]

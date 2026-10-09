@@ -244,6 +244,8 @@ pub struct TanaApp {
     node_clip: Option<(String, Vec<NodeId>)>,
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
+    /// Workspaces folded in the sidebar (all start open).
+    ws_closed: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
     /// Content width: 0 auto, 1 medium, 2 full (spec 07 §5).
     pub content_width: u8,
@@ -314,6 +316,7 @@ impl TanaApp {
             tag_filter: String::new(),
             closed_groups: Default::default(),
             pin_open: Default::default(),
+            ws_closed: Default::default(),
             recents_page: false,
             settings_page: false,
             help_page: false,
@@ -385,7 +388,7 @@ impl TanaApp {
             self.help_page = false;
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
-        if matches!(id, "workspace.switch" | "workspace.create" | "file.open") && r.is_ok() {
+        if id == "file.open" && r.is_ok() {
             self.reset_tabs();
         }
         if id == "node.createNew" && r.is_ok() {
@@ -945,51 +948,103 @@ impl TanaApp {
             self.pin_open.insert(p);
         }
         ui.add_space(14.0);
-        // The workspace: a small avatar circle with its initial, then its name; click for the
-        // workspace menu (switch, new, rename).
-        let ws = g.name(g.sys.root).to_string();
-        let head = ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
-            ui.painter().circle_filled(r.center(), 9.0, t.accent.gamma_multiply(0.7));
-            let initial: String = ws.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
-            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initial, egui::FontId::proportional(11.0), egui::Color32::WHITE);
-            ui.label(RichText::new(&ws).size(13.5).color(t.dim));
-        });
-        let head = ui.interact(head.response.rect, egui::Id::new("ws-head"), Sense::click()).on_hover_text("Workspaces");
-        egui::Popup::menu(&head).show(|ui| self.workspace_menu(ui, &mut acts));
-        ui.add_space(2.0);
-        let g = &self.session.graph;
-        let inbox = g.sys.inbox;
-        for (icon, label, id) in [
-            (Icon::Home, "Library", Some(g.sys.library)),
-            (Icon::Calendar, "Daily notes", Some(g.sys.journal)),
-            (Icon::Recent, "Inbox", inbox),
-            (Icon::Trash, "Trash", Some(g.sys.trash)),
-        ] {
-            let Some(id) = id else { continue };
-            if side_item(ui, &t, icon, label, zoom == id).clicked() {
-                acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
-            }
+        // Workspaces, all open side by side (spec 07 §2): one alone shows its name as the header;
+        // several are listed under "Workspaces", each with a chevron that shows its items.
+        let all = g.workspaces();
+        let several = all.len() > 1;
+        if several {
+            ui.label(RichText::new("Workspaces").size(12.5).color(t.faint));
         }
+        let mut toggle_ws = None;
+        for ws in all {
+            let g = &self.session.graph;
+            let name = g.name(ws).to_string();
+            let open = !self.ws_closed.contains(&ws);
+            let head = ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                ui.painter().circle_filled(r.center(), 9.0, avatar_color(&name, &t));
+                let initial: String = name.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initial, egui::FontId::proportional(11.0), egui::Color32::WHITE);
+                ui.label(RichText::new(&name).size(13.5).color(t.dim));
+            });
+            let head = ui.interact(head.response.rect, egui::Id::new(("ws-head", ws.0)), Sense::click());
+            if several {
+                // Chevron in the left gutter, as on pinned rows.
+                let chev = egui::Rect::from_center_size(head.rect.left_center() - vec2(8.0, 0.0), vec2(10.0, 20.0));
+                let c = ui.interact(chev, egui::Id::new(("ws-chev", ws.0)), Sense::click());
+                let m = chev.center();
+                let pts = if open {
+                    vec![m + vec2(-3.0, -1.5), m + vec2(3.0, -1.5), m + vec2(0.0, 2.5)]
+                } else {
+                    vec![m + vec2(-1.5, -3.0), m + vec2(2.5, 0.0), m + vec2(-1.5, 3.0)]
+                };
+                ui.painter().add(egui::Shape::convex_polygon(pts, t.faint, egui::Stroke::NONE));
+                if c.clicked() || head.clicked() {
+                    toggle_ws = Some(ws);
+                }
+            } else {
+                egui::Popup::menu(&head).show(|ui| self.workspace_menu(ui, &mut acts));
+            }
+            if !open && several {
+                continue;
+            }
+            ui.add_space(2.0);
+            let g = &self.session.graph;
+            let items: Vec<(Icon, &str, NodeId)> = if ws == g.sys.root {
+                vec![(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
+            } else {
+                vec![(Icon::Home, "Library", g.workspace_library(ws))]
+            };
+            for (icon, label, id) in items {
+                ui.horizontal(|ui| {
+                    if several {
+                        ui.add_space(8.0);
+                    }
+                    if side_item(ui, &t, icon, label, zoom == id).clicked() {
+                        acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
+                    }
+                });
+            }
+            ui.add_space(4.0);
+        }
+        if let Some(ws) = toggle_ws
+            && !self.ws_closed.remove(&ws)
+        {
+            self.ws_closed.insert(ws);
+        }
+        let manage = side_item(ui, &t, Icon::Building, "Manage workspaces", false);
+        egui::Popup::menu(&manage).show(|ui| self.workspace_menu(ui, &mut acts));
         self.acts.extend(acts);
     }
 }
 
+/// A workspace avatar colour picked from its name.
+fn avatar_color(name: &str, t: &Tokens) -> Color32 {
+    let hues = [
+        t.accent,
+        Color32::from_rgb(64, 160, 120),
+        Color32::from_rgb(200, 120, 60),
+        Color32::from_rgb(150, 100, 200),
+        Color32::from_rgb(200, 80, 110),
+    ];
+    let h = name.bytes().fold(0usize, |a, b| a.wrapping_mul(31).wrapping_add(b as usize));
+    hues[h % hues.len()].gamma_multiply(0.8)
+}
+
 impl TanaApp {
-    /// The workspace menu: other workspaces to switch to, a new one, rename this one.
+    /// Manage workspaces: open one, add one beside the others, rename the main one.
     fn workspace_menu(&mut self, ui: &mut Ui, acts: &mut Vec<Act>) {
-        let list = self.session.run("workspace.list", &json!({})).unwrap_or_default();
-        for w in list["workspaces"].as_array().cloned().unwrap_or_default() {
-            let name = w["name"].as_str().unwrap_or_default().to_string();
-            if ui.selectable_label(w["current"].as_bool().unwrap_or(false), &name).clicked() {
-                acts.push(Act::Run("workspace.switch".into(), json!({"name": name})));
+        let g = &self.session.graph;
+        for ws in g.workspaces() {
+            if ui.button(format!("Open {}", g.name(ws))).clicked() {
+                acts.push(Act::Run("nav.open".into(), json!({"node": g.workspace_library(ws).0})));
                 ui.close();
             }
         }
         ui.separator();
         let id = egui::Id::new("ws-new");
         let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
-        let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("New workspace name, Enter").desired_width(200.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("Create workspace: name, Enter").desired_width(220.0));
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
             acts.push(Act::Run("workspace.create".into(), json!({"name": buf.trim()})));
             buf.clear();
@@ -998,17 +1053,13 @@ impl TanaApp {
         ui.data_mut(|d| d.insert_temp(id, buf));
         let rid = egui::Id::new("ws-rename");
         let mut name = ui.data_mut(|d| d.get_temp::<String>(rid)).unwrap_or_else(|| self.session.graph.name(self.session.graph.sys.root).to_string());
-        let r = ui.add(egui::TextEdit::singleline(&mut name).hint_text("Rename this workspace").desired_width(200.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut name).hint_text("Rename the main workspace").desired_width(220.0));
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.trim().is_empty() {
             acts.push(Act::Run("workspace.rename".into(), json!({"name": name.trim()})));
             ui.data_mut(|d| d.remove::<String>(rid));
             ui.close();
         } else {
             ui.data_mut(|d| d.insert_temp(rid, name));
-        }
-        if ui.button("Open capture inbox").clicked() {
-            acts.push(Act::Run("nav.inbox".into(), json!({})));
-            ui.close();
         }
     }
 

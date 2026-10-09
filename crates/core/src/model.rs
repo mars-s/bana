@@ -53,6 +53,9 @@ pub enum Kind {
     Year {
         year: i32,
     },
+    /// A further workspace beside the main one (spec 07 §2): its own Library under it. The main
+    /// workspace is the graph root.
+    Workspace,
 }
 
 /// Supertag colours: "none", twelve hues and grey. Rendered from the UI theme, not stored as RGB.

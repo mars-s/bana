@@ -3,6 +3,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { type CommandInfo, type Json, type Page, type Sidebar, call, flushOnUnload, idle, transport } from './engine'
+import type { ViewSnap } from './Views'
 
 export interface Tab {
   id: string
@@ -18,7 +19,7 @@ export interface Overlay {
 /** An open `#`, `@`, `>`, `/` or field value menu. `at` is where the trigger character sits in the
  * line (chars); the query is the text typed after it, in the line itself (so it is in the engine). */
 export interface PickerState {
-  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo'
+  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column'
   panel: string
   /** The line typed in (or the field's owner for `choice`). */
   node: number
@@ -54,6 +55,8 @@ export interface State {
   tabs: Tab[]
   tab: number
   pages: Record<string, Page>
+  /** The view snapshot of panels that show a view (table, cards, calendar...). */
+  views: Record<string, ViewSnap>
   /** The window of rows each panel shows (start, count). */
   windows: Record<string, { start: number; count: number }>
   sidebar: Sidebar | null
@@ -85,6 +88,7 @@ let state: State = {
   tabs: [{ id: 't1', panels: ['main'], active: 0 }],
   tab: 0,
   pages: {},
+  views: {},
   windows: {},
   sidebar: null,
   sidebarMode: saved.sidebarMode ?? 0,
@@ -176,10 +180,12 @@ export async function refresh() {
   const wantCaret = caretWanted
   caretWanted = false
   const pages: Record<string, Page> = {}
+  const views: Record<string, ViewSnap> = {}
   await Promise.all(
     panels.map(async (p) => {
       const w = state.windows[p] ?? { start: 0, count: 300 }
       pages[p] = await call('page', { panel: p, start: w.start, count: w.count })
+      if (pages[p]?.view?.isView) views[p] = await call('view', { panel: p })
     }),
   )
   const sidebar = await call('sidebar', {})
@@ -192,7 +198,7 @@ export async function refresh() {
     return
   }
   for (const p of Object.values(pages)) seenVersion = Math.max(seenVersion, p.version ?? 0)
-  setState((s) => ({ pages: { ...s.pages, ...pages }, sidebar, caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch }))
+  setState((s) => ({ pages: { ...s.pages, ...pages }, views: { ...s.views, ...views }, sidebar, caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch }))
   markApplied(seq)
 }
 

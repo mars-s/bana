@@ -226,6 +226,7 @@ const PICK_TITLES: Record<string, string> = {
   choice: 'Options',
   searchTag: 'List of supertag',
   moveTo: 'Move to',
+  column: 'Add a column',
 }
 
 function Picker() {

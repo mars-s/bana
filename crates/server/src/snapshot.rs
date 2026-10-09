@@ -478,3 +478,90 @@ pub fn choices(s: &Session, params: &Value) -> Value {
     let next = tanacraft_core::TAG_COLORS.get(2 + g.tags().len() % 12).copied().unwrap_or("grey");
     json!({"items": out, "nextColor": next})
 }
+
+/// Whether `id` shows its items through a view (search results, tagged nodes, or a set view).
+pub fn is_view(g: &Graph, id: NodeId) -> bool {
+    let t = g.resolve(id);
+    g.query(t).is_some() || g.tag_def(t).is_some() || g.get(t).is_some_and(|n| n.view.is_some())
+}
+
+/// Everything a view (table, cards, board, list, calendar...) needs: its items in groups, with the
+/// values of each column, and its settings. Params: `node` (default: the page), `week` (a date in
+/// the week a calendar shows).
+pub fn view(s: &Session, params: &Value) -> Value {
+    let g = &s.graph;
+    let node = tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
+    let def = g.view_def(node);
+    let cols = g.view_columns(node);
+    let mut refs = BTreeMap::new();
+    let date_field = g.calendar_field(node);
+    let groups: Vec<Value> = g
+        .view_groups(node)
+        .into_iter()
+        .map(|gr| {
+            let items: Vec<Value> = gr
+                .items
+                .iter()
+                .take(2_000)
+                .map(|i| {
+                    let mut v = node_info(s, *i, &mut refs);
+                    let target = g.resolve(*i);
+                    let n = g.get(target);
+                    let cells: serde_json::Map<String, Value> = cols
+                        .iter()
+                        .map(|c| {
+                            let vals: Vec<String> =
+                                n.map(|n| n.field_values(*c).into_iter().map(|x| export::shown_value(g, x)).collect()).unwrap_or_default();
+                            (c.0.to_string(), json!(vals))
+                        })
+                        .collect();
+                    v["cells"] = Value::Object(cells);
+                    v["line"] = json!(g.display_line(node, *i));
+                    v["dates"] = json!(g.item_dates(*i, date_field).iter().take(62).map(|d| d.to_string()).collect::<Vec<_>>());
+                    v["time"] = match g.item_time(*i, date_field) {
+                        Some((a, b)) => json!([a, b]),
+                        None => Value::Null,
+                    };
+                    v
+                })
+                .collect();
+            json!({"label": gr.label, "count": gr.items.len(), "items": items})
+        })
+        .collect();
+    let all: Vec<NodeId> = g.view_groups(node).into_iter().flat_map(|gr| gr.items).collect();
+    let columns: Vec<Value> = cols
+        .iter()
+        .map(|c| {
+            let calc = def.calcs.iter().find(|(f, _)| f == c).map(|(_, k)| k.clone());
+            let calc_value = calc.as_deref().and_then(|k| g.column_calc(&all, *c, k));
+            json!({"id": c.0, "name": g.name(*c), "type": g.field_def(*c).map(|d| d.field_type.name()).unwrap_or("plain"),
+                   "width": g.column_width(node, *c), "calc": calc, "calcValue": calc_value})
+        })
+        .collect();
+    let today = s.today;
+    let (y, m) = s.calendar_month.unwrap_or((today.year, today.month));
+    let mode = ["month", "week", "day"].get(s.calendar_mode as usize).copied().unwrap_or("month");
+    let tabs: Vec<Value> = match g.tag_def(g.resolve(node)) {
+        Some(d) => d.views.iter().filter(|v| g.get(**v).is_some()).map(|v| json!({"id": v.0, "name": g.name(*v)})).collect(),
+        None => Vec::new(),
+    };
+    json!({
+        "node": node.0,
+        "kind": def.kind.name(),
+        "toolbar": !def.hide_toolbar,
+        "groups": groups,
+        "grouped": def.group.is_some(),
+        "columns": columns,
+        "titleWidth": g.column_width(node, NodeId(0)),
+        "sorted": !def.sort.is_empty(),
+        "filtered": !def.filter.is_empty(),
+        "filteredOut": g.view_filtered_out(node),
+        "hiddenGroups": def.hidden_groups,
+        "dateField": date_field.map(|f| json!({"id": f.0, "name": g.name(f)})),
+        "calendar": {"year": y, "month": m, "mode": mode,
+                      "today": today.to_string(), "weekStart": g.week_start(today).to_string(), "weekdays": g.weekday_names()},
+        "selected": s.nav_selected.get(&node).map(|n| n.0),
+        "tabs": tabs,
+        "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
+    })
+}

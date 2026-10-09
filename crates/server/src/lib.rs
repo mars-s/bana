@@ -76,6 +76,7 @@ impl Host {
             "sidebar" => snapshot::sidebar(&self.session),
             "find" => snapshot::find(&self.session, params),
             "choices" => snapshot::choices(&self.session, params),
+            "view" => snapshot::view(&self.session, params),
             "commands" => self.session.registry.describe(),
             "panel.open" => {
                 // A new panel showing `node` (or a copy of the active panel's page).

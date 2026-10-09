@@ -10,6 +10,7 @@ import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, refresh, setActivePanel, setState, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
+import { ViewBody, ViewToolbar } from './Views'
 import { keyInfo } from './keys'
 
 const OVERSCAN_ROWS = 150
@@ -224,6 +225,10 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         const el = ta.current
         if (!el) return
         const v = valueRef.current
+        if ((k.metaKey || k.ctrlKey) && k.code === 'KeyA') {
+          el.setSelectionRange(0, v.length)
+          return
+        }
         let s0 = el.selectionStart
         let s1 = el.selectionEnd
         if (k.key === 'Backspace' || k.key === 'Delete') {
@@ -437,7 +442,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
                 <span className="bullet">
                   <span className="dot" />
                 </span>
-                <FieldEditor row={row} panel={panel} index={i} initial={v?.raw ?? ''} />
+                <FieldEditorCell row={row} panel={panel} index={i} initial={v?.raw ?? ''} />
               </span>
             ) : v && v.checked !== null ? (
               <span key={i} className="field-value">
@@ -473,7 +478,7 @@ const FIELD_PLACEHOLDER: Record<string, string> = { date: 'Add date', options: '
 const PICKS = new Set(['options', 'options_from_tag', 'user'])
 
 /** A field value being typed: saved as typed (DIFFS N15), one value per line. */
-function FieldEditor({ row, panel, index, initial }: { row: FieldRow; panel: string; index: number; initial: string }) {
+export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow; panel: string; index: number; initial: string }) {
   const [value, setValue] = useState(initial)
   const ref = useRef<HTMLInputElement>(null)
   const valueRef = useRef(value)
@@ -519,7 +524,20 @@ function FieldEditor({ row, panel, index, initial }: { row: FieldRow; panel: str
         send(next)
       },
       setSel() {},
-      native(k: { key: string }) {
+      native(k: { key: string; code: string; metaKey: boolean; ctrlKey: boolean }) {
+        const el = ref.current
+        if (el && (k.metaKey || k.ctrlKey) && k.code === 'KeyA') {
+          el.setSelectionRange(0, el.value.length)
+          return
+        }
+        if (k.key === 'Backspace' && el && el.selectionStart !== el.selectionEnd) {
+          const v = valueRef.current
+          const next = v.slice(0, el.selectionStart ?? 0) + v.slice(el.selectionEnd ?? 0)
+          valueRef.current = next
+          setValue(next)
+          send(next)
+          return
+        }
         if (k.key === 'Backspace') {
           const v = valueRef.current
           const next = v.slice(0, -1)
@@ -713,6 +731,19 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
   )
 }
 
+function HeadActions() {
+  return (
+    <div className="head-actions">
+      <button className="btn icon" title="AI (not available)">
+        <Icon name="sparkle" size={12} />
+      </button>
+      <button className="btn icon" title="Options">
+        <Icon name="more" size={12} />
+      </button>
+    </div>
+  )
+}
+
 function DayNav({ panel }: { panel: string }) {
   return (
     <div className="day-nav">
@@ -810,6 +841,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   // The focused line scrolls into view when it is not drawn (DIFFS N32).
   const focusIndex = page?.rows.focusIndex
   const focusScroll = useStore((s) => s.focusScroll)
+  const viewSnap = useStore((s) => s.views[panel])
   useEffect(() => {
     if (focusIndex == null || !page) return
     if (focusIndex < first + 1 || focusIndex > last - 1) v.scrollToIndex(focusIndex, { align: 'center' })
@@ -818,37 +850,37 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
 
   if (!page) return <div className="panel" />
   const wide = page.related.length > 0
+  const vs = viewSnap && viewSnap.node === page.zoom ? viewSnap : null
+  const layout = vs && vs.kind !== 'outline' ? vs : null
   return (
     <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
       <Crumbs page={page} panel={panel} many={many} />
       <div className="scroller" ref={scroller}>
-        <div className={`page${wide ? ' with-side' : ''}`}>
+        <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
             <div ref={head} className="page-head">
               <div className="title-row">
                 {page.icon && <span className="page-icon">{page.icon}</span>}
                 <TitleEditor key={page.zoom} page={page} panel={panel} />
+                {page.tags.length === 0 && <HeadActions />}
               </div>
-              <div className="head-meta">
-                <div className="tag-row">
-                  {page.tags.map((t) => (
-                    <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
-                  ))}
+              {page.tags.length > 0 && (
+                <div className="head-meta">
+                  <div className="tag-row">
+                    {page.tags.map((t) => (
+                      <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
+                    ))}
+                  </div>
+                  <HeadActions />
                 </div>
-                <div className="head-actions">
-                  <button className="btn icon" title="AI (not available)">
-                    <Icon name="sparkle" size={12} />
-                  </button>
-                  <button className="btn icon" title="Options">
-                    <Icon name="more" size={12} />
-                  </button>
-                </div>
-              </div>
+              )}
               {page.description && <p className="page-desc">{page.description}</p>}
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
+              {vs && !layout && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>
-            <div className="rows" style={{ height: v.getTotalSize() - headH }}>
+            {layout && <ViewBody v={layout} panel={panel} />}
+            <div className="rows" style={{ height: layout ? 0 : v.getTotalSize() - headH, display: layout ? 'none' : undefined }}>
               {items.map((vi) => {
                 const row = page.rows.items[vi.index - page.rows.start]
                 return (
@@ -864,7 +896,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 )
               })}
             </div>
-            <div
+            {!layout && <div
               className="row ghost"
               onMouseDown={(e) => {
                 e.preventDefault()
@@ -880,7 +912,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 <span className="dot faint" />
               </span>
               <span className="ghost-hint">Click to add a node</span>
-            </div>
+            </div>}
             {page.filteredOut > 0 && <p className="muted small">{page.filteredOut} items filtered out</p>}
           </div>
           {wide && (

@@ -1023,7 +1023,12 @@ fn format_mark(s: &mut Session, v: &Value, mark: Mark) -> CmdResult {
         _ if focused => (s.anchor, s.caret),
         _ => (0, 0),
     };
-    let (text, a2, b2) = tanacraft_core::format::toggle(s.graph.name(id), a, b, mark);
+    let (text, a2, b2) = if focused && a == b && p::usize(v, "start").is_none() {
+        let (t, c) = tanacraft_core::format::toggle_at(s.graph.name(id), a, mark);
+        (t, c, c)
+    } else {
+        tanacraft_core::format::toggle(s.graph.name(id), a, b, mark)
+    };
     s.graph.set_name(id, &text)?;
     if focused {
         s.caret = b2;

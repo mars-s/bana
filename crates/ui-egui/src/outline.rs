@@ -819,23 +819,11 @@ pub(crate) fn rich_job_links(
 ) -> (egui::text::LayoutJob, Vec<Option<LinkTarget>>) {
     let mut job = egui::text::LayoutJob::default();
     let mut targets = Vec::new();
-    for sp in tanacraft_core::format::spans(text) {
-        let mut f = egui::TextFormat { font_id: FontId::proportional(size), color, italics: sp.italic, ..Default::default() };
-        if sp.bold {
-            f.color = if color == t.text { t.text.linear_multiply(1.15) } else { color };
-            f.extra_letter_spacing = 0.35;
-        }
-        if sp.underline {
-            f.underline = Stroke::new(1.0, color);
-        }
-        if sp.highlight {
-            f.background = Color32::from_rgba_unmultiplied(214, 178, 46, 70);
-        }
-        if sp.code {
-            f.font_id = FontId::monospace(size - 1.5);
-            f.color = Color32::from_rgb(222, 140, 80);
-            f.background = t.hover;
-        }
+    let spans = tanacraft_core::format::spans(text);
+    // A link inside text gets a small arrow before it; a link-only node shows it as its bullet.
+    let link_only = spans.iter().filter(|s| !s.text.trim().is_empty()).count() == 1;
+    for sp in spans {
+        let mut f = span_format(t, &sp, color, size);
         if strike {
             f.strikethrough = Stroke::new(1.0, color);
         }
@@ -857,6 +845,11 @@ pub(crate) fn rich_job_links(
             (_, Some(u)) => {
                 f.color = t.link;
                 f.underline = Stroke::new(1.0, t.link.gamma_multiply(0.6));
+                if !link_only {
+                    let arrow = egui::TextFormat { underline: Stroke::NONE, ..f.clone() };
+                    job.append("\u{2197}\u{2009}", 0.0, arrow);
+                    targets.push(Some(LinkTarget::Url(u.clone())));
+                }
                 (sp.text.clone(), Some(LinkTarget::Url(u.clone())))
             }
             _ => (sp.text.clone(), None),
@@ -872,6 +865,44 @@ pub(crate) fn rich_job_links(
         targets.push(None);
     }
     (job, targets)
+}
+
+/// The look of one styled span.
+fn span_format(t: &Tokens, sp: &tanacraft_core::format::Span, color: Color32, size: f32) -> egui::TextFormat {
+    let mut f = egui::TextFormat { font_id: FontId::proportional(size), color, italics: sp.italic, ..Default::default() };
+    if sp.bold {
+        f.color = if color == t.text { t.text.linear_multiply(1.15) } else { color };
+        f.extra_letter_spacing = 0.35;
+    }
+    if sp.underline {
+        f.underline = Stroke::new(1.0, color);
+    }
+    if sp.highlight {
+        f.background = Color32::from_rgba_unmultiplied(214, 178, 46, 70);
+    }
+    if sp.code {
+        f.font_id = FontId::monospace(size - 1.5);
+        f.color = Color32::from_rgb(222, 140, 80);
+        f.background = t.hover;
+    }
+    if sp.url.is_some() || sp.node.is_some() {
+        f.color = t.link;
+    }
+    f
+}
+
+/// The raw text being edited, styled: marks shown faint, the text between them formatted.
+fn edit_job(t: &Tokens, text: &str, size: f32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    for (sp, marker) in tanacraft_core::format::raw_spans(text) {
+        let f = if marker {
+            egui::TextFormat { font_id: FontId::proportional(size), color: t.faint, ..Default::default() }
+        } else {
+            span_format(t, &sp, t.text, size)
+        };
+        job.append(&sp.text, 0.0, f);
+    }
+    job
 }
 
 pub(crate) fn rich_job(g: &Graph, t: &Tokens, text: &str, color: Color32, strike: bool, size: f32) -> egui::text::LayoutJob {
@@ -1459,7 +1490,14 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         child = Some(ui.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::top_down(egui::Align::Min))));
     }
     let edit_ui = child.as_mut().unwrap_or(ui);
+    let tt = *t;
+    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
+        let mut job = edit_job(&tt, buf.as_str(), size);
+        job.wrap.max_width = wrap;
+        ui.fonts_mut(|f| f.layout_job(job))
+    };
     let out = egui::TextEdit::multiline(&mut app.edit.buf)
+        .layouter(&mut layouter)
         .desired_rows(1)
         .id(tid)
         .frame(egui::Frame::NONE)

@@ -79,18 +79,28 @@ fn mark_at(s: &str, i: usize) -> Option<Mark> {
 
 /// Splits text into styled spans.
 pub fn spans(s: &str) -> Vec<Span> {
-    let mut out: Vec<Span> = Vec::new();
+    raw_spans(s).into_iter().filter(|(_, marker)| !marker).map(|(sp, _)| sp).collect()
+}
+
+/// Like [`spans`], but also returns the marks and reference tokens themselves (flagged `true`), so
+/// the pieces join back into `s` exactly (the editor styles raw text with them).
+pub fn raw_spans(s: &str) -> Vec<(Span, bool)> {
+    let mut out: Vec<(Span, bool)> = Vec::new();
     let mut cur = Span::default();
     let mut i = 0;
+    let flush = |out: &mut Vec<(Span, bool)>, cur: &mut Span| {
+        if !cur.text.is_empty() {
+            out.push((cur.clone(), false));
+            cur.text.clear();
+        }
+    };
     while i < s.len() {
         if !cur.code
             && let Some((id, len)) = ref_at(s, i)
         {
-            if !cur.text.is_empty() {
-                out.push(cur.clone());
-                cur.text.clear();
-            }
-            out.push(Span { text: String::new(), node: Some(id), ..cur.clone() });
+            flush(&mut out, &mut cur);
+            out.push((Span { text: String::new(), node: Some(id), ..cur.clone() }, false));
+            out.push((Span { text: s.get(i..i + len).unwrap_or("").to_string(), node: Some(id), ..Span::default() }, true));
             i += len;
             continue;
         }
@@ -99,11 +109,8 @@ pub fn spans(s: &str) -> Vec<Span> {
             let rest = s.get(i..).unwrap_or("");
             let len = rest.find(char::is_whitespace).unwrap_or(rest.len());
             let url = rest.get(..len).unwrap_or("").to_string();
-            if !cur.text.is_empty() {
-                out.push(cur.clone());
-                cur.text.clear();
-            }
-            out.push(Span { text: url.clone(), url: Some(url), ..cur.clone() });
+            flush(&mut out, &mut cur);
+            out.push((Span { text: url.clone(), url: Some(url), ..cur.clone() }, false));
             i += len;
             continue;
         }
@@ -113,10 +120,8 @@ pub fn spans(s: &str) -> Vec<Span> {
             let open = is_open(&cur, m);
             let closes_later = s.get(i + tok.len()..).is_some_and(|r| r.contains(tok));
             if open || closes_later {
-                if !cur.text.is_empty() {
-                    out.push(cur.clone());
-                    cur.text.clear();
-                }
+                flush(&mut out, &mut cur);
+                out.push((Span { text: tok.to_string(), ..Span::default() }, true));
                 set(&mut cur, m, !open);
                 i += tok.len();
                 continue;
@@ -126,9 +131,7 @@ pub fn spans(s: &str) -> Vec<Span> {
         cur.text.push(c);
         i += c.len_utf8();
     }
-    if !cur.text.is_empty() {
-        out.push(cur);
-    }
+    flush(&mut out, &mut cur);
     out
 }
 
@@ -174,6 +177,29 @@ pub fn toggle(s: &str, start: usize, end: usize, mark: Mark) -> (String, usize, 
         a = 0;
         b = chars.len();
     }
+    toggle_range(&chars, a, b, mark)
+}
+
+/// With a collapsed caret at `at`: an empty mark pair goes in and the caret sits inside it, so what
+/// is typed next carries the format (spec 02 §10). Inside an empty pair, the pair goes away.
+pub fn toggle_at(s: &str, at: usize, mark: Mark) -> (String, usize) {
+    let chars: Vec<char> = s.chars().collect();
+    let at = at.min(chars.len());
+    let tok: Vec<char> = mark.token().chars().collect();
+    let n = tok.len();
+    let mut out: Vec<char> = chars[..at].to_vec();
+    if at >= n && chars.get(at - n..at) == Some(&tok[..]) && chars.get(at..at + n) == Some(&tok[..]) {
+        out.truncate(at - n);
+        out.extend(&chars[at + n..]);
+        return (out.into_iter().collect(), at - n);
+    }
+    out.extend(&tok);
+    out.extend(&tok);
+    out.extend(&chars[at..]);
+    (out.into_iter().collect(), at + n)
+}
+
+fn toggle_range(chars: &[char], a: usize, b: usize, mark: Mark) -> (String, usize, usize) {
     let tok: Vec<char> = mark.token().chars().collect();
     let n = tok.len();
     let before = a >= n && chars.get(a - n..a) == Some(&tok[..]);
@@ -203,6 +229,20 @@ pub fn toggle(s: &str, start: usize, end: usize, mark: Mark) -> (String, usize, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_spans_join_back_into_the_text() {
+        let s = "a **bold** [[id:3]] https://x.org `c`";
+        let joined: String = raw_spans(s).into_iter().map(|(sp, _)| sp.text).collect();
+        assert_eq!(joined, s);
+    }
+
+    #[test]
+    fn collapsed_caret_opens_an_empty_pair() {
+        let (s, c) = toggle_at("ab", 1, Mark::Bold);
+        assert_eq!((s.as_str(), c), ("a****b", 3));
+        assert_eq!(toggle_at(&s, c, Mark::Bold), ("ab".to_string(), 1));
+    }
 
     #[test]
     fn spans_and_plain() {

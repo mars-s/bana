@@ -55,7 +55,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 7. Collapse, expand, zoom | done | Cmd+Up/Down, Ctrl+Cmd+Up/Down, chevrons, halos, zoom in/out with caret restore, hover card with edit and create times. |
 | 8. Node selection mode | done | Escape selects, Shift+Up/Down and Shift+click extend, floating toolbar (outdent, indent, tag, move, heading), Enter/Backspace/Tab/move/tag on selections, Cmd+C copies. |
 | 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
-| 10. Inline formatting | partial | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. Formatting does not carry on for new typing; links not rendered. |
+| 10. Inline formatting | done | Bold, italic, underline, highlight, code marks with Cmd+B/I/U and Ctrl+H; backticks. With a collapsed caret the mark carries on for typed text. While editing, marks show faint and the text between them is styled. Links render blue with a small arrow before them. Bold is drawn brighter (one font weight). Tested. |
 | 11. Trigger characters | partial | #, @ (empty line: reference node; mid-sentence: inline reference), > and / menus. Missing: Space for AI, Cmd+Enter create in menus. |
 | 12. Copy and paste | partial | Cmd+C copies selected nodes as a Markdown list; pasting them inserts references; duplicates are skipped with a notice; URLs show as links and a URL-only node gets a link bullet; multi-line and Markdown paste. Missing: rich HTML on the clipboard, paste as code. |
 | 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |

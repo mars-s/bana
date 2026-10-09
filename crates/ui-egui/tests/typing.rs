@@ -151,6 +151,8 @@ fn shift_enter_and_bold_shortcut() {
     h.state_mut().exec("focus.set", json!({"node": r["id"]})).unwrap();
     h.step();
     text(&mut h, "make bold");
+    // Bold applies to the selection (Cmd+A selects the line's text first).
+    key(&mut h, Key::A, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
     key(&mut h, Key::B, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
     assert_eq!(h.state().session.graph.name(tanacraft_core::NodeId(r["id"].as_u64().unwrap())), "**make bold**");
     key(&mut h, Key::Enter, Modifiers { shift: true, ..Modifiers::NONE });
@@ -535,4 +537,20 @@ fn cmd_enter_in_a_menu_creates_from_the_typed_text() {
     let tags: Vec<String> = g.get(id).unwrap().tags.iter().map(|t| g.name(*t).to_string()).collect();
     assert_eq!(tags, ["ta"], "a new tag, not the existing #task");
     assert_eq!(g.name(id), "Gamma");
+}
+
+#[test]
+fn bold_with_a_collapsed_caret_carries_on_for_typing() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": "Note"})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": r["id"]})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    key(&mut h, Key::End, Modifiers::NONE);
+    text(&mut h, " ");
+    key(&mut h, Key::B, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    text(&mut h, "loud");
+    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    assert_eq!(h.state().session.graph.name(id), "Note **loud**");
 }

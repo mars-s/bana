@@ -1106,3 +1106,32 @@ fn content_width_panel_split_and_mini_sidebar_flyouts() {
     }
     assert_eq!(h.query_all_by_label("Pin me").count(), before + 1, "the flyout lists the pinned node");
 }
+
+#[test]
+fn lanes_drag_a_node_into_another_lane() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    let ids = page_with(&mut h, &["A", "B"]);
+    let b1 = h.state_mut().exec("node.add", json!({"name": "B1", "parent": ids[1].0})).unwrap()["id"].as_u64().unwrap();
+    h.state_mut().exec("view.set", json!({"kind": "lanes"})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let grip = h.get_by_label(&format!("grip {b1}")).rect().center();
+    let a = h.get_by_label("A").rect();
+    let to = Pos2::new(a.center().x, a.bottom() + 10.0);
+    let ev = |h: &mut H<'_>, e: Event| {
+        h.input_mut().events.push(e);
+        h.step();
+    };
+    ev(&mut h, Event::PointerMoved(grip));
+    ev(&mut h, Event::PointerButton { pos: grip, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    for k in 1..=10 {
+        ev(&mut h, Event::PointerMoved(grip + (to - grip) * (k as f32 / 10.0)));
+    }
+    ev(&mut h, Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.parent(tanacraft_core::NodeId(b1)), Some(ids[0]));
+}

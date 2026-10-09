@@ -955,18 +955,37 @@ fn lanes(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
     egui::ScrollArea::horizontal().id_salt(("lanes", node.0)).show(ui, |ui| {
         ui.horizontal_top(|ui| {
             for item in items.iter().take(100) {
-                ui.vertical(|ui| {
+                let lane = ui.vertical(|ui| {
                     ui.set_width(250.0);
                     ui.horizontal_wrapped(|ui| item_line(app, ui, t, *item, true));
                     ui.add_space(4.0);
                     let kids: Vec<NodeId> = app.session.graph.children(*item).to_vec();
                     for k in kids.iter().take(200) {
                         ui.horizontal_wrapped(|ui| {
-                            ui.add_space(12.0);
+                            // A grip to drag the node into another lane (spec 04 §6).
+                            let (grip, resp) = ui.allocate_exact_size(vec2(12.0, 20.0), Sense::drag());
+                            ui.painter().circle_filled(grip.center(), 2.5, t.faint);
+                            if resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                            }
+                            if resp.drag_started() {
+                                resp.dnd_set_drag_payload(CardDrag(*k));
+                            }
+                            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, format!("grip {}", k.0)));
                             item_line(app, ui, t, *k, false);
                         });
                     }
+                    ui.allocate_space(vec2(250.0, 30.0));
                 });
+                let zone = ui.interact(lane.response.rect, egui::Id::new((app.panel_ix, "lane", node.0, item.0)), Sense::hover());
+                if zone.dnd_hover_payload::<CardDrag>().is_some() {
+                    ui.painter().rect_stroke(lane.response.rect.expand(4.0), 6.0, Stroke::new(1.5, t.accent), StrokeKind::Outside);
+                }
+                if let Some(p) = zone.dnd_release_payload::<CardDrag>()
+                    && p.0 != *item
+                {
+                    app.acts.push(Act::Run("node.move".into(), json!({"node": p.0.0, "parent": app.session.graph.resolve(*item).0})));
+                }
                 ui.add_space(18.0);
             }
         });

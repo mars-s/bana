@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (99) | 63 | 29 | 5 | 2 |
-| Screenshots (153) | 114 | 29 | 9 | 1 |
+| Screenshots (153) | 115 | 29 | 8 | 1 |
 
 ## `00-overview.md`
 
@@ -288,7 +288,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `125-calendar-drag.jpg` | done | Calendar drag. |
 | `126-calendar-week-timed-drop.jpg` | done | Dropping an item on an hour gives it a time range. |
 | `127-lanes-lab.png` | done | Lanes. |
-| `128-lanes-drag.jpg` | missing | Lanes drag. |
+| `128-lanes-drag.jpg` | done | Drag a node by its grip into another lane: it moves under that lane's item. Tested. |
 | `129-content-width-menu.png` | done | Content width menu (Auto, Medium, Full) at the right of the breadcrumb; Cycle content widths command. |
 | `130-panel-resized.png` | done | Drag the gap between two panels to resize them; narrow panels stack field rows. Tested. |
 | `131-two-tabs.png` | done | Two tabs. |

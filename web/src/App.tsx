@@ -19,13 +19,13 @@ function TopBar() {
     <header className="topbar" data-tauri-drag-region>
       <div className="topbar-left">
         <button className="icon-btn" title="Sidebar (full, mini, hidden)" onClick={() => runUiCommand('ui.toggleSidebar')}>
-          <Icon name="sidebar" />
+          <Icon name="sidebar" size={14} />
         </button>
         <button className="icon-btn" title="Back" disabled={!page?.canBack} onClick={() => void exec('nav.back')}>
-          <Icon name="back" />
+          <Icon name="back" size={14} />
         </button>
         <button className="icon-btn" title="Forward" disabled={!page?.canForward} onClick={() => void exec('nav.forward')}>
-          <Icon name="forward" />
+          <Icon name="forward" size={14} />
         </button>
       </div>
       <nav className="tabs" data-tauri-drag-region>
@@ -61,22 +61,22 @@ function TopBar() {
       </nav>
       <div className="topbar-right">
         <button className="icon-btn" title="Help" onClick={() => void exec('nav.home')}>
-          <Icon name="help" />
+          <Icon name="help" size={14} />
         </button>
         <button className="icon-btn" title="Keyboard shortcuts" onClick={() => runUiCommand('ui.shortcuts')}>
-          <Icon name="keyboard" />
+          <Icon name="keyboard" size={14} />
         </button>
         <button className="icon-btn" title="Switch light or dark theme" onClick={() => runUiCommand('ui.toggleTheme')}>
-          <Icon name="user" />
+          <Icon name="user" size={14} />
         </button>
       </div>
     </header>
   )
 }
 
-function SideRow({ icon, label, onClick, active, children }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; children?: React.ReactNode }) {
+function SideRow({ icon, label, onClick, active, pin, children }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; pin?: boolean; children?: React.ReactNode }) {
   return (
-    <div className={`side-row${active ? ' active' : ''}`} onClick={onClick} role="button" title={label}>
+    <div className={`side-row${active ? ' active' : ''}${pin ? ' pin' : ''}`} onClick={onClick} role="button" title={label}>
       <span className="side-icon">{icon}</span>
       <span className="side-label">{label}</span>
       {children}
@@ -88,12 +88,21 @@ function pinIcon(it: SidebarItem): React.ReactNode {
   if (it.icon) return <span className="emoji">{it.icon}</span>
   if (it.kind === 'tag')
     return (
-      <span className="side-hash" style={tagStyle(it.color ?? 'none')}>
+      <span className="side-hash" style={tagStyle(it.color ?? 'grey')}>
         #
       </span>
     )
   const map: Record<string, IconName> = { search: 'search', day: 'daily', journal: 'daily', trash: 'trash', library: 'home', inbox: 'inbox' }
   return map[it.kind] ? <Icon name={map[it.kind]} /> : <span className="side-dot" />
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('')
 }
 
 function Sidebar() {
@@ -107,34 +116,44 @@ function Sidebar() {
   return (
     <aside className={`sidebar${mode === 1 ? ' mini' : ''}`} data-panel-for={active}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
-      {shows('supertags') && <SideRow icon={<Icon name="hash" />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
-      {shows('recents') && <SideRow icon={<Icon name="clock" />} label="Recents" onClick={() => setState({ overlay: { kind: 'search', query: '', recents: true } })} />}
+      {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
+      {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => setState({ overlay: { kind: 'search', query: '', recents: true } })} />}
       <div className="side-actions">
         <button className="btn create" onClick={() => void exec('node.createNew')}>
-          <Icon name="compose" />
+          <Icon name="compose" size={14} />
           <span className="side-label">Create new</span>
         </button>
         <button className="btn icon" title="Search and open" onClick={() => runUiCommand('ui.searchOpen')}>
-          <Icon name="search" />
+          <Icon name="search" size={14} />
         </button>
       </div>
       {sb.pinned.length > 0 && <div className="side-head">Pinned</div>}
       {sb.pinned.map((it) => (
-        <SideRow key={it.id} icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
+        <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
       ))}
+      <div className="side-head">Workspaces</div>
       {sb.workspaces.map((ws) => (
         <div key={ws.id} className="side-ws">
-          <div className="side-ws-head">
-            <Icon name="workspace" size={14} />
+          <div className="side-ws-head" onClick={() => void exec('nav.open', { node: ws.library })} role="button">
+            <span className="ws-dot">{initials(ws.name)}</span>
             <span className="side-label">{ws.name}</span>
             <span className="spacer" />
-            <button className="icon-btn small" title="Add to workspace" onClick={() => void exec('node.add', { name: '', parent: ws.library })}>
+            <button
+              className="icon-btn small"
+              title="Add to workspace"
+              onClick={(e) => {
+                e.stopPropagation()
+                void exec('node.add', { name: '', parent: ws.library })
+              }}
+            >
               <Icon name="plus" size={12} />
             </button>
           </div>
-          {ws.main && shows('daily_notes') && <SideRow icon={<Icon name="daily" />} label="Daily notes" active={zoom === sb.journal} onClick={() => void exec('nav.dailyNotes')} />}
-          <SideRow icon={<Icon name="home" />} label="Library" active={zoom === ws.library} onClick={() => void exec('nav.open', { node: ws.library })} />
-          <SideRow icon={<Icon name="trash" />} label="Trash" active={zoom === ws.trash} onClick={() => void exec('nav.open', { node: ws.trash })} />
+          <div className="side-ws-items">
+            {ws.main && shows('daily_notes') && <SideRow pin icon={null} label="Daily notes" active={zoom === sb.journal} onClick={() => void exec('nav.dailyNotes')} />}
+            <SideRow pin icon={null} label="Library" active={zoom === ws.library} onClick={() => void exec('nav.open', { node: ws.library })} />
+            <SideRow pin icon={null} label="Trash" active={zoom === ws.trash} onClick={() => void exec('nav.open', { node: ws.trash })} />
+          </div>
         </div>
       ))}
       <div className="side-foot" onClick={() => void exec('workspace.list')}>
@@ -185,8 +204,9 @@ export function App() {
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
   }, [])
+  const sidebarMode = useStore((s) => s.sidebarMode)
   return (
-    <div className="app">
+    <div className={`app${sidebarMode === 2 ? ' sidebar-hidden' : ''}`}>
       <TopBar />
       <div className="body">
         <Sidebar />

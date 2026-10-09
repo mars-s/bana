@@ -69,8 +69,8 @@ function Palette() {
   return (
     <div className="dialog palette" role="dialog" aria-label="Command line">
       <div className="dialog-input">
-        <Icon name="search" />
-        <input autoFocus value={q} placeholder="Type a command" onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} />
+        
+        <input autoFocus value={q} placeholder="Enter command…" onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} />
       </div>
       <div className="dialog-list">
         {list.map((c, i) => (
@@ -159,7 +159,7 @@ function QuickAdd() {
   }
   return (
     <div className="dialog quick" role="dialog" aria-label="Quick add">
-      <div className="dialog-head">Quick add to today</div>
+      <div className="dialog-head">Quick add</div>
       <div className="dialog-input">
         <span className="dot" />
         <input
@@ -182,6 +182,11 @@ function QuickAdd() {
             }
           }}
         />
+      </div>
+      <div className="quick-help">
+        Each line becomes a node on today's page as you type.
+        <br />
+        Enter for the next line, Escape to close. Open quick add with ⌘E.
       </div>
     </div>
   )
@@ -216,7 +221,7 @@ export function Overlays() {
     <>
       <Shortcuts />
       {o && (
-        <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+        <div className={`scrim${o.kind === 'palette' ? '' : ' dim'}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>
           {o.kind === 'palette' && <Palette />}
           {o.kind === 'search' && <SearchOpen />}
           {o.kind === 'quickadd' && <QuickAdd />}

@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "52.5px",
+        "createdAt": "2026-10-09T23:11:34.159Z",
+        "reason": "spec 10 §2: page icon emoji is 52.5/73.5"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-10-09T23:11:34.189Z",
+        "reason": "spec 10 §5: inline code radius 3"
+      }
+    ]
+  }
+}

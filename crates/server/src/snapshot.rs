@@ -123,7 +123,10 @@ fn field_row(g: &Graph, owner: NodeId, e: &tanacraft_core::FieldEntry, depth: us
     let empty = values.iter().all(|v| export::display_value(g, v).is_empty());
     let typed_text = matches!(def.field_type, FieldType::Number | FieldType::Date | FieldType::Checkbox);
     let invalid = values.iter().any(|v| !v.is_valid() || (typed_text && matches!(v, FieldValue::Text(_))));
+    // Fields that come from the owner's supertags sit in a soft box; free-standing ones do not.
+    let boxed = g.get(owner).is_some_and(|n| n.tags.iter().any(|t| g.template_fields(*t).contains(&e.field)));
     json!({
+        "boxed": boxed,
         "k": "field",
         "key": format!("f{}:{}", owner.0, e.field.0),
         "owner": owner.0,

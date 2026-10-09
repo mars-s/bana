@@ -291,7 +291,8 @@ function selectionKey(k: KeyInfo, sc: string, p: Page): boolean {
     case 'Delete': {
       const rows = nodeRows(p)
       const at = rows.findIndex((r) => r.id === first)
-      void exec('node.delete').then(async (r) => {
+      void withBarrier(async () => {
+        const r = await exec('node.delete')
         if (r?.result?.confirm) return
         const after = getState().pages[panel]
         const rest = after ? nodeRows(after) : []

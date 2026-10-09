@@ -170,7 +170,7 @@ export function Icon({ name, size = 16, style, className }: { name: IconName; si
 /** The Today icon: a calendar page showing the day number. */
 export function TodayIcon({ day }: { day: number }) {
   return (
-    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.35} aria-hidden="true">
+    <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.35} aria-hidden="true">
       <rect x="2.3" y="2.6" width="11.4" height="11" rx="2" />
       <path d="M2.3 5.4h11.4" />
       <text x="8" y="12.2" textAnchor="middle" fontSize="6.2" fontWeight="600" fill="currentColor" stroke="none" fontFamily="var(--font)">

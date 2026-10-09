@@ -5,18 +5,28 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
-import { Icon } from './icons'
+import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, refresh, setActivePanel, setState, closePanel, useStore } from './store'
-import { exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost } from './controller'
+import { exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, withBarrier } from './controller'
 import { keyInfo } from './keys'
 
 const OVERSCAN_ROWS = 150
 const WINDOW = 400
 
+const TAG_NAMES = new Set(['grey', 'pink', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'teal', 'cyan', 'blue', 'indigo', 'violet', 'magenta'])
+
+/** The four tones of a supertag colour (10 §1.5) as CSS variables: --tag (fg), --tag-t1, --tag-t2. */
 export function tagStyle(color: string): CSSProperties {
-  const c = color.startsWith('#') ? color : `var(--tag-${color || 'none'})`
-  return { '--tag': c } as CSSProperties
+  if (/^#[0-9a-f]{6}$/i.test(color)) {
+    return {
+      '--tag': color,
+      '--tag-t1': `color-mix(in srgb, ${color} 22%, var(--c-panel))`,
+      '--tag-t2': `color-mix(in srgb, ${color} 32%, var(--c-panel))`,
+    } as CSSProperties
+  }
+  const name = TAG_NAMES.has(color) ? color : 'grey'
+  return { '--tag': `var(--tag-${name}-fg)`, '--tag-t1': `var(--tag-${name}-t1)`, '--tag-t2': `var(--tag-${name}-t2)` } as CSSProperties
 }
 
 export function TagChip({ chip, onOpen }: { chip: Chip; onOpen?: () => void }) {
@@ -258,7 +268,7 @@ function Guides({ depth }: { depth: number }) {
   return (
     <>
       {Array.from({ length: depth }, (_, i) => (
-        <span key={i} className="guide" style={{ left: `calc(${i} * var(--indent) + var(--chevron-w) + var(--bullet-col) / 2)` }} />
+        <span key={i} className="guide" style={{ left: `calc(${i} * var(--indent) + var(--bullet) / 2)` }} />
       ))}
     </>
   )
@@ -267,11 +277,11 @@ function Guides({ depth }: { depth: number }) {
 function Bullet({ row, onClick }: { row: NodeRow; onClick: () => void }) {
   const tag = row.tags.find((t) => t.name !== 'day')
   const style = tag ? tagStyle(tag.color) : undefined
-  const closed = row.hasKids && !row.expanded
+  const closed = (row.hasKids && !row.expanded) || row.kind === 'search'
   let glyph: JSX.Element
-  if (row.kind === 'search') glyph = <Icon name="search" size={13} />
+  if (row.kind === 'search') glyph = <Icon name="search" size={9} className="glyph" />
   else if (row.ref) glyph = <span className={`dot ref${row.notes ? ' notes' : ''}`} />
-  else if (row.link) glyph = <Icon name="link" size={13} />
+  else if (row.link) glyph = <Icon name="link" size={11} className="glyph" />
   else glyph = <span className="dot" />
   return (
     <span
@@ -304,115 +314,116 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
       data-depth={row.depth}
     >
       <Guides depth={row.depth} />
-      <span className="chev-slot">
+      <div className="row-inner">
         {row.hasKids && (
           <span
-            className={`chev${row.expanded ? ' open' : ''}`}
+            className="expander"
+            title={row.expanded ? 'Collapse' : 'Expand'}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void exec('node.toggleExpand', { node: row.id }, panel)}
           >
-            <Icon name="chevronRight" size={12} />
+            <Icon name={row.expanded ? 'chevronDown' : 'chevronRight'} size={10} />
           </span>
         )}
-      </span>
-      {blank ? <span className="bullet blank" /> : <Bullet row={row} onClick={() => void exec('nav.zoomIn', { node: row.id }, panel)} />}
-      {row.done !== null && (
-        <span
-          className={`checkbox${row.done ? ' on' : ''}`}
-          role="checkbox"
-          aria-checked={row.done}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => void exec('node.toggleDone', { node: row.id }, panel)}
-        >
-          {row.done && <Icon name="check" size={12} />}
+        {blank ? <span className="bullet blank" /> : <Bullet row={row} onClick={() => void exec('nav.zoomIn', { node: row.id }, panel)} />}
+        <span className="line">
+          {row.done !== null && (
+            <span
+              className={`checkbox${row.done ? ' on' : ''}`}
+              role="checkbox"
+              aria-checked={row.done}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void exec('node.toggleDone', { node: row.id }, panel)}
+            >
+              {row.done && <Icon name="check" size={12} />}
+            </span>
+          )}
+          {row.icon && <span className="node-icon">{row.icon}</span>}
+          {editing ? (
+            <LineEditor row={row} panel={panel} page={page} />
+          ) : (
+            <span
+              className="text"
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                e.preventDefault()
+                setActivePanel(panel)
+                if (e.shiftKey) {
+                  const from = page.sel[0] ?? page.focus ?? row.id
+                  void exec('select.set', { from, to: row.id }, panel)
+                } else if (row.ref) {
+                  void exec('nav.open', { node: row.target }, panel)
+                } else {
+                  setGhost(panel, row.id, false)
+                  focusLine(panel, row.id, caretFromPoint(e, row.name))
+                }
+              }}
+            >
+              {row.name ? <RichText text={row.name} refs={page.refs} onRef={(id) => void exec('nav.open', { node: id }, panel)} /> : '\u200b'}
+            </span>
+          )}
+          {row.suffix.map(([t, ph], i) => (
+            <span key={i} className={ph ? 'suffix placeholder' : 'suffix'}>
+              {t}
+            </span>
+          ))}
+          {row.tags.map((t) => (
+            <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
+          ))}
+          {row.progress && (
+            <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>
+              <span style={{ width: `${row.progress[1] ? (100 * row.progress[0]) / row.progress[1] : 0}%` }} />
+            </span>
+          )}
         </span>
-      )}
-      {row.icon && <span className="node-icon">{row.icon}</span>}
-      <span className="line">
-        {editing ? (
-          <LineEditor row={row} panel={panel} page={page} />
-        ) : (
-          <span
-            className="text"
-            onMouseDown={(e) => {
-              if (e.button !== 0) return
-              e.preventDefault()
-              setActivePanel(panel)
-              if (e.shiftKey) {
-                const from = page.sel[0] ?? page.focus ?? row.id
-                void exec('select.set', { from, to: row.id }, panel)
-              } else if (row.ref) {
-                void exec('nav.open', { node: row.target }, panel)
-              } else {
-                setGhost(panel, row.id, false)
-                focusLine(panel, row.id, caretFromPoint(e, row.name))
-              }
-            }}
-          >
-            {row.name ? (
-              <RichText text={row.name} refs={page.refs} onRef={(id) => void exec('nav.open', { node: id }, panel)} />
-            ) : (
-              '​'
-            )}
-          </span>
-        )}
-        {row.suffix.map(([t, ph], i) => (
-          <span key={i} className={ph ? 'suffix placeholder' : 'suffix'}>
-            {t}
-          </span>
-        ))}
-        {row.tags.map((t) => (
-          <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
-        ))}
-        {row.progress && (
-          <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>
-            <span style={{ width: `${row.progress[1] ? (100 * row.progress[0]) / row.progress[1] : 0}%` }} />
-          </span>
-        )}
-      </span>
+      </div>
     </div>
   )
 }
 
-const FIELD_ICON: Record<string, string> = {}
+const FIELD_ICONS: Record<string, IconName> = { date: 'calendar', checkbox: 'check', url: 'link', options: 'list', options_from_tag: 'hash', number: 'hash', user: 'user', email: 'field', plain: 'field' }
 
 function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
-  void FIELD_ICON
   return (
-    <div className="row field" style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }} data-owner={row.owner} data-field={row.field}>
+    <div className={`row field${row.boxed ? ' boxed' : ''}`} style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }} data-owner={row.owner} data-field={row.field}>
       <Guides depth={row.depth} />
-      <span className="chev-slot" />
-      <span className="field-name" onClick={() => void exec('nav.open', { node: row.field }, panel)}>
-        <Icon name="field" size={13} className="field-icon" />
-        {row.name}
-      </span>
-      <span className="field-values">
-        {row.values.length === 0 && <span className="field-empty">Empty</span>}
-        {row.values.map((v, i) =>
-          v.checked !== null ? (
-            <span key={i} className={`checkbox${v.checked ? ' on' : ''}`}>
-              {v.checked && <Icon name="check" size={12} />}
-            </span>
-          ) : (
-            <span key={i} className="field-value">
-              <span className="dot small" />
-              {v.text}
-            </span>
-          ),
-        )}
+      <div className="row-inner">
+        <span className="field-icon-slot">
+          <Icon name={FIELD_ICONS[row.type] ?? 'field'} size={13} />
+        </span>
+        <span className="field-name" onClick={() => void exec('nav.open', { node: row.field }, panel)} title={row.name}>
+          {row.name}
+        </span>
+        <span className="field-values">
+          {row.values.length === 0 && <span className="field-value field-empty">Empty</span>}
+          {row.values.map((v, i) =>
+            v.checked !== null ? (
+              <span key={i} className="field-value">
+                <span className={`checkbox${v.checked ? ' on' : ''}`}>{v.checked && <Icon name="check" size={12} />}</span>
+              </span>
+            ) : (
+              <span key={i} className="field-value">
+                <span className="bullet">
+                  <span className="dot" />
+                </span>
+                <span>{v.text}</span>
+              </span>
+            ),
+          )}
+        </span>
         {(row.missing || row.invalid) && (
           <span className="field-warn" title={row.invalid ? 'Not a valid value for this field type' : 'Required'}>
             ?
           </span>
         )}
-      </span>
+      </div>
     </div>
   )
 }
 
 function MoreLine({ row, panel }: { row: MoreRow; panel: string }) {
   return (
-    <div className="row more" style={{ paddingLeft: `calc(${row.depth} * var(--indent) + var(--chevron-w) + 4px)` }}>
+    <div className="row more" style={{ paddingLeft: `calc(${row.depth} * var(--indent) + var(--text-from-bullet) - 4.8px)` }}>
       {row.fields.map((f) => (
         <span
           key={f.field}
@@ -567,16 +578,22 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
 function DayNav({ panel }: { panel: string }) {
   return (
     <div className="day-nav">
-      <button className="btn icon" title="Previous day" onClick={() => void exec('nav.previousDay', {}, panel)}>
-        <Icon name="chevronLeft" size={14} />
-      </button>
-      <button className="btn icon" title="Next day" onClick={() => void exec('nav.nextDay', {}, panel)}>
-        <Icon name="chevronRight" size={14} />
-      </button>
-      <button className="btn" onClick={() => void exec('nav.today', {}, panel)}>
-        Today
-        <Icon name="calendar" size={13} />
-      </button>
+      <span className="btn-group">
+        <button className="btn icon" title="Previous day" onClick={() => void exec('nav.previousDay', {}, panel)}>
+          <Icon name="chevronLeft" size={12} />
+        </button>
+        <button className="btn icon" title="Next day" onClick={() => void exec('nav.nextDay', {}, panel)}>
+          <Icon name="chevronRight" size={12} />
+        </button>
+      </span>
+      <span className="btn-group">
+        <button className="btn" onClick={() => void exec('nav.today', {}, panel)}>
+          Today
+        </button>
+        <button className="btn icon" title="Go to date" onClick={() => void exec('nav.today', {}, panel)}>
+          <Icon name="calendar" size={12} />
+        </button>
+      </span>
     </div>
   )
 }
@@ -682,10 +699,10 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 </div>
                 <div className="head-actions">
                   <button className="btn icon" title="AI (not available)">
-                    <Icon name="sparkle" size={14} />
+                    <Icon name="sparkle" size={12} />
                   </button>
                   <button className="btn icon" title="Options">
-                    <Icon name="more" size={14} />
+                    <Icon name="more" size={12} />
                   </button>
                 </div>
               </div>
@@ -714,13 +731,13 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               onMouseDown={(e) => {
                 e.preventDefault()
                 setActivePanel(panel)
-                void exec('node.add', { parent: page.zoom }, panel).then((r) => {
+                void withBarrier(async () => {
+                  const r = await exec('node.add', { parent: page.zoom }, panel)
                   const id = r?.result?.id
-                  if (id != null) void exec('focus.set', { node: id, caret: 0 }, panel)
+                  if (id != null) await exec('focus.set', { node: id, caret: 0 }, panel)
                 })
               }}
             >
-              <span className="chev-slot" />
               <span className="bullet">
                 <span className="dot faint" />
               </span>

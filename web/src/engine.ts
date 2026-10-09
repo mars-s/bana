@@ -192,6 +192,7 @@ export interface FieldRow {
   values: FieldValueShown[]
   missing: boolean
   invalid: boolean
+  boxed: boolean
 }
 
 export interface MoreRow {

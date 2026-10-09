@@ -10,7 +10,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 |---|---|---|
 | M0 Scaffold | Workspace, licences, docs, xtask | done |
 | M1 Core | Node graph, supertags, fields, references, daily notes, trash, undo/redo, JSON file | done |
-| M2 Commands | Command registry with ids, params, shortcuts (64 commands) | done |
+| M2 Commands | Command registry with ids, params, shortcuts (60 commands) | done |
 | M3 Desktop | egui app: sidebar, outliner, breadcrumbs, keyboard editing, tag chips, field rows, pickers, command line, control channel | done (first version) |
 | M4 Screenshots | Offscreen `ui_shot`, README images | done |
 | M5 Agents | CLI (inspect, view, add, export, run) and MCP server | done |

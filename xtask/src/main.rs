@@ -68,8 +68,8 @@ fn parity() -> Result<(), String> {
         for e in std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?.flatten() {
             let p = e.path();
             let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
-                continue; // tool metadata, not spec
+            if name.starts_with('.') || name == "DIFFS.md" || name == "diffs" {
+                continue; // tool metadata and the acceptance-test report, not spec
             }
             if p.is_dir() {
                 stack.push(p);

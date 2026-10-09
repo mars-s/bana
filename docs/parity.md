@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95) | 43 | 44 | 6 | 2 |
+| Spec sections (99) | 50 | 41 | 6 | 2 |
 | Screenshots (153) | 88 | 37 | 27 | 1 |
 
 ## `00-overview.md`

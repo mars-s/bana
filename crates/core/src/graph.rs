@@ -1342,9 +1342,13 @@ impl Graph {
     }
 
     /// The people a user field can pick: the current user, then every name used in a user field.
+    /// The person using this computer: the only editor of a local graph.
+    pub fn local_user() -> String {
+        std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "Me".into())
+    }
+
     pub fn user_names(&self) -> Vec<String> {
-        let me = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "Me".into());
-        let mut out = vec![me];
+        let mut out = vec![Graph::local_user()];
         for n in self.nodes.values() {
             for e in &n.fields {
                 if self.field_def(e.field).is_some_and(|d| d.field_type == FieldType::User) {

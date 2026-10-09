@@ -1798,6 +1798,10 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         ui.add_space(indent);
         // Chevron + bullet (drag the bullet to move the node).
         let (rect, resp) = ui.allocate_exact_size(vec2(20.0, ROW_H), Sense::click_and_drag());
+        // Hovering the bullet a moment shows who edited it and when (spec 02 §5). One local editor.
+        let edited = node.as_ref().map(|n| n.edited.max(n.created)).unwrap_or(0);
+        let card = format!("{}\nEdited by {}, {}", app.session.graph.text(target), Graph::local_user(), ago(edited));
+        let resp = resp.on_hover_text(card);
         center = rect.center();
         if resp.drag_started() {
             resp.dnd_set_drag_payload(id);

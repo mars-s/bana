@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 74 | 15 | 4 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 75 | 14 | 4 | 2 |
 | Screenshots (160) | 140 | 14 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
@@ -31,7 +31,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields (several values), checkbox, heading, icon and banner, view settings, created/edited/done times, expansion, bullet states. Missing: edited-by (one local editor), per-place expansion. |
+| 1. Node | done | Name with inline marks, description, ordered children, owner, tags, fields (several values), checkbox, heading, icon and banner, view settings, created/edited/done times, expansion (each reference expands on its own), bullet states, hover card on the bullet with "Edited by <you>, <time>" (one local editor). |
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference, notes for this context on a reference (Alt+Cmd+Down, `node.contextNote`), warn on the first edit of a referenced node (setting). Missing: fields for this context. Tested. |
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Building block: promote for base types (first in the # menu), hide from searches and menus (`tag.setBuildingBlock`). Missing: AI settings (out of scope). |

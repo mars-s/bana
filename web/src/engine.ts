@@ -231,6 +231,7 @@ export interface Page {
   sel: number[]
   view: { kind: string; isView: boolean; toolbar: boolean }
   related: { id: number; name: string; items: NodeRow[] }[]
+  references: { id: number; name: string; path: string }[]
   filteredOut: number
   rows: { total: number; start: number; items: Row[]; focusIndex: number | null }
   refs: Record<string, string>

@@ -10,7 +10,7 @@ import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
-import { ViewBody, ViewToolbar } from './Views'
+import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { keyInfo } from './keys'
 
@@ -946,6 +946,34 @@ function DayNav({ panel }: { panel: string }) {
   )
 }
 
+/** The page's footer: where this node is referenced (spec 01 §3; 12: Tagged node page). */
+function References({ page, panel }: { page: Page; panel: string }) {
+  const [open, setOpen] = useState(true)
+  const n = page.references.length
+  return (
+    <section className="references">
+      <button className="references-head" onClick={() => setOpen((o) => !o)}>
+        {n} reference{n === 1 ? '' : 's'}
+        <Icon name={open ? 'chevronDown' : 'chevronRight'} size={12} />
+      </button>
+      {open && (
+        <>
+          <div className="references-group">Referenced in…</div>
+          {page.references.map((r) => (
+            <div key={r.id} className="reference-row" onClick={() => void exec('nav.open', { node: r.id }, panel)}>
+              <span className="bullet closed">
+                <span className="dot" />
+              </span>
+              <span className="reference-name">{r.name || 'Untitled'}</span>
+              {r.path && <span className="reference-path">{r.path}</span>}
+            </div>
+          ))}
+        </>
+      )}
+    </section>
+  )
+}
+
 function RelatedCard({ page, panel }: { page: Page; panel: string }) {
   return (
     <>
@@ -1088,6 +1116,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
               {page.kind === 'tag' && vs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={vs.tabs} active={page.zoom} />}
+              {vs && !layout && <QueryBuilder v={vs} panel={panel} />}
               {vs && !layout && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>
             {schema && <SupertagsPage panel={panel} />}
@@ -1126,6 +1155,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               <span className="ghost-hint">Click to add a node</span>
             </div>}
             {page.filteredOut > 0 && <p className="muted small">{page.filteredOut} items filtered out</p>}
+            {page.references.length > 0 && <References page={page} panel={panel} />}
           </div>
           {wide && (
             <aside className="page-side">

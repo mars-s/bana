@@ -82,4 +82,5 @@ export const UI_COMMANDS: [string, string, string][] = [
   ['ui.settings', 'Open settings', ''],
   ['ui.recents', 'Open recents', ''],
   ['ui.help', 'Help', ''],
+  ['ui.searchOptions', 'Open or close the query editor (search conditions)', 'Mod+Shift+O'],
 ]

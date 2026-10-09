@@ -76,6 +76,8 @@ export interface State {
   fieldEdit: FieldEdit | null
   /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
   nodeMenu: { panel: string; node: number; x: number; y: number } | null
+  /** Panels whose search query builder is open. */
+  queryOpen: Record<string, boolean>
   /** Pages that are not nodes, per panel. */
   special: Record<string, 'settings' | 'recents' | 'help' | undefined>
   /** A description being typed under a line. */
@@ -110,6 +112,7 @@ let state: State = {
   fieldEdit: null,
   nodeMenu: null,
   special: {},
+  queryOpen: {},
   descEdit: null,
 }
 

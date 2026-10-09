@@ -16,7 +16,7 @@ async function fieldOf(server: Server, node: number, field: string) {
 
 test('the View as menu switches to a table, and a cell is typed in place', async ({ app, server }) => {
   await openTasks(server, app)
-  await app.locator('.view-toolbar .tool').first().click()
+  await app.locator('.view-toolbar .tool[title="View as"]').click()
   await app.locator('.menu-item', { hasText: 'Table' }).click()
   await expect(app.locator('.table')).toBeVisible()
   const row = app.locator('.t-row', { hasText: 'Build four beds' })
@@ -52,4 +52,24 @@ test('the calendar shows the month and steps to the next', async ({ app, server 
   await expect(app.locator('.cal-event', { hasText: 'Build four beds' })).toBeVisible()
   await app.locator('.cal-head .icon-btn[title="Next"]').click()
   await expect(app.locator('.cal-title')).toHaveText('November 2026')
+})
+
+test('the query builder adds a condition, and results wait for Run once (spec 05 §2, N13)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'table' })
+  await expect(app.locator('.table')).toBeVisible()
+  await app.locator('.panel .title-input').click()
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Meta+Shift+o')
+  await expect(app.locator('.query-builder')).toBeVisible()
+  const before = await app.locator('.t-row[data-id]').count()
+  await app.locator('.q-input').first().fill('Build')
+  await app.locator('.q-input').first().press('Enter')
+  await expect(app.locator('.q-clause')).toHaveCount(await app.locator('.q-clause').count())
+  await expect(app.locator('.q-expr')).toContainText('Build')
+  // Held: the table still shows the old results until Run once.
+  expect(await app.locator('.t-row[data-id]').count()).toBe(before)
+  await app.locator('.q-foot .btn', { hasText: 'Done' }).click()
+  await expect(app.locator('.query-builder')).toHaveCount(0)
+  await expect(app.locator('.t-row[data-id]')).toHaveCount(1)
 })

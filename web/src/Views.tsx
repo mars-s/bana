@@ -7,7 +7,7 @@ import type { FieldRow, Json, NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
 import { exec } from './controller'
-import { openInNewPanel, setActivePanel, useStore } from './store'
+import { openInNewPanel, setActivePanel, setState, useStore } from './store'
 import { openPicker, startFieldEdit } from './picker'
 
 export interface ViewItem extends NodeRow {
@@ -41,7 +41,13 @@ export interface ViewSnap {
   calendar: { year: number; month: number; mode: 'month' | 'week' | 'day'; today: string; weekStart: string; weekdays: string[] }
   selected: number | null
   tabs: { id: number; name: string }[]
+  query: { tree: QueryGroup; text: string; held: boolean } | null
   refs: Record<string, string>
+}
+
+export interface QueryGroup {
+  any: boolean
+  clauses: { not: boolean; text?: string; group?: QueryGroup }[]
 }
 
 const KINDS: { kind: string; label: string; icon: IconName }[] = [
@@ -93,8 +99,14 @@ function Item({ children, onPick, checked, icon }: { children: ReactNode; onPick
 
 function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
   const run = (c: string, p: Json) => void exec(c, { node: v.node, ...p }, panel)
+  const qOpen = useStore((s) => !!s.queryOpen[panel])
   return (
     <div className="view-toolbar">
+      {v.query && (
+        <button className={`tool${qOpen ? ' active' : ''}`} title="Search conditions (query builder)" onClick={() => void toggleQuery(panel, v.node, !qOpen)}>
+          <Icon name="search" size={14} />
+        </button>
+      )}
       <MenuButton icon={KINDS.find((k) => k.kind === v.kind)?.icon ?? 'list'} title="View as">
         {(close) =>
           KINDS.map((k) => (
@@ -164,6 +176,96 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
         )}
       </MenuButton>
       {v.filteredOut > 0 && <span className="tool-note">{v.filteredOut} filtered out</span>}
+    </div>
+  )
+}
+
+// ---- query builder (spec 05 §2) ------------------------------------------------------------------
+
+/** Opens or closes the conditions of a search node. While open, results wait for "Run once". */
+export async function toggleQuery(panel: string, node: number, open: boolean) {
+  setState((s) => ({ queryOpen: { ...s.queryOpen, [panel]: open } }))
+  await exec('search.hold', { node, on: open }, panel)
+}
+
+function GroupBox({ g, node, panel, path, not }: { g: QueryGroup; node: number; panel: string; path: number[]; not?: boolean }) {
+  const [text, setText] = useState('')
+  const add = () => {
+    if (!text.trim()) return
+    void exec('search.addClause', { node, clause: text.trim(), path }, panel)
+    setText('')
+  }
+  return (
+    <div className="q-group">
+      <button className="q-rail" title="Match all or any" onClick={() => void exec('search.setMode', { node, any: !g.any, path }, panel)}>
+        {not ? 'NOT' : g.any ? 'OR' : 'AND'}
+      </button>
+      <div className="q-body">
+        {g.clauses.map((c, i) =>
+          c.group ? (
+            <div key={i} className="q-nested">
+              <GroupBox g={c.group} node={node} panel={panel} path={[...path, i]} not={c.not} />
+              <button className="q-x" title="Remove" onClick={() => void exec('search.removeClause', { node, index: i, path }, panel)}>
+                <Icon name="close" size={10} />
+              </button>
+            </div>
+          ) : (
+            <div key={i} className="q-clause">
+              <span className="bullet">
+                <span className="dot" />
+              </span>
+              <span className={`q-text${c.not ? ' not' : ''}`}>{c.not ? `NOT ${c.text}` : c.text}</span>
+              <button className="ghost-btn" title="Negate" onClick={() => void exec('search.toggleNot', { node, index: i, path }, panel)}>
+                NOT
+              </button>
+              <button className="q-x" title="Remove" onClick={() => void exec('search.removeClause', { node, index: i, path }, panel)}>
+                <Icon name="close" size={10} />
+              </button>
+            </div>
+          ),
+        )}
+        <input
+          className="q-input"
+          placeholder="Add a condition: #tag, DONE, Field:value, text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') add()
+          }}
+        />
+        <div className="q-add">
+          {(['and', 'or', 'not'] as const).map((k) => (
+            <button key={k} className="btn" onClick={() => void exec('search.addGroup', { node, kind: k, path }, panel)}>
+              + {k.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function QueryBuilder({ v, panel }: { v: ViewSnap; panel: string }) {
+  const open = useStore((s) => !!s.queryOpen[panel])
+  if (!v.query || !open) return null
+  return (
+    <div className="query-builder">
+      <div className="q-head">
+        <span className="q-title">Query builder</span>
+        <span className="muted">Results wait until you run the query.</span>
+      </div>
+      <GroupBox g={v.query.tree} node={v.node} panel={panel} path={[]} />
+      <div className="q-foot">
+        <span className="q-expr">{v.query.text || 'No conditions yet'}</span>
+        <span className="spacer" />
+        <button className="btn regular" onClick={() => void exec('search.hold', { node: v.node, on: true }, panel)}>
+          Run once
+        </button>
+        <button className="btn regular confirm" onClick={() => void toggleQuery(panel, v.node, false)}>
+          Done
+        </button>
+      </div>
     </div>
   )
 }
@@ -497,6 +599,7 @@ function isoWeek(iso: string): number {
 export function ViewBody({ v, panel, showToolbar = true }: { v: ViewSnap; panel: string; showToolbar?: boolean }) {
   return (
     <div className="view-body" data-view={v.kind}>
+      <QueryBuilder v={v} panel={panel} />
       {showToolbar && v.toolbar && <Toolbar v={v} panel={panel} />}
       {v.kind === 'table' && <Table v={v} panel={panel} />}
       {(v.kind === 'cards' || v.kind === 'lanes') && <Board v={v} panel={panel} />}

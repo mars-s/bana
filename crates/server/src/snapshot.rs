@@ -307,6 +307,17 @@ pub fn page(s: &Session, params: &Value) -> Value {
             json!({"id": r.0, "name": g.name(r), "items": items})
         })
         .collect();
+    // Nodes that point here: a reference shows where it sits, a field reference its holder.
+    let references: Vec<Value> = g
+        .references_to(target)
+        .into_iter()
+        .take(200)
+        .map(|r| {
+            let open = if g.get(r).and_then(|n| n.reference_target()).is_some() { g.parent(r).unwrap_or(r) } else { r };
+            let path: Vec<String> = g.ancestors(open).into_iter().filter(|a| *a != g.sys.root && *a != open).map(|a| page_title(s, a)).collect();
+            json!({"id": open.0, "name": page_title(s, open), "path": path.join(" / ")})
+        })
+        .collect();
     let is_view = g.query(target).is_some() || node.is_some_and(|n| n.view.is_some()) || g.tag_def(target).is_some();
     json!({
         "zoom": zoom.0,
@@ -329,6 +340,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "sel": selection(s),
         "view": {"kind": vdef.kind.name(), "isView": is_view, "toolbar": !vdef.hide_toolbar},
         "related": related,
+        "references": references,
         "filteredOut": g.view_filtered_out(zoom),
         "rows": {"total": total, "start": start, "items": window, "focusIndex": focus_index},
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
@@ -489,6 +501,25 @@ pub fn is_view(g: &Graph, id: NodeId) -> bool {
     g.query(t).is_some() || g.tag_def(t).is_some() || g.get(t).is_some_and(|n| n.view.is_some())
 }
 
+/// A search node's query as a tree the query builder draws: each group is AND or OR, each clause
+/// reads as text, a NOT group is a clause with `not` set.
+fn query_tree(g: &Graph, q: &tanacraft_core::Query, depth: usize) -> Value {
+    use tanacraft_core::query::{Clause, ClauseKind};
+    let clauses: Vec<Value> = q
+        .clauses
+        .iter()
+        .take(200)
+        .map(|c| match &c.kind {
+            ClauseKind::Group { query } if depth < 8 => json!({"not": c.not, "group": query_tree(g, query, depth + 1)}),
+            _ => {
+                let one = tanacraft_core::Query { any: false, clauses: vec![Clause { not: false, kind: c.kind.clone() }] };
+                json!({"not": c.not, "text": one.describe(g)})
+            }
+        })
+        .collect();
+    json!({"any": q.any, "clauses": clauses})
+}
+
 /// Everything a view (table, cards, board, list, calendar...) needs: its items in groups, with the
 /// values of each column, and its settings. Params: `node` (default: the page), `week` (a date in
 /// the week a calendar shows).
@@ -566,6 +597,7 @@ pub fn view(s: &Session, params: &Value) -> Value {
                       "today": today.to_string(), "weekStart": g.week_start(today).to_string(), "weekdays": g.weekday_names()},
         "selected": s.nav_selected.get(&node).map(|n| n.0),
         "tabs": tabs,
+        "query": g.query(g.resolve(node)).map(|q| json!({"tree": query_tree(g, q, 0), "text": q.describe(g), "held": g.held_results(g.resolve(node)).is_some()})),
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
     })
 }

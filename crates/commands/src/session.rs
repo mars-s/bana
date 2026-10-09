@@ -59,6 +59,8 @@ pub struct Session {
     back: Vec<NodeId>,
     forward: Vec<NodeId>,
     pub recents: Vec<NodeId>,
+    /// Where "Move to move target" sends nodes.
+    pub move_target: Option<NodeId>,
     /// Last status line (result or error of the last command).
     pub status: String,
     command_count: u64,
@@ -87,6 +89,7 @@ impl Session {
             back: Vec::new(),
             forward: Vec::new(),
             recents: Vec::new(),
+            move_target: None,
             status: String::new(),
             command_count: 0,
         }

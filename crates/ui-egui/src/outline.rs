@@ -1012,6 +1012,16 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     };
     item(ui, "Duplicate", run("node.duplicate"));
     item(ui, "Move to...", Act::Pick(PickMode::MoveTo, id, at));
+    item(ui, "Move and leave reference to...", Act::Pick(PickMode::MoveLeaveRef, id, at));
+    item(ui, "Move to top", run("node.moveToTop"));
+    item(ui, "Move to bottom", run("node.moveToBottom"));
+    item(ui, "Set as move target", run("node.setMoveTarget"));
+    item(ui, "Move to move target", run("node.moveToTarget"));
+    // The link is an inline reference token: pasting it into a line links back here.
+    if ui.button("Copy node link").clicked() {
+        ui.ctx().copy_text(tanacraft_core::format::ref_token(g.resolve(id).0));
+        ui.close();
+    }
     item(ui, "Move up", run("node.moveUp"));
     item(ui, "Move down", run("node.moveDown"));
     item(ui, "Indent", run("node.indent"));

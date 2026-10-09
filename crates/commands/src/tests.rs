@@ -610,3 +610,24 @@ fn a_field_value_can_move_out_to_a_node() {
     assert_eq!(v["values"], json!(["Sam"]));
     assert_eq!(s.graph.name(s.graph.children(n)[0]), "Ada");
 }
+
+#[test]
+fn move_to_top_bottom_target_and_leave_reference() {
+    let mut s = blank();
+    let lib = s.graph.sys.library;
+    let a = id(&run(&mut s, "node.add", json!({"name": "a"})), "id");
+    let b = id(&run(&mut s, "node.add", json!({"name": "b"})), "id");
+    let c = id(&run(&mut s, "node.add", json!({"name": "c"})), "id");
+    run(&mut s, "node.moveToTop", json!({"node": c.0}));
+    assert_eq!(s.graph.children(lib), [c, a, b]);
+    run(&mut s, "node.moveToBottom", json!({"node": c.0}));
+    assert_eq!(s.graph.children(lib), [a, b, c]);
+    run(&mut s, "node.setMoveTarget", json!({"node": a.0}));
+    run(&mut s, "node.moveToTarget", json!({"node": c.0}));
+    assert_eq!(s.graph.children(a), [c]);
+    run(&mut s, "node.move", json!({"node": b.0, "parent": a.0, "leaveReference": true}));
+    assert_eq!(s.graph.children(a), [c, b]);
+    let left = s.graph.children(lib)[1];
+    assert_eq!(s.graph.resolve(left), b, "a reference stays where b was");
+    assert!(blank().run("node.moveToTarget", &json!({"node": 1})).is_err());
+}

@@ -28,7 +28,15 @@ pub fn registry() -> Registry {
         C::new("node.add", "Add node", "Node", add).params(r#"{"name": string, "parent"?: id, "index"?: number}"#),
         C::new("node.setName", "Rename node", "Node", set_name).params(r#"{"node"?: id, "name": string, "caret"?: chars}"#),
         C::new("node.setDescription", "Set description", "Node", set_description).params(r#"{"node"?: id, "text": string}"#),
-        C::new("node.move", "Move to", "Node", move_to).params(r#"{"node"?: id, "parent": id, "index"?: number}"#),
+        C::new("node.move", "Move to", "Node", move_to).params(
+            r#"{"node"?: id, "parent": id, "index"?: number, "leaveReference"?: bool}  (leaveReference: a reference stays where the node was)"#,
+        ),
+        C::new("node.moveToTop", "Move to top", "Node", |s, v| move_end(s, v, true)).params(r#"{"node"?: id}"#),
+        C::new("node.moveToBottom", "Move to bottom", "Node", |s, v| move_end(s, v, false)).params(r#"{"node"?: id}"#),
+        C::new("node.setMoveTarget", "Set move target", "Node", set_move_target)
+            .params(r#"{"node"?: id}  (default: the focused node or the open page)"#),
+        C::new("node.moveToTarget", "Move to move target", "Node", move_to_target)
+            .params(r#"{"node"?: id}  (default: the selection or focused node)"#),
         C::new("node.moveMany", "Move several nodes", "Node", move_many)
             .params(r#"{"nodes": [id], "parent": id, "index"?: number}  (keeps their order)"#),
         C::new("node.reference", "Add reference", "Node", reference)
@@ -593,8 +601,42 @@ fn set_description(s: &mut Session, v: &Value) -> CmdResult {
 fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let parent = p::node(v, "parent")?.ok_or_else(|| CmdError::Params("`parent` is required".into()))?;
+    let from = (s.graph.parent(id), s.graph.index_in_parent(id));
     s.graph.move_to(id, parent, p::usize(v, "index"))?;
+    // "Move and leave reference": the old spot keeps a reference to the moved node.
+    if p::bool(v, "leaveReference") == Some(true)
+        && let (Some(old), index) = from
+    {
+        s.graph.create_reference(old, index, id)?;
+    }
     Ok(json!({"node": id.0, "parent": s.graph.parent(id).map(|x| x.0)}))
+}
+
+fn move_end(s: &mut Session, v: &Value, top: bool) -> CmdResult {
+    let id = s.target(v)?;
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("this node has no parent".into()))?;
+    s.graph.move_to(id, parent, if top { Some(0) } else { None })?;
+    Ok(json!({"node": id.0, "index": s.graph.index_in_parent(id)}))
+}
+
+fn set_move_target(s: &mut Session, v: &Value) -> CmdResult {
+    let id = match p::node(v, "node")? {
+        Some(n) => n,
+        None => s.focus.unwrap_or(s.zoom),
+    };
+    s.graph.node(id)?;
+    s.move_target = Some(id);
+    Ok(json!({"target": id.0, "name": s.graph.name(id)}))
+}
+
+fn move_to_target(s: &mut Session, v: &Value) -> CmdResult {
+    let dest =
+        s.move_target.filter(|t| s.graph.get(*t).is_some()).ok_or_else(|| CmdError::Failed("no move target: use Set move target first".into()))?;
+    let ids = s.targets(v)?;
+    for id in &ids {
+        s.graph.move_to(*id, dest, None)?;
+    }
+    Ok(json!({"moved": ids.iter().map(|n| n.0).collect::<Vec<_>>(), "target": dest.0}))
 }
 
 fn reference(s: &mut Session, v: &Value) -> CmdResult {

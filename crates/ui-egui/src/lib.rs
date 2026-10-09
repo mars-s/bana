@@ -67,6 +67,8 @@ pub enum PickMode {
     TemplateField,
     /// `@` mid-sentence: an inline reference inserted at `Picker::caret`.
     InlineRef,
+    /// "Move and leave reference to": like `MoveTo`, a reference stays behind.
+    MoveLeaveRef,
     /// "Move to": a new owner for `node`.
     MoveTo,
 }

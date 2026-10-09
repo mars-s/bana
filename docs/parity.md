@@ -51,7 +51,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 3. Tab / Shift+Tab | done | Indent under previous sibling (expands it), outdent after parent, stops at the page. Field rows: after `>`, Tab goes to the value and Enter starts a node below; Enter in a value adds another value; Shift+Tab moves a value out to a node (`field.valueToNode`). Tested. |
 | 4. Backspace / Delete | done | Merge into previous sibling, no merge with children, empty line deletes, Delete joins next, deletes selections. Tested. |
 | 5. Arrow keys | done | Up/Down between lines, Up into the title, Left at start / Right at end jump lines, Shift+Up/Down selection. |
-| 6. Moving nodes | done | Move up/down crossing branches, drag and drop (between rows, as first child, whole selections), Move to... picker. |
+| 6. Moving nodes | done | Move up/down crossing branches, drag and drop (between rows, as first child, whole selections), Move to..., Move and leave reference to..., Move to top/bottom, Set move target and Move to move target. Tested. |
 | 7. Collapse, expand, zoom | done | Cmd+Up/Down, Ctrl+Cmd+Up/Down, chevrons, halos, zoom in/out with caret restore, hover card with edit and create times. |
 | 8. Node selection mode | done | Escape selects, Shift+Up/Down and Shift+click extend, floating toolbar (outdent, indent, tag, move, heading), Enter/Backspace/Tab/move/tag on selections, Cmd+C copies. |
 | 9. Checkboxes and "done" | done | Cmd+Enter cycle, green checked box, dimmed text, supertag checkboxes, done mapping. |
@@ -61,7 +61,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 13. Description | done | Ctrl+I opens a grey one-line editor under the name; Down from the name enters it, Up or Enter returns; on rows and page titles. Tested. |
 | 14. Undo / redo | done | Cmd+Z, Shift+Cmd+Z. |
 | 15. Duplicate | done | Shift+Cmd+D, caret stays in the original. |
-| 16. Context menu on a node | partial | Open, expand, add tag/field/checkbox/description, heading, progress bar, pin, view as, duplicate, move to, move, indent, convert search, delete/restore. Missing: copy link, publish, edit log. |
+| 16. Context menu on a node | partial | Open, expand, add tag/field/checkbox/description, heading, progress bar, pin, view as, duplicate, move to (also leaving a reference, top, bottom, move target), copy node link (pastes as an inline reference), move, indent, convert search, delete/restore. Missing: publish, edit log. |
 
 ## `03-supertags-fields.md`
 

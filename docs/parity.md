@@ -20,7 +20,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 1. The big picture | done | Single window: top bar, sidebar, panel area; every line is a node; any node opens as a page. |
 | 2. Top bar (full window width, ~44 px tall) | done | Sidebar button, back/forward, tab strip with +, then Help (a page listing every command with shortcut and id), keyboard shortcuts toggle and an Account menu (Workspaces, Settings, theme, shortcuts, Help). Credits left out (no billing). |
 | 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Create new with a square Search button, Pinned (expandable), workspace avatar and name (menu: switch, new, rename), Library, Daily notes, Inbox, Trash. Missing: AI chats. |
-| 4. Panel area | partial | Breadcrumbs, title, tag chips, ... menu, content column, related-content side card, References. Missing: icon/banner, breadcrumb collapse, AI button, dock button. |
+| 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
 | 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight. Own palette; default egui font (no Inter); no flash on new live results. |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Search and open, Create new, pinned, workspace items. Recents and AI chats pages missing. |
 | 7. Native menu bar | missing | Not built (egui window has no native menus). |
@@ -30,7 +30,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields, checkbox, heading, view settings, created/edited/done times, expansion, bullet states. Missing: icon, banner, edited-by, per-place expansion. |
+| 1. Node | partial | Name with inline marks, description, ordered children, owner, tags, fields (several values), checkbox, heading, icon and banner, view settings, created/edited/done times, expansion, bullet states. Missing: edited-by (one local editor), per-place expansion. |
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks, reference counter setting, Clone reference (Shift+Cmd+C), Remove reference, Hard delete including references, Move and leave reference. Missing: per-context notes and fields (Alt+Cmd+Down), warn when editing referenced nodes. |
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |

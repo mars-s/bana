@@ -819,6 +819,18 @@ impl Graph {
         Ok(id)
     }
 
+    /// Sets a page's icon (`Some(icon)`, where `None` inside clears) and/or banner.
+    pub fn set_decoration(&mut self, id: NodeId, icon: Option<Option<String>>, banner: Option<Option<String>>) -> Result<()> {
+        let n = self.node_mut(id)?;
+        if let Some(i) = icon {
+            n.icon = i;
+        }
+        if let Some(b) = banner {
+            n.banner = b;
+        }
+        Ok(())
+    }
+
     /// "Convert to supertag": a plain node becomes a supertag (its children become template
     /// content). It moves to the Schema and a reference stays where it was.
     pub fn convert_to_tag(&mut self, id: NodeId, color: &str) -> Result<NodeId> {

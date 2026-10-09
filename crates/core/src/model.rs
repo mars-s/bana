@@ -420,6 +420,11 @@ pub struct Node {
     /// Shown as a heading (bigger, bold).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub heading: bool,
+    /// Page decorations: an icon (a short text, usually one emoji) and a banner colour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner: Option<String>,
     /// How the node shows its items (list when absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<crate::view::ViewDef>,
@@ -463,6 +468,8 @@ impl Node {
             trashed_from: None,
             view: None,
             heading: false,
+            icon: None,
+            banner: None,
             pinned: false,
             progress: false,
             created,

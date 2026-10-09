@@ -794,3 +794,17 @@ fn paste_as_code_wraps_in_backticks() {
     run(&mut s, "edit.pasteAsCode", json!({"node": n.0, "text": "cargo xtask ci\n"}));
     assert_eq!(s.graph.name(n), "Run `cargo xtask ci `");
 }
+
+#[test]
+fn page_icon_and_banner() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Garden"})), "id");
+    run(&mut s, "node.setIcon", json!({"node": n.0, "icon": "🌱"}));
+    run(&mut s, "node.setBanner", json!({"node": n.0, "color": "green"}));
+    let node = s.graph.get(n).unwrap();
+    assert_eq!((node.icon.as_deref(), node.banner.as_deref()), (Some("🌱"), Some("green")));
+    assert!(s.run("node.setBanner", &json!({"node": n.0, "color": "plaid"})).is_err());
+    run(&mut s, "node.setIcon", json!({"node": n.0, "icon": ""}));
+    assert_eq!(s.graph.get(n).unwrap().icon, None);
+    assert_eq!(s.graph.get(n).unwrap().banner.as_deref(), Some("green"), "the banner stays");
+}

@@ -84,6 +84,27 @@ pub fn registry() -> Registry {
             insert_text(s, v, &format!("`{text}`"))
         })
         .params(r#"{"node"?: id, "caret"?: number, "text": string}  (inserted as inline code)"#),
+        C::new("node.setIcon", "Set icon", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let icon = p::str(v, "icon").map(str::trim).filter(|i| !i.is_empty()).map(|i| i.chars().take(4).collect::<String>());
+            s.graph.node(id)?;
+            s.graph.set_decoration(id, Some(icon.clone()), None)?;
+            Ok(json!({"node": id.0, "icon": icon}))
+        })
+        .params(r#"{"node"?: id, "icon": string}  (an emoji or a few characters; empty removes it)"#),
+        C::new("node.setBanner", "Set banner", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let color = p::str(v, "color").map(str::trim).filter(|c| !c.is_empty()).map(str::to_string);
+            if let Some(c) = &color
+                && !TAG_COLORS.contains(&c.as_str())
+                && !tanacraft_core::is_custom_color(c)
+            {
+                return Err(CmdError::Params(format!("`color` must be one of {}, or #rrggbb", TAG_COLORS.join(", "))));
+            }
+            s.graph.set_decoration(id, None, Some(color.clone()))?;
+            Ok(json!({"node": id.0, "banner": color}))
+        })
+        .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

@@ -472,9 +472,13 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         }
     });
     app.acts.extend(menu_acts);
+    decorations(app, ui, t, target);
     let s = &app.session;
     let g = &s.graph;
     ui.horizontal(|ui| {
+        if let Some(icon) = g.get(target).and_then(|n| n.icon.clone()) {
+            ui.label(RichText::new(icon).size(30.0));
+        }
         // A supertag page: a square "#" badge in the tag colour, then a checkbox square when the tag
         // shows one (spec DIFFS P3 #14).
         if let Some(def) = g.tag_def(target) {
@@ -551,6 +555,77 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     if let Some(nav) = nav {
         day_nav(app, ui, t, nav);
     }
+}
+
+/// Page decorations (spec 00 §4): a banner band in its colour, and on hover the small Icon and
+/// Banner buttons above the title.
+fn decorations(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, page: NodeId) {
+    let g = &app.session.graph;
+    if g.is_system(page) {
+        return;
+    }
+    let (icon, banner) = g.get(page).map(|n| (n.icon.clone(), n.banner.clone())).unwrap_or_default();
+    if let Some(b) = &banner {
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 70.0), Sense::hover());
+        ui.painter().rect_filled(r, 8.0, theme::tag_color(b, app.dark).0.gamma_multiply(0.6));
+    }
+    let area = Rect::from_min_size(ui.cursor().min - vec2(0.0, 6.0), vec2(ui.available_width(), 90.0));
+    let show = ui.rect_contains_pointer(area);
+    let mut acts = Vec::new();
+    ui.horizontal(|ui| {
+        ui.set_min_height(18.0);
+        if !show {
+            return;
+        }
+        let ib = ui.add(egui::Label::new(RichText::new("Icon").size(12.0).color(t.faint)).sense(Sense::click()));
+        egui::Popup::menu(&ib).show(|ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.set_max_width(220.0);
+                for e in [
+                    "\u{1F331}",
+                    "\u{1F4DA}",
+                    "\u{1F4CC}",
+                    "\u{2B50}",
+                    "\u{1F525}",
+                    "\u{1F4A1}",
+                    "\u{1F3AF}",
+                    "\u{1F4C5}",
+                    "\u{2705}",
+                    "\u{1F4DD}",
+                    "\u{1F680}",
+                    "\u{1F333}",
+                ] {
+                    if ui.button(RichText::new(e).size(18.0)).clicked() {
+                        acts.push(Act::Run("node.setIcon".into(), json!({"node": page.0, "icon": e})));
+                        ui.close();
+                    }
+                }
+            });
+            if icon.is_some() && ui.button("Remove icon").clicked() {
+                acts.push(Act::Run("node.setIcon".into(), json!({"node": page.0, "icon": ""})));
+                ui.close();
+            }
+        });
+        let bb = ui.add(egui::Label::new(RichText::new("Banner").size(12.0).color(t.faint)).sense(Sense::click()));
+        egui::Popup::menu(&bb).show(|ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.set_max_width(220.0);
+                for c in tanacraft_core::TAG_COLORS.iter().skip(2) {
+                    let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                    ui.painter().circle_filled(r.center(), 9.0, theme::tag_color(c, app.dark).0);
+                    if resp.on_hover_text(*c).clicked() {
+                        acts.push(Act::Run("node.setBanner".into(), json!({"node": page.0, "color": c})));
+                        ui.close();
+                    }
+                }
+            });
+            if banner.is_some() && ui.button("Remove banner").clicked() {
+                acts.push(Act::Run("node.setBanner".into(), json!({"node": page.0, "color": ""})));
+                ui.close();
+            }
+        });
+    });
+    app.acts.extend(acts);
 }
 
 /// The calendar navigation bar: previous, next, Today, and Go to date (spec 06 §4).
@@ -1452,6 +1527,9 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             && checkbox(ui, t, d, 15.0).clicked()
         {
             app.acts.push(Act::Run("node.toggleDone".into(), json!({"node": id.0})));
+        }
+        if let Some(icon) = node.as_ref().and_then(|n| n.icon.clone()) {
+            ui.label(RichText::new(icon).size(theme::FONT));
         }
         // Text.
         let name = app.session.graph.name(id).to_string();

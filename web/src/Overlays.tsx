@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import { call, type Json } from './engine'
 import { Icon } from './icons'
 import { exec, runUiCommand } from './controller'
+import { applyPick } from './picker'
+import { tagStyle } from './Outline'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { getState, newTab, refresh, setState, useStore } from './store'
 
@@ -215,10 +217,67 @@ function Shortcuts() {
   )
 }
 
+const PICK_TITLES: Record<string, string> = {
+  tag: 'Supertags',
+  field: 'Fields',
+  reference: 'Reference a node',
+  inlineRef: 'Reference a node',
+  slash: 'Insert',
+  choice: 'Options',
+  searchTag: 'List of supertag',
+  moveTo: 'Move to',
+}
+
+function Picker() {
+  const p = useStore((s) => s.picker)
+  if (!p) return null
+  const left = Math.min(p.x, window.innerWidth - 260)
+  return (
+    <div className="menu picker" style={{ left, top: p.y + 4 }} role="listbox" aria-label={PICK_TITLES[p.mode]}>
+      <div className="menu-label">{PICK_TITLES[p.mode]}</div>
+      {p.items.length === 0 && <div className="menu-empty">{p.query ? 'Nothing matches' : 'Type to search'}</div>}
+      {p.items.map((it, i) => {
+        const label = it.create
+          ? p.mode === 'tag'
+            ? `Create and apply #${it.create}`
+            : `Create "${it.create}"`
+          : (it.label ?? '')
+        return (
+          <div
+            key={i}
+            role="option"
+            aria-selected={i === p.sel}
+            className={`menu-item${i === p.sel ? ' sel' : ''}`}
+            onMouseEnter={() => setState({ picker: { ...p, sel: i } })}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              void applyPick(it, 'enter')
+            }}
+          >
+            <span className="menu-icon">
+              {p.mode === 'tag' && !it.create ? (
+                <span className="side-hash" style={tagStyle(it.color ?? 'grey')}>
+                  #
+                </span>
+              ) : it.create ? (
+                <Icon name="plus" size={12} />
+              ) : p.mode === 'field' ? (
+                <Icon name="field" size={12} />
+              ) : null}
+            </span>
+            <span className="grow">{label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function Overlays() {
   const o = useStore((s) => s.overlay)
   return (
     <>
+      <Picker />
       <Shortcuts />
       {o && (
         <div className={`scrim${o.kind === 'palette' ? '' : ' dim'}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>

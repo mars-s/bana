@@ -8,7 +8,8 @@ import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, refresh, setActivePanel, setState, closePanel, useStore } from './store'
-import { exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, withBarrier } from './controller'
+import { type EditorHandle, exec, focusLine, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { keyInfo } from './keys'
 
 const OVERSCAN_ROWS = 150
@@ -153,6 +154,23 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
     })
   }
 
+  /** New text in the line (typed, pasted or replayed): to the engine, and menus follow it. */
+  const textChanged = (raw: string, caretUtf16: number) => {
+    // Keys never insert line breaks (Enter is a command).
+    const v = raw.replace(/\n/g, ' ')
+    valueRef.current = v
+    setValue(v)
+    const caret = toChars(v, caretUtf16)
+    const el = ta.current
+    const instead = onLineText(row, panel, v, caret, (i) => (el ? caretPoint(el, v, i) : { x: 0, y: 0 }))
+    if (instead !== null) {
+      valueRef.current = instead
+      setValue(instead)
+      return
+    }
+    sendName(v, caret)
+  }
+
   // Put the caret where the engine says: on mount and after commands (not after typing).
   useLayoutEffect(() => {
     const el = ta.current
@@ -167,7 +185,8 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
   }, [row.id, caretEpoch])
 
   useEffect(() => {
-    const h = {
+    const h: EditorHandle = {
+      kind: 'line',
       panel,
       node: row.id,
       sel(): [number, number] {
@@ -186,15 +205,12 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         const s0 = el ? el.selectionStart : v.length
         const s1 = el ? el.selectionEnd : v.length
         const next = v.slice(0, s0) + text + v.slice(s1)
-        valueRef.current = next
-        setValue(next)
         const at = s0 + text.length
-        requestAnimationFrame(() => ta.current?.setSelectionRange(at, at))
         if (el) {
           el.value = next
           el.setSelectionRange(at, at)
         }
-        sendName(next, toChars(next, at))
+        textChanged(next, at)
       },
       setSel(a: number, c: number) {
         const el = ta.current
@@ -226,7 +242,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
       },
     }
     registerEditor(h)
-    return () => registerEditor(null)
+    return () => unregisterEditor(h)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id, panel])
 
@@ -243,16 +259,23 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         rows={1}
         spellCheck={false}
         placeholder=""
-        onChange={(e) => {
-          // Keys never insert line breaks (Enter is a command).
-          const v = e.target.value.replace(/\n/g, ' ')
-          valueRef.current = v
-          setValue(v)
-          sendName(v, toChars(v, e.target.selectionEnd))
-        }}
+        onChange={(e) => textChanged(e.target.value, e.target.selectionEnd)}
       />
     </span>
   )
+}
+
+/** Where char `i` of a single-line editor sits on screen (for menus opened from the text). */
+function caretPoint(el: HTMLTextAreaElement, text: string, i: number): { x: number; y: number } {
+  const r = el.getBoundingClientRect()
+  const cs = getComputedStyle(el)
+  const ctx = document.createElement('canvas').getContext('2d')
+  let w = 0
+  if (ctx) {
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+    w = ctx.measureText(Array.from(text).slice(0, i).join('')).width
+  }
+  return { x: r.left + Math.min(w, r.width), y: r.top + parseFloat(cs.lineHeight || '21') }
 }
 
 let quietTimer = 0
@@ -384,6 +407,14 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
 const FIELD_ICONS: Record<string, IconName> = { date: 'calendar', checkbox: 'check', url: 'link', options: 'list', options_from_tag: 'hash', number: 'hash', user: 'user', email: 'field', plain: 'field' }
 
 function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
+  const fe = useStore((s) => s.fieldEdit)
+  const editing = fe && fe.panel === panel && fe.owner === row.owner && fe.field === row.field ? fe.index : null
+  const edit = (i: number) => {
+    setActivePanel(panel)
+    void startFieldEdit(panel, row.owner, row.field, i)
+  }
+  const values = row.values
+  const lines = editing !== null && editing >= values.length ? [...values, null] : values
   return (
     <div className={`row field${row.boxed ? ' boxed' : ''}`} style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }} data-owner={row.owner} data-field={row.field}>
       <Guides depth={row.depth} />
@@ -395,18 +426,35 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
           {row.name}
         </span>
         <span className="field-values">
-          {row.values.length === 0 && <span className="field-value field-empty">Empty</span>}
-          {row.values.map((v, i) =>
-            v.checked !== null ? (
-              <span key={i} className="field-value">
-                <span className={`checkbox${v.checked ? ' on' : ''}`}>{v.checked && <Icon name="check" size={12} />}</span>
-              </span>
-            ) : (
+          {lines.length === 0 && (
+            <span className="field-value field-empty" onMouseDown={(e) => (e.preventDefault(), edit(0))}>
+              {FIELD_PLACEHOLDER[row.type] ?? 'Empty'}
+            </span>
+          )}
+          {lines.map((v, i) =>
+            editing === i ? (
               <span key={i} className="field-value">
                 <span className="bullet">
                   <span className="dot" />
                 </span>
-                <span>{v.text}</span>
+                <FieldEditor row={row} panel={panel} index={i} initial={v?.raw ?? ''} />
+              </span>
+            ) : v && v.checked !== null ? (
+              <span key={i} className="field-value">
+                <span
+                  className={`checkbox${v.checked ? ' on' : ''}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void exec('field.set', { node: row.owner, field: row.field, index: i, value: v.checked ? 'no' : 'yes' }, panel)}
+                >
+                  {v.checked && <Icon name="check" size={12} />}
+                </span>
+              </span>
+            ) : (
+              <span key={i} className="field-value" onMouseDown={(e) => (e.preventDefault(), edit(i))}>
+                <span className="bullet">
+                  <span className="dot" />
+                </span>
+                <span className="field-text">{v?.text}</span>
               </span>
             ),
           )}
@@ -418,6 +466,95 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
         )}
       </div>
     </div>
+  )
+}
+
+const FIELD_PLACEHOLDER: Record<string, string> = { date: 'Add date', options: 'Select option', options_from_tag: 'Select option', user: 'Select user', number: 'Add number', url: 'Add link', email: 'Add email' }
+const PICKS = new Set(['options', 'options_from_tag', 'user'])
+
+/** A field value being typed: saved as typed (DIFFS N15), one value per line. */
+function FieldEditor({ row, panel, index, initial }: { row: FieldRow; panel: string; index: number; initial: string }) {
+  const [value, setValue] = useState(initial)
+  const ref = useRef<HTMLInputElement>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
+  const send = (v: string) => {
+    void call('run', { command: 'field.set', params: { node: row.owner, field: row.field, index, value: v, keep: true }, panel }).then(() => scheduleQuietRefresh())
+    if (PICKS.has(row.type)) {
+      const el = ref.current
+      const r = el?.getBoundingClientRect()
+      const p = getState().picker
+      if (p?.mode === 'choice' && p.field === row.field && p.node === row.owner) setPickerQuery(v)
+      else openPicker({ mode: 'choice', panel, node: row.owner, field: row.field, index, at: -1, query: v, x: r?.left ?? 0, y: (r?.bottom ?? 0) + 2 })
+    }
+  }
+  useLayoutEffect(() => {
+    ref.current?.focus()
+    if (PICKS.has(row.type)) send(valueRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    const h: EditorHandle = {
+      kind: 'field',
+      panel,
+      node: row.owner,
+      sel(): [number, number] {
+        const el = ref.current
+        const v = valueRef.current
+        return el ? [toChars(v, el.selectionStart ?? 0), toChars(v, el.selectionEnd ?? 0)] : [charLen(v), charLen(v)]
+      },
+      value: () => valueRef.current,
+      insert(text: string) {
+        const el = ref.current
+        const v = valueRef.current
+        const a = el?.selectionStart ?? v.length
+        const b = el?.selectionEnd ?? v.length
+        const next = v.slice(0, a) + text + v.slice(b)
+        valueRef.current = next
+        setValue(next)
+        if (el) {
+          el.value = next
+          el.setSelectionRange(a + text.length, a + text.length)
+        }
+        send(next)
+      },
+      setSel() {},
+      native(k: { key: string }) {
+        if (k.key === 'Backspace') {
+          const v = valueRef.current
+          const next = v.slice(0, -1)
+          valueRef.current = next
+          setValue(next)
+          send(next)
+        }
+      },
+    }
+    registerEditor(h)
+    return () => unregisterEditor(h)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.owner, row.field, index])
+  return (
+    <input
+      ref={ref}
+      className="editor-input field-input"
+      value={value}
+      spellCheck={false}
+      placeholder={FIELD_PLACEHOLDER[row.type] ?? ''}
+      data-field-edit={`${row.owner}:${row.field}:${index}`}
+      onChange={(e) => {
+        setValue(e.target.value)
+        valueRef.current = e.target.value
+        send(e.target.value)
+      }}
+      onBlur={() => {
+        // Clicking elsewhere ends typing; the value is already in the engine.
+        setTimeout(() => {
+          const fe = getState().fieldEdit
+          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current)
+            setState({ fieldEdit: null })
+        }, 0)
+      }}
+    />
   )
 }
 
@@ -439,7 +576,8 @@ function MoreLine({ row, panel }: { row: MoreRow; panel: string }) {
 
 function RowView({ row, panel, page, active }: { row: Row; panel: string; page: Page; active: boolean }) {
   if (row.k === 'node') {
-    const pf = getState().activePanel === panel
+    const s = getState()
+    const pf = s.activePanel === panel && !s.fieldEdit
     return <NodeLine row={row} panel={panel} page={page} selected={page.sel.includes(row.id)} editing={active && pf && page.focus === row.id} />
   }
   if (row.k === 'field') return <FieldLine row={row} panel={panel} />

@@ -85,6 +85,7 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
     json!({
         "id": id.0,
         "target": target.0,
+        "parent": g.parent(id).map(|p| p.0),
         "name": n.name,
         "ref": target != id,
         "kind": kind_name(g, target),
@@ -385,4 +386,95 @@ pub fn find(s: &Session, params: &Value) -> Value {
             })
             .collect(),
     )
+}
+
+/// What a picker offers (`#`, `>`, `@`, `/` and the field value menus). Params: `mode` (`tag`,
+/// `field`, `reference`, `inlineRef`, `slash`, `choice`, `moveTo`, `searchTag`, `column`), `node`,
+/// `query`, and `field` for `choice`. Each item is `{id, label}` or `{create: name}`.
+pub fn choices(s: &Session, params: &Value) -> Value {
+    let g = &s.graph;
+    let mode = params.get("mode").and_then(Value::as_str).unwrap_or_default();
+    let node = tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
+    let raw = params.get("query").and_then(Value::as_str).unwrap_or_default();
+    let q = raw.trim().trim_start_matches('#').to_lowercase();
+    let item = |id: NodeId, label: String| json!({"id": id.0, "label": label});
+    let line = |id: NodeId| export::node_line(g, id);
+    let mut out: Vec<Value> = match mode {
+        "tag" | "searchTag" => g
+            .menu_tags(node)
+            .into_iter()
+            .filter(|t| g.name(*t).to_lowercase().contains(&q))
+            .map(|t| {
+                let mut v = item(t, g.name(t).to_string());
+                v["color"] = json!(g.tag_def(t).map(|d| d.color.clone()).unwrap_or_default());
+                v
+            })
+            .collect(),
+        "field" | "column" => g
+            .iter()
+            .filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q))
+            .map(|n| {
+                let mut v = item(n.id, n.name.clone());
+                v["type"] = json!(g.field_def(n.id).map(|d| d.field_type.name()).unwrap_or("plain"));
+                v
+            })
+            .collect(),
+        "choice" => {
+            let field = tanacraft_commands::p::node(params, "field").ok().flatten();
+            let current: Vec<String> = field
+                .and_then(|f| Some(g.get(g.resolve(node))?.field_values(f).into_iter().map(|v| export::display_value(g, v)).collect()))
+                .unwrap_or_default();
+            let def = field.and_then(|f| g.field_def(f));
+            match (def.map(|d| d.field_type), def.and_then(|d| d.source_tag), field) {
+                (Some(FieldType::User), _, _) => g
+                    .user_names()
+                    .into_iter()
+                    .filter(|n| !current.contains(n) && n.to_lowercase().contains(&q))
+                    .map(|n| json!({"id": 0, "label": n}))
+                    .collect(),
+                (Some(FieldType::OptionsFromTag), Some(tag), _) => g
+                    .tagged(tag)
+                    .into_iter()
+                    .filter(|n| !g.in_trash(*n) && !current.contains(&g.text(*n)) && g.text(*n).to_lowercase().contains(&q))
+                    .map(|n| item(n, g.text(n)))
+                    .collect(),
+                (_, _, Some(f)) => g
+                    .field_options(f)
+                    .into_iter()
+                    .filter(|o| !current.contains(o) && o.to_lowercase().contains(&q))
+                    .map(|o| json!({"id": 0, "label": o}))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        }
+        "slash" => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "Command line"]
+            .into_iter()
+            .filter(|l| l.to_lowercase().contains(&q))
+            .map(|l| json!({"id": 0, "label": l}))
+            .collect(),
+        "inlineRef" | "moveTo" if q.is_empty() => {
+            s.recents.iter().copied().filter(|r| *r != node && g.get(*r).is_some()).take(8).map(|n| item(n, line(n))).collect()
+        }
+        "inlineRef" => g.fuzzy(&q, 10).into_iter().filter(|n| *n != node).map(|n| item(n, line(n))).collect(),
+        "moveTo" => {
+            let mut v: Vec<Value> = [g.sys.library, g.sys.journal]
+                .into_iter()
+                .filter(|n| g.name(*n).to_lowercase().contains(&q))
+                .map(|n| item(n, g.name(n).to_string()))
+                .collect();
+            v.extend(g.fuzzy(&q, 10).into_iter().filter(|n| !g.is_ancestor_or_self(node, *n)).map(|n| item(n, line(n))));
+            v
+        }
+        "reference" if q.is_empty() => Vec::new(),
+        "reference" => g.search(&q).into_iter().filter(|n| *n != node).take(10).map(|n| item(n, line(n))).collect(),
+        _ => Vec::new(),
+    };
+    out.truncate(10);
+    let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag") {
+        out.push(json!({"create": raw.trim().trim_start_matches('#')}));
+    }
+    // A new supertag gets the next colour of the palette, so tags are told apart at a glance.
+    let next = tanacraft_core::TAG_COLORS.get(2 + g.tags().len() % 12).copied().unwrap_or("grey");
+    json!({"items": out, "nextColor": next})
 }

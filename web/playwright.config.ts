@@ -9,8 +9,8 @@ export default defineConfig({
   reporter: [['list']],
   use: { viewport: { width: 1512, height: 949 }, deviceScaleFactor: 1, colorScheme: 'dark' },
   projects: [
-    { name: 'tests', testIgnore: /(shots|measure2?)\.spec\.ts/ },
+    { name: 'tests', testIgnore: /[/\\](shots|measure2?|scratch)\.spec\.ts$/ },
     { name: 'shots', testMatch: /shots\.spec\.ts/, use: { deviceScaleFactor: 2 } },
-    { name: 'measure', testMatch: /measure2?\.spec\.ts/ },
+    { name: 'measure', testMatch: /[/\\](measure2?|scratch)\.spec\.ts$/ },
   ],
 })

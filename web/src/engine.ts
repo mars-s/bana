@@ -155,6 +155,7 @@ export interface NodeRow {
   key: string
   id: number
   target: number
+  parent: number | null
   depth: number
   name: string
   ref: boolean

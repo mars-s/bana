@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { Panel, tagStyle } from './Outline'
 import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
-import { bufferKey, currentEditor, exec, handleKey, inBarrier, runUiCommand } from './controller'
+import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import type { SidebarItem } from './engine'
@@ -189,6 +189,15 @@ export function App() {
       if (inBarrier()) {
         e.preventDefault()
         bufferKey(k)
+        return
+      }
+      // The key landed in a line editor that no longer holds the caret: it waits for the right one.
+      const ed = currentEditor()
+      const fromNode = target?.closest?.('.editor-input')?.getAttribute('data-node')
+      if (fromNode && (!ed || ed.kind !== 'line' || String(ed.node) !== fromNode)) {
+        e.preventDefault()
+        bufferKey(k)
+        holdKeysForEditor()
         return
       }
       // The focused line is scrolled away (its editor is not drawn): bring it back first.

@@ -1456,3 +1456,85 @@ kbd {
     transition-duration: 1ms !important;
   }
 }
+
+/* ---- menus (11 §7) ---- */
+
+.menu {
+  position: fixed;
+  z-index: 45;
+  width: var(--menu-w);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: var(--q1-5);
+  background: var(--c-popover);
+  border-radius: var(--r-menu);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--c-outline);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  color: var(--c-secondary);
+}
+
+.menu.picker {
+  width: 260px;
+}
+
+.menu-label {
+  padding: var(--q1) var(--q3) var(--q1-5);
+  font-weight: var(--fw-medium);
+  color: var(--c-muted);
+}
+
+.menu-empty {
+  padding: var(--q1-5) var(--q3);
+  color: var(--c-faint);
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: var(--menu-item-h);
+  padding: var(--q1-5) var(--q3) var(--q1-5) var(--q8);
+  border-radius: var(--r-sm);
+  cursor: default;
+}
+
+.menu-item.sel,
+.menu-item:hover {
+  background: var(--c-hover);
+}
+
+.menu-icon {
+  position: absolute;
+  left: 9px;
+  display: inline-flex;
+  color: var(--c-muted);
+}
+
+.menu-icon .side-hash {
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+}
+
+.menu-sep {
+  height: 1px;
+  margin: var(--q1-5) 0;
+  background: var(--c-hover);
+}
+
+.field-input {
+  position: static;
+  flex: 1;
+  min-width: 80px;
+  height: var(--lh-body);
+  color: var(--c-text);
+}
+
+.field-input::placeholder {
+  color: var(--c-faint);
+}
+
+.field-value {
+  cursor: text;
+}

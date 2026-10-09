@@ -9,9 +9,12 @@ import { type Json, type NodeRow, type Page, call } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
 import { closeTab, getState, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
+import { fieldKey, pickerKey } from './picker'
 
 /** What the mounted line editor exposes. */
 export interface EditorHandle {
+  /** A line's text, or a field value (`field`: the node is the field's owner). */
+  kind: 'line' | 'field'
   panel: string
   node: number
   /** Caret and anchor in chars. */
@@ -32,9 +35,35 @@ export interface TitleHandle {
 let editor: EditorHandle | null = null
 const titles = new Map<string, TitleHandle>()
 
-export function registerEditor(h: EditorHandle | null) {
+export function registerEditor(h: EditorHandle) {
   editor = h
-  if (h) drainSoon()
+  if (waitingEditor) {
+    waitingEditor = false
+    clearTimeout(waitTimer)
+    barrier--
+  }
+  drainSoon()
+}
+
+let waitingEditor = false
+let waitTimer = 0
+
+/** Keys wait until the next editor is drawn (a new value line, a new field editor). */
+export function holdKeysForEditor() {
+  if (waitingEditor) return
+  waitingEditor = true
+  barrier++
+  waitTimer = window.setTimeout(() => {
+    if (!waitingEditor) return
+    waitingEditor = false
+    barrier--
+    drainSoon()
+  }, 1000)
+}
+
+/** An editor going away lets go of the keyboard only if it still holds it. */
+export function unregisterEditor(h: EditorHandle) {
+  if (editor === h) editor = null
 }
 
 export function currentEditor() {
@@ -62,7 +91,7 @@ export async function exec(command: string, params: Json = {}, panel = getState(
   barrier++
   try {
     // The engine learns where the caret is first (arrow keys and clicks move it without a command).
-    if (editor && editor.panel === panel) {
+    if (editor && editor.kind === 'line' && editor.panel === panel) {
       const [, caret] = editor.sel()
       if (!synced || synced.node !== editor.node || synced.caret !== caret) {
         await call('run', { command: 'focus.set', params: { node: editor.node, caret }, panel })
@@ -73,6 +102,9 @@ export async function exec(command: string, params: Json = {}, panel = getState(
     if (r?.error) showToast(r.error)
     synced = null
     await refresh()
+    // A line that just took the caret is drawn on the next frame: keys wait for its editor.
+    const after = getState().pages[panel]
+    if (after?.focus != null && !getState().fieldEdit && (!editor || editor.kind !== 'line' || editor.node !== after.focus)) holdKeysForEditor()
     return r
   } finally {
     barrier--
@@ -80,8 +112,9 @@ export async function exec(command: string, params: Json = {}, panel = getState(
   }
 }
 
+/** Keys must wait: a command is moving the caret, or earlier keys are still waiting their turn. */
 export function inBarrier() {
-  return barrier > 0
+  return barrier > 0 || buffer.length > 0
 }
 
 function drainSoon() {
@@ -239,6 +272,8 @@ function registryCommand(sc: string): string | undefined {
 export function handleKey(k: KeyInfo): boolean {
   const s = getState()
   if (s.overlay) return false // overlays read their own keys
+  if (s.picker && pickerKey(k)) return true
+  if (s.fieldEdit) return fieldKey(k, editor?.value() ?? '')
   const sc = shortcut(k)
   // Mod+1..8 go to tab N, Mod+9 to the last tab (spec 09).
   const d = /^Mod\+(\d)$/.exec(sc)
@@ -252,7 +287,14 @@ export function handleKey(k: KeyInfo): boolean {
   }
   const p = page()
   if (!p) return false
-  if (editor && editor.panel === s.activePanel) return editorKey(k, sc, p, editor)
+  if (editor && editor.kind === 'line' && editor.panel === s.activePanel) return editorKey(k, sc, p, editor)
+  // A line holds the caret but its editor is not drawn yet (or is scrolled away): the key waits.
+  if (p.focus != null) {
+    requeue(k)
+    holdKeysForEditor()
+    setState((st) => ({ focusScroll: st.focusScroll + 1 }))
+    return true
+  }
   if (p.sel.length) return selectionKey(k, sc, p)
   // Nothing holds a caret: typed text goes into the last line edited, or the first line (N27).
   if (isTextKey(k) && k.key !== ' ' && !document.activeElement?.closest('input, textarea, [contenteditable]')) {

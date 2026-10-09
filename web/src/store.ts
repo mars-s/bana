@@ -15,6 +15,41 @@ export interface Overlay {
   [k: string]: Json
 }
 
+/** An open `#`, `@`, `>`, `/` or field value menu. `at` is where the trigger character sits in the
+ * line (chars); the query is the text typed after it, in the line itself (so it is in the engine). */
+export interface PickerState {
+  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo'
+  panel: string
+  /** The line typed in (or the field's owner for `choice`). */
+  node: number
+  /** The owner a `>` field goes on. */
+  owner?: number
+  at: number
+  query: string
+  field?: number
+  index?: number
+  x: number
+  y: number
+  items: PickItem[]
+  sel: number
+  nextColor: string
+}
+
+export interface PickItem {
+  id?: number
+  label?: string
+  color?: string
+  create?: string
+}
+
+/** A field value being typed: owner node, field, which value (the count adds one). */
+export interface FieldEdit {
+  panel: string
+  owner: number
+  field: number
+  index: number
+}
+
 export interface State {
   tabs: Tab[]
   tab: number
@@ -34,6 +69,8 @@ export interface State {
   focusScroll: number
   /** The panel that has the keyboard. */
   activePanel: string
+  picker: PickerState | null
+  fieldEdit: FieldEdit | null
 }
 
 const saved = (() => {
@@ -59,6 +96,8 @@ let state: State = {
   caretEpoch: 0,
   focusScroll: 0,
   activePanel: 'main',
+  picker: null,
+  fieldEdit: null,
 }
 
 const subs = new Set<() => void>()
@@ -119,8 +158,20 @@ export function scheduleRefresh() {
 }
 
 /** Reads the visible panels and the sidebar. Queued behind every pending edit. */
+let refreshSeq = 0
+let appliedSeq = 0
+const appliedWaiters: { seq: number; done: () => void }[] = []
+
+function markApplied(seq: number) {
+  appliedSeq = Math.max(appliedSeq, seq)
+  for (let i = appliedWaiters.length - 1; i >= 0; i--) {
+    if (appliedWaiters[i].seq <= appliedSeq) appliedWaiters.splice(i, 1)[0].done()
+  }
+}
+
 export async function refresh() {
   refreshQueued = false
+  const seq = ++refreshSeq
   const panels = visiblePanels()
   const wantCaret = caretWanted
   caretWanted = false
@@ -132,8 +183,17 @@ export async function refresh() {
     }),
   )
   const sidebar = await call('sidebar', {})
+  // A newer read is on its way: drawing this older one in between would mount editors on lines
+  // that no longer hold the caret (and keys would land there).
+  if (seq !== refreshSeq) {
+    caretWanted = caretWanted || wantCaret
+    // Resolve once the newer read is drawn (callers rely on seeing at least this state).
+    if (appliedSeq < seq) await new Promise<void>((done) => appliedWaiters.push({ seq, done }))
+    return
+  }
   for (const p of Object.values(pages)) seenVersion = Math.max(seenVersion, p.version ?? 0)
   setState((s) => ({ pages: { ...s.pages, ...pages }, sidebar, caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch }))
+  markApplied(seq)
 }
 
 let toastTimer = 0

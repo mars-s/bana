@@ -23,9 +23,7 @@ impl eframe::App for App {
         #[cfg(target_os = "macos")]
         if let Some(bar) = &self.1 {
             for cmd in bar.clicked() {
-                if let Err(e) = self.0.exec(&cmd, json!({})) {
-                    self.0.session.status = e;
-                }
+                self.0.menu_item(&cmd);
                 ctx.request_repaint();
             }
         }
@@ -84,13 +82,17 @@ fn main() -> Result<(), String> {
     {
         eprintln!("{}: {e}", keys.display());
     }
-    // Copying nodes puts a nested HTML list and Markdown text on the clipboard (spec 02 §12).
+    // Copying nodes puts formatted HTML and plain text on the clipboard (spec 02 §12); Edit > Paste
+    // reads it back.
     if let Ok(mut clip) = arboard::Clipboard::new() {
         app.rich_clipboard = Some(Box::new(move |html: &str, text: &str| {
             if let Err(e) = clip.set_html(html, Some(text)) {
                 eprintln!("clipboard: {e}");
             }
         }));
+    }
+    if let Ok(mut clip) = arboard::Clipboard::new() {
+        app.clipboard_text = Some(Box::new(move || clip.get_text().ok()));
     }
     if let Some(port) = control {
         app.control = Some(control_server(port)?);
@@ -105,7 +107,8 @@ fn main() -> Result<(), String> {
         Box::new(|_cc| {
             // The native menu bar is made once the app object exists (spec 00 §7).
             #[cfg(target_os = "macos")]
-            let app = App(app, menu::Bar::install());
+            let bar = menu::Bar::install(&app);
+            let app = App(app, bar);
             #[cfg(not(target_os = "macos"))]
             let app = App(app);
             Ok(Box::new(app))
@@ -117,9 +120,9 @@ fn main() -> Result<(), String> {
 /// The macOS menu bar, built from `MENU_BAR`: each item runs a command.
 #[cfg(target_os = "macos")]
 mod menu {
-    use muda::accelerator::{Accelerator, Code, Modifiers};
+    use muda::accelerator::Accelerator;
     use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
-    use tanacraft_ui_egui::MENU_BAR;
+    use tanacraft_ui_egui::{MENU_BAR, TanaApp};
 
     pub struct Bar {
         _menu: Menu,
@@ -127,15 +130,19 @@ mod menu {
     }
 
     impl Bar {
-        pub fn install() -> Option<Bar> {
+        pub fn install(app: &TanaApp) -> Option<Bar> {
             let menu = Menu::new();
             let mut ids = Vec::new();
             for (title, items) in MENU_BAR {
                 let sub = Submenu::new(if *title == "App" { tanacraft_core::PRODUCT_NAME } else { title }, true);
                 for (label, cmd) in *items {
-                    // Only Quit takes its key from the menu; the window keeps every other shortcut
-                    // (typing, the clipboard and the app's own keys stay with the outline).
-                    let accel = (*cmd == "ui.quit").then(|| Accelerator::new(Some(Modifiers::SUPER), Code::KeyQ));
+                    // Each item shows its key (DIFFS N25). A key the menu takes comes back as a
+                    // menu event and is replayed as that key (`TanaApp::menu_item`).
+                    let mut accel =
+                        app.menu_shortcut(cmd).and_then(|sc| sc.replace("Mod+", "CmdOrCtrl+").replace("Alt+", "Option+").parse::<Accelerator>().ok());
+                    if *label == "Paste and match style" {
+                        accel = "CmdOrCtrl+Option+Shift+V".parse::<Accelerator>().ok();
+                    }
                     if *title == "App" && *cmd == "ui.quit" {
                         sub.append(&PredefinedMenuItem::separator()).ok()?;
                         sub.append(&PredefinedMenuItem::hide(None)).ok()?;
@@ -144,6 +151,11 @@ mod menu {
                     let item = MenuItem::new(*label, true, accel);
                     ids.push((item.id().clone(), *cmd));
                     sub.append(&item).ok()?;
+                }
+                if *title == "Window" {
+                    sub.append(&PredefinedMenuItem::separator()).ok()?;
+                    sub.append(&PredefinedMenuItem::maximize(Some("Zoom"))).ok()?;
+                    sub.append(&PredefinedMenuItem::bring_all_to_front(None)).ok()?;
                 }
                 menu.append(&sub).ok()?;
             }

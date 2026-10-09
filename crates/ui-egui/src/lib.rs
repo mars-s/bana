@@ -54,12 +54,28 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.zoomIn", "Zoom in (text size)", ""),
     ("ui.zoomOut", "Zoom out (text size)", ""),
     ("ui.zoomReset", "Actual size", ""),
+    ("ui.cut", "Cut", ""),
+    ("ui.copy", "Copy", ""),
+    ("ui.paste", "Paste", ""),
+];
+
+/// Keys shown in the menu bar for items whose key is read elsewhere (the clipboard events, Cmd+A's
+/// two steps, egui's text zoom).
+const MENU_KEYS: &[(&str, &str)] = &[
+    ("ui.cut", "Mod+X"),
+    ("ui.copy", "Mod+C"),
+    ("ui.paste", "Mod+V"),
+    ("select.all", "Mod+A"),
+    ("ui.zoomIn", "Mod+="),
+    ("ui.zoomOut", "Mod+-"),
+    ("ui.zoomReset", "Mod+0"),
+    ("ui.quit", "Mod+Q"),
 ];
 
 /// The native menu bar (spec 00 §7): menus of (label, command id, shortcut shown). The desktop app
 /// builds it on macOS; every entry runs a command, so the menu adds no behaviour of its own.
-/// Shortcuts are shown only where the menu itself may take the key (Quit); the others stay with the
-/// window so typing and the clipboard keep working.
+/// Items show their keys; when the menu takes a key press itself, `TanaApp::menu_item` replays it
+/// as that key, so the outline handles it the same either way.
 pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
     ("App", &[("About TanaCraft", "ui.help"), ("Settings...", "ui.settings"), ("Quit", "ui.quit")]),
     (
@@ -67,6 +83,10 @@ pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
         &[
             ("Undo", "edit.undo"),
             ("Redo", "edit.redo"),
+            ("Cut", "ui.cut"),
+            ("Copy", "ui.copy"),
+            ("Paste", "ui.paste"),
+            ("Paste and match style", "ui.paste"),
             ("Select all", "select.all"),
             ("Find...", "ui.searchOpen"),
             ("Command line...", "ui.commandLine"),
@@ -332,6 +352,10 @@ pub struct TanaApp {
     /// Puts (html, plain text) on the system clipboard; set by the desktop app. Without it, copying
     /// nodes puts plain text only (egui's clipboard).
     pub rich_clipboard: Option<RichClipboard>,
+    /// Reads the system clipboard's text (set by the desktop app), for Edit > Paste.
+    pub clipboard_text: Option<Box<dyn FnMut() -> Option<String>>>,
+    /// Events from the menu bar, fed to egui at the start of the next frame as if typed.
+    injected: Vec<egui::Event>,
     /// The node the "referenced elsewhere" warning was last given for.
     warned_for: Option<NodeId>,
     /// The open Settings sub-page.
@@ -418,6 +442,8 @@ impl TanaApp {
             system_theme: true,
             warned_for: None,
             rich_clipboard: None,
+            clipboard_text: None,
+            injected: Vec::new(),
             nav_title: None,
             recents_page: false,
             settings_page: false,
@@ -645,6 +671,39 @@ impl TanaApp {
         }
     }
 
+    /// The key a menu bar item shows (its first shortcut), if it has one (DIFFS N25).
+    pub fn menu_shortcut(&self, cmd: &str) -> Option<String> {
+        let custom = self.keymap.iter().find(|(_, c)| c == cmd).map(|(sc, _)| sc.as_str());
+        let fixed = MENU_KEYS.iter().find(|(c, _)| *c == cmd).map(|(_, sc)| *sc);
+        let ui = UI_COMMANDS.iter().find(|(id, _, _)| *id == cmd).map(|(_, _, sc)| *sc);
+        let engine = self.session.registry.get(cmd).map(|c| c.shortcut);
+        let sc = custom.or(fixed).or(ui.filter(|s| !s.is_empty())).or(engine)?;
+        let first = sc.split(" / ").next().unwrap_or(sc).trim();
+        (!first.is_empty() && first.contains('+')).then(|| first.to_string())
+    }
+
+    /// A menu bar item was chosen: items with a key act exactly as that key would (the menu may
+    /// have taken the key press itself); the others run their command.
+    pub fn menu_item(&mut self, cmd: &str) {
+        match cmd {
+            "ui.copy" => self.injected.push(egui::Event::Copy),
+            "ui.cut" => self.injected.push(egui::Event::Cut),
+            "ui.paste" => {
+                if let Some(text) = self.clipboard_text.as_mut().and_then(|read| read()) {
+                    self.injected.push(egui::Event::Paste(text));
+                }
+            }
+            _ => match self.menu_shortcut(cmd).and_then(|sc| key_event(&sc, self.mac)) {
+                Some(ev) if cmd != "ui.quit" => self.injected.push(ev),
+                _ => {
+                    if let Err(e) = self.exec(cmd, json!({})) {
+                        self.session.status = e;
+                    }
+                }
+            },
+        }
+    }
+
     /// Forget the text field state (another panel or tab is now active).
     pub(crate) fn edit_reset(&mut self) {
         self.edit.node = None;
@@ -758,6 +817,7 @@ impl TanaApp {
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => (self.dark, self.system_theme) = (!self.dark, false),
             "ui.quit" => self.window_cmds.push(WindowCmd::Close),
+            "ui.cut" | "ui.copy" | "ui.paste" => self.menu_item(id),
             "ui.fullScreen" => self.window_cmds.push(WindowCmd::FullScreen),
             "ui.minimize" => self.window_cmds.push(WindowCmd::Minimize),
             "ui.zoomIn" => self.window_cmds.push(WindowCmd::Zoom(0.1)),
@@ -843,6 +903,10 @@ impl TanaApp {
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
     pub fn logic(&mut self, ctx: &egui::Context) {
+        if !self.injected.is_empty() {
+            let evs = std::mem::take(&mut self.injected);
+            ctx.input_mut(|i| i.events.extend(evs));
+        }
         if self.system_theme
             && let Some(theme) = ctx.system_theme()
         {
@@ -1463,6 +1527,30 @@ impl TanaApp {
         egui::Popup::menu(&manage).show(|ui| self.workspace_menu(ui, &mut acts));
         self.acts.extend(acts);
     }
+}
+
+/// The key press a shortcut string ("Mod+Shift+Z") stands for.
+fn key_event(sc: &str, mac: bool) -> Option<egui::Event> {
+    let (mods, key) = sc.rsplit_once('+')?;
+    let key = egui::Key::from_name(if key.is_empty() { "+" } else { key })?;
+    let mut m = egui::Modifiers::NONE;
+    for part in mods.split('+') {
+        match part {
+            "Mod" => {
+                m.command = true;
+                if mac {
+                    m.mac_cmd = true;
+                } else {
+                    m.ctrl = true;
+                }
+            }
+            "Ctrl" => m.ctrl = true,
+            "Shift" => m.shift = true,
+            "Alt" => m.alt = true,
+            _ => return None,
+        }
+    }
+    Some(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: m })
 }
 
 /// A workspace avatar colour picked from its name.

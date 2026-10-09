@@ -1415,6 +1415,31 @@ fn every_menu_bar_entry_runs_a_known_command() {
             assert!(known, "{menu} > {label}: unknown command {cmd}");
         }
     }
+    // DIFFS N25: items show their keys, and Edit has the clipboard items.
+    let app = h.state();
+    assert_eq!(app.menu_shortcut("edit.undo").as_deref(), Some("Mod+Z"));
+    assert_eq!(app.menu_shortcut("edit.redo").as_deref(), Some("Mod+Shift+Z"));
+    assert_eq!(app.menu_shortcut("nav.back").as_deref(), Some("Mod+["));
+    assert_eq!(app.menu_shortcut("ui.copy").as_deref(), Some("Mod+C"));
+    let edit: Vec<&str> = tanacraft_ui_egui::MENU_BAR.iter().find(|m| m.0 == "Edit").unwrap().1.iter().map(|i| i.0).collect();
+    for want in ["Cut", "Copy", "Paste", "Select all"] {
+        assert!(edit.contains(&want), "Edit has {want}");
+    }
+    // A menu item with a key acts as the key: Undo from the menu undoes typing.
+    let ids = page_with(&mut h, &["x"]);
+    focus(&mut h, ids[0], 1);
+    text(&mut h, "yz");
+    h.state_mut().menu_item("edit.undo");
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.name(ids[0]), "x");
+    // Copy from the menu copies the selected line.
+    h.state_mut().exec("select.set", json!({"from": ids[0].0})).unwrap();
+    h.state_mut().menu_item("ui.copy");
+    h.step();
+    let copied = h.output().platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(t) if t.starts_with('x')));
+    assert!(copied);
     h.state_mut().exec("ui.zoomIn", json!({})).unwrap();
     h.step();
     h.step();

@@ -93,8 +93,11 @@ description) and checks after each step that owners and children agree, nothing 
 loop, every change undoes and redoes exactly, and save/load round-trips; damaged files (loops, double
 owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
 random commands. A UI fuzz test types random keys and text and clicks random points in the real UI;
-it must never panic. Longer runs:
-`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`.
+it must never panic. Bugs these found are fixed and stay covered (undo cutting out structure made
+while navigating, template copies doubling an outline, a crash on a deep recursion, focus left on
+widgets that were not drawn). Longer runs:
+`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
+`UI_FUZZ_SEEDS=300 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
 
 ## Quick start
 

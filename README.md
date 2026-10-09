@@ -93,9 +93,11 @@ description) and checks after each step that owners and children agree, nothing 
 loop, every change undoes and redoes exactly, and save/load round-trips; damaged files (loops, double
 owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
 random commands. A UI fuzz test types random keys and text and clicks random points in the real UI;
-it must never panic. Bugs these found are fixed and stay covered (undo cutting out structure made
+it must never panic, and while you type the keyboard must never go nowhere: after every key an editor
+or a menu still has it, or a line is selected, and typed text always lands somewhere. Bugs these found are fixed and stay covered (undo cutting out structure made
 while navigating, template copies doubling an outline, a crash on a deep recursion, focus left on
-widgets that were not drawn). Longer runs:
+widgets that were not drawn, keys lost after Shift+Tab out of a field, Cmd+K then Escape, Escape in
+a page title, or egui's own arrow-key focus moving to a button). Longer runs:
 `FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
 `UI_FUZZ_SEEDS=300 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
 
@@ -146,9 +148,10 @@ Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::ru
 
 Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel), views, the editing
 rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
-Inbox, and every behaviour difference the spec team reported in its acceptance test. Next: native menus,
-per-context notes on references, rich HTML on the clipboard, imports from other apps and, later,
-AI features. Details in [ROADMAP.md](ROADMAP.md).
+Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 5:
+fields saved as typed, keyboard never lost, notes outlines on references, formatted HTML on the
+clipboard, menu bar with keys and clipboard items). Next: an open-licence UI font with real bold and,
+later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room
 

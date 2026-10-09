@@ -185,6 +185,9 @@ pub struct ViewDef {
     /// The date field a calendar places items by. `None`: the first date field the items have.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date_field: Option<NodeId>,
+    /// Calendar week and day views show these hours (start, end); `None`: the whole day.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day_hours: Option<(u8, u8)>,
 }
 
 /// One group of items (a board lane, a table section). Ungrouped views have one group, label "".

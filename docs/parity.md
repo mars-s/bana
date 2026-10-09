@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 68 | 24 | 5 | 2 |
+| Spec sections (99) | 71 | 21 | 5 | 2 |
 | Screenshots (153) | 118 | 26 | 8 | 1 |
 
 ## `00-overview.md`
@@ -21,8 +21,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Top bar (full window width, ~44 px tall) | done | Sidebar button, back/forward, tab strip with +, then Help (a page listing every command with shortcut and id), keyboard shortcuts toggle and an Account menu (Workspaces, Settings, theme, shortcuts, Help). Credits left out (no billing). |
 | 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Create new with a square Search button, Pinned (expandable), workspace avatar and name (menu: switch, new, rename), Library, Daily notes, Inbox, Trash. Missing: AI chats. |
 | 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
-| 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight. Own palette; default egui font (no Inter); no flash on new live results. |
-| 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Search and open, Create new, pinned, workspace items. Recents and AI chats pages missing. |
+| 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight, new search results flash green. Own palette; default egui font (no Inter, bold drawn brighter). |
+| 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Recents, Search and open, Create new, pinned, workspace items, Inbox, Help, Settings. No AI chats. |
 | 7. Native menu bar | missing | Not built (egui window has no native menus). |
 | 8. Global overlays | done | Command line (Cmd+K), Search and open (Cmd+S, Cmd+T), Quick add (Cmd+E), context menus, shortcut sheet. |
 
@@ -68,7 +68,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Section | Status | Notes |
 |---|---|---|
 | 1. Supertags overview page (sidebar "Supertags") | done | Filter box, pinned supertags as large cards in the tag colour, then every supertag as a tile under the workspace name. Browse templates left out (no template gallery). |
-| 2. Tag page | partial | View tabs (Everything tagged, own views, + Add view), + Create new, table by default, header glow. Missing: help button. |
+| 2. Tag page | done | Schema breadcrumb, coloured # badge and checkbox square, header glow, view tabs (Everything tagged, own views, + Add view), + Create new, help button, Configure, table by default. |
 | 3. Creating tags | done | # then Enter or Cmd+Enter creates and applies with an auto colour; Convert to supertag (`node.convertToSupertag`: children become template content, the node moves to the Schema and a reference stays). Tested. |
 | 4. Applying and removing tags | done | # menu, node menu, command; chip x removes. |
 | 5. Configure supertag panel | partial | Opens in its own panel to the right (Done closes it). Colour row (no colour, hues, custom), collapsible cards: Building blocks (base type, extend), Content template (default content with pinned toggles, optional fields, show checkbox, map checked/unchecked), Advanced options (title expression, default child supertag, related content add/remove, shortcuts), used count, delete. Missing: AI and Commands, Voice chat, building-block promotion, tag description. |
@@ -92,7 +92,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 7. List (navigation view) | done | A narrow list (name, display fields, + Add); clicking an item opens it in the panel to the right (reused on the next click), the list keeps the focus. Tested. |
 | 8. Side menu | done | Compact menu and selected item content. |
 | 9. Tabs | done | Items as tabs, selected item below. |
-| 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Overlapping events sit side by side. Missing: day length setting. |
+| 10. Calendar | done | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, hour grid (scrolled to 08:00, or the day length you set), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range, overlapping ones side by side; drop an item on an hour to time it; drag an event's bottom edge to resize; drag on empty grid opens a New event popover. Date fields and Day length menus; N nodes with no dates. Tested. |
 | 11. Display menu | done | Field checkboxes and system fields (created, edited, done time, owner, tags, references). |
 | 12. Group by | done | Fields, tags, done, owner, created and edited day; every option gets a group; Not defined; group headers collapse. |
 | 13. Sort by | done | Several rules, direction, remove, add, Reapply sort, Reset; empty values first; Sort children commands (`node.sortChildren`). |
@@ -143,8 +143,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | AI | missing | Out of scope so far. |
 | Voice / meetings | missing |  |
 | Publishing and sharing | missing |  |
-| Import / export | partial | Markdown and JSON export (commands, CLI); Markdown bullet paste. No import of other formats. |
-| Developer / power features | partial | CLI, MCP server and JSON control channel cover scripting. Customize keybindings, edit log missing. |
+| Import / export | partial | Markdown and JSON export (commands, CLI); Markdown import (`import.markdown`, `tanacraft-cli import FILE.md`: nesting, headings, checkboxes, #tags); Markdown bullet paste. No import from other apps' formats. |
+| Developer / power features | done | CLI, MCP server and JSON control channel cover scripting; custom keybindings from `keybindings.json` (shortcut: command id, checked before the defaults); Show edit log; Help page listing every command. |
 | Misc | partial | Progress bar. Content width, icons/banners, URL embeds missing. |
 
 ## `09-shortcuts.md`

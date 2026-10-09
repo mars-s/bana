@@ -244,6 +244,8 @@ pub struct TanaApp {
     pub last_results: std::collections::HashMap<NodeId, std::collections::BTreeSet<NodeId>>,
     /// New search results glow until this time (seconds of egui time).
     pub flash_until: std::collections::HashMap<NodeId, f64>,
+    /// Custom keybindings: (shortcut like `Mod+Shift+H`, command id), checked before the defaults.
+    pub keymap: Vec<(String, String)>,
     /// A table column header being renamed (field, text).
     pub header_edit: Option<(NodeId, String)>,
     /// Settings: show reference counts next to nodes.
@@ -314,6 +316,7 @@ impl TanaApp {
             config_closed: Default::default(),
             ref_counter: false,
             header_edit: None,
+            keymap: Vec::new(),
             last_results: Default::default(),
             flash_until: Default::default(),
             content_width: 0,
@@ -984,6 +987,24 @@ impl TanaApp {
             acts.push(Act::Run("nav.inbox".into(), json!({})));
             ui.close();
         }
+    }
+
+    /// Reads custom keybindings from a JSON object `{"Mod+Shift+H": "node.toggleHeading"}`.
+    /// Unknown commands are refused so a typo cannot silently eat a key.
+    pub fn set_keybindings(&mut self, json_text: &str) -> Result<usize, String> {
+        let v: Value = serde_json::from_str(json_text).map_err(|e| format!("keybindings: {e}"))?;
+        let obj = v.as_object().ok_or("keybindings: expected an object of shortcut: command")?;
+        let mut map = Vec::new();
+        for (key, cmd) in obj {
+            let cmd = cmd.as_str().ok_or_else(|| format!("keybindings: `{key}` needs a command id"))?;
+            let known = self.session.registry.get(cmd).is_some() || UI_COMMANDS.iter().any(|(id, _, _)| *id == cmd);
+            if !known {
+                return Err(format!("keybindings: unknown command `{cmd}`"));
+            }
+            map.push((key.clone(), cmd.to_string()));
+        }
+        self.keymap = map;
+        Ok(self.keymap.len())
     }
 
     /// After the whole graph changed (another workspace or file): one tab on the current page.

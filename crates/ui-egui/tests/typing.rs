@@ -1188,3 +1188,14 @@ fn new_search_results_flash() {
     h.step();
     assert!(h.state().flash_until.contains_key(&tanacraft_core::NodeId(n)), "the new result is marked to flash");
 }
+
+#[test]
+fn custom_keybindings_run_their_command() {
+    let mut h = harness();
+    assert!(h.state_mut().set_keybindings(r#"{"Mod+Shift+H": "nope.nothing"}"#).is_err());
+    assert_eq!(h.state_mut().set_keybindings(r#"{"Mod+Shift+H": "node.toggleHeading"}"#), Ok(1));
+    let ids = page_with(&mut h, &["Title"]);
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::H, Modifiers { command: true, mac_cmd: true, shift: true, ..Modifiers::NONE });
+    assert!(h.state().session.graph.get(ids[0]).unwrap().heading);
+}

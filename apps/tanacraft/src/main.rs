@@ -68,6 +68,13 @@ fn main() -> Result<(), String> {
     let _ = session.run("nav.today", &json!({}));
     let mut app = TanaApp::new(session);
     app.autosave = true;
+    // Custom keybindings: `keybindings.json` beside the default graph file.
+    let keys = tanacraft_core::default_graph_path().with_file_name("keybindings.json");
+    if let Ok(text) = std::fs::read_to_string(&keys)
+        && let Err(e) = app.set_keybindings(&text)
+    {
+        eprintln!("{}: {e}", keys.display());
+    }
     if let Some(port) = control {
         app.control = Some(control_server(port)?);
     }

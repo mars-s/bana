@@ -33,6 +33,10 @@ fn add_tag_field_export_round_trip() {
     assert!(ok, "{id}");
     let (ok, inbox) = cli(&f, &["run", "--cmd", "nav.inbox", "--cmd", "graph.view"]);
     assert!(ok && inbox.contains("Call the plumber"), "{inbox}");
+    let md = dir.join("in.md");
+    std::fs::write(&md, "- Imported\n  - child\n").unwrap();
+    let (ok, out) = cli(&f, &["import", md.to_str().unwrap()]);
+    assert!(ok && out.contains("imported 2"), "{out}");
     let (ok, err) = cli(&f, &["run", "--cmd", "no.such"]);
     assert!(!ok && err.contains("unknown command"));
     std::fs::remove_dir_all(&dir).ok();

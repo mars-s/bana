@@ -67,6 +67,9 @@ pub fn tag_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
             ui.label(RichText::new(format!("· {b} (base type)")).size(12.5).color(t.faint));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if crate::icon_button(ui, crate::icons::Icon::Help, t.dim, "Help").clicked() {
+                app.acts.push(Act::Ui("ui.help"));
+            }
             if ui.add(egui::Button::new(RichText::new("Configure").size(13.0)).fill(t.field_bg)).clicked() {
                 app.acts.push(Act::Ui("ui.configureSupertag"));
             }

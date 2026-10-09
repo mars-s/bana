@@ -17,6 +17,7 @@ commands:
   add NAME [--parent NODE | --today] [--tag TAG]...
                                     add a node; prints its id
   capture TEXT [--tag TAG]          add a node to the capture inbox; prints its id
+  import FILE.md [--parent NODE]    import a Markdown outline (default: into the Library)
   export [NODE] [--format md|json]  export a subtree (default: Markdown of Home)
   search QUERY                      find nodes
   tags                              list supertags with their fields
@@ -108,6 +109,19 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             let v = s.run("graph.view", &json!({})).map_err(cmd_err)?;
             let lines: Vec<&str> = v["lines"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
             Ok(format!("{}\n{}", v["title"].as_str().unwrap_or_default(), lines.join("\n")))
+        }
+        "import" => {
+            let parent = take_opt(&mut args, "--parent");
+            let path = args.first().ok_or("import needs a FILE")?;
+            let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+            let mut s = open(&file)?;
+            let mut p = json!({"text": text});
+            if let Some(par) = parent {
+                p["parent"] = json!(node_arg(&mut s, Some(&par))?.0);
+            }
+            let r = s.run("import.markdown", &p).map_err(cmd_err)?;
+            save(&mut s)?;
+            Ok(format!("imported {} nodes", r["created"]))
         }
         "capture" => {
             let tag = take_opt(&mut args, "--tag");

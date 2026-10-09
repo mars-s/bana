@@ -808,3 +808,33 @@ fn page_icon_and_banner() {
     assert_eq!(s.graph.get(n).unwrap().icon, None);
     assert_eq!(s.graph.get(n).unwrap().banner.as_deref(), Some("green"), "the banner stays");
 }
+
+#[test]
+fn import_markdown_builds_nodes() {
+    let mut s = blank();
+    let md = "# Groceries\n- Milk\n  - oat\n- [x] Bread #shop\n\n# Garden\n* Water the beds\n";
+    let v = run(&mut s, "import.markdown", json!({"text": md}));
+    assert_eq!(v["created"], json!(6));
+    let lib = s.graph.sys.library;
+    let kids: Vec<String> = s.graph.children(lib).iter().map(|n| s.graph.name(*n).to_string()).collect();
+    assert_eq!(kids, ["Groceries", "Garden"]);
+    let groceries = s.graph.children(lib)[0];
+    assert!(s.graph.get(groceries).unwrap().heading);
+    let milk = s.graph.children(groceries)[0];
+    assert_eq!(s.graph.name(s.graph.children(milk)[0]), "oat");
+    let bread = s.graph.children(groceries)[1];
+    assert_eq!((s.graph.name(bread), s.graph.checkbox(bread)), ("Bread", Some(true)));
+    assert!(s.graph.find_tag("shop").is_some());
+}
+
+#[test]
+fn calendar_day_length() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Plan"})), "id");
+    run(&mut s, "view.set", json!({"node": n.0, "kind": "calendar"}));
+    run(&mut s, "view.dayLength", json!({"node": n.0, "start": 8, "end": 18}));
+    assert_eq!(s.graph.view_def(n).day_hours, Some((8, 18)));
+    assert!(s.run("view.dayLength", &json!({"node": n.0, "start": 18, "end": 8})).is_err());
+    run(&mut s, "view.dayLength", json!({"node": n.0}));
+    assert_eq!(s.graph.view_def(n).day_hours, None);
+}

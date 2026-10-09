@@ -190,6 +190,13 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         app.switch_tab(i);
         return true;
     }
+    // Custom keybindings first (Customize keybindings, spec 09).
+    if let Some(cmd) = app.keymap.iter().find(|(sc, _)| matches(sc, &k, app.mac)).map(|(_, c)| c.clone()) {
+        if let Err(e) = app.exec(&cmd, json!({})) {
+            app.session.status = e;
+        }
+        return true;
+    }
     for (id, _, sc) in crate::UI_COMMANDS {
         if matches(sc, &k, app.mac) {
             app.exec(id, json!({})).ok();

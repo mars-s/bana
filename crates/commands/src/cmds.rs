@@ -105,6 +105,8 @@ pub fn registry() -> Registry {
             Ok(json!({"node": id.0, "banner": color}))
         })
         .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
+        C::new("import.markdown", "Import Markdown", "File", import_markdown)
+            .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags)"#),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),
@@ -228,6 +230,17 @@ pub fn registry() -> Registry {
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
         C::new("view.removeColumn", "Remove column", "Views", view_remove_column).params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.dayLength", "Calendar day length", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let hours = match (p::usize(v, "start"), p::usize(v, "end")) {
+                (Some(a), Some(b)) if a < b && b <= 24 => Some((a as u8, b as u8)),
+                (None, None) => None,
+                _ => return Err(CmdError::Params("`start` < `end`, hours 0 to 24 (both empty resets)".into())),
+            };
+            s.graph.view_mut(id)?.day_hours = hours;
+            Ok(json!({"node": id.0, "hours": hours}))
+        })
+        .params(r#"{"node"?: id, "start"?: number, "end"?: number}  (hours; none resets to the whole day)"#),
         C::new("view.dateField", "Calendar date field", "Views", view_date_field).params(r#"{"node"?: id, "field": name | id}"#),
         C::new("view.month", "Calendar month", "Views", view_month)
             .params(r#"{"step"?: number, "month"?: "YYYY-MM"}  (step -1/1 moves; nothing: this month)"#)
@@ -585,6 +598,67 @@ fn join_next(s: &mut Session, v: &Value) -> CmdResult {
 
 /// Pastes text: Markdown bullets ("- a", "  - b") nest; other lines become siblings. Into an empty
 /// focused node the first line goes into that node.
+/// Builds nodes from Markdown under `parent` (default: the Library): bullet lists nest by indent,
+/// `#` headings become heading nodes that hold what follows, `[ ]` / `[x]` make checkboxes and
+/// trailing `#tags` become supertags.
+fn import_markdown(s: &mut Session, v: &Value) -> CmdResult {
+    let text = p::req_str(v, "text")?;
+    let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+    s.graph.node(root)?;
+    // (indent, node): open bullets; `section` is the current heading's node.
+    let mut stack: Vec<(usize, NodeId)> = Vec::new();
+    let mut section = root;
+    let mut made = 0usize;
+    for line in text.lines().take(50_000) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        let t = line.trim();
+        if let Some(h) = t.strip_prefix('#').filter(|_| t.starts_with("# ") || t.starts_with("## ") || t.starts_with("### ")) {
+            let name = h.trim_start_matches('#').trim();
+            let n = s.graph.create(root, None, name)?;
+            s.graph.set_heading(n, true)?;
+            section = n;
+            stack.clear();
+            made += 1;
+            continue;
+        }
+        let bullet = t.strip_prefix("- ").or_else(|| t.strip_prefix("* ")).or_else(|| t.strip_prefix("+ "));
+        let body = bullet.unwrap_or(t);
+        while stack.last().is_some_and(|(w, _)| *w >= indent) {
+            stack.pop();
+        }
+        let parent = stack.last().map(|(_, p)| *p).unwrap_or(section);
+        let (done, body) = match body {
+            b if b.starts_with("[ ] ") => (Some(false), &b[4..]),
+            b if b.starts_with("[x] ") || b.starts_with("[X] ") => (Some(true), &b[4..]),
+            b => (None, b),
+        };
+        // Trailing `#tag` words become supertags (made when missing).
+        let mut words: Vec<&str> = body.split(' ').collect();
+        let mut tags = Vec::new();
+        while words.last().is_some_and(|w| w.len() > 1 && w.starts_with('#') && !w[1..].contains('#')) {
+            tags.push(words.pop().unwrap_or_default().trim_start_matches('#').to_string());
+        }
+        let n = s.graph.create(parent, None, words.join(" ").trim())?;
+        for tag in tags.into_iter().rev() {
+            let t = match s.graph.find_tag(&tag) {
+                Some(t) => t,
+                None => s.graph.create_tag(&tag, "grey")?,
+            };
+            s.graph.add_tag(n, t)?;
+        }
+        if done.is_some() {
+            s.graph.set_done(n, done)?;
+        }
+        s.graph.set_expanded(parent, true);
+        stack.push((indent, n));
+        made += 1;
+    }
+    Ok(json!({"parent": root.0, "created": made}))
+}
+
 fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let text = p::req_str(v, "text")?;
     let id = s.target(v)?;

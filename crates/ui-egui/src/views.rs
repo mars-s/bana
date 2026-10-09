@@ -501,6 +501,25 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     }
                 }
             });
+            let hours = def.day_hours;
+            let tip = match hours {
+                Some((a, b)) => format!("Day length: {a:02}:00 to {b:02}:00"),
+                None => "Day length".to_string(),
+            };
+            tool_menu(ui, t, Icon::Recent, hours.is_some(), &tip, |ui| {
+                for (label, range) in
+                    [("Whole day", None), ("07:00 to 19:00", Some((7, 19))), ("08:00 to 18:00", Some((8, 18))), ("09:00 to 17:00", Some((9, 17)))]
+                {
+                    if ui.selectable_label(hours == range, label).clicked() {
+                        let p = match range {
+                            Some((a, b)) => json!({"node": node.0, "start": a, "end": b}),
+                            None => json!({"node": node.0}),
+                        };
+                        acts.push(Act::Run("view.dayLength".into(), p));
+                        ui.close();
+                    }
+                }
+            });
         }
         // Active filters as chips.
         for (i, c) in def.filter.clauses.iter().enumerate() {
@@ -1516,25 +1535,29 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
         }
     }
     // The hour grid, scrolled to 08:00 the first time.
+    let (h0, h1) = app.session.graph.view_def(node).day_hours.map(|(a, b)| (u16::from(a), u16::from(b))).unwrap_or((0, 24));
+    let span = (h1.saturating_sub(h0)).max(1) as f32;
     let mut area = egui::ScrollArea::vertical()
-        .id_salt(("cal-grid", app.panel_ix, node.0))
+        .id_salt(("cal-grid", app.panel_ix, node.0, h0, h1))
         .max_height(520.0)
-        .min_scrolled_height(520.0)
+        .min_scrolled_height(520.0f32.min(span * HOUR_H))
         .auto_shrink([false, true]);
-    if app.cal_scrolled.insert(node) {
+    if h0 == 0 && h1 == 24 && app.cal_scrolled.insert(node) {
         area = area.vertical_scroll_offset(8.0 * HOUR_H);
     }
     area.show(ui, |ui| {
-        let (grid, resp) = ui.allocate_exact_size(vec2(w, 24.0 * HOUR_H), Sense::click_and_drag());
+        let (grid0, resp) = ui.allocate_exact_size(vec2(w, span * HOUR_H), Sense::click_and_drag());
+        // Minutes map from midnight; the visible grid starts at the day's first hour.
+        let grid = Rect::from_min_size(grid0.min - vec2(0.0, h0 as f32 * HOUR_H), vec2(w, 24.0 * HOUR_H));
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, "Time grid"));
-        let p = ui.painter().clone();
+        let p = ui.painter().with_clip_rect(grid0.intersect(ui.clip_rect()));
         for (i, d) in days.iter().enumerate() {
             if d.weekday() >= 5 {
                 p.rect_filled(Rect::from_min_size(pos2(col_x(i, grid.left()), grid.top()), vec2(col_w, grid.height())), 0.0, t.field_bg);
             }
             p.line_segment([pos2(col_x(i, grid.left()), grid.top()), pos2(col_x(i, grid.left()), grid.bottom())], Stroke::new(1.0, t.line));
         }
-        for h in 0..24 {
+        for h in h0..h1 {
             let y = grid.top() + h as f32 * HOUR_H;
             p.line_segment([pos2(grid.left() + GUTTER, y), pos2(grid.right(), y)], Stroke::new(1.0, t.line));
             p.text(pos2(grid.left() + 4.0, y + 2.0), Align2::LEFT_TOP, format!("{h:02}:00"), FontId::proportional(11.0), t.faint);

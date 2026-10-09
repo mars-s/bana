@@ -249,10 +249,7 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
     let exact = out.iter().any(|c| matches!(c, Choice::Existing(_, name) if name.trim_start_matches('#').eq_ignore_ascii_case(&q)));
     if !q.is_empty()
         && !exact
-        && !matches!(
-            p.mode,
-            PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate | PickMode::Extend | PickMode::MoveTo
-        )
+        && !matches!(p.mode, PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate | PickMode::Extend | PickMode::MoveTo)
     {
         out.push(Choice::Create(p.query.trim().trim_start_matches('#').to_string()));
     }
@@ -272,7 +269,11 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
             app.exec("field.add", json!({"node": node.0, "field": name})).inspect(|_| app.session.graph.set_expanded(node, true))
         }
         (PickMode::Reference, Choice::Existing(target, _)) => app.exec("node.reference", json!({"target": target.0, "replace": node.0})),
-        (PickMode::Reference, Choice::Create(_)) | (PickMode::SearchTag, Choice::Create(_)) => Ok(json!({})),
+        // "Create": a new node in the Library, referenced here (spec 02 §11).
+        (PickMode::Reference, Choice::Create(name)) => app
+            .exec("node.add", json!({"parent": app.session.graph.sys.library.0, "name": name}))
+            .and_then(|v| app.exec("node.reference", json!({"target": v["id"], "replace": node.0}))),
+        (PickMode::SearchTag, Choice::Create(_)) => Ok(json!({})),
         (PickMode::SearchTag, Choice::Existing(t, _)) => {
             app.exec("search.addClause", json!({"node": node.0, "clause": format!("#\"{}\"", app.session.graph.name(t))}))
         }
@@ -362,6 +363,14 @@ pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
         "Escape" => {
             app.picker = None;
         }
+        // Cmd+Enter creates from the typed text instead of picking a match (spec 02 §2, §11).
+        "Mod+Enter" => {
+            let q = p.query.trim().trim_start_matches('#').to_string();
+            if q.is_empty() {
+                return true;
+            }
+            apply_choice(app, Choice::Create(q));
+        }
         "Up" => p.selected = p.selected.saturating_sub(1),
         "Down" => p.selected += 1,
         "Enter" | "Tab" => {
@@ -435,13 +444,19 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
                         let color = app.session.graph.tag_def(*id).map(|d| theme::tag_color(&d.color, app.dark).0).unwrap_or(t.text);
                         (name.clone(), color)
                     }
+                    Choice::Create(name) if p.mode == PickMode::Tag => (format!("Create and apply \"#{name}\""), t.dim),
                     Choice::Create(name) => (format!("Create \"{name}\""), t.dim),
                 };
+                let create = matches!(c, Choice::Create(_));
                 let (rect, resp) = ui.allocate_exact_size(vec2(300.0, 26.0), Sense::click());
                 if i == p.selected || resp.hovered() {
                     ui.painter().rect_filled(rect, 4.0, t.hover);
                 }
                 ui.painter().text(rect.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(14.0), color);
+                if create {
+                    let hint = if app.mac { "Cmd+Enter" } else { "Ctrl+Enter" };
+                    ui.painter().text(rect.right_center() - vec2(8.0, 0.0), Align2::RIGHT_CENTER, hint, FontId::proportional(11.5), t.faint);
+                }
                 if resp.clicked() {
                     chosen = Some(c.clone());
                 }

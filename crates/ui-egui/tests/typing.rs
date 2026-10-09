@@ -516,3 +516,23 @@ fn field_name_tab_goes_to_the_value_and_enter_starts_a_node() {
     assert!(g.find_field("Place").is_some());
     assert!(g.children(id).iter().any(|n| g.name(*n) == "Pack bags"), "{:?}", g.children(id).iter().map(|n| g.name(*n)).collect::<Vec<_>>());
 }
+
+#[test]
+fn cmd_enter_in_a_menu_creates_from_the_typed_text() {
+    let mut h = harness();
+    let r = h.state_mut().exec("node.add", json!({"name": "Gamma"})).unwrap();
+    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    h.state_mut().exec("tag.create", json!({"name": "task"})).ok();
+    h.state_mut().exec("focus.set", json!({"node": id.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    key(&mut h, Key::End, Modifiers::NONE);
+    text(&mut h, " #");
+    text(&mut h, "ta");
+    key(&mut h, Key::Enter, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    let g = &h.state().session.graph;
+    let tags: Vec<String> = g.get(id).unwrap().tags.iter().map(|t| g.name(*t).to_string()).collect();
+    assert_eq!(tags, ["ta"], "a new tag, not the existing #task");
+    assert_eq!(g.name(id), "Gamma");
+}

@@ -1442,8 +1442,12 @@ fn settings_json(s: &Session) -> CmdResult {
     let st = &s.graph.settings;
     let shows: serde_json::Map<String, Value> =
         tanacraft_core::Settings::HIDEABLE.iter().map(|h| (format!("show_{h}"), json!(st.shows(h)))).collect();
-    let mut v =
-        json!({"time_format": if st.time_12h { "12h" } else { "24h" }, "week_start": if st.week_starts_sunday { "sunday" } else { "monday" }});
+    let mut v = json!({
+        "time_format": if st.time_12h { "12h" } else { "24h" },
+        "week_start": if st.week_starts_sunday { "sunday" } else { "monday" },
+        "warn_referenced": st.warn_referenced,
+        "url_embeds": st.url_embeds,
+    });
     if let Some(o) = v.as_object_mut() {
         o.extend(shows);
     }

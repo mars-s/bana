@@ -32,7 +32,8 @@ fn rpc(method: String, params: Value, shared: tauri::State<'_, Arc<Shared>>, app
 
 /// The native menu bar: (title, [(label, command id, accelerator)]). Clipboard and select-all are
 /// the system's own items so text editing works as everywhere else.
-const MENUS: &[(&str, &[(&str, &str, &str)])] = &[
+type MenuItems = &'static [(&'static str, &'static str, &'static str)];
+const MENUS: &[(&str, MenuItems)] = &[
     ("Edit", &[("Undo", "edit.undo", "CmdOrCtrl+Z"), ("Redo", "edit.redo", "CmdOrCtrl+Shift+Z")]),
     (
         "Go",

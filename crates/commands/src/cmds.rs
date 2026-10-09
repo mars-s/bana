@@ -725,6 +725,10 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
         let (head, tail) = char_split(s.graph.name(id), caret);
         s.graph.set_name(id, &head)?;
         let new = s.graph.create(parent, Some(at + 1), &tail)?;
+        // The line after a checkbox item is a checkbox item too, unchecked (DIFFS N18).
+        if s.graph.get(id).is_some_and(|x| x.done.is_some()) {
+            s.graph.set_done(new, Some(false))?;
+        }
         s.set_focus(new, 0);
     }
     Ok(s.focus_json())

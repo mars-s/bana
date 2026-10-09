@@ -1116,3 +1116,22 @@ fn import_file_reads_markdown_and_opml() {
     assert!(s.run("import.file", &json!({"path": dir.join("missing.md").to_string_lossy()})).is_err());
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn diffs_n18_enter_after_a_checkbox_item_makes_another() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Buy soil"})), "id");
+    run(&mut s, "node.toggleDone", json!({"node": a.0}));
+    run(&mut s, "node.toggleDone", json!({"node": a.0}));
+    run(&mut s, "focus.set", json!({"node": a.0}));
+    run(&mut s, "node.enter", json!({}));
+    let b = s.focus.unwrap();
+    assert_eq!(s.graph.checkbox(b), Some(false));
+    run(&mut s, "node.toggleDone", json!({}));
+    assert_eq!(s.graph.checkbox(b), Some(true));
+    // A plain line stays plain.
+    let c = id(&run(&mut s, "node.add", json!({"name": "note"})), "id");
+    run(&mut s, "focus.set", json!({"node": c.0}));
+    run(&mut s, "node.enter", json!({}));
+    assert_eq!(s.graph.checkbox(s.focus.unwrap()), None);
+}

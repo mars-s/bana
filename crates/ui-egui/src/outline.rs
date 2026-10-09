@@ -1405,9 +1405,24 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         let j = rows.iter().position(|r| r.id == h)?;
         Some(i.min(j)..=i.max(j))
     });
+    // Rows well outside the viewport are blank space of their last measured height (one line
+    // until first seen), so a huge expanded outline costs only what is on screen.
+    let clip = ui.clip_rect().expand(ROW_H * 4.0);
+    let left = ui.cursor().left();
+    let mut bullet_dx = 10.0;
     for (ri, row) in rows.iter().enumerate() {
         let selected = sel_range.as_ref().is_some_and(|r| r.contains(&ri));
+        let top = ui.cursor().top();
+        let h = app.row_heights.get(&row.id).copied().unwrap_or(ROW_H);
+        let offscreen = top > clip.bottom() || top + h < clip.top();
+        if offscreen && !selected && app.session.focus != Some(row.id) {
+            bullets.push((row.depth, pos2(left + row.depth as f32 * INDENT + bullet_dx, top + ROW_H / 2.0)));
+            ui.add_space(h);
+            bottoms.push(ui.cursor().top());
+            continue;
+        }
         let center = row_ui(app, ui, t, row.id, row.depth, selected);
+        bullet_dx = center.x - left - row.depth as f32 * INDENT;
         bullets.push((row.depth, center));
         let expanded = app.session.graph.is_expanded(row.id);
         if expanded {
@@ -1417,17 +1432,39 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             }
         }
         bottoms.push(ui.cursor().top());
+        app.row_heights.insert(row.id, ui.cursor().top() - top);
     }
-    // Guide lines: from an expanded bullet down to its last visible descendant.
+    // Guide lines: from an expanded bullet down to its last visible descendant (one pass).
+    let mut last_desc: Vec<Option<usize>> = vec![None; rows.len()];
+    let mut open: Vec<usize> = Vec::new();
+    for (j, r) in rows.iter().enumerate() {
+        while let Some(&i) = open.last() {
+            if rows[i].depth < r.depth {
+                break;
+            }
+            open.pop();
+            if j - 1 > i {
+                last_desc[i] = Some(j - 1);
+            }
+        }
+        open.push(j);
+    }
+    for i in open {
+        if rows.len() - 1 > i {
+            last_desc[i] = Some(rows.len() - 1);
+        }
+    }
     let p = ui.painter();
-    for (i, (depth, c)) in bullets.iter().enumerate() {
-        let end = rows.iter().enumerate().skip(i + 1).take_while(|(_, r)| r.depth > *depth).last().map(|(j, _)| j);
-        let end_y = match end {
+    for (i, (_, c)) in bullets.iter().enumerate() {
+        let end_y = match last_desc[i] {
             Some(j) => bottoms.get(j).copied(),
             None if app.session.graph.is_expanded(rows[i].id) => bottoms.get(i).copied().filter(|b| *b > c.y + ROW_H),
             None => None,
         };
-        if let Some(y) = end_y {
+        if let Some(y) = end_y
+            && y >= clip.top()
+            && c.y <= clip.bottom()
+        {
             p.line_segment([pos2(c.x, c.y + 11.0), pos2(c.x, y - 4.0)], Stroke::new(1.0, t.line));
         }
     }

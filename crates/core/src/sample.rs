@@ -123,3 +123,48 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.tag_add_related(day_tag, "Open tasks", open_q)?;
     Ok(g)
 }
+
+/// A large generated workspace for performance work: about `nodes` nodes in Projects > sections >
+/// items, a tenth of the items tagged #task with a Status field, some references between them.
+pub fn large(nodes: usize) -> Result<Graph> {
+    let mut g = Graph::new();
+    let status = g.create_field("Status", FieldType::Options)?;
+    g.field_def_mut(status)?.options = vec!["Todo".into(), "Doing".into(), "Done".into()];
+    let task = g.create_tag("task", "pink")?;
+    g.tag_add_field(task, status)?;
+    g.set_tag_checkbox(task, true)?;
+    let home = g.sys.library;
+    let per_section = 100;
+    let sections_per_project = 10;
+    let projects = (nodes / (per_section * sections_per_project)).max(1);
+    let mut made = 0usize;
+    let mut last = None;
+    'outer: for p in 0..projects {
+        let project = g.create(home, None, &format!("Project {p}"))?;
+        for s in 0..sections_per_project {
+            let section = g.create(project, None, &format!("Section {p}.{s}"))?;
+            for i in 0..per_section {
+                let n = made;
+                let id = g.create(section, None, &format!("Item {n} about topic {} with some words", n % 97))?;
+                if n.is_multiple_of(10) {
+                    g.add_tag(id, task)?;
+                    g.set_field(id, status, Some(FieldValue::Choice(["Todo", "Doing", "Done"][n % 3].into())))?;
+                }
+                if n % 50 == 25
+                    && let Some(prev) = last
+                {
+                    g.create_reference(section, None, prev)?;
+                }
+                if i == 0 {
+                    last = Some(id);
+                }
+                made += 1;
+                if made >= nodes {
+                    break 'outer;
+                }
+            }
+        }
+    }
+    g.mark_saved();
+    Ok(g)
+}

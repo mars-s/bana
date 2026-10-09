@@ -229,6 +229,9 @@ pub struct TanaApp {
     pub(crate) focus_title: bool,
     /// A table column being resized: (view, column, width).
     pub(crate) col_drag: Option<(NodeId, NodeId, f32)>,
+    /// Last measured height of each outline row (with its fields), so rows outside the viewport
+    /// are skipped as blank space of the right size.
+    pub(crate) row_heights: std::collections::HashMap<NodeId, f32>,
     /// A short notice in the top-right corner, and when it appeared.
     toast_msg: Option<(String, f64)>,
     /// The last nodes copied with Cmd+C and the text that went to the clipboard.
@@ -313,6 +316,7 @@ impl TanaApp {
             node_clip: None,
             toast_msg: None,
             col_drag: None,
+            row_heights: Default::default(),
             config_closed: Default::default(),
             ref_counter: false,
             header_edit: None,

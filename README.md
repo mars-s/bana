@@ -12,36 +12,33 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/today.png" alt="TanaCraft showing today's page, Sat 10 Oct: the sidebar with Today, Supertags, Recents, Create new, a search button, pinned supertags and the workspace; the day page with a meeting node and its Outdoors checkbox field, a task with a pink chip, a reference to the Community garden project and an inline link; an Open tasks card on the right." width="100%">
-  <br><sub><b>Today.</b> Daily notes grouped by year and week, supertag chips, field rows, references and an Open tasks card.</sub>
+  <img src="docs/images/web/today-dark.png" alt="TanaCraft showing today's page, Sat 10 Oct: the sidebar with Today, Supertags, Recents, Create new, pinned supertags and the workspace; the day page with a meeting node and its Outdoors field, a task with a pink chip, a reference to the Community garden project and an inline link; an Open tasks card on the right." width="100%">
+  <br><sub><b>Today.</b> Daily notes, supertag chips, field rows, references and an Open tasks card.</sub>
 </p>
 
 ## Tour
 
 <table>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/outline.png" alt="The Community garden page: project chip, Status, Website and an Owner field holding two people, then nested bullets with task checkboxes" width="100%"><p align="center"><sub><b>Zoom into any node.</b> Fields from its supertags sit above its children; a field can hold several values.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/week-grid.png" alt="Open tasks as a week calendar: day columns, an all-day strip and an hour grid with two overlapping timed tasks on Thursday" width="100%"><p align="center"><sub><b>Calendar.</b> Month, week and day. Drop an item on an hour to time it, drag its edge to resize, drag on empty grid to create.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/two-panels.png" alt="Community garden with its project fields beside Raised beds in a second panel" width="100%"><p align="center"><sub><b>Panels.</b> Open any node beside the current one; fields from supertags sit in soft boxes.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/calendar.png" alt="Open tasks as a month calendar with tasks on their due dates and today marked" width="100%"><p align="center"><sub><b>Calendar.</b> Items on their dates; month, week and day.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/query-builder.png" alt="The query builder of Open tasks: an AND group with #task and TODO, a nested OR group holding beds and a NOT group holding cedar, menus for tag fields, system fields, tag types and operators, Run once and Done" width="100%"><p align="center"><sub><b>Search nodes.</b> Live queries with nested AND, OR and NOT groups, shown as a table, cards, board, list or calendar.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/configure-supertag.png" alt="The task supertag page on the left; its configuration in a panel on the right: colour row, Building blocks, Content template with pinned toggles, optional fields and the done mapping" width="100%"><p align="center"><sub><b>Configure a supertag</b> in its own panel: template, optional fields, title expression, done mapping, default child supertag.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/query-builder.png" alt="The query builder of Open tasks above its table" width="100%"><p align="center"><sub><b>Search nodes.</b> Live queries with nested AND, OR and NOT groups; results wait for Run once.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/board.png" alt="Open tasks as a board grouped by Status" width="100%"><p align="center"><sub><b>Board.</b> Cards grouped by a field; drag a card to change its value.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/board.png" alt="Open tasks as a board: columns Not started, In progress, Done and Status not set with task cards and their due dates" width="100%"><p align="center"><sub><b>Board.</b> Cards grouped by a field; drag a card to change its value.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/supertags-overview.png" alt="The Supertags page: pinned task, project and meeting supertags as large coloured cards, then every supertag of the workspace as a tile" width="100%"><p align="center"><sub><b>Supertags.</b> Pinned ones as cards, then every supertag of the workspace.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/table.png" alt="Open tasks as a table with Status, Due and Effort columns" width="100%"><p align="center"><sub><b>Table.</b> Cells are typed in place; columns, sort, group and filter from the toolbar.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/supertags.png" alt="The Supertags page: pinned supertags as coloured tiles, then every supertag of the workspace" width="100%"><p align="center"><sub><b>Supertags.</b> Pinned ones as tiles, then every supertag of the workspace.</sub></p></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><img src="docs/images/command-line.png" alt="The command line over the Community garden page: steps for the focused task (add tag, remove tag, set status, set due, move to, view as) before the global commands" width="100%"><p align="center"><sub><b>Command line (Cmd+K).</b> Steps for the focused node first, then every command with its shortcut.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/tag-picker.png" alt="Typing #pro after Ideas in the Library: the menu offers Create and apply #pro on top and the existing #project supertag" width="100%"><p align="center"><sub><b>Type <code>#</code>, <code>@</code>, <code>&gt;</code> or <code>/</code></b> in a line for supertags, references, fields and the insert menu.</sub></p></td>
-</tr>
-<tr>
-<td width="50%" valign="top"><img src="docs/images/two-panels.png" alt="Two panels side by side: Community garden on the left, Build four beds on the right" width="100%"><p align="center"><sub><b>Panels and tabs.</b> Cmd+M opens a node beside the current one; drag the gap to resize.</sub></p></td>
-<td width="50%" valign="top"><img src="docs/images/light-shortcuts.png" alt="Light theme with the keyboard shortcuts panel open on the right" width="100%"><p align="center"><sub><b>Light theme</b> and the shortcut sheet (Shift+Cmd+?).</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/command-line.png" alt="The command line open over the Community garden page" width="100%"><p align="center"><sub><b>Command line (Cmd+K).</b> Steps for the line you are on first, then every command.</sub></p></td>
+<td width="50%" valign="top"><img src="docs/images/web/today-light.png" alt="Today's page in the light theme" width="100%"><p align="center"><sub><b>Light theme.</b> Tuned, not inverted: regular text is weight 400 here and 375 in dark.</sub></p></td>
 </tr>
 </table>
 
-Every screenshot is TanaCraft itself. These were rendered by the old egui front end (tag `egui-final`); the desktop app is now a Tauri app with a web UI, and its screenshots (`cargo xtask shots`) land in `docs/images/web/`.
+Every screenshot is TanaCraft itself (the web UI, rendered by `cargo xtask shots`). The look follows
+the spec team's measured design ([DESIGN.md](DESIGN.md)); icons are our own.
 
 ## Why
 
@@ -71,6 +68,20 @@ live. TanaCraft rebuilds that model as open source:
 Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (77 of 95 spec sections
 done, 13 partial; 140 of 160 screenshots done). AI features are out of scope for now.
 
+## Data safety
+
+The web UI never owns your notes. Every keystroke goes to the engine at once, in order; a key
+pressed while a command is still moving the caret waits and is replayed into the right line; keys
+still waiting when the window reloads are typed again after it; the engine autosaves within a
+second and saves on quit. Playwright fuzz tests type random keys at full speed (also on a long
+page in a small window, scrolled away mid-edit), reload the window at a random point, and
+force-kill the engine; not one character may go missing.
+
+The graph file is a [Loro](https://loro.dev) CRDT document: two copies edited apart (two devices,
+offline) merge, with concurrent typing in one line, concurrent moves (never a loop), delete versus
+edit, and tags and fields added on both sides covered by tests. Older JSON graph files are read
+once and kept as a backup. Sync over the network comes later.
+
 ## Speed and robustness
 
 Measured on a generated 50,000-node workspace (`sample::large`), release build, Apple Silicon laptop:
@@ -79,32 +90,25 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 |---|---|
 | Typing one character (engine) | 0.001 ms |
 | Enter, expand or collapse, undo (engine) | under 0.01 ms |
-| Whole UI frame with all 51,550 rows expanded (typing, idle, expand key) | about 6 ms |
-| First frame after opening that page and expanding everything | 8 ms |
 | Substring search / fuzzy Search and open over every node | 15 ms / 27 ms |
-| Save / load the graph file | 15 ms / 44 ms |
+| Save while typing (Loro document, changes only) / load the graph file | 34 ms / 0.8 s |
+| Web UI: 51,550 rows expanded: jump to 60 % and draw / 15 keys to the engine | about 120 ms / 120 ms (debug engine) |
 
-The outline draws only the rows near the viewport (the rest is blank space of their measured
-height). A row holding an editor (a line being typed, a field value or name, a description) is
-always laid out, on screen or not, and every editor scrolls itself into view when it takes the
-keyboard, so typed text never depends on where a row sits. Reproduce: `cargo test -p tanacraft-commands --test perf --release -- --nocapture` (the UI frame
-figures are from the egui front end, now in `legacy/egui`).
+The web outline draws only the rows near the viewport and asks the engine for that window of rows
+only. A row never holds unsaved text (every keystroke is already in the engine), and a key typed
+while the line being edited is scrolled away brings it back first. Reproduce:
+`cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
+`pnpm --dir web exec playwright test perf`.
 
 A fuzz test runs random sequences of every command (params built from each command's own
 description) and checks after each step that owners and children agree, nothing is orphaned or in a
 loop, every change undoes and redoes exactly, and save/load round-trips; damaged files (loops, double
 owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
-random commands. A UI fuzz test types random keys and text and clicks random points in the real UI;
-it must never panic, and while you type the keyboard must never go nowhere: after every key an editor
-or a menu still has it, or a line is selected, and typed text always lands somewhere. It also runs
-on a 70-line page in a small window, typing `>` field rows low on the page, and a quit test reloads
-the file after a random run, every third time as a force-kill (only what autosave wrote counts). Bugs these found are fixed and stay covered (undo cutting out structure made
-while navigating, template copies doubling an outline, a crash on a deep recursion, focus left on
-widgets that were not drawn, field values typed below the first screen, editors left open on
-another page, a line indented under a search node, keys lost after Shift+Tab out of a field, Cmd+K then Escape, Escape in
-a page title, or egui's own arrow-key focus moving to a button). Longer runs:
-`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`. The UI fuzz
-invariants are being ported from `legacy/egui` to Playwright tests of the web UI.
+random commands; after every few steps the Loro document written so far must hold exactly the same
+graph. The web UI's fuzz tests are described under [Data safety](#data-safety). Longer runs:
+`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
+`FUZZ_SEEDS=40 pnpm --dir web exec playwright test fuzz`. Which of the old egui UI tests have been
+ported to the web UI: [docs/web-port.md](docs/web-port.md).
 
 ## Quick start
 
@@ -116,7 +120,10 @@ cargo run --release -p tanacraft-cli -- serve --sample     # the same UI in a br
 ```
 
 Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
-**Shift+Cmd+?** for the shortcut sheet.
+**Cmd+/** for the shortcut sheet.
+
+Tests: `cargo xtask ci` (Rust: fmt, clippy, 130 tests) and `cargo xtask web` (typecheck, build,
+Playwright: 44 tests, each against its own engine). Screenshots: `cargo xtask shots`.
 
 ## For agents: CLI, MCP and the JSON API
 

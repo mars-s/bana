@@ -13,6 +13,7 @@ pub fn display_value(g: &Graph, v: &FieldValue) -> String {
         FieldValue::Text(s) | FieldValue::Url(s) | FieldValue::Email(s) | FieldValue::Choice(s) => s.clone(),
         FieldValue::Number(n) => format!("{n}"),
         FieldValue::Date(d) => d.to_string(),
+        FieldValue::Timed { date, start, end } => format!("{date} {}-{}", crate::model::fmt_hm(*start), crate::model::fmt_hm(*end)),
         FieldValue::Checkbox(b) => if *b { "Yes" } else { "No" }.to_string(),
         FieldValue::Node(id) => g.name(*id).to_string(),
     }
@@ -23,6 +24,10 @@ pub fn shown_value(g: &Graph, v: &FieldValue) -> String {
     match v {
         FieldValue::Date(d) if d.year == crate::Date::today().year => d.day_title(),
         FieldValue::Date(d) => format!("{}, {}", d.day_title(), d.year),
+        FieldValue::Timed { date, start, end } => {
+            let day = shown_value(g, &FieldValue::Date(*date));
+            format!("{day}, {} - {}", crate::model::fmt_hm(*start), crate::model::fmt_hm(*end))
+        }
         other => display_value(g, other),
     }
 }

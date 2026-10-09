@@ -1053,19 +1053,11 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     let items: Vec<NodeId> = groups.iter().flat_map(|g| g.items.iter().copied()).collect();
     let dated: Vec<(Date, NodeId)> = items.iter().filter_map(|i| app.session.graph.item_date(*i, field).map(|d| (d, *i))).collect();
     let undated = items.len() - dated.len();
-    if day_mode {
-        // Day view: the day's items as a list (no time grid yet).
-        let day_items: Vec<NodeId> = dated.iter().filter(|(d, _)| *d == anchor).map(|(_, i)| *i).collect();
-        egui::Frame::new().stroke(Stroke::new(1.0, t.line)).corner_radius(8.0).inner_margin(12.0).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.label(RichText::new("All day").size(12.5).color(t.faint));
-            if day_items.is_empty() {
-                ui.label(RichText::new("Nothing on this day").color(t.faint));
-            }
-            for i in day_items {
-                ui.horizontal(|ui| item_line(app, ui, t, i, true));
-            }
-        });
+    if day_mode || week_mode {
+        // Week and day: an all-day strip over an hour grid (spec 04 §10).
+        let days: Vec<Date> = if day_mode { vec![anchor] } else { (0..7).map(|k| week_start.add_days(k)).collect() };
+        time_grid(app, ui, t, node, field, &days, &dated);
+        undated_link(app, ui, t, node, field, &items, undated);
         return;
     }
     let w = ui.available_width();
@@ -1172,6 +1164,10 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
         }
         day = day.add_days(7);
     }
+    undated_link(app, ui, t, node, field, &items, undated);
+}
+
+fn undated_link(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Option<NodeId>, items: &[NodeId], undated: usize) {
     ui.add_space(8.0);
     if field.is_none() {
         ui.label(RichText::new("Add a date field to the items to place them on the calendar.").size(13.0).color(t.dim));
@@ -1197,5 +1193,299 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                 ui.horizontal(|ui| item_line(app, ui, t, i, true));
             }
         }
+    }
+}
+
+// ---- calendar time grid -------------------------------------------------------------------------
+
+const HOUR_H: f32 = 40.0;
+const GUTTER: f32 = 50.0;
+
+/// A "New event" dragged out on the time grid (spec 04 §10).
+#[derive(Debug, Clone)]
+pub struct NewEvent {
+    pub view: NodeId,
+    pub day: Date,
+    pub start: u16,
+    pub end: u16,
+    /// Still dragging (false: the popover asks for a name).
+    pub dragging: bool,
+    pub name: String,
+    focus_once: bool,
+}
+
+/// Minutes, snapped to a quarter hour.
+fn snap(min: f32) -> u16 {
+    ((min / 15.0).round() * 15.0).clamp(0.0, 1440.0) as u16
+}
+
+fn range_text(day: Date, a: u16, b: u16) -> String {
+    format!("{day} {}-{}", tanacraft_core::fmt_hm(a), tanacraft_core::fmt_hm(b))
+}
+
+/// The colours of an item's chip: (bar, fill).
+fn chip_colors(app: &TanaApp, t: &Tokens, target: NodeId) -> (Color32, Color32) {
+    let g = &app.session.graph;
+    g.get(target).and_then(|n| n.tags.first()).and_then(|x| g.tag_def(*x)).map(|d| theme::tag_color(&d.color, app.dark)).unwrap_or((t.dim, t.hover))
+}
+
+fn paint_chip(app: &TanaApp, t: &Tokens, p: &egui::Painter, r: Rect, target: NodeId, sub: Option<String>) {
+    let g = &app.session.graph;
+    let (bar, fill) = chip_colors(app, t, target);
+    p.rect_filled(r, 3.0, fill);
+    p.rect_filled(Rect::from_min_size(r.min, vec2(3.0, r.height())), 1.0, bar);
+    let clip = p.with_clip_rect(r.shrink(2.0));
+    let mut x = r.left() + 8.0;
+    if let Some(d) = g.checkbox(target) {
+        let b = Rect::from_center_size(pos2(x + 5.0, r.top() + 11.0), vec2(10.0, 10.0));
+        clip.rect_filled(b, 2.0, if d { Color32::from_rgb(76, 160, 96) } else { t.hover });
+        x += 14.0;
+    }
+    let done = g.checkbox(target) == Some(true);
+    clip.text(pos2(x, r.top() + 11.0), Align2::LEFT_CENTER, g.text(target), FontId::proportional(12.5), if done { t.dim } else { t.text });
+    if let Some(sub) = sub
+        && r.height() > 30.0
+    {
+        clip.text(pos2(r.left() + 8.0, r.top() + 27.0), Align2::LEFT_CENTER, sub, FontId::proportional(11.5), t.dim);
+    }
+}
+
+/// Week / day view: day headers, an all-day strip and a 24-hour grid. Drag an item onto an hour to
+/// give it a time, drag a timed event's bottom edge to resize it, drag on empty grid to create an
+/// event.
+fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Option<NodeId>, days: &[Date], dated: &[(Date, NodeId)]) {
+    const WD: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    let today = app.session.today;
+    let w = ui.available_width();
+    let n = days.len().max(1) as f32;
+    let col_w = ((w - GUTTER) / n).floor();
+    let col_x = |i: usize, left: f32| left + GUTTER + col_w * i as f32;
+    let painter = ui.painter().clone();
+    // Day headers.
+    let (hr, _) = ui.allocate_exact_size(vec2(w, 24.0), Sense::hover());
+    for (i, d) in days.iter().enumerate() {
+        let label = format!("{} {:02}/{:02}", WD.get(d.weekday()).copied().unwrap_or(""), d.day, d.month);
+        let c = pos2(col_x(i, hr.left()) + col_w / 2.0, hr.center().y);
+        if *d == today {
+            painter.rect_filled(Rect::from_center_size(c, vec2(78.0, 20.0)), 10.0, Color32::from_rgb(226, 92, 64).gamma_multiply(0.85));
+        }
+        painter.text(c, Align2::CENTER_CENTER, label, FontId::proportional(12.5), if *d == today { Color32::WHITE } else { t.dim });
+    }
+    // The all-day strip: items with a date but no time.
+    let all_day: Vec<Vec<NodeId>> = days
+        .iter()
+        .map(|d| dated.iter().filter(|(x, i)| x == d && app.session.graph.item_time(*i, field).is_none()).map(|(_, i)| *i).collect())
+        .collect();
+    let rows = all_day.iter().map(Vec::len).max().unwrap_or(0).clamp(1, 6);
+    let (strip, _) = ui.allocate_exact_size(vec2(w, 8.0 + rows as f32 * 24.0), Sense::hover());
+    painter.text(strip.left_top() + vec2(4.0, 12.0), Align2::LEFT_CENTER, "all-day", FontId::proportional(11.0), t.faint);
+    for (i, d) in days.iter().enumerate() {
+        let cell = Rect::from_min_size(pos2(col_x(i, strip.left()), strip.top()), vec2(col_w, strip.height()));
+        painter.rect_stroke(cell, 0.0, Stroke::new(1.0, t.line), StrokeKind::Inside);
+        let drop = ui.interact(cell, egui::Id::new((app.panel_ix, "allday", node.0, d.to_days())), Sense::hover());
+        if drop.dnd_hover_payload::<CardDrag>().is_some() {
+            painter.rect_filled(cell, 0.0, t.accent.gamma_multiply(0.12));
+        }
+        if let (Some(p), Some(f)) = (drop.dnd_release_payload::<CardDrag>(), field) {
+            app.acts.push(Act::Run("field.set".into(), json!({"node": p.0.0, "field": f.0, "value": d.to_string()})));
+        }
+        for (j, item) in all_day[i].iter().take(6).enumerate() {
+            let target = app.session.graph.resolve(*item);
+            let r = Rect::from_min_size(cell.left_top() + vec2(3.0, 4.0 + j as f32 * 24.0), vec2(col_w - 6.0, 22.0));
+            paint_chip(app, t, &painter, r, target, None);
+            let resp = ui.interact(r, egui::Id::new((app.panel_ix, "allday-item", node.0, item.0)), Sense::click_and_drag());
+            if resp.clicked() {
+                app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+            }
+            if resp.drag_started() {
+                resp.dnd_set_drag_payload(CardDrag(target));
+            }
+        }
+    }
+    // The hour grid, scrolled to 08:00 the first time.
+    let mut area = egui::ScrollArea::vertical()
+        .id_salt(("cal-grid", app.panel_ix, node.0))
+        .max_height(520.0)
+        .min_scrolled_height(520.0)
+        .auto_shrink([false, true]);
+    if app.cal_scrolled.insert(node) {
+        area = area.vertical_scroll_offset(8.0 * HOUR_H);
+    }
+    area.show(ui, |ui| {
+        let (grid, resp) = ui.allocate_exact_size(vec2(w, 24.0 * HOUR_H), Sense::click_and_drag());
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, "Time grid"));
+        let p = ui.painter().clone();
+        for (i, d) in days.iter().enumerate() {
+            if d.weekday() >= 5 {
+                p.rect_filled(Rect::from_min_size(pos2(col_x(i, grid.left()), grid.top()), vec2(col_w, grid.height())), 0.0, t.field_bg);
+            }
+            p.line_segment([pos2(col_x(i, grid.left()), grid.top()), pos2(col_x(i, grid.left()), grid.bottom())], Stroke::new(1.0, t.line));
+        }
+        for h in 0..24 {
+            let y = grid.top() + h as f32 * HOUR_H;
+            p.line_segment([pos2(grid.left() + GUTTER, y), pos2(grid.right(), y)], Stroke::new(1.0, t.line));
+            p.text(pos2(grid.left() + 4.0, y + 2.0), Align2::LEFT_TOP, format!("{h:02}:00"), FontId::proportional(11.0), t.faint);
+        }
+        let at = |pos: egui::Pos2| -> Option<(usize, u16)> {
+            let i = ((pos.x - grid.left() - GUTTER) / col_w).floor();
+            (i >= 0.0 && (i as usize) < days.len()).then(|| (i as usize, snap((pos.y - grid.top()) / HOUR_H * 60.0)))
+        };
+        // Now: a thin red-orange line in today's column.
+        if let Some(i) = days.iter().position(|d| *d == today) {
+            let y = grid.top() + tanacraft_core::Date::now_minutes() as f32 / 60.0 * HOUR_H;
+            let x0 = col_x(i, grid.left());
+            let red = Color32::from_rgb(226, 92, 64);
+            p.line_segment([pos2(x0, y), pos2(x0 + col_w, y)], Stroke::new(1.5, red));
+            p.circle_filled(pos2(x0, y), 3.5, red);
+        }
+        // Drag on empty grid: select a range, then name the new event.
+        if let Some(f) = field {
+            if resp.drag_started()
+                && let Some((i, m)) = ui.input(|i| i.pointer.press_origin()).and_then(at)
+            {
+                app.cal_new = Some(NewEvent {
+                    view: node,
+                    day: days[i],
+                    start: m,
+                    end: (m + 30).min(1440),
+                    dragging: true,
+                    name: String::new(),
+                    focus_once: true,
+                });
+            }
+            if let Some(ev) = app.cal_new.as_mut().filter(|e| e.view == node && e.dragging) {
+                if let Some((_, m)) = ui.ctx().pointer_interact_pos().and_then(at) {
+                    ev.end = m.max(ev.start + 15).min(1440);
+                }
+                if resp.drag_stopped() {
+                    ev.dragging = false;
+                }
+            }
+            if let Some(i) = app.cal_new.as_ref().filter(|e| e.view == node).and_then(|e| days.iter().position(|d| *d == e.day)) {
+                let ev = app.cal_new.clone().unwrap_or_else(|| NewEvent {
+                    view: node,
+                    day: today,
+                    start: 0,
+                    end: 0,
+                    dragging: false,
+                    name: String::new(),
+                    focus_once: false,
+                });
+                let r = Rect::from_min_max(
+                    pos2(col_x(i, grid.left()) + 2.0, grid.top() + ev.start as f32 / 60.0 * HOUR_H),
+                    pos2(col_x(i, grid.left()) + col_w - 2.0, grid.top() + ev.end as f32 / 60.0 * HOUR_H),
+                );
+                p.rect_filled(r, 4.0, t.accent.gamma_multiply(0.25));
+                p.rect_stroke(r, 4.0, Stroke::new(1.0, t.accent), StrokeKind::Inside);
+                if !ev.dragging {
+                    new_event_popover(app, ui, t, f, r);
+                }
+            }
+            // Drop an item on an hour: it gets that time (one hour, or its current length).
+            if let Some(pl) = resp.dnd_release_payload::<CardDrag>()
+                && let Some((i, m)) = ui.ctx().pointer_interact_pos().and_then(at)
+            {
+                let len = app.session.graph.item_time(pl.0, Some(f)).map(|(a, b)| b - a).unwrap_or(60);
+                let start = m.min(1440 - len.min(1440));
+                app.acts.push(Act::Run("field.set".into(), json!({"node": pl.0.0, "field": f.0, "value": range_text(days[i], start, start + len)})));
+            }
+            if resp.dnd_hover_payload::<CardDrag>().is_some()
+                && let Some((i, m)) = ui.ctx().pointer_hover_pos().and_then(at)
+            {
+                let y = grid.top() + m as f32 / 60.0 * HOUR_H;
+                p.line_segment([pos2(col_x(i, grid.left()), y), pos2(col_x(i, grid.left()) + col_w, y)], Stroke::new(2.0, t.accent));
+            }
+        }
+        // Timed events.
+        for (i, d) in days.iter().enumerate() {
+            for (_, item) in dated.iter().filter(|(x, _)| x == d) {
+                let Some((a, b)) = app.session.graph.item_time(*item, field) else { continue };
+                let target = app.session.graph.resolve(*item);
+                let b_shown = app.cal_resize.filter(|(n, _)| *n == target).map(|(_, e)| e).unwrap_or(b);
+                let r = Rect::from_min_max(
+                    pos2(col_x(i, grid.left()) + 2.0, grid.top() + a as f32 / 60.0 * HOUR_H + 1.0),
+                    pos2(col_x(i, grid.left()) + col_w - 2.0, grid.top() + b_shown as f32 / 60.0 * HOUR_H - 1.0),
+                );
+                let sub = format!("{} - {}", tanacraft_core::fmt_hm(a), tanacraft_core::fmt_hm(b_shown));
+                paint_chip(app, t, &p, r, target, Some(sub));
+                let body = Rect::from_min_max(r.min, pos2(r.right(), (r.bottom() - 7.0).max(r.top() + 4.0)));
+                let resp = ui.interact(body, egui::Id::new((app.panel_ix, "timed", node.0, item.0)), Sense::click_and_drag());
+                if resp.clicked() {
+                    app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+                }
+                if resp.drag_started() {
+                    resp.dnd_set_drag_payload(CardDrag(target));
+                }
+                // The bottom edge resizes (spec 04 §10).
+                let edge = Rect::from_min_max(pos2(r.left(), r.bottom() - 7.0), r.max);
+                let er = ui.interact(edge, egui::Id::new((app.panel_ix, "timed-edge", node.0, item.0)), Sense::drag());
+                if er.hovered() || er.dragged() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+                }
+                if er.dragged()
+                    && let Some(pos) = ui.ctx().pointer_interact_pos()
+                {
+                    let end = snap((pos.y - grid.top()) / HOUR_H * 60.0).max(a + 15).min(1440);
+                    app.cal_resize = Some((target, end));
+                }
+                if er.drag_stopped()
+                    && let (Some((_, end)), Some(f)) = (app.cal_resize.take(), field)
+                {
+                    app.acts.push(Act::Run("field.set".into(), json!({"node": target.0, "field": f.0, "value": range_text(*d, a, end)})));
+                }
+            }
+        }
+    });
+}
+
+/// The "New event" popover under a dragged-out range: a name, the range, Enter creates.
+fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, under: Rect) {
+    let Some(mut ev) = app.cal_new.clone() else { return };
+    let mut close = false;
+    let mut create = false;
+    egui::Area::new(egui::Id::new(("new-event", ev.view.0))).order(egui::Order::Foreground).fixed_pos(under.left_bottom() + vec2(0.0, 6.0)).show(
+        ui.ctx(),
+        |ui| {
+            egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(10.0).show(ui, |ui| {
+                ui.set_width(260.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("New event").strong().size(13.5));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add(egui::Label::new(RichText::new("x").color(t.dim)).sense(Sense::click())).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+                let r = ui.add(egui::TextEdit::singleline(&mut ev.name).hint_text("Name, then Enter").desired_width(240.0));
+                if ev.focus_once {
+                    r.request_focus();
+                    ev.focus_once = false;
+                }
+                let g = &app.session.graph;
+                let shown = tanacraft_core::export::shown_value(g, &tanacraft_core::FieldValue::Timed { date: ev.day, start: ev.start, end: ev.end });
+                ui.label(RichText::new(format!("{}: {shown}", g.name(field))).size(12.5).color(t.dim));
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    create = true;
+                }
+            });
+        },
+    );
+    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        close = true;
+    }
+    if create {
+        let name = if ev.name.trim().is_empty() { "New event".to_string() } else { ev.name.clone() };
+        let r = app.exec(
+            "view.addItem",
+            json!({"node": ev.view.0, "name": name, "field": field.0, "value": range_text(ev.day, ev.start, ev.end), "stay": true}),
+        );
+        if let Err(e) = r {
+            app.session.status = e;
+        }
+        app.cal_new = None;
+    } else if close {
+        app.cal_new = None;
+    } else {
+        app.cal_new = Some(ev);
     }
 }

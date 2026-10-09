@@ -232,6 +232,12 @@ pub struct TanaApp {
     calendar_week_anchor: Option<tanacraft_core::Date>,
     /// Calendars whose "nodes with no dates" list is open.
     show_undated: std::collections::HashSet<NodeId>,
+    /// Calendar time grid: a "New event" being dragged out or named.
+    pub cal_new: Option<crate::views::NewEvent>,
+    /// Calendar time grid: an event being resized (item, new end in minutes).
+    pub cal_resize: Option<(NodeId, u16)>,
+    /// Calendar views already scrolled to the start of the day.
+    cal_scrolled: std::collections::HashSet<NodeId>,
     dirty_since: Option<f64>,
     acts: Vec<Act>,
 }
@@ -284,6 +290,9 @@ impl TanaApp {
             quick_filter_focus: false,
             calendar_week_anchor: None,
             show_undated: Default::default(),
+            cal_new: None,
+            cal_resize: None,
+            cal_scrolled: Default::default(),
             dirty_since: None,
             acts: Vec::new(),
         };
@@ -593,8 +602,8 @@ impl TanaApp {
                 }
                 Act::PickDate(node, field, index, anchor) => {
                     let current = match self.session.graph.get(node).and_then(|n| n.field_values(field).get(index).copied()) {
-                        Some(tanacraft_core::FieldValue::Date(d)) => Some(*d),
-                        _ => None,
+                        Some(v) => v.date(),
+                        None => None,
                     };
                     let d = current.unwrap_or(self.session.today);
                     self.date_pick = Some(DatePick {

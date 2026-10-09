@@ -752,12 +752,16 @@ pub(crate) fn field_value(
         FieldType::Date if !editing => {
             // "Thu, 15 Oct" with a calendar glyph; ">" opens the day (spec 03 §8).
             let date = match value {
-                Some(FieldValue::Date(d)) => Some(*d),
-                _ => None,
+                Some(v) => v.date(),
+                None => None,
+            };
+            let time = match value {
+                Some(FieldValue::Timed { start, end, .. }) => format!(", {} - {}", tanacraft_core::fmt_hm(*start), tanacraft_core::fmt_hm(*end)),
+                _ => String::new(),
             };
             let label = match date {
-                Some(d) if d.year == app.session.today.year => d.day_title(),
-                Some(d) => format!("{}, {}", d.day_title(), d.year),
+                Some(d) if d.year == app.session.today.year => format!("{}{time}", d.day_title()),
+                Some(d) => format!("{}, {}{time}", d.day_title(), d.year),
                 None => hint(def.field_type).to_string(),
             };
             if date.is_some() {

@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (99) | 51 | 40 | 6 | 2 |
-| Screenshots (153) | 91 | 37 | 24 | 1 |
+| Screenshots (153) | 96 | 35 | 21 | 1 |
 
 ## `00-overview.md`
 
@@ -92,7 +92,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 7. List (navigation view) | partial | Item list with the selected item beside it (same panel, not a second panel). |
 | 8. Side menu | done | Compact menu and selected item content. |
 | 9. Tabs | done | Items as tabs, selected item below. |
-| 10. Calendar | partial | Month grid with week numbers, today circle, chips, Week view (all-day), drag an item to another day, date field menu, N nodes with no dates. No time grid or day view. |
+| 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Missing: day length setting, overlapping events side by side. |
 | 11. Display menu | done | Field checkboxes and system fields (created, edited, done time, owner, tags, references). |
 | 12. Group by | done | Fields, tags, done, owner, created and edited day; every option gets a group; Not defined; group headers collapse. |
 | 13. Sort by | partial | Several rules, direction, remove, add, reset; empty values first. Reapply sort and sort-children commands missing. |
@@ -183,7 +183,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `20-field-type-dropdown.png` | partial | Field types without user type. |
 | `21-tagged-node-zoomed.png` | done | Tagged node zoomed. |
 | `22-options-picker.png` | done | Options picker lists the other options. |
-| `23-date-picker.png` | partial | Date picker without time or range. |
+| `23-date-picker.png` | partial | Date picker; a time range can be typed (`2026-10-17 11:00-12:00`); no week numbers or date ranges across days. |
 | `24-hash-tag-menu.png` | done | # menu. |
 | `25-node-tagged-task-inline.png` | done | Tagged node inline. |
 | `26-tagged-node-expanded-fields.png` | done | Expanded fields. |
@@ -213,7 +213,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `50-cards-view.png` | done | Cards view. |
 | `51-lanes-view.png` | done | Lanes view. |
 | `52-calendar-view.png` | done | Calendar month view. |
-| `53-calendar-week-view.png` | partial | Calendar week view without time grid. |
+| `53-calendar-week-view.png` | done | Week view with all-day strip, hour grid and now line. |
 | `54-side-menu-view.png` | done | Side menu view. |
 | `55-list-nav-view.png` | partial | List view in one panel. |
 | `56-command-line.png` | done | Command line. |
@@ -286,7 +286,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `123-query-or-filled.png` | done | OR group filled. |
 | `124-query-not-group.png` | done | NOT group. |
 | `125-calendar-drag.jpg` | done | Calendar drag. |
-| `126-calendar-week-timed-drop.jpg` | missing | Timed week drop. |
+| `126-calendar-week-timed-drop.jpg` | done | Dropping an item on an hour gives it a time range. |
 | `127-lanes-lab.png` | done | Lanes. |
 | `128-lanes-drag.jpg` | missing | Lanes drag. |
 | `129-content-width-menu.png` | missing | Content width. |
@@ -308,15 +308,15 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `145-group-menu-hidden-groups.png` | done | Group menu lists hidden groups. |
 | `146-field-name-autocomplete.jpg` | done | Field name autocomplete. |
 | `147-auto-collected-option.png` | done | Auto-collected option. |
-| `148-calendar-day-view.png` | partial | Calendar day view as a list (no time grid). |
+| `148-calendar-day-view.png` | done | Day view: one column time grid. |
 | `149-multi-select-indent.png` | done | Indent a multi-selection. |
 | `150-bang-heading.jpg` | done | ! on an empty line makes a heading. |
 | `151-heading-with-child.jpg` | done | Heading with children. |
 | `152-checklist-inserted.jpg` | done | Checklist from the slash menu. |
 | `153-checklist-progress.png` | done | Checklist progress bar. |
 | `154-table-column-resize.jpg` | done | Table column resize (drag a header edge; saved with the view). |
-| `155-calendar-drag-create.png` | missing | Drag to create on the calendar time grid. |
-| `156-calendar-event-resize.jpg` | missing | Resize events on the time grid. |
+| `155-calendar-drag-create.png` | done | Drag on the grid, New event popover with the range. Tested. |
+| `156-calendar-event-resize.jpg` | done | Drag the bottom edge to change the end time. Tested. |
 | `157-title-expr-default-child-config.png` | done | Advanced options: title expression input and default child supertag picker. |
 | `158-title-expression-table.png` | done | Grey computed title part in tables and lists; empty fields show their name underlined. |
 | `159-default-child-supertag.png` | done | New direct children of a tagged node get the default child supertag. |

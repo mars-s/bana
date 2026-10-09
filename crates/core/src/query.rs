@@ -300,7 +300,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         ClauseKind::OnDay => g.ancestors(id).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(Kind::Day { .. }))),
         ClauseKind::ForDate { date } => {
             let Some(d) = Date::parse(date) else { return false };
-            n.has_value(&FieldValue::Date(d)) || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
+            n.has_date(d) || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
         }
         ClauseKind::LinksTo { node } => {
             n.reference_target() == Some(*node) || crate::format::refs(&n.name).contains(&node.0) || n.has_value(&FieldValue::Node(*node))
@@ -331,7 +331,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
 pub fn compare(g: &Graph, v: &FieldValue, text: &str) -> Option<std::cmp::Ordering> {
     match v {
         FieldValue::Number(x) => text.trim().parse::<f64>().ok().and_then(|y| x.partial_cmp(&y)),
-        FieldValue::Date(d) => Date::parse(text).map(|t| d.cmp(&t)),
+        FieldValue::Date(d) | FieldValue::Timed { date: d, .. } => Date::parse(text).map(|t| d.cmp(&t)),
         other => Some(display_value(g, other).to_lowercase().cmp(&text.trim().to_lowercase())),
     }
 }

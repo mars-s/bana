@@ -91,7 +91,7 @@ pub fn registry() -> Registry {
         C::new("view.addFilter", "Add filter", "Views", view_add_filter).params(r#"{"node"?: id, "clause": string}"#),
         C::new("view.removeFilter", "Remove filter", "Views", view_remove_filter).params(r#"{"node"?: id, "index": number}"#),
         C::new("view.addItem", "Add item to view", "Views", view_add_item)
-            .params(r#"{"node"?: id, "name"?: string, "field"?: name | id, "value"?: string}"#),
+            .params(r#"{"node"?: id, "name"?: string, "field"?: name | id, "value"?: string, "stay"?: bool}  (stay: do not open the new item)"#),
         C::new("node.setDone", "Set done", "Node", set_done).params(r#"{"node"?: id, "done": bool | null}"#),
         C::new("view.addSort", "Add sort rule", "Views", view_add_sort).params(r#"{"node"?: id, "by": "name|created|done|<field>", "desc"?: bool}"#),
         C::new("view.removeSort", "Remove sort rule", "Views", view_remove_sort).params(r#"{"node"?: id, "index": number}"#),
@@ -1546,7 +1546,9 @@ fn view_add_item(s: &mut Session, v: &Value) -> CmdResult {
         let f = field_param(s, v, false)?;
         s.graph.set_field_text(new, f, p::str(v, "value").unwrap_or(""))?;
     }
-    if parent == id {
+    if p::bool(v, "stay") == Some(true) {
+        // The view stays open (a calendar's New event).
+    } else if parent == id {
         s.set_focus(new, 0);
     } else {
         s.open(new)?;

@@ -237,7 +237,7 @@ impl Graph {
                 n.reference_target() == Some(target)
                     || (n.name.contains("[[id:") && crate::format::refs(&n.name).contains(&target.0))
                     || n.has_value(&FieldValue::Node(target))
-                    || day_date.is_some_and(|d| n.has_value(&FieldValue::Date(d)))
+                    || day_date.is_some_and(|d| n.has_date(d))
             })
             .filter(|n| !self.in_trash(n.id))
             .map(|n| n.id)
@@ -947,8 +947,8 @@ impl Graph {
     pub fn set_field_at(&mut self, node: NodeId, field: NodeId, index: usize, value: Option<FieldValue>) -> Result<()> {
         let node = self.resolve(node);
         // A date value is a link to its day: make sure the day exists (spec 01 §8).
-        if let Some(FieldValue::Date(d)) = &value {
-            self.day(*d)?;
+        if let Some(d) = value.as_ref().and_then(FieldValue::date) {
+            self.day(d)?;
         }
         self.field_def(field).ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
         let n = self.node_mut(node)?;

@@ -24,6 +24,13 @@ impl Date {
     }
 
     /// Today in the local time zone.
+    /// Minutes since local midnight now.
+    pub fn now_minutes() -> u16 {
+        use chrono::Timelike;
+        let t = chrono::Local::now().time();
+        (t.hour() * 60 + t.minute()).min(1439) as u16
+    }
+
     pub fn today() -> Date {
         use chrono::Datelike;
         let d = chrono::Local::now().date_naive();

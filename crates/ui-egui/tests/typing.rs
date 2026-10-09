@@ -825,3 +825,65 @@ fn diffs_p3_hash_menu_filters_from_the_line() {
     assert!(h.state().picker.is_none());
     assert_eq!(h.state().session.graph.name(ids[0]), "Read #ta");
 }
+
+#[test]
+fn calendar_time_grid_drag_to_create_and_resize() {
+    use egui::{PointerButton, Pos2};
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 1000.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        {
+            let mut a = TanaApp::new(Session::with_today(Graph::new(), Date::new(2026, 10, 10).unwrap()));
+            a.mac = true;
+            a
+        },
+    );
+    let s = h.state_mut();
+    s.exec("tag.create", json!({"name": "event"})).unwrap();
+    s.exec("tag.addField", json!({"tag": "event", "field": "When", "type": "date"})).unwrap();
+    let lib = s.session.graph.sys.library.0;
+    let q = s.exec("search.create", json!({"query": "#event", "parent": lib})).unwrap()["id"].as_u64().unwrap();
+    s.exec("nav.open", json!({"node": q})).unwrap();
+    s.exec("view.set", json!({"kind": "calendar"})).unwrap();
+    s.exec("view.dateField", json!({"field": "When"})).unwrap();
+    s.exec("view.calendarMode", json!({"mode": "week"})).unwrap();
+    s.query_open = false;
+    for _ in 0..4 {
+        h.step();
+    }
+    let grid = h.get_by_label("Time grid").rect();
+    // Week of Mon 5 Oct; Wednesday is column 2. Columns start 50 points in.
+    let col_w = ((grid.width() - 50.0) / 7.0).floor();
+    let x = grid.left() + 50.0 + col_w * 2.5;
+    let y = |min: f32| grid.top() + min / 60.0 * 40.0;
+    let drag = |h: &mut H<'_>, from: Pos2, to: Pos2| {
+        let ev = |h: &mut H<'_>, e: Event| {
+            h.input_mut().events.push(e);
+            h.step();
+        };
+        ev(h, Event::PointerMoved(from));
+        ev(h, Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        for k in 1..=8 {
+            ev(h, Event::PointerMoved(from + (to - from) * (k as f32 / 8.0)));
+        }
+        ev(h, Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        for _ in 0..3 {
+            h.step();
+        }
+    };
+    drag(&mut h, Pos2::new(x, y(11.0 * 60.0 + 2.0)), Pos2::new(x, y(12.5 * 60.0)));
+    assert!(h.state().cal_new.as_ref().is_some_and(|e| (e.start, e.end) == (660, 750)), "{:?}", h.state().cal_new);
+    text(&mut h, "Planting day");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let ev = g.search("Planting day")[0];
+    let when = g.find_field("When").unwrap();
+    assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-12:30");
+    // Drag the bottom edge from 12:30 to 13:30.
+    drag(&mut h, Pos2::new(x, y(12.5 * 60.0) - 4.0), Pos2::new(x, y(13.5 * 60.0)));
+    let g = &h.state().session.graph;
+    assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-13:30");
+}

@@ -260,6 +260,12 @@ pub enum FieldValue {
     Text(String),
     Number(f64),
     Date(Date),
+    /// A date with a time range (minutes after midnight, `start < end <= 1440`).
+    Timed {
+        date: Date,
+        start: u16,
+        end: u16,
+    },
     Checkbox(bool),
     Url(String),
     Email(String),
@@ -269,7 +275,49 @@ pub enum FieldValue {
     Node(NodeId),
 }
 
+/// `HH:MM` as minutes after midnight (`24:00` allowed as an end).
+pub fn parse_hm(s: &str) -> Option<u16> {
+    let (h, m) = s.trim().split_once(':')?;
+    let (h, m): (u16, u16) = (h.parse().ok()?, m.parse().ok()?);
+    (m < 60 && (h < 24 || (h == 24 && m == 0))).then_some(h * 60 + m)
+}
+
+/// `HH:MM`.
+pub fn fmt_hm(min: u16) -> String {
+    format!("{:02}:{:02}", min / 60, min % 60)
+}
+
+/// A date, optionally followed by `HH:MM` or `HH:MM-HH:MM` (one hour when no end is given).
+fn parse_date_value(s: &str) -> Result<FieldValue, String> {
+    let bad = || format!("`{s}` is not a date (YYYY-MM-DD, optionally HH:MM-HH:MM)");
+    if let Some((day, time)) = s.rsplit_once(' ')
+        && time.contains(':')
+    {
+        let date = Date::parse(day).ok_or_else(bad)?;
+        let (a, b) = match time.split_once('-') {
+            Some((a, b)) => (parse_hm(a).ok_or_else(bad)?, parse_hm(b).ok_or_else(bad)?),
+            None => {
+                let a = parse_hm(time).ok_or_else(bad)?;
+                (a, (a + 60).min(1440))
+            }
+        };
+        if a >= b || a >= 1440 {
+            return Err(format!("`{time}` must start before it ends"));
+        }
+        return Ok(FieldValue::Timed { date, start: a, end: b });
+    }
+    Ok(FieldValue::Date(Date::parse(s).ok_or_else(bad)?))
+}
+
 impl FieldValue {
+    /// The day of a date value (timed or not).
+    pub fn date(&self) -> Option<Date> {
+        match self {
+            FieldValue::Date(d) | FieldValue::Timed { date: d, .. } => Some(*d),
+            _ => None,
+        }
+    }
+
     /// Parses typed text into a value of `ty`. `Node` values are resolved by the graph.
     pub fn parse(ty: FieldType, s: &str) -> Result<FieldValue, String> {
         let s = s.trim();
@@ -277,7 +325,7 @@ impl FieldValue {
             FieldType::Plain | FieldType::OptionsFromTag => FieldValue::Text(s.to_string()),
             FieldType::Options => FieldValue::Choice(s.to_string()),
             FieldType::Number => FieldValue::Number(s.parse::<f64>().ok().filter(|f| f.is_finite()).ok_or_else(|| format!("`{s}` is not a number"))?),
-            FieldType::Date => FieldValue::Date(Date::parse(s).ok_or_else(|| format!("`{s}` is not a date (YYYY-MM-DD)"))?),
+            FieldType::Date => parse_date_value(s)?,
             FieldType::Checkbox => FieldValue::Checkbox(match s.to_ascii_lowercase().as_str() {
                 "yes" | "true" | "1" | "x" | "on" => true,
                 "no" | "false" | "0" | "" | "off" => false,
@@ -426,6 +474,11 @@ impl Node {
     /// Every value of `field`.
     pub fn field_values(&self, field: NodeId) -> Vec<&FieldValue> {
         self.fields.iter().find(|f| f.field == field).map(|f| f.values().collect()).unwrap_or_default()
+    }
+
+    /// True when any field holds a date (timed or not) on `d`.
+    pub fn has_date(&self, d: Date) -> bool {
+        self.fields.iter().any(|f| f.values().any(|x| x.date() == Some(d)))
     }
 
     /// True when any field holds `v`.

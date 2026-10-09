@@ -327,7 +327,10 @@ impl Graph {
                     (None, Some(_)) => std::cmp::Ordering::Less,
                     (Some(_), None) => std::cmp::Ordering::Greater,
                     (Some(FieldValue::Number(x)), Some(FieldValue::Number(y))) => x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal),
-                    (Some(FieldValue::Date(x)), Some(FieldValue::Date(y))) => x.cmp(y),
+                    (Some(x), Some(y)) if x.date().is_some() && y.date().is_some() => {
+                        let key = |v: &FieldValue| (v.date(), if let FieldValue::Timed { start, .. } = v { *start } else { 0 });
+                        key(x).cmp(&key(y))
+                    }
                     (Some(x), Some(y)) => display_value(self, x).to_lowercase().cmp(&display_value(self, y).to_lowercase()),
                 }
             }
@@ -382,8 +385,13 @@ impl Graph {
 
     /// The date an item sits on in a calendar view.
     pub fn item_date(&self, item: NodeId, field: Option<NodeId>) -> Option<Date> {
+        self.get(self.resolve(item)).and_then(|n| n.field_value(field?)).and_then(FieldValue::date)
+    }
+
+    /// The time range of an item in a calendar view, when its date has one (minutes).
+    pub fn item_time(&self, item: NodeId, field: Option<NodeId>) -> Option<(u16, u16)> {
         match self.get(self.resolve(item)).and_then(|n| n.field_value(field?)) {
-            Some(FieldValue::Date(d)) => Some(*d),
+            Some(FieldValue::Timed { start, end, .. }) => Some((*start, *end)),
             _ => None,
         }
     }

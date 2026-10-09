@@ -543,3 +543,18 @@ fn inline_references_are_backlinks_and_export_as_names() {
     let q = Query::parse(&g, &format!("LINKS:{garden_id}")).unwrap();
     assert!(q.run(&g, NodeId(0)).contains(&n));
 }
+
+#[test]
+fn timed_date_values() {
+    use crate::model::FieldType;
+    let v = FieldValue::parse(FieldType::Date, "2026-10-17 11:15-12:30").unwrap();
+    assert_eq!(v, FieldValue::Timed { date: Date::new(2026, 10, 17).unwrap(), start: 675, end: 750 });
+    assert_eq!(v.date(), Date::new(2026, 10, 17));
+    let one_hour = FieldValue::parse(FieldType::Date, "2026-10-17 23:30").unwrap();
+    assert_eq!(one_hour, FieldValue::Timed { date: Date::new(2026, 10, 17).unwrap(), start: 1410, end: 1440 });
+    assert!(FieldValue::parse(FieldType::Date, "2026-10-17 12:00-11:00").is_err());
+    assert!(FieldValue::parse(FieldType::Date, "2026-10-17 25:00").is_err());
+    let g = Graph::new();
+    assert_eq!(export::display_value(&g, &v), "2026-10-17 11:15-12:30");
+    assert!(export::shown_value(&g, &v).ends_with("11:15 - 12:30"));
+}

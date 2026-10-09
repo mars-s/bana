@@ -396,7 +396,7 @@ fn create_new_recents_settings_and_copy_paste_references() {
     h.state_mut().exec("select.set", json!({"from": ideas})).unwrap();
     h.input_mut().events.push(Event::Copy);
     h.step();
-    let clip = tanacraft_core::export::to_markdown(&h.state().session.graph, tanacraft_core::NodeId(ideas), false);
+    let clip = tanacraft_core::export::to_plain(&h.state().session.graph, &[tanacraft_core::NodeId(ideas)]);
     h.state_mut().exec("focus.set", json!({"node": reading})).unwrap();
     h.step();
     h.input_mut().events.push(Event::Paste(clip));
@@ -404,7 +404,7 @@ fn create_new_recents_settings_and_copy_paste_references() {
     let g = &h.state().session.graph;
     assert_eq!(g.references_to(tanacraft_core::NodeId(ideas)).len(), 1);
     // Pasting again next to it skips the duplicate.
-    let again = tanacraft_core::export::to_markdown(&h.state().session.graph, tanacraft_core::NodeId(ideas), false);
+    let again = tanacraft_core::export::to_plain(&h.state().session.graph, &[tanacraft_core::NodeId(ideas)]);
     h.input_mut().events.push(Event::Paste(again));
     h.step();
     assert_eq!(h.state().session.graph.references_to(tanacraft_core::NodeId(ideas)).len(), 1, "duplicates are skipped");
@@ -641,7 +641,7 @@ fn diffs_p1_copy_selected_nodes_fills_the_clipboard() {
             _ => None,
         })
         .collect();
-    assert!(copied.iter().any(|t| t.contains("- B\n") && t.contains("  - B1")), "{copied:?}");
+    assert!(copied.iter().any(|t| t.starts_with("B\n") && t.contains("- B1")), "{copied:?}");
 }
 
 #[test]
@@ -1331,7 +1331,7 @@ fn diffs_n12_pasting_copied_nodes_into_an_empty_line_replaces_it() {
     h.state_mut().exec("select.set", json!({"from": ids[0].0})).unwrap();
     h.input_mut().events.push(Event::Copy);
     h.step();
-    let clip = tanacraft_core::export::to_markdown(&h.state().session.graph, ids[0], false);
+    let clip = tanacraft_core::export::to_plain(&h.state().session.graph, &[ids[0]]);
     focus(&mut h, empty, 0);
     h.input_mut().events.push(Event::Paste(clip));
     h.step();
@@ -1421,8 +1421,8 @@ fn copying_selected_nodes_puts_html_and_text_on_the_clipboard() {
     h.input_mut().events.push(Event::Copy);
     h.step();
     let (html, text) = got.borrow().clone().expect("clipboard written");
-    assert_eq!(html, "<ul><li>B<ul><li>B1</li></ul></li></ul>");
-    assert_eq!(text, "- B\n  - B1\n");
+    assert_eq!(html, "<p>B</p><ul><li>B1</li></ul>");
+    assert_eq!(text, "B\n- B1\n");
     let r = h.state_mut().exec("export.clipboard", json!({"node": ids[0].0})).unwrap();
     assert_eq!(r["html"], html);
 }

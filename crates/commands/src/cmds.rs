@@ -604,10 +604,10 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced|url_embeds", "value": "12h|24h" | "monday|sunday" | bool}"#)
         .pure(),
-        // What copying nodes puts on the clipboard: HTML plus a Markdown list (spec 02 §12).
+        // What copying nodes puts on the clipboard: formatted HTML plus plain text (spec 02 §12).
         C::new("export.clipboard", "Copy as HTML and text", "Export", |s, v| {
             let ids = if v.get("nodes").is_some() || v.get("node").is_some() || s.sel.is_some() { s.targets(v)? } else { vec![node_or_zoom(s, v)?] };
-            let text: String = ids.iter().map(|n| export::to_markdown(&s.graph, *n, false)).collect();
+            let text = export::to_plain(&s.graph, &ids);
             Ok(json!({"html": export::to_html(&s.graph, &ids), "text": text, "nodes": ids.iter().map(|n| n.0).collect::<Vec<_>>()}))
         })
         .params(r#"{"nodes"?: [id], "node"?: id}  (default: the selection, else the open page)"#)

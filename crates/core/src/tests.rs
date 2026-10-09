@@ -632,7 +632,19 @@ fn query_field_value_operators_and_workspace() {
 fn html_export_is_a_nested_escaped_list() {
     let (mut g, ids) = graph_with(&["B <b>", "C"]);
     g.create(ids[0], None, "B1 & co").unwrap();
-    assert_eq!(export::to_html(&g, &ids), "<ul><li>B &lt;b&gt;<ul><li>B1 &amp; co</li></ul></li><li>C</li></ul>");
+    assert_eq!(export::to_html(&g, &ids), "<p>B &lt;b&gt;</p><ul><li>B1 &amp; co</li></ul><p>C</p>");
+}
+
+#[test]
+fn clipboard_flavours_carry_real_formatting() {
+    // DIFFS N21: HTML gets <b>, plain text drops the marks; the copied line has no dash.
+    let (mut g, ids) = graph_with(&["Mulch **now** please", "Ideas"]);
+    assert_eq!(export::to_html(&g, &ids[..1]), "<p>Mulch <b>now</b> please</p>");
+    assert_eq!(export::to_plain(&g, &ids[..1]), "Mulch now please\n");
+    g.create(ids[1], None, "Tool library").unwrap();
+    g.create(ids[1], None, "Seed *swap*").unwrap();
+    assert_eq!(export::to_html(&g, &ids[1..]), "<p>Ideas</p><ul><li>Tool library</li><li>Seed <i>swap</i></li></ul>");
+    assert_eq!(export::to_plain(&g, &ids[1..]), "Ideas\n- Tool library\n- Seed swap\n");
 }
 
 #[test]

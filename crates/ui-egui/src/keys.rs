@@ -55,12 +55,12 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
     let events = ctx.input(|i| i.events.clone());
     let mut used = Vec::new();
     for (i, ev) in events.iter().enumerate() {
-        // Cmd+C on selected nodes copies them (Markdown to the clipboard); pasting that text back
+        // Cmd+C on selected nodes copies them (plain text and HTML); pasting that text back
         // inserts references to the same nodes.
         if matches!(ev, Event::Copy) && app.session.sel.is_some() && (app.session.focus.is_none() || app.edit.selection_empty) {
             let ids = app.session.selected();
-            let text: String = ids.iter().map(|n| tanacraft_core::export::to_markdown(&app.session.graph, *n, false)).collect();
-            // A nested HTML list too, where the platform clipboard takes one (spec 02 §12).
+            let text = tanacraft_core::export::to_plain(&app.session.graph, &ids);
+            // Formatted HTML too, where the platform clipboard takes one (spec 02 §12, DIFFS N21).
             let html = tanacraft_core::export::to_html(&app.session.graph, &ids);
             match app.rich_clipboard.as_mut() {
                 Some(put) => put(&html, &text),

@@ -108,14 +108,27 @@ fn md_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     }
 }
 
-/// Nested HTML list of the nodes and their subtrees (the rich clipboard flavour, spec 02 §12):
-/// `<ul><li>Name<ul><li>Child</li></ul></li></ul>`, text escaped, fields as `Field:: value` items.
+/// The rich clipboard flavour (spec 02 §12, DIFFS N21): each copied node is a paragraph with its
+/// formatting as HTML (`<b>`, `<i>`...), its fields and children a nested list under it.
 pub fn to_html(g: &Graph, ids: &[NodeId]) -> String {
-    let mut out = String::from("<ul>");
+    let mut out = String::new();
     for id in ids {
-        html_node(g, *id, 0, &mut out);
+        out.push_str(&format!("<p>{}</p>", html_line(g, *id)));
+        let inner = html_children(g, *id, 0);
+        out.push_str(&inner);
     }
-    out.push_str("</ul>");
+    out
+}
+
+/// The plain clipboard flavour: the copied lines without dashes or format marks, their children as
+/// an indented `- ` list.
+pub fn to_plain(g: &Graph, ids: &[NodeId]) -> String {
+    let mut out = String::new();
+    for id in ids {
+        out.push_str(&plain_line(g, *id));
+        out.push('\n');
+        plain_children(g, *id, 0, &mut out);
+    }
     out
 }
 
@@ -123,26 +136,88 @@ fn escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-fn html_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
+/// A node's line with the format marks applied (`html`) or dropped (plain text).
+fn shown_line(g: &Graph, id: NodeId, html: bool) -> String {
+    let Some(n) = g.get(id) else { return String::new() };
+    let t = g.get(g.resolve(id)).unwrap_or(n);
+    let mut s = String::new();
+    match g.checkbox(id) {
+        Some(true) => s.push_str("[x] "),
+        Some(false) => s.push_str("[ ] "),
+        None => {}
+    }
+    for sp in crate::format::spans(&t.name) {
+        let text = match sp.node {
+            Some(r) => g.name(NodeId(r)).to_string(),
+            None => sp.text.clone(),
+        };
+        if !html {
+            s.push_str(&text);
+            continue;
+        }
+        let mut piece = escape(&text);
+        if let Some(u) = &sp.url {
+            piece = format!("<a href=\"{}\">{piece}</a>", escape(u));
+        }
+        for (on, tag) in [(sp.code, "code"), (sp.highlight, "mark"), (sp.underline, "u"), (sp.italic, "i"), (sp.bold, "b")] {
+            if on {
+                piece = format!("<{tag}>{piece}</{tag}>");
+            }
+        }
+        s.push_str(&piece);
+    }
+    for tag in &t.tags {
+        let tag = format!(" #{}", tag_token(g.name(*tag)));
+        s.push_str(&if html { escape(&tag) } else { tag });
+    }
+    s
+}
+
+fn html_line(g: &Graph, id: NodeId) -> String {
+    shown_line(g, id, true)
+}
+
+fn plain_line(g: &Graph, id: NodeId) -> String {
+    shown_line(g, id, false)
+}
+
+/// Fields and children of `id` (not of a reference line, whose content lives elsewhere).
+fn content(g: &Graph, id: NodeId) -> (Vec<crate::FieldEntry>, Vec<NodeId>) {
+    if g.get(id).is_none_or(|n| n.reference_target().is_some()) {
+        return (Vec::new(), Vec::new());
+    }
+    (g.get(id).map(|n| n.fields.clone()).unwrap_or_default(), g.children(id).to_vec())
+}
+
+fn html_children(g: &Graph, id: NodeId, depth: usize) -> String {
+    let (fields, kids) = content(g, id);
+    if depth > MAX_EXPORT_DEPTH || fields.is_empty() && kids.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("<ul>");
+    for f in &fields {
+        out.push_str(&format!("<li>{}:: {}</li>", escape(g.name(f.field)), escape(&entry_text(g, f))));
+    }
+    for c in kids {
+        out.push_str(&format!("<li>{}{}</li>", html_line(g, c), html_children(g, c, depth + 1)));
+    }
+    out.push_str("</ul>");
+    out
+}
+
+fn plain_children(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     if depth > MAX_EXPORT_DEPTH {
         return;
     }
-    out.push_str("<li>");
-    out.push_str(&escape(&node_line(g, id)));
-    let is_ref = g.get(id).is_some_and(|n| n.reference_target().is_some());
-    let fields = if is_ref { Vec::new() } else { g.get(id).map(|n| n.fields.clone()).unwrap_or_default() };
-    let kids = if is_ref { &[][..] } else { g.children(id) };
-    if !fields.is_empty() || !kids.is_empty() {
-        out.push_str("<ul>");
-        for f in &fields {
-            out.push_str(&format!("<li>{}:: {}</li>", escape(g.name(f.field)), escape(&entry_text(g, f))));
-        }
-        for c in kids {
-            html_node(g, *c, depth + 1, out);
-        }
-        out.push_str("</ul>");
+    let (fields, kids) = content(g, id);
+    let pad = "  ".repeat(depth);
+    for f in &fields {
+        out.push_str(&format!("{pad}- {}:: {}\n", g.name(f.field), entry_text(g, f)));
     }
-    out.push_str("</li>");
+    for c in kids {
+        out.push_str(&format!("{pad}- {}\n", plain_line(g, c)));
+        plain_children(g, c, depth + 1, out);
+    }
 }
 
 /// Nested JSON of `id` and its subtree, with names resolved (for agents and the CLI).

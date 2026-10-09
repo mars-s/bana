@@ -9,12 +9,14 @@ usage: cargo xtask <command>
 commands:
   ci      fmt --check, clippy -D warnings, test (stops at the first failure)
   shots   render the README screenshots offscreen into docs/images/
+  parity  check that docs/parity.md maps every spec file and section; print status counts
 ";
 
 fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("ci") => ci(),
         Some("shots") => shots(),
+        Some("parity") => parity(),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -54,4 +56,39 @@ fn ci() -> Result<(), String> {
 fn shots() -> Result<(), String> {
     let script = root().join("docs/shots.jsonl");
     cargo(&["run", "-p", "tanacraft-ui-egui", "--example", "ui_shot", "--", &script.to_string_lossy()])
+}
+
+/// Every screenshot and every `##` section of the spec must appear in docs/parity.md.
+fn parity() -> Result<(), String> {
+    let spec = root().join("../tanacraft-spec");
+    let doc = std::fs::read_to_string(root().join("docs/parity.md")).map_err(|e| format!("docs/parity.md: {e}"))?;
+    let mut items = Vec::new();
+    let mut stack = vec![spec.clone()];
+    while let Some(dir) = stack.pop() {
+        for e in std::fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?.flatten() {
+            let p = e.path();
+            let name = e.file_name().to_string_lossy().to_string();
+            if p.is_dir() {
+                stack.push(p);
+            } else if name.ends_with(".md") {
+                let text = std::fs::read_to_string(&p).unwrap_or_default();
+                items.push(name.clone());
+                items.extend(text.lines().filter_map(|l| l.strip_prefix("## ")).map(|h| format!("{name}: {}", h.trim())));
+            } else if !name.starts_with('.') {
+                items.push(name);
+            }
+        }
+    }
+    items.sort();
+    // A section counts as mapped when its heading text appears; a file when its name does.
+    let missing: Vec<&String> = items.iter().filter(|i| !doc.contains(i.rsplit(": ").next().unwrap_or(i))).collect();
+    let count = |s: &str| doc.lines().filter(|l| l.starts_with("| `") && l.contains(&format!("| {s} |"))).count();
+    println!("spec items: {}  done: {}  partial: {}  missing: {}", items.len(), count("done"), count("partial"), count("missing"));
+    if missing.is_empty() {
+        return Ok(());
+    }
+    for m in &missing {
+        println!("not in docs/parity.md: {m}");
+    }
+    Err(format!("{} spec items are not mapped", missing.len()))
 }

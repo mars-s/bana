@@ -203,7 +203,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `40-group-by-menu.jpg` | done | Group by: none, tags, done, owner, created, edited and every field; hidden groups can be shown again. |
 | `41-sort-menu.jpg` | done | Sort menu. |
 | `42-filter-menu.jpg` | done | Filter menu. |
-| `43-search-options-popover.png` | partial | Search options summary in the conditions panel. |
+| `43-search-options-popover.png` | done | Conditions opens a Search card with the query as a sentence and Open query editor. |
 | `44-query-editor.png` | done | Query editor with nested groups, Run once and Done. |
 | `45-search-operators.png` | partial | Search operators: TODO, DONE, DONE/CREATED/EDITED last N days, HAS TAG/FIELD, IS TAG/FIELD/SEARCH/CALENDAR, IN LIBRARY, ON DAY, FOR DATE; no user, media or chat operators. |
 | `46-search-node-options-menu.png` | partial | Search node options menu subset. |

@@ -463,10 +463,18 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         if !g.is_system(zoom) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.menu_button(RichText::new("...").size(16.0).color(t.dim), |ui| node_menu(ui, g, zoom, &mut menu_acts));
-                if g.query(zoom).is_some()
-                    && ui.add(egui::Button::new(RichText::new("Conditions").size(12.5).color(t.dim)).fill(t.field_bg)).clicked()
-                {
-                    menu_acts.push(Act::Ui("ui.searchOptions"));
+                // Search options: a card with the query as a sentence and Open query editor.
+                if let Some(q) = g.query(zoom) {
+                    let r = ui.add(egui::Button::new(RichText::new("Conditions").size(12.5).color(t.dim)).fill(t.field_bg));
+                    egui::Popup::menu(&r).show(|ui| {
+                        ui.set_max_width(300.0);
+                        ui.label(RichText::new("Search").strong());
+                        ui.label(RichText::new(q.sentence(g)).size(13.0).color(t.dim));
+                        if ui.button("Open query editor").clicked() {
+                            menu_acts.push(Act::Ui("ui.searchOptions"));
+                            ui.close();
+                        }
+                    });
                 }
             });
         }

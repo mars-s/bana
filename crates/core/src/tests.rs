@@ -587,3 +587,10 @@ fn search_snippets_come_from_content() {
     assert_eq!(export::snippet(&g, a, "tomato"), None);
     assert_eq!(export::snippet(&g, a, ""), None);
 }
+
+#[test]
+fn queries_read_as_sentences() {
+    let g = garden();
+    let q = Query::parse(&g, "#task AND NOT DONE AND Status:\"In progress\"").unwrap();
+    assert_eq!(q.sentence(&g), "Search for nodes tagged #task and not done and where Status is In progress");
+}

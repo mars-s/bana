@@ -201,6 +201,16 @@ fn parse_group(g: &Graph, toks: &[Token], pos: &mut usize, depth: usize) -> Resu
 
 impl Query {
     /// The text form (parses back to the same query).
+    /// The query as a sentence ("Search for nodes tagged #task and not done"), for the search
+    /// options card (spec 05 §1).
+    pub fn sentence(&self, g: &Graph) -> String {
+        let parts: Vec<String> = self.clauses.iter().map(|c| clause_words(g, c)).collect();
+        if parts.is_empty() {
+            return "Search for nothing yet".into();
+        }
+        format!("Search for nodes {}", parts.join(if self.any { " or " } else { " and " }))
+    }
+
     pub fn describe(&self, g: &Graph) -> String {
         let parts: Vec<String> = self
             .clauses
@@ -485,4 +495,37 @@ fn quote(s: &str) -> String {
     let plain = !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '@'));
     let keyword = matches!(s, "AND" | "OR" | "NOT" | "DONE" | "TODO");
     if plain && !keyword { s.to_string() } else { format!("\"{}\"", s.replace('"', "'")) }
+}
+
+/// One condition in words.
+fn clause_words(g: &Graph, c: &Clause) -> String {
+    let body = match &c.kind {
+        ClauseKind::Tagged { tag } => format!("tagged #{}", g.name(*tag)),
+        ClauseKind::Text { text } => format!("with text \"{text}\""),
+        ClauseKind::Done => "done".into(),
+        ClauseKind::Todo => "not done".into(),
+        ClauseKind::Field { field, op, value } => match op {
+            Op::Set => format!("where {} is set", g.name(*field)),
+            Op::Eq => format!("where {} is {value}", g.name(*field)),
+            Op::Lt => format!("where {} is before or below {value}", g.name(*field)),
+            Op::Gt => format!("where {} is after or above {value}", g.name(*field)),
+        },
+        ClauseKind::CreatedWithin { days } => format!("created in the last {days} days"),
+        ClauseKind::EditedWithin { days } => format!("edited in the last {days} days"),
+        ClauseKind::DoneWithin { days } => format!("done in the last {days} days"),
+        ClauseKind::Under { node } => format!("inside {}", g.name(*node)),
+        ClauseKind::HasTag => "with a supertag".into(),
+        ClauseKind::HasField => "with a field".into(),
+        ClauseKind::Is { what } => format!("that are {}", what.name().to_lowercase()),
+        ClauseKind::InLibrary => "in the Library".into(),
+        ClauseKind::OnDay => "on a day".into(),
+        ClauseKind::ForDate { date } => format!("for {date}"),
+        ClauseKind::LinksTo { node } => format!("linking to {}", g.name(*node)),
+        ClauseKind::BaseType { base } => format!("of type {base}"),
+        ClauseKind::Group { query } => {
+            let inner: Vec<String> = query.clauses.iter().map(|c| clause_words(g, c)).collect();
+            format!("({})", inner.join(if query.any { " or " } else { " and " }))
+        }
+    };
+    if c.not { format!("not {body}") } else { body }
 }

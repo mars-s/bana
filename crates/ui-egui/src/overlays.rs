@@ -347,11 +347,19 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
                 Choice::Create(name) => app.exec("tag.add", json!({"node": node.0, "tag": name, "color": next_color(app)})),
             }
         }
-        (PickMode::Field, Choice::Existing(f, _)) => {
-            app.exec("field.add", json!({"node": node.0, "field": f.0})).inspect(|_| app.session.graph.set_expanded(node, true))
-        }
-        (PickMode::Field, Choice::Create(name)) => {
-            app.exec("field.add", json!({"node": node.0, "field": name})).inspect(|_| app.session.graph.set_expanded(node, true))
+        (PickMode::Field, c) => {
+            let field = match c {
+                Choice::Existing(f, _) => json!(f.0),
+                Choice::Create(name) => json!(name),
+            };
+            // The row takes the place of the line `>` was typed on: after the sibling above it.
+            let g = &app.session.graph;
+            let after = p.line.and_then(|l| g.index_in_parent(l)).and_then(|i| i.checked_sub(1)).and_then(|i| g.children(node).get(i).copied());
+            let mut params = json!({"node": node.0, "field": field});
+            if let Some(a) = after {
+                params["after"] = json!(a.0);
+            }
+            app.exec("field.add", params).inspect(|_| app.session.graph.set_expanded(node, true))
         }
         (PickMode::Reference, Choice::Existing(target, _)) => app.exec("node.reference", json!({"target": target.0, "replace": node.0})),
         // "Create": a new node in the Library, referenced here (spec 02 §11).
@@ -373,9 +381,8 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
                 }
                 "Field" => {
                     let parent = app.session.graph.parent(node).unwrap_or(node);
-                    let r = app.exec("node.backspace", json!({"node": node.0}));
                     app.open_picker(PickMode::Field, parent, at);
-                    r
+                    Ok(json!({}))
                 }
                 "Reference" => {
                     app.open_picker(PickMode::Reference, node, at);
@@ -479,13 +486,22 @@ pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
                         Choice::Existing(f, _) => Some(*f),
                         Choice::Create(_) => None,
                     };
+                    let line = app.picker.as_ref().and_then(|p| p.line);
                     apply_choice(app, c);
                     // After `>`: Tab goes on to the value, Enter starts a new node below (spec 02 §3).
                     if mode == PickMode::Field {
                         let f = picked.or_else(|| app.session.graph.get(node).and_then(|n| n.fields.last()).map(|e| e.field));
-                        match (k, f) {
-                            ("Tab", Some(f)) => app.acts.push(Act::EditField(node, f, 0, String::new())),
-                            ("Enter", _) => match app.exec("node.add", json!({"parent": node.0, "index": 0, "name": ""})) {
+                        match (k, f, line) {
+                            ("Tab", Some(f), l) => {
+                                if let Some(l) = l {
+                                    // The line became the field row.
+                                    drop(app.exec("node.delete", json!({"node": l.0})));
+                                }
+                                app.acts.push(Act::EditField(node, f, 0, String::new()));
+                            }
+                            // The empty line stays, just below the new field row.
+                            ("Enter", _, Some(l)) => drop(app.exec("focus.set", json!({"node": l.0}))),
+                            ("Enter", _, None) => match app.exec("node.add", json!({"parent": node.0, "index": 0, "name": ""})) {
                                 Ok(v) => drop(app.exec("focus.set", json!({"node": v["id"]}))),
                                 Err(e) => app.session.status = e,
                             },
@@ -528,13 +544,45 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
     // Above the line when there is no room below it (spec 02 §11).
     let est = 26.0 * items.len().max(1) as f32 + if p.mode == PickMode::Tag && p.caret.is_some() { 20.0 } else { 60.0 };
     let at = if p.anchor.y + est > ctx.content_rect().bottom() { egui::pos2(p.anchor.x, p.anchor.y - est - 30.0) } else { p.anchor };
+    // A `>` field row sits on the line itself.
+    let at = if p.mode == PickMode::Field && p.line.is_some() { at - vec2(16.0, 30.0) } else { at };
     egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(at).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {
             ui.set_width(300.0);
             // The `#` menu filters by what is typed in the line itself (spec 02 §11); other menus
             // have their own search box.
             let inline = p.mode == PickMode::Tag && p.caret.is_some();
-            if !inline {
+            // `>` on a line: the line itself reads as a field row being named, name on the left and
+            // an empty value on the right, with matching fields under it (spec 02 §11).
+            let field_row = p.mode == PickMode::Field && p.line.is_some();
+            if field_row {
+                let mut r = None;
+                egui::Frame::new().fill(t.field_bg).corner_radius(6.0).inner_margin(egui::Margin::symmetric(10, 5)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        r = Some(
+                            ui.add(
+                                egui::TextEdit::singleline(&mut p.query)
+                                    .id(egui::Id::new("picker-query"))
+                                    .frame(egui::Frame::NONE)
+                                    .hint_text("Field name")
+                                    .desired_width(130.0),
+                            ),
+                        );
+                        ui.add_space(12.0);
+                        ui.label(RichText::new("Empty").size(14.0).color(t.faint));
+                    });
+                });
+                if let Some(r) = r {
+                    if p.focus_once {
+                        r.request_focus();
+                        p.focus_once = false;
+                    }
+                    if r.changed() {
+                        p.selected = 0;
+                    }
+                }
+            } else if !inline {
                 ui.label(RichText::new(title).size(12.0).color(t.faint));
                 let r = ui
                     .add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("picker-query")).hint_text("Type to search").desired_width(300.0));

@@ -1227,3 +1227,51 @@ fn drop_on_an_empty_expanded_nodes_ghost_line_nests_it() {
     }
     assert_eq!(h.state().session.graph.parent(ids[1]), Some(ids[0]));
 }
+
+// ---- DIFFS.md round 4 ----------------------------------------------------------------------
+
+#[test]
+fn diffs_n1_enter_in_a_new_field_value_adds_another_value() {
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, ">");
+    text(&mut h, "Ppl");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    text(&mut h, "Ann");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "Bob");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(x), "x", "nothing typed into the line above");
+    let f = g.find_field("Ppl").expect("field created");
+    let vals: Vec<String> = g.get(page).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect();
+    assert_eq!(vals, ["Ann", "Bob"]);
+}
+
+#[test]
+fn diffs_n2_gt_field_row_stays_where_it_was_typed() {
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let kids: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|n| tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": n})).unwrap()["id"].as_u64().unwrap()))
+        .collect();
+    focus(&mut h, kids[2], 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, ">");
+    text(&mut h, "Multi4");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    text(&mut h, "v");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let f = g.find_field("Multi4").unwrap();
+    let e = g.get(page).unwrap().fields.iter().find(|e| e.field == f).unwrap();
+    assert_eq!(e.after, Some(kids[2]), "the row shows below c, not above a");
+    assert_eq!(g.children(page).len(), 3, "the > line became the field row");
+}

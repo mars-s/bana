@@ -96,6 +96,9 @@ pub struct Picker {
     pub caret: Option<usize>,
     /// Which of the field's values a `Choice` sets (the count adds one).
     pub index: usize,
+    /// Field: the empty line `>` was typed on; it shows as the field row being named, and the row
+    /// lands in its place (spec 02 §11).
+    pub line: Option<NodeId>,
     focus_once: bool,
 }
 
@@ -350,6 +353,14 @@ impl TanaApp {
     }
 
     /// Forget the text field state (another panel or tab is now active).
+    /// Starts typing into a field value. One caret at a time: the bullet being edited lets go, or
+    /// it would take the keyboard back and the next keys would land in it (DIFFS N1).
+    pub(crate) fn start_field_edit(&mut self, fe: FieldEdit) {
+        self.session.focus = None;
+        self.edit_reset();
+        self.field_edit = Some(fe);
+    }
+
     pub(crate) fn edit_reset(&mut self) {
         self.edit.node = None;
     }
@@ -480,7 +491,12 @@ impl TanaApp {
 
     /// Opens a picker (`#` tag, `>` field, `@` reference) for `node` at `anchor`.
     pub fn open_picker(&mut self, mode: PickMode, node: NodeId, anchor: egui::Pos2) {
-        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, caret: None, index: 0, focus_once: true });
+        let g = &self.session.graph;
+        let line = self.session.focus.filter(|f| {
+            mode == PickMode::Field && g.parent(*f) == Some(g.resolve(node)) && g.get(*f).is_some_and(|n| n.name.is_empty() && n.children.is_empty())
+        });
+        self.picker =
+            Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, caret: None, index: 0, line, focus_once: true });
     }
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
@@ -692,7 +708,7 @@ impl TanaApp {
                         drawn: false,
                     });
                 }
-                Act::EditField(node, field, index, buf) => self.field_edit = Some(FieldEdit { node, field, index, buf, focus_once: true }),
+                Act::EditField(node, field, index, buf) => self.start_field_edit(FieldEdit { node, field, index, buf, focus_once: true }),
                 Act::PickChoice(node, field, index, at) => {
                     self.open_picker(PickMode::Choice, node, at);
                     if let Some(p) = self.picker.as_mut() {

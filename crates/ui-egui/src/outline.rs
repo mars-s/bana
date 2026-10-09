@@ -764,11 +764,23 @@ pub(crate) fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Col
 
 /// Field rows of `node` (its own and its supertags'), indented by `indent`.
 pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32) {
+    fields_at(app, ui, t, node, indent, None);
+}
+
+/// The field rows of `node` shown after its child `slot` (`None`: above the children, with the
+/// "+ Field" buttons).
+pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, indent: f32, slot: Option<NodeId>) {
     let target = app.session.graph.resolve(node);
     // In an outline an empty "hide when empty" field folds into a "+ Field" button; on the node's
     // own page it stays a row (spec 03 §9).
     let zoomed = target == app.session.graph.resolve(app.session.zoom);
-    let entries = app.session.graph.get(target).map(|n| n.fields.clone()).unwrap_or_default();
+    let kids = app.session.graph.children(target).to_vec();
+    let entries: Vec<_> = app
+        .session
+        .graph
+        .get(target)
+        .map(|n| n.fields.iter().filter(|e| e.after.filter(|a| kids.contains(a)) == slot).cloned().collect())
+        .unwrap_or_default();
     let mut folded: Vec<(NodeId, String)> = Vec::new();
     for e in entries {
         let g = &app.session.graph;
@@ -831,6 +843,9 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
             });
         });
     }
+    if slot.is_some() {
+        return;
+    }
     // Optional fields of the node's supertags are offered the same way until added (spec 03 §5).
     let g = &app.session.graph;
     let have: Vec<NodeId> = g.get(target).map(|n| n.fields.iter().map(|e| e.field).collect()).unwrap_or_default();
@@ -886,39 +901,42 @@ pub(crate) fn field_values(
     values: &[FieldValue],
     edit_ix: Option<usize>,
 ) {
-    let n = values.len().max(1);
-    for i in 0..n {
-        if i > 0 {
-            ui.add_space(-ui.spacing().item_spacing.x);
-            ui.label(RichText::new(",").size(14.5).color(t.faint));
-        }
-        let v = values.get(i);
-        let text = v.map(|v| export::display_value(&app.session.graph, v));
-        field_value(app, ui, t, node, field, i, def, v, text, edit_ix == Some(i));
-    }
-    if values.is_empty() || def.field_type == FieldType::Checkbox {
-        return;
-    }
+    // Several values stack, one bulleted line each (spec 03 §8, `166`); one value is a plain line.
     let add = values.len();
-    if edit_ix == Some(add) {
-        ui.add_space(-ui.spacing().item_spacing.x);
-        ui.label(RichText::new(",").size(14.5).color(t.faint));
-        field_value(app, ui, t, node, field, add, def, None, None, true);
-        return;
-    }
-    // The + shows while the pointer is over the row.
-    let shown = ui.rect_contains_pointer(ui.max_rect());
-    let r = ui
-        .add(egui::Label::new(RichText::new("+").size(14.0).color(if shown { t.faint } else { Color32::TRANSPARENT })).sense(Sense::click()))
-        .on_hover_text("Add another value");
-    if r.clicked() {
-        let at = r.rect.left_bottom() + vec2(0.0, 4.0);
-        app.acts.push(match def.field_type {
-            FieldType::Options => Act::PickChoice(node, field, add, at),
-            FieldType::Date => Act::PickDate(node, field, add, at),
-            _ => Act::EditField(node, field, add, String::new()),
-        });
-    }
+    let adding = edit_ix == Some(add) && !values.is_empty();
+    let stacked = values.len() > 1 || adding;
+    ui.vertical(|ui| {
+        let n = values.len().max(1);
+        for i in 0..n + usize::from(adding) {
+            ui.horizontal(|ui| {
+                if stacked {
+                    let (r, _) = ui.allocate_exact_size(vec2(8.0, 18.0), Sense::hover());
+                    ui.painter().circle_filled(r.center(), 2.2, t.dim);
+                }
+                let v = values.get(i);
+                let text = v.map(|v| export::display_value(&app.session.graph, v));
+                field_value(app, ui, t, node, field, i, def, v, text, edit_ix == Some(i));
+                // The + shows while the pointer is over the last value.
+                if i + 1 == n && !adding && !values.is_empty() && def.field_type != FieldType::Checkbox {
+                    let shown = ui.rect_contains_pointer(ui.max_rect().expand2(vec2(0.0, 4.0)));
+                    let r = ui
+                        .add(
+                            egui::Label::new(RichText::new("+").size(14.0).color(if shown { t.faint } else { Color32::TRANSPARENT }))
+                                .sense(Sense::click()),
+                        )
+                        .on_hover_text("Add another value");
+                    if r.clicked() {
+                        let at = r.rect.left_bottom() + vec2(0.0, 4.0);
+                        app.acts.push(match def.field_type {
+                            FieldType::Options => Act::PickChoice(node, field, add, at),
+                            FieldType::Date => Act::PickDate(node, field, add, at),
+                            _ => Act::EditField(node, field, add, String::new()),
+                        });
+                    }
+                }
+            });
+        }
+    });
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1410,7 +1428,25 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let clip = ui.clip_rect().expand(ROW_H * 4.0);
     let left = ui.cursor().left();
     let mut bullet_dx = 10.0;
+    // Rows whose subtree is still open: when it closes, field rows placed after that row show.
+    let mut open_rows: Vec<usize> = Vec::new();
+    let anchored = |app: &TanaApp, id: NodeId| {
+        let g = &app.session.graph;
+        g.parent(id).and_then(|p| g.get(p)).is_some_and(|p| p.fields.iter().any(|e| e.after == Some(id)))
+    };
     for (ri, row) in rows.iter().enumerate() {
+        while let Some(&oi) = open_rows.last() {
+            if rows[oi].depth < row.depth {
+                break;
+            }
+            open_rows.pop();
+            if anchored(app, rows[oi].id) {
+                let r = rows[oi];
+                let parent = app.session.graph.parent(r.id).unwrap_or(app.session.zoom);
+                fields_at(app, ui, t, parent, r.depth as f32 * INDENT + 8.0, Some(r.id));
+            }
+        }
+        open_rows.push(ri);
         let selected = sel_range.as_ref().is_some_and(|r| r.contains(&ri));
         let top = ui.cursor().top();
         let h = app.row_heights.get(&row.id).copied().unwrap_or(ROW_H);
@@ -1433,6 +1469,13 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
         }
         bottoms.push(ui.cursor().top());
         app.row_heights.insert(row.id, ui.cursor().top() - top);
+    }
+    while let Some(oi) = open_rows.pop() {
+        if anchored(app, rows[oi].id) {
+            let r = rows[oi];
+            let parent = app.session.graph.parent(r.id).unwrap_or(app.session.zoom);
+            fields_at(app, ui, t, parent, r.depth as f32 * INDENT + 8.0, Some(r.id));
+        }
     }
     // Guide lines: from an expanded bullet down to its last visible descendant (one pass).
     let mut last_desc: Vec<Option<usize>> = vec![None; rows.len()];
@@ -1864,13 +1907,15 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         job.wrap.max_width = wrap;
         ui.fonts_mut(|f| f.layout_job(job))
     };
+    let hint =
+        if app.picker.as_ref().is_some_and(|p| p.line == Some(id)) { "" } else { "Type, or # for a supertag, @ for a reference, > for a field" };
     let out = egui::TextEdit::multiline(&mut app.edit.buf)
         .layouter(&mut layouter)
         .desired_rows(1)
         .id(tid)
         .frame(egui::Frame::NONE)
         .font(FontId::proportional(size))
-        .hint_text(RichText::new("Type, or # for a supertag, @ for a reference, > for a field").color(t.faint))
+        .hint_text(RichText::new(hint).color(t.faint))
         .text_color(t.text)
         .margin(egui::Margin::ZERO)
         .lock_focus(true)
@@ -1941,10 +1986,6 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
                     app.acts.push(Act::PickInline(id, caret - 1, anchor));
                 } else {
                     app.acts.push(Act::Pick(mode, node, anchor));
-                }
-                if mode == PickMode::Field {
-                    // `>` on an empty bullet becomes a field of the parent: the bullet goes away.
-                    app.acts.push(Act::Run("node.backspace".into(), json!({"node": id.0})));
                 }
             }
             None => app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": buf, "caret": caret}))),

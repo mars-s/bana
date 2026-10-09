@@ -363,11 +363,15 @@ pub struct FieldEntry {
     /// Further values, after `value`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub more: Vec<FieldValue>,
+    /// The child the field row is shown after, when it was added among the children (`>` on a
+    /// line, spec 02 §11). `None`, or a child that has gone: above the children.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<NodeId>,
 }
 
 impl FieldEntry {
     pub fn new(field: NodeId, value: Option<FieldValue>) -> FieldEntry {
-        FieldEntry { field, value, more: Vec::new() }
+        FieldEntry { field, value, more: Vec::new(), after: None }
     }
 
     /// All values in order.

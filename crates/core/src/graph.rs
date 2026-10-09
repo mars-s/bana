@@ -1192,6 +1192,18 @@ impl Graph {
     }
 
     /// Removes the field entry entirely.
+    /// Shows a field row of `node` after its child `after` (`None`: above the children).
+    pub fn set_field_after(&mut self, node: NodeId, field: NodeId, after: Option<NodeId>) -> Result<()> {
+        let node = self.resolve(node);
+        if after.is_some_and(|a| !self.node(node).is_ok_and(|n| n.children.contains(&a))) {
+            return Err(Error::Invalid("`after` must be a child of the node".into()));
+        }
+        let n = self.node_mut(node)?;
+        let e = n.fields.iter_mut().find(|e| e.field == field).ok_or_else(|| Error::Invalid(format!("node {node} has no field {field}")))?;
+        e.after = after;
+        Ok(())
+    }
+
     pub fn remove_field(&mut self, node: NodeId, field: NodeId) -> Result<()> {
         let node = self.resolve(node);
         self.node_mut(node)?.fields.retain(|e| e.field != field);

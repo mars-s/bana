@@ -165,7 +165,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
                 match r {
                     Ok(v) if !fe.buf.trim().is_empty() => {
                         let index = v["values"].as_array().map(Vec::len).unwrap_or(fe.index + 1);
-                        app.field_edit = Some(crate::FieldEdit { index, buf: String::new(), focus_once: true, ..fe });
+                        app.start_field_edit(crate::FieldEdit { index, buf: String::new(), focus_once: true, ..fe });
                     }
                     Ok(_) => {}
                     Err(e) => app.session.status = e,

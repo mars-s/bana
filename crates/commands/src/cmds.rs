@@ -389,7 +389,7 @@ pub fn registry() -> Registry {
         .params(r#"{"field": name | id, "on": bool}"#),
         C::new("field.add", "Add field", "Field", field_add)
             .key(">")
-            .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string}"#),
+            .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string, "after"?: id}  (after: the child the field row shows after; default above the children)"#),
         C::new("field.set", "Set field value", "Field", field_set)
             .params(r#"{"node"?: id, "field": name | id, "value": string, "index"?: number}  (index picks one of several values; empty removes it)"#),
         C::new("field.addValue", "Add field value", "Field", field_add_value).params(r#"{"node"?: id, "field": name | id, "value": string}"#),
@@ -1118,6 +1118,9 @@ fn field_add(s: &mut Session, v: &Value) -> CmdResult {
         Some(text) => s.graph.set_field_text(id, field, text)?,
         None if s.graph.get(s.graph.resolve(id)).is_some_and(|n| n.fields.iter().any(|f| f.field == field)) => {}
         None => s.graph.set_field(id, field, None)?,
+    }
+    if let Some(after) = p::node(v, "after")? {
+        s.graph.set_field_after(id, field, Some(after))?;
     }
     Ok(json!({"node": id.0, "field": field.0}))
 }

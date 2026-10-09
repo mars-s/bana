@@ -82,3 +82,15 @@ test('command line, query builder, quick add, two panels', async ({ app, server 
   await app.mouse.move(0, 400)
   await app.screenshot(shot('two-panels'))
 })
+
+test('page with a banner picture and an icon', async ({ app, server }) => {
+  const hits = await server.rpc('find', { query: 'Community garden', limit: 5 })
+  const garden = hits.find((h: any) => h.name === 'Community garden').id
+  await server.run('node.setBanner', { node: garden, color: 'picture:orbit' })
+  await server.run('node.setIcon', { node: garden, icon: '🌱' })
+  await server.run('nav.open', { node: garden })
+  await app.locator('.page-banner').waitFor()
+  await app.waitForTimeout(200)
+  await app.mouse.move(0, 400)
+  await app.screenshot(shot('banner'))
+})

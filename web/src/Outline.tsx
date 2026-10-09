@@ -11,6 +11,7 @@ import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel
 import { type EditorHandle, exec, focusLine, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
+import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { keyInfo } from './keys'
 
@@ -585,7 +586,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
   )
 }
 
-const FIELD_ICONS: Record<string, IconName> = { date: 'calendar', checkbox: 'check', url: 'link', options: 'list', options_from_tag: 'hash', number: 'hash', user: 'user', email: 'field', plain: 'field' }
+const FIELD_ICONS: Record<string, IconName> = { date: 'fieldDate', checkbox: 'fieldCheck', url: 'fieldUrl', options: 'fieldOptions', options_from_tag: 'fieldInstance', number: 'fieldNumber', user: 'fieldUser', email: 'fieldEmail', plain: 'fieldText' }
 
 function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
   const fe = useStore((s) => s.fieldEdit)
@@ -601,7 +602,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
       <Guides depth={row.depth} />
       <div className="row-inner">
         <span className="field-icon-slot">
-          <Icon name={FIELD_ICONS[row.type] ?? 'field'} size={13} />
+          <Icon name={FIELD_ICONS[row.type] ?? 'fieldText'} size={13} />
         </span>
         <span className="field-name" onClick={() => void exec('nav.open', { node: row.field }, panel)} title={row.name}>
           {row.name}
@@ -910,6 +911,65 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
   )
 }
 
+/** A page banner: a shipped picture, or a band in a tag colour. */
+function Banner({ banner }: { banner: string }) {
+  if (banner === 'picture:orbit') return <img className="page-banner" src={orbitBanner} alt="" />
+  return <div className="page-banner colour" style={tagStyle(banner)} />
+}
+
+/** "Icon" and "Banner" buttons that show over the title on hover (spec 00 §4; 14 M15). */
+function Decorate({ page, panel }: { page: Page; panel: string }) {
+  const [menu, setMenu] = useState<'icon' | 'banner' | null>(null)
+  const [emoji, setEmoji] = useState('')
+  return (
+    <div className={`decorate${menu ? ' open' : ''}`}>
+      <span className="menu-anchor">
+        <button className="ghost-btn" onClick={() => setMenu(menu === 'icon' ? null : 'icon')}>
+          <Icon name="face" size={12} /> Icon
+        </button>
+        {menu === 'icon' && (
+          <div className="menu pop">
+            <input
+              className="filter-input small"
+              autoFocus
+              placeholder="Type or paste an emoji"
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  void exec('node.setIcon', { node: page.zoom, icon: emoji.trim() }, panel)
+                  setEmoji('')
+                  setMenu(null)
+                } else if (e.key === 'Escape') setMenu(null)
+              }}
+            />
+            {page.icon && (
+              <div className="menu-item" onMouseDown={(e) => (e.preventDefault(), void exec('node.setIcon', { node: page.zoom, icon: '' }, panel), setMenu(null))}>
+                Remove icon
+              </div>
+            )}
+          </div>
+        )}
+      </span>
+      <span className="menu-anchor">
+        <button className="ghost-btn" onClick={() => setMenu(menu === 'banner' ? null : 'banner')}>
+          <Icon name="image" size={12} /> Banner
+        </button>
+        {menu === 'banner' && (
+          <div className="menu pop">
+            {[['picture:orbit', 'Orbit (picture)'], ['blue', 'Blue'], ['green', 'Green'], ['amber', 'Amber'], ['pink', 'Pink'], ['grey', 'Grey'], ['', 'No banner']].map(([v, l]) => (
+              <div key={l} className="menu-item" onMouseDown={(e) => (e.preventDefault(), void exec('node.setBanner', { node: page.zoom, color: v }, panel), setMenu(null))}>
+                {l}
+              </div>
+            ))}
+          </div>
+        )}
+      </span>
+    </div>
+  )
+}
+
 function HeadActions() {
   return (
     <div className="head-actions">
@@ -1089,9 +1149,11 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
     <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
       <Crumbs page={page} panel={panel} many={many} />
       <div className="scroller" ref={scroller}>
+        {page.banner && <Banner banner={page.banner} />}
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
             <div ref={head} className="page-head">
+              {page.titleEditable && <Decorate page={page} panel={panel} />}
               <div className="title-row">
                 {page.icon && <span className="page-icon">{page.icon}</span>}
                 {page.kind === 'tag' && (

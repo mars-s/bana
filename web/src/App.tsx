@@ -60,6 +60,9 @@ function TopBar() {
         </button>
       </nav>
       <div className="topbar-right">
+        <button className="icon-btn" title="Notifications (none yet)">
+          <Icon name="bell" size={14} />
+        </button>
         <button className="icon-btn" title="Help" onClick={() => runUiCommand('ui.help')}>
           <Icon name="help" size={14} />
         </button>
@@ -165,7 +168,12 @@ function Sidebar() {
 
 function Toast() {
   const t = useStore((s) => s.toast)
-  return t ? <div className="toast">{t}</div> : null
+  return t ? (
+    <div className="toast" role="status">
+      <Icon name="info" size={20} className="toast-icon" />
+      <span>{t}</span>
+    </div>
+  ) : null
 }
 
 export function App() {

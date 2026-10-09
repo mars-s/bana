@@ -53,14 +53,14 @@ export interface QueryGroup {
 const KINDS: { kind: string; label: string; icon: IconName }[] = [
   { kind: 'outline', label: 'Outline', icon: 'list' },
   { kind: 'table', label: 'Table', icon: 'table' },
-  { kind: 'cards', label: 'Cards', icon: 'cards' },
+  { kind: 'cards', label: 'Cards', icon: 'lanes' },
   { kind: 'list', label: 'List', icon: 'page' },
-  { kind: 'side_menu', label: 'Side menu', icon: 'sidebar' },
-  { kind: 'tabs', label: 'Tabs', icon: 'field' },
-  { kind: 'calendar', label: 'Calendar', icon: 'calendar' },
+  { kind: 'side_menu', label: 'Side menu', icon: 'sideMenu' },
+  { kind: 'tabs', label: 'Tabs', icon: 'tabsView' },
+  { kind: 'calendar', label: 'Calendar', icon: 'calendarView' },
 ]
 
-const FIELD_ICON: Record<string, IconName> = { date: 'calendar', checkbox: 'check', url: 'link', options: 'list', options_from_tag: 'hash', number: 'hash', user: 'user' }
+const FIELD_ICON: Record<string, IconName> = { date: 'fieldDate', checkbox: 'fieldCheck', url: 'fieldUrl', options: 'fieldOptions', options_from_tag: 'fieldInstance', number: 'fieldNumber', user: 'fieldUser', email: 'fieldEmail', plain: 'fieldText' }
 
 // ---- a small popover menu ---------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
           ))
         }
       </MenuButton>
-      <MenuButton icon="field" title="Display fields">
+      <MenuButton icon="sliders" title="Display fields">
         {(close) =>
           v.columns.length ? (
             v.columns.map((c) => (
@@ -165,7 +165,7 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
           </>
         )}
       </MenuButton>
-      <MenuButton icon="filter" title="Filter" active={v.filtered}>
+      <MenuButton icon="funnel" title="Filter" active={v.filtered}>
         {(close) => (
           <>
             <Item onPick={() => (close(), run('view.filter', { query: 'NOT DONE' }))}>Not done</Item>
@@ -260,10 +260,10 @@ export function QueryBuilder({ v, panel }: { v: ViewSnap; panel: string }) {
         <span className="q-expr">{v.query.text || 'No conditions yet'}</span>
         <span className="spacer" />
         <button className="btn regular" onClick={() => void exec('search.hold', { node: v.node, on: true }, panel)}>
-          Run once
+          <Icon name="play" size={12} /> Run once
         </button>
         <button className="btn regular confirm" onClick={() => void toggleQuery(panel, v.node, false)}>
-          Done
+          <Icon name="checkCircle" size={12} /> Done
         </button>
       </div>
     </div>
@@ -332,7 +332,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
         </span>
         {v.columns.map((c) => (
           <span key={c.id} className="t-cell" role="columnheader" title={c.name}>
-            <Icon name={FIELD_ICON[c.type] ?? 'field'} size={12} />
+            <Icon name={FIELD_ICON[c.type] ?? 'fieldText'} size={12} />
             <span className="t-col-name" onClick={() => void exec('nav.open', { node: c.id }, panel)}>
               {c.name}
             </span>

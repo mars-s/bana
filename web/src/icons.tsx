@@ -137,6 +137,148 @@ const P: Record<string, JSX.Element> = {
     </>
   ),
   link: <path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.6.6M9.2 6.8a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.6-.6" />,
+  bell: (
+    <>
+      <path d="M4.2 11.2V7.6a3.8 3.8 0 0 1 7.6 0v3.6l1.1 1.3H3.1l1.1-1.3Z" />
+      <path d="M6.6 13.6a1.5 1.5 0 0 0 2.8 0" />
+    </>
+  ),
+  face: (
+    <>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M5.9 9.6c.6.7 1.3 1 2.1 1s1.5-.3 2.1-1M6.2 6.5h.01M9.8 6.5h.01" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="2.4" y="3.2" width="11.2" height="9.6" rx="1.8" />
+      <circle cx="10.4" cy="6.1" r="1" />
+      <path d="m2.8 11.6 3.4-3.4 2.4 2.4 1.5-1.4 2.9 2.6" />
+    </>
+  ),
+  fieldText: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <path d="M7 5.2h2M7 10.8h2M8 5.2v5.6" />
+    </>
+  ),
+  fieldOptions: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <path d="M5.4 5.8h.01M5.4 8h.01M5.4 10.2h.01M7.3 5.8h3.4M7.3 8h3.4M7.3 10.2h3.4" />
+    </>
+  ),
+  fieldDate: (
+    <>
+      <rect x="2.4" y="3" width="11.2" height="10.6" rx="2" />
+      <path d="M2.4 6.2h11.2M5.6 1.9v2.2M10.4 1.9v2.2" />
+    </>
+  ),
+  fieldUser: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <circle cx="8" cy="6.6" r="1.6" />
+      <path d="M5.2 11.4c.5-1.3 1.6-2 2.8-2s2.3.7 2.8 2" />
+    </>
+  ),
+  fieldCheck: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <path d="m5.4 8.1 1.8 1.8 3.4-3.6" />
+    </>
+  ),
+  fieldEmail: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <circle cx="8" cy="8" r="1.5" />
+      <path d="M9.5 8v.7c0 .7.5 1.1 1 1.1s1-.5 1-1.6A3.5 3.5 0 1 0 9.6 11" />
+    </>
+  ),
+  fieldUrl: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <path d="M7.1 8.9a1.6 1.6 0 0 0 2.2 0l1.2-1.2a1.6 1.6 0 0 0-2.2-2.2l-.4.4M8.9 7.1a1.6 1.6 0 0 0-2.2 0L5.5 8.3a1.6 1.6 0 0 0 2.2 2.2l.4-.4" />
+    </>
+  ),
+  fieldNumber: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <path d="M6.9 5 6.3 11M9.7 5l-.6 6M5.2 6.9h5.6M4.9 9.1h5.6" />
+    </>
+  ),
+  fieldInstance: (
+    <>
+      <rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2" />
+      <circle cx="8" cy="8" r="2.4" />
+      <circle cx="8" cy="8" r=".5" fill="currentColor" />
+    </>
+  ),
+  sliders: <path d="M2.8 4.5h10.4M2.8 8h10.4M2.8 11.5h10.4M10 3.3v2.4M5.5 6.8v2.4M9 10.3v2.4" />,
+  funnel: <path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3" />,
+  lanes: (
+    <>
+      <rect x="2.4" y="3" width="11.2" height="10" rx="1.8" />
+      <path d="M6.1 3v10M9.9 3v10" />
+    </>
+  ),
+  calendarView: (
+    <>
+      <rect x="2.4" y="3" width="11.2" height="10.6" rx="2" />
+      <path d="M2.4 6.2h11.2M5.6 1.9v2.2M10.4 1.9v2.2" />
+      <path d="M5 8.6h.01M8 8.6h.01M11 8.6h.01M5 11h.01M8 11h.01" />
+    </>
+  ),
+  sideMenu: (
+    <>
+      <rect x="2.4" y="3" width="11.2" height="10" rx="1.8" />
+      <path d="M6 3v10M3.8 5.6h1M3.8 7.6h1" />
+    </>
+  ),
+  tabsView: <path d="M2.5 13V5.2c0-.6.4-1 1-1h3.3l1.2 1.6h4.5c.6 0 1 .4 1 1V13a.6.6 0 0 1-.6.6H3.1a.6.6 0 0 1-.6-.6Z" />,
+  copy: (
+    <>
+      <rect x="5.4" y="5.4" width="8" height="8" rx="1.6" />
+      <path d="M10.6 5.4V4.2c0-.9-.7-1.6-1.6-1.6H4.2c-.9 0-1.6.7-1.6 1.6V9c0 .9.7 1.6 1.6 1.6h1.2" />
+    </>
+  ),
+  duplicate: (
+    <>
+      <rect x="2.6" y="2.6" width="8" height="8" rx="1.6" />
+      <rect x="5.4" y="5.4" width="8" height="8" rx="1.6" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M2.4 8h11.2M8 2.4c1.6 1.6 2.3 3.5 2.3 5.6S9.6 12 8 13.6C6.4 12 5.7 10.1 5.7 8S6.4 4 8 2.4Z" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="8" cy="8" r="6" fill="currentColor" stroke="none" />
+      <path d="M8 7.4v3.4M8 5.2h.01" stroke="var(--c-on-accent)" />
+    </>
+  ),
+  closeCircle: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m6 6 4 4M10 6l-4 4" />
+    </>
+  ),
+  play: <path d="M5 3.6v8.8L12.2 8 5 3.6Z" />,
+  checkCircle: (
+    <>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m5.6 8.2 1.7 1.7 3.2-3.4" />
+    </>
+  ),
+  pin: <path d="M6 2.8h4l-.6 3.8 2.1 2.1H4.5l2.1-2.1L6 2.8ZM8 8.7v4.5" />,
+  noColor: (
+    <>
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="m4 12 8-8" />
+    </>
+  ),
   workspace: (
     <>
       <circle cx="8" cy="8" r="6" />

@@ -12,6 +12,9 @@ const FMT: &str = r#"{"node"?: id, "start"?: chars, "end"?: chars}  (default: th
 
 use crate::{CmdError, CmdResult, CommandSpec as C, Registry, Session, p};
 
+/// Banner pictures the app ships (the UI draws them; the graph stores the name).
+pub const BANNER_PICTURES: [&str; 1] = ["orbit"];
+
 pub fn registry() -> Registry {
     Registry::new(vec![
         // Editing the outline.
@@ -95,16 +98,22 @@ pub fn registry() -> Registry {
         C::new("node.setBanner", "Set banner", "Node", |s, v| {
             let id = s.graph.resolve(s.target(v)?);
             let color = p::str(v, "color").map(str::trim).filter(|c| !c.is_empty()).map(str::to_string);
+            // A banner is a colour, or one of the pictures the app ships (`picture:orbit`).
             if let Some(c) = &color
                 && !TAG_COLORS.contains(&c.as_str())
                 && !tanacraft_core::is_custom_color(c)
+                && !c.strip_prefix("picture:").is_some_and(|p| BANNER_PICTURES.contains(&p))
             {
-                return Err(CmdError::Params(format!("`color` must be one of {}, or #rrggbb", TAG_COLORS.join(", "))));
+                return Err(CmdError::Params(format!(
+                    "`color` must be one of {}, #rrggbb, or picture:{}",
+                    TAG_COLORS.join(", "),
+                    BANNER_PICTURES.join(" | picture:")
+                )));
             }
             s.graph.set_decoration(id, None, Some(color.clone()))?;
             Ok(json!({"node": id.0, "banner": color}))
         })
-        .params(r#"{"node"?: id, "color": string}  (a colour name or #rrggbb; empty removes it)"#),
+        .params(r#"{"node"?: id, "color": string}  (a colour name, #rrggbb or picture:orbit; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.opml", "Import OPML", "File", import_opml)

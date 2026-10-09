@@ -1264,3 +1264,13 @@ fn markdown_export_then_import_keeps_descriptions_and_field_places() {
     let out = run(&mut s, "export.markdown", json!({"node": page.0}));
     assert_eq!(out["markdown"], md);
 }
+
+#[test]
+fn banners_take_a_colour_or_a_shipped_picture() {
+    let mut s = Session::new(tanacraft_core::Graph::new());
+    let n = s.run("node.add", &json!({"name": "Welcome"})).unwrap()["id"].clone();
+    assert!(s.run("node.setBanner", &json!({"node": n, "color": "picture:orbit"})).is_ok());
+    assert_eq!(s.graph.get(tanacraft_core::NodeId(n.as_u64().unwrap())).unwrap().banner.as_deref(), Some("picture:orbit"));
+    assert!(s.run("node.setBanner", &json!({"node": n, "color": "picture:../../etc"})).is_err());
+    assert!(s.run("node.setBanner", &json!({"node": n, "color": "blue"})).is_ok());
+}

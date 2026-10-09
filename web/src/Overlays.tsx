@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
-import { Icon } from './icons'
+import { Icon, type IconName } from './icons'
 import { exec, runUiCommand } from './controller'
 import { applyPick, openPicker } from './picker'
 import { tagStyle } from './Outline'
@@ -382,8 +382,13 @@ function NodeMenu() {
     close()
     void navigator.clipboard?.writeText(text).then(() => showToast(note), () => showToast('Could not reach the clipboard'))
   }
-  const It = ({ label, on, sc, danger }: { label: string; on: () => void; sc?: string; danger?: boolean }) => (
+  const It = ({ label, on, sc, danger, icon }: { label: string; on: () => void; sc?: string; danger?: boolean; icon?: IconName }) => (
     <div className={`menu-item${danger ? ' danger' : ''}`} onMouseDown={(e) => (e.preventDefault(), on())}>
+      {icon && (
+        <span className="menu-icon">
+          <Icon name={icon} size={12} />
+        </span>
+      )}
       <span className="grow">{label}</span>
       {sc && <kbd>{prettyKey(sc)}</kbd>}
     </div>
@@ -391,16 +396,16 @@ function NodeMenu() {
   return (
     <div className="menu node-menu" style={{ left: Math.min(m.x, window.innerWidth - 230), top: Math.min(m.y, window.innerHeight - 420) }} role="menu">
       <It label="Open" on={run('nav.zoomIn')} sc="Mod+." />
-      <It label="Open in new panel" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
+      <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
       <It label={row?.expanded ? 'Collapse' : 'Expand'} on={run('node.toggleExpand')} />
       <div className="menu-sep" />
-      <It label="Add supertag" on={pick('tag')} />
-      <It label="Add field" on={pick('field')} />
+      <It label="Add supertag" icon="hash" on={pick('tag')} />
+      <It label="Add field" icon="fieldText" on={pick('field')} />
       <It label={row?.done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
       <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
       <It label="Toggle heading" on={run('node.toggleHeading')} />
       <It label="Show progress bar" on={run('node.toggleProgress')} />
-      <It label={row?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} on={run('node.togglePin')} />
+      <It label={row?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} icon="pin" on={run('node.togglePin')} />
       <div className="menu-sep" />
       <Sub label="View as">
         {['outline', 'table', 'cards', 'list', 'side_menu', 'tabs', 'calendar'].map((k) => (
@@ -418,9 +423,9 @@ function NodeMenu() {
         ))}
       </Sub>
       <div className="menu-sep" />
-      <It label="Duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
-      <It label="Copy node link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
-      <It label="Move to…" on={pick('moveTo')} />
+      <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
+      <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+      <It label="Move to…" icon="forward" on={pick('moveTo')} />
       <It label="Move to top" on={run('node.moveToTop')} />
       <It label="Move to bottom" on={run('node.moveToBottom')} />
       <It label="Move up" on={run('node.moveUp')} sc="Mod+Shift+Up" />
@@ -430,14 +435,14 @@ function NodeMenu() {
       <div className="menu-sep" />
       {row?.kind === 'search' && <It label="Convert search node to plain list" on={run('search.toPlainList')} />}
       {row && !row.ref && row.kind === 'plain' && <It label="Convert to supertag" on={run('node.convertToSupertag')} />}
-      <It label="More commands" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
+      <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
       {row?.inTrash ? (
         <It label="Restore" on={run('node.restore')} />
       ) : row?.ref ? (
         <It label="Remove reference" on={run('node.delete')} />
       ) : (
         <>
-          <It label="Delete" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
+          <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
           <It label="Hard delete including references" on={run('node.hardDelete')} danger />
         </>
       )}

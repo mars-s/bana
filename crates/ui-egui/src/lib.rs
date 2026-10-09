@@ -9,6 +9,7 @@ pub mod icons;
 mod keys;
 mod outline;
 mod overlays;
+mod schema_ui;
 pub mod theme;
 mod views;
 
@@ -29,6 +30,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.editDescription", "Add description", "Ctrl+I"),
     ("ui.quickAdd", "Quick add", "Mod+E"),
     ("ui.searchOpen", "Search and open", "Mod+S"),
+    ("ui.configureSupertag", "Configure supertag", ""),
     ("ui.searchOptions", "Show or hide search conditions", ""),
 ];
 
@@ -48,6 +50,10 @@ pub enum PickMode {
     Slash,
     /// Pick the supertag of a new search node ("List of #tag").
     SearchCreate,
+    /// A supertag that `node` (a supertag) extends.
+    Extend,
+    /// A field for the template of `node` (a supertag).
+    TemplateField,
 }
 
 #[derive(Debug, Clone)]
@@ -141,6 +147,13 @@ pub struct TanaApp {
     /// Search pages: the condition editor is open.
     pub query_open: bool,
     clause_buf: String,
+    tag_filter: String,
+    /// Supertag pages with the configure section open, and their active view tab.
+    config_open: std::collections::HashSet<NodeId>,
+    tag_tab: std::collections::HashMap<NodeId, NodeId>,
+    template_buf: String,
+    option_buf: String,
+    range_buf: Option<(String, String)>,
     /// Quick text filter per view node (toolbar magnifier).
     quick_filter: std::collections::HashMap<NodeId, String>,
     quick_filter_open: Option<NodeId>,
@@ -174,6 +187,12 @@ impl TanaApp {
             desc_edit: None,
             query_open: true,
             clause_buf: String::new(),
+            tag_filter: String::new(),
+            config_open: Default::default(),
+            tag_tab: Default::default(),
+            template_buf: String::new(),
+            option_buf: String::new(),
+            range_buf: None,
             quick_filter: Default::default(),
             quick_filter_open: None,
             quick_filter_focus: false,
@@ -211,6 +230,12 @@ impl TanaApp {
             "ui.quickAdd" => self.quick_add = Some(vec![String::new()]),
             "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
             "ui.searchOptions" => self.query_open = !self.query_open,
+            "ui.configureSupertag" => {
+                let z = self.session.zoom;
+                if self.session.graph.tag_def(z).is_some() && !self.config_open.remove(&z) {
+                    self.config_open.insert(z);
+                }
+            }
             "ui.editDescription" => {
                 if let Some(f) = self.session.focus.or(Some(self.session.zoom)) {
                     let t = self.session.graph.resolve(f);
@@ -447,21 +472,31 @@ impl TanaApp {
             }
         });
         ui.add_space(14.0);
-        section(ui, &t, "Supertags");
-        for tag in g.tags() {
-            if tag == g.sys.day_tag {
-                continue;
-            }
-            let color = g.tag_def(tag).map(|d| d.color.clone()).unwrap_or_default();
-            let (strong, _) = theme::tag_color(&color, self.dark);
-            if side_row(ui, &t, |p, r| icons::hash(p, r, strong), g.name(tag), zoom == tag).clicked() {
-                acts.push(Act::Run("nav.open".into(), json!({"node": tag.0})));
+        section(ui, &t, "Pinned");
+        for p in g.pinned() {
+            let name = outline::page_title(&self.session, p);
+            let resp = if let Some(def) = g.tag_def(p) {
+                let (strong, _) = theme::tag_color(&def.color, self.dark);
+                side_row(ui, &t, |pt, r| icons::hash(pt, r, strong), g.name(p), zoom == p)
+            } else {
+                side_row(
+                    ui,
+                    &t,
+                    |pt, r| {
+                        pt.circle_filled(r.center(), 3.0, t.dim);
+                    },
+                    &name,
+                    zoom == p,
+                )
+            };
+            if resp.clicked() {
+                acts.push(Act::Run("nav.open".into(), json!({"node": p.0})));
             }
         }
         ui.add_space(14.0);
         section(ui, &t, "Workspace");
         for (icon, label, id) in
-            [(Icon::Home, "Home", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
+            [(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
         {
             if side_item(ui, &t, icon, label, zoom == id).clicked() {
                 acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));

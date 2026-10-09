@@ -167,7 +167,7 @@ fn move_up_down_and_zoom() {
     run(&mut s, "nav.zoomIn", json!({"node": a.0}));
     assert_eq!(lines(&mut s), ["  - inside a"]);
     let crumbs: Vec<&str> = s.breadcrumbs().iter().map(|c| s.graph.name(*c)).collect();
-    assert_eq!(crumbs, ["Home"]);
+    assert_eq!(crumbs, ["Library"]);
     run(&mut s, "nav.zoomOut", json!({}));
     assert_eq!(s.zoom, s.graph.sys.library);
     assert_eq!(s.focus, Some(a));
@@ -455,4 +455,43 @@ fn view_filters_and_add_item() {
     assert_eq!(s.focus, Some(id(&r, "id")));
     run(&mut s, "node.setDone", json!({"node": id(&r, "id").0, "done": true}));
     assert_eq!(s.graph.checkbox(id(&r, "id")), Some(true));
+}
+
+#[test]
+fn configuration_commands() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    run(&mut s, "tag.create", json!({"name": "book", "color": "teal"}));
+    run(&mut s, "tag.addField", json!({"tag": "book", "field": "Rating", "type": "number"}));
+    run(&mut s, "field.setRange", json!({"field": "Rating", "min": 1, "max": 5}));
+    run(&mut s, "field.setRequired", json!({"field": "Rating", "on": true}));
+    run(&mut s, "field.setHide", json!({"field": "Rating", "mode": "when_empty"}));
+    run(&mut s, "field.setDefault", json!({"field": "Rating", "value": "3"}));
+    run(&mut s, "tag.addField", json!({"tag": "book", "field": "Shelf", "type": "options"}));
+    run(&mut s, "field.addOption", json!({"field": "Shelf", "option": "To read"}));
+    run(&mut s, "field.addOption", json!({"field": "Shelf", "option": "Read"}));
+    run(&mut s, "tag.setDoneMap", json!({"tag": "book", "field": "Shelf", "checked": "Read", "unchecked": "To read"}));
+    run(&mut s, "tag.setCheckbox", json!({"tag": "book", "on": true}));
+    run(&mut s, "tag.addTemplateNode", json!({"tag": "book", "name": "Quotes"}));
+    run(&mut s, "tag.addView", json!({"tag": "book", "kind": "cards"}));
+    let book = s.graph.find_tag("book").unwrap().0;
+    run(&mut s, "node.togglePin", json!({"node": book}));
+    let b = id(&run(&mut s, "node.add", json!({"name": "Dune"})), "id");
+    run(&mut s, "tag.add", json!({"node": b.0, "tag": "book"}));
+    let n = s.graph.get(b).unwrap().clone();
+    let rating = s.graph.find_field("Rating").unwrap();
+    assert_eq!(n.field_value(rating), Some(&tanacraft_core::FieldValue::Number(3.0)));
+    assert_eq!(s.graph.name(s.graph.children(b)[0]), "Quotes");
+    assert!(s.run("field.set", &json!({"node": b.0, "field": "Rating", "value": "9"})).is_err(), "out of range");
+    run(&mut s, "node.toggleDone", json!({"node": b.0}));
+    assert_eq!(export_md(&mut s, b), "- [x] Dune #book\n  - Rating:: 3\n  - Shelf:: Read\n  - Quotes\n");
+    assert!(s.graph.pinned().contains(&s.graph.find_tag("book").unwrap()));
+    assert!(s.run("field.setRange", &json!({"field": "Rating", "min": 9, "max": 1})).is_err());
+    assert!(s.run("field.setHide", &json!({"field": "Rating", "mode": "sometimes"})).is_err());
+    run(&mut s, "field.setType", json!({"field": "Shelf", "type": "plain"}));
+    run(&mut s, "tag.removeField", json!({"tag": "book", "field": "Shelf"}));
+    assert_eq!(s.graph.template_fields(s.graph.find_tag("book").unwrap()), vec![rating]);
+}
+
+fn export_md(s: &mut Session, n: NodeId) -> String {
+    run(s, "export.markdown", json!({"node": n.0}))["markdown"].as_str().unwrap().to_string()
 }

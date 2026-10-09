@@ -34,6 +34,10 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.tag_add_field(project, site)?;
     let meeting = g.create_tag("meeting", "violet")?;
     g.tag_add_field(meeting, outdoors)?;
+    g.tag_set_done_map(task, Some(crate::model::DoneMap { field: status, checked: "Done".into(), unchecked: "Not started".into() }))?;
+    g.tag_set_base_type(task, Some("task"))?;
+    g.tag_add_template_node(meeting, "Agenda")?;
+    g.tag_add_template_node(meeting, "Notes")?;
     let owner = g.create_field("Owner", FieldType::OptionsFromTag)?;
     g.field_def_mut(owner)?.source_tag = Some(person);
     g.tag_add_field(project, owner)?;
@@ -92,6 +96,16 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.add_tag(t, task)?;
     g.set_field_text(t, due, &today.add_days(2).to_string())?;
     g.create_reference(day, None, garden)?;
+
+    // Supertag view tabs and pins.
+    let board = g.tag_add_view(task, crate::view::ViewKind::Cards)?;
+    g.view_mut(board)?.group = Some(crate::view::GroupBy::Field(status));
+    g.set_name(board, "Task board")?;
+    let cal = g.tag_add_view(task, crate::view::ViewKind::Calendar)?;
+    g.set_name(cal, "Task calendar")?;
+    for p in [task, meeting, project, garden] {
+        g.set_pinned(p, true)?;
+    }
 
     // A live search with a table view.
     let q = crate::query::Query::parse(&g, "#task AND TODO")?;

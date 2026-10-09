@@ -121,7 +121,27 @@ pub fn registry() -> Registry {
         C::new("tag.addField", "Add field to supertag", "Supertag", tag_add_field)
             .params(r#"{"tag": name | id, "field": name | id, "type"?: string}"#),
         C::new("tag.setCheckbox", "Supertag shows checkbox", "Supertag", tag_set_checkbox).params(r#"{"tag": name | id, "on": bool}"#),
+        C::new("tag.setDoneMap", "Map checkbox to field", "Supertag", tag_set_done_map)
+            .params(r#"{"tag": name | id, "field"?: name | id, "checked"?: string, "unchecked"?: string}  (no field clears)"#),
+        C::new("tag.setChildTag", "Default child supertag", "Supertag", tag_set_child_tag).params(r#"{"tag": name | id, "child"?: name | id}"#),
+        C::new("tag.setBaseType", "Base type", "Supertag", tag_set_base_type).params(r#"{"tag": name | id, "base"?: "task|meeting|person|..."}"#),
+        C::new("tag.addTemplateNode", "Add template content", "Supertag", tag_add_template_node).params(r#"{"tag": name | id, "name": string}"#),
+        C::new("tag.removeField", "Remove field from supertag", "Supertag", tag_remove_field).params(r#"{"tag": name | id, "field": name | id}"#),
+        C::new("tag.addView", "Add view to supertag", "Supertag", tag_add_view)
+            .params(r#"{"tag": name | id, "kind": "outline|table|cards|calendar|..."}"#),
+        C::new("node.togglePin", "Pin or unpin in sidebar", "Node", toggle_pin).params(r#"{"node"?: id}"#),
         // Fields.
+        C::new("field.setType", "Field type", "Field", field_set_type).params(r#"{"field": name | id, "type": string}"#),
+        C::new("field.setRequired", "Required field", "Field", field_set_required).params(r#"{"field": name | id, "on": bool}"#),
+        C::new("field.setHide", "Hide field", "Field", field_set_hide)
+            .params(r#"{"field": name | id, "mode": "never|when_empty|when_not_empty|when_default|always"}"#),
+        C::new("field.setRange", "Number range", "Field", field_set_range).params(r#"{"field": name | id, "min"?: number, "max"?: number}"#),
+        C::new("field.setAutoInit", "Auto-initialize", "Field", field_set_auto_init)
+            .params(r#"{"field": name | id, "mode": "none|current_date|ancestor_day|ancestor_value"}"#),
+        C::new("field.setDefault", "Default value", "Field", field_set_default).params(r#"{"field": name | id, "value": string}  (empty clears)"#),
+        C::new("field.setSourceTag", "Options from supertag", "Field", field_set_source_tag).params(r#"{"field": name | id, "tag": name | id}"#),
+        C::new("field.addOption", "Add option", "Field", field_add_option).params(r#"{"field": name | id, "option": string}"#),
+        C::new("field.removeOption", "Remove option", "Field", field_remove_option).params(r#"{"field": name | id, "option": string}"#),
         C::new("field.add", "Add field", "Field", field_add)
             .key(">")
             .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string}"#),
@@ -1240,4 +1260,159 @@ fn view_add_item(s: &mut Session, v: &Value) -> CmdResult {
         s.open(new)?;
     }
     Ok(json!({"id": new.0, "parent": parent.0}))
+}
+
+// ---- supertag and field configuration -----------------------------------------------------------
+
+fn opt_tag(s: &mut Session, v: &Value, key: &str) -> Result<Option<NodeId>, CmdError> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(x)) if x.trim().is_empty() || x == "none" => Ok(None),
+        Some(_) => Ok(Some(tag_param(s, v, key, false)?)),
+    }
+}
+
+fn tag_set_done_map(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let map = if v.get("field").is_some_and(|f| !f.is_null()) {
+        let field = field_param(s, v, false)?;
+        Some(tanacraft_core::DoneMap {
+            field,
+            checked: p::str(v, "checked").unwrap_or("Done").to_string(),
+            unchecked: p::str(v, "unchecked").unwrap_or("").to_string(),
+        })
+    } else {
+        None
+    };
+    s.graph.tag_set_done_map(tag, map)?;
+    Ok(json!({"tag": tag.0}))
+}
+
+fn tag_set_child_tag(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let child = opt_tag(s, v, "child")?;
+    s.graph.tag_set_child_tag(tag, child)?;
+    Ok(json!({"tag": tag.0, "child": child.map(|c| c.0)}))
+}
+
+fn tag_set_base_type(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let base = p::str(v, "base").filter(|b| !b.is_empty() && *b != "none");
+    s.graph.tag_set_base_type(tag, base)?;
+    Ok(json!({"tag": tag.0, "base": base}))
+}
+
+fn tag_add_template_node(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let id = s.graph.tag_add_template_node(tag, p::req_str(v, "name")?)?;
+    Ok(json!({"id": id.0}))
+}
+
+fn tag_remove_field(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let field = field_param(s, v, false)?;
+    s.graph.tag_remove_field(tag, field)?;
+    Ok(json!({"tag": tag.0, "field": field.0}))
+}
+
+fn tag_add_view(s: &mut Session, v: &Value) -> CmdResult {
+    let tag = tag_param(s, v, "tag", false)?;
+    let kind = p::req_str(v, "kind")?;
+    let kind = ViewKind::parse(kind).ok_or_else(|| CmdError::Params(format!("unknown view `{kind}`")))?;
+    let id = s.graph.tag_add_view(tag, kind)?;
+    Ok(json!({"view": id.0}))
+}
+
+fn toggle_pin(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.graph.resolve(p::node(v, "node")?.or(s.focus).unwrap_or(s.zoom));
+    let on = !s.graph.node(id)?.pinned;
+    s.graph.set_pinned(id, on)?;
+    Ok(json!({"node": id.0, "pinned": on}))
+}
+
+fn field_set_type(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let ty = field_type(v)?;
+    s.graph.field_def_mut(f)?.field_type = ty;
+    Ok(json!({"field": f.0, "type": ty.name()}))
+}
+
+fn field_set_required(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let on = p::bool(v, "on").ok_or_else(|| CmdError::Params("`on` (bool) is required".into()))?;
+    s.graph.field_def_mut(f)?.required = on;
+    Ok(json!({"field": f.0, "required": on}))
+}
+
+fn field_set_hide(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let mode = p::req_str(v, "mode")?;
+    let mode = tanacraft_core::HideMode::parse(mode).ok_or_else(|| CmdError::Params(format!("unknown hide mode `{mode}`")))?;
+    s.graph.field_def_mut(f)?.hide = mode;
+    Ok(json!({"field": f.0, "hide": mode.name()}))
+}
+
+fn field_set_range(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let num = |k: &str| v.get(k).and_then(Value::as_f64).filter(|x| x.is_finite());
+    let (min, max) = (num("min"), num("max"));
+    if let (Some(a), Some(b)) = (min, max)
+        && a > b
+    {
+        return Err(CmdError::Params("`min` is above `max`".into()));
+    }
+    let d = s.graph.field_def_mut(f)?;
+    d.min = min;
+    d.max = max;
+    Ok(json!({"field": f.0, "min": min, "max": max}))
+}
+
+fn field_set_auto_init(s: &mut Session, v: &Value) -> CmdResult {
+    use tanacraft_core::AutoInit;
+    let f = field_param(s, v, false)?;
+    let mode = match p::req_str(v, "mode")? {
+        "none" => None,
+        "current_date" => Some(AutoInit::CurrentDate),
+        "ancestor_day" => Some(AutoInit::AncestorDay),
+        "ancestor_value" => Some(AutoInit::AncestorValue),
+        other => return Err(CmdError::Params(format!("unknown auto-initialize mode `{other}`"))),
+    };
+    s.graph.field_def_mut(f)?.auto_init = mode;
+    Ok(json!({"field": f.0}))
+}
+
+fn field_set_default(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let text = p::req_str(v, "value")?;
+    let ty = s.graph.field_def(f).map(|d| d.field_type).unwrap_or_default();
+    let value = if text.trim().is_empty() { None } else { Some(tanacraft_core::FieldValue::parse(ty, text).map_err(CmdError::Params)?) };
+    s.graph.field_def_mut(f)?.default = value;
+    Ok(json!({"field": f.0}))
+}
+
+fn field_set_source_tag(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let tag = tag_param(s, v, "tag", false)?;
+    s.graph.field_def_mut(f)?.source_tag = Some(tag);
+    Ok(json!({"field": f.0, "tag": tag.0}))
+}
+
+fn field_add_option(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let o = p::req_str(v, "option")?.trim().to_string();
+    if o.is_empty() {
+        return Err(CmdError::Params("`option` is empty".into()));
+    }
+    let d = s.graph.field_def_mut(f)?;
+    if !d.options.contains(&o) {
+        d.options.push(o);
+    }
+    Ok(json!({"field": f.0}))
+}
+
+fn field_remove_option(s: &mut Session, v: &Value) -> CmdResult {
+    let f = field_param(s, v, false)?;
+    let o = p::req_str(v, "option")?.to_string();
+    s.graph.field_def_mut(f)?.options.retain(|x| *x != o);
+    Ok(json!({"field": f.0}))
 }

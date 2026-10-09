@@ -17,7 +17,10 @@ pub fn page_title(s: &Session, id: NodeId) -> String {
     let g = &s.graph;
     match g.get(id).map(|n| &n.kind) {
         Some(Kind::Day { date }) if *date == s.today => format!("Today, {}", g.name(id)),
+        Some(Kind::Day { date }) if *date == s.today.add_days(-1) => format!("Yesterday, {}", g.name(id)),
+        Some(Kind::Day { date }) if *date == s.today.add_days(1) => format!("Tomorrow, {}", g.name(id)),
         Some(Kind::Tag(_)) => format!("#{}", g.name(id)),
+        _ if id == g.sys.schema => "Supertags".to_string(),
         _ => g.name(id).to_string(),
     }
 }
@@ -39,14 +42,24 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.trash {
                 trash_banner(ui, &t);
             }
-            let is_tag = app.session.graph.tag_def(zoom).is_some();
-            let is_search = app.session.graph.query(zoom).is_some();
-            if is_tag {
-                tag_page(app, ui, &t, zoom);
-            } else {
-                fields(app, ui, &t, zoom, 0.0);
-                ui.add_space(4.0);
+            if zoom == app.session.graph.sys.schema {
+                tag_overview(app, ui, &t);
+                return;
             }
+            if app.session.graph.tag_def(zoom).is_some() {
+                crate::schema_ui::tag_page(app, ui, &t, zoom);
+                references(app, ui, &t, zoom);
+                return;
+            }
+            if app.session.graph.field_def(zoom).is_some() {
+                crate::schema_ui::field_page(app, ui, &t, zoom);
+                references(app, ui, &t, zoom);
+                return;
+            }
+            let is_tag = false;
+            let is_search = app.session.graph.query(zoom).is_some();
+            fields(app, ui, &t, zoom, 0.0);
+            ui.add_space(4.0);
             if is_search && app.query_open {
                 crate::views::query_builder(app, ui, &t, zoom);
             }
@@ -74,6 +87,58 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
         });
     }
     ui.add_space(80.0);
+}
+
+/// The Supertags overview (spec 03 §1): a filter box and a grid of supertag tiles, then fields.
+fn tag_overview(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.add(egui::TextEdit::singleline(&mut app.tag_filter).hint_text("Filter tags").desired_width(ui.available_width()));
+    ui.add_space(10.0);
+    let q = app.tag_filter.trim().to_lowercase();
+    let g = &app.session.graph;
+    let tags: Vec<NodeId> = g.tags().into_iter().filter(|x| g.name(*x).to_lowercase().contains(&q)).collect();
+    let w = ui.available_width();
+    let tile_w = ((w - 36.0) / 3.0).floor().max(150.0);
+    let mut open = None;
+    ui.label(RichText::new("Supertags").size(13.0).color(t.faint));
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(12.0, 10.0);
+        for tag in &tags {
+            let color = g.tag_def(*tag).map(|d| d.color.clone()).unwrap_or_default();
+            let (strong, _) = theme::tag_color(&color, app.dark);
+            let (r, resp) = ui.allocate_exact_size(vec2(tile_w, 40.0), Sense::click());
+            ui.painter().rect_filled(r, 6.0, if resp.hovered() { t.hover } else { t.field_bg });
+            crate::icons::hash(ui.painter(), Rect::from_center_size(r.left_center() + vec2(18.0, 0.0), vec2(14.0, 14.0)), strong);
+            let count = g.tagged(*tag).len();
+            ui.painter().text(r.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, g.name(*tag), FontId::proportional(14.5), t.text);
+            ui.painter().text(r.right_center() - vec2(12.0, 0.0), Align2::RIGHT_CENTER, count.to_string(), FontId::proportional(12.0), t.faint);
+            if resp.clicked() {
+                open = Some(*tag);
+            }
+        }
+    });
+    let fields: Vec<NodeId> =
+        g.iter().filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q)).map(|n| n.id).collect();
+    if !fields.is_empty() {
+        ui.add_space(16.0);
+        ui.label(RichText::new("Fields").size(13.0).color(t.faint));
+        for f in fields {
+            let ty = g.field_def(f).map(|d| d.field_type).unwrap_or_default();
+            let resp = ui
+                .horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(vec2(16.0, 22.0), Sense::hover());
+                    paint_field_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(11.0, 11.0)), ty, t.dim);
+                    ui.add(egui::Label::new(RichText::new(g.name(f)).size(14.5)).sense(Sense::click()))
+                        | ui.label(RichText::new(type_label(ty)).size(12.0).color(t.faint))
+                })
+                .inner;
+            if resp.clicked() {
+                open = Some(f);
+            }
+        }
+    }
+    if let Some(o) = open {
+        app.acts.push(Act::Run("nav.open".into(), json!({"node": o.0})));
+    }
 }
 
 /// Our own wording: how the Trash works.
@@ -201,42 +266,7 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     }
 }
 
-/// A supertag's page: what it extends, its template fields and the nodes that carry it.
-fn tag_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
-    let g = &app.session.graph;
-    let Some(def) = g.tag_def(tag).cloned() else { return };
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Supertag").size(13.0).color(t.faint));
-        for b in &def.extends {
-            ui.label(RichText::new("extends").size(13.0).color(t.faint));
-            if chip(ui, g, *b, app.dark).clicked() {
-                app.acts.push(Act::Run("nav.open".into(), json!({"node": b.0})));
-            }
-        }
-        if def.checkbox {
-            ui.label(RichText::new("shows a checkbox").size(13.0).color(t.faint));
-        }
-    });
-    ui.add_space(10.0);
-    ui.label(RichText::new("Template fields").size(13.0).color(t.dim));
-    for f in g.template_fields(tag) {
-        let inherited = !def.fields.contains(&f);
-        let ty = g.field_def(f).map(|d| d.field_type).unwrap_or_default();
-        field_frame(ui, t, |ui| {
-            field_label(ui, t, g.name(f), ty);
-            let mut text = type_label(ty).to_string();
-            if inherited {
-                text.push_str("  (inherited)");
-            }
-            ui.label(RichText::new(text).size(14.0).color(t.faint));
-        });
-    }
-    ui.add_space(14.0);
-    ui.label(RichText::new(format!("Tagged nodes ({})", g.tagged(tag).len())).size(13.0).color(t.dim));
-    ui.add_space(4.0);
-}
-
-fn type_label(ty: FieldType) -> &'static str {
+pub(crate) fn type_label(ty: FieldType) -> &'static str {
     match ty {
         FieldType::Plain => "Plain",
         FieldType::Options => "Options",
@@ -249,7 +279,7 @@ fn type_label(ty: FieldType) -> &'static str {
     }
 }
 
-fn field_frame(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) {
+pub(crate) fn field_frame(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) {
     egui::Frame::new().fill(t.field_bg).corner_radius(6.0).inner_margin(egui::Margin::symmetric(10, 5)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
@@ -260,7 +290,7 @@ fn field_frame(ui: &mut Ui, t: &Tokens, add: impl FnOnce(&mut Ui)) {
     ui.add_space(3.0);
 }
 
-fn field_label(ui: &mut Ui, t: &Tokens, name: &str, ty: FieldType) {
+pub(crate) fn field_label(ui: &mut Ui, t: &Tokens, name: &str, ty: FieldType) {
     let (rect, _) = ui.allocate_exact_size(vec2(170.0, 22.0), Sense::hover());
     let icon = Rect::from_center_size(rect.left_center() + vec2(7.0, 0.0), vec2(11.0, 11.0));
     paint_field_icon(ui.painter(), icon, ty, t.dim);
@@ -311,12 +341,31 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
         let name = g.name(e.field).to_string();
         let value_text = e.value.as_ref().map(|v| export::display_value(g, v));
         let editing = app.field_edit.as_ref().is_some_and(|f| f.node == target && f.field == e.field);
+        // Hide-field rules (spec 03 §6).
+        let empty = value_text.as_deref().is_none_or(str::is_empty);
+        let is_default = def.default.is_some() && e.value == def.default;
+        let hidden = match def.hide {
+            tanacraft_core::HideMode::Never => false,
+            tanacraft_core::HideMode::WhenEmpty => empty,
+            tanacraft_core::HideMode::WhenNotEmpty => !empty,
+            tanacraft_core::HideMode::WhenDefault => is_default,
+            tanacraft_core::HideMode::Always => true,
+        };
+        if hidden && !editing {
+            continue;
+        }
+        let missing = def.required && empty;
         ui.horizontal(|ui| {
             ui.add_space(indent);
             ui.vertical(|ui| {
                 field_frame(ui, t, |ui| {
                     field_label(ui, t, &name, def.field_type);
                     field_value(app, ui, t, target, e.field, &def, e.value.as_ref(), value_text, editing);
+                    if missing {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(RichText::new("Required").size(12.0).color(Color32::from_rgb(232, 128, 96)));
+                        });
+                    }
                 });
             });
         });
@@ -343,7 +392,41 @@ pub(crate) fn field_value(
                 app.acts.push(set(if on { "no" } else { "yes" }.into()));
             }
         }
-        FieldType::Options | FieldType::Date if !editing => {
+        FieldType::Date if !editing => {
+            // "Thu, 15 Oct" with a calendar glyph; ">" opens the day (spec 03 §8).
+            let date = match value {
+                Some(FieldValue::Date(d)) => Some(*d),
+                _ => None,
+            };
+            let label = match date {
+                Some(d) if d.year == app.session.today.year => d.day_title(),
+                Some(d) => format!("{}, {}", d.day_title(), d.year),
+                None => hint(def.field_type).to_string(),
+            };
+            if date.is_some() {
+                let (r, _) = ui.allocate_exact_size(vec2(14.0, 18.0), Sense::hover());
+                let b = Rect::from_center_size(r.center(), vec2(11.0, 10.0));
+                ui.painter().rect_stroke(b, 2.0, Stroke::new(1.1, t.dim), StrokeKind::Middle);
+                ui.painter().line_segment([b.left_top() + vec2(0.0, 3.0), b.right_top() + vec2(0.0, 3.0)], Stroke::new(1.1, t.dim));
+            }
+            let r =
+                ui.add(egui::Label::new(RichText::new(label).size(14.5).color(if date.is_some() { t.text } else { t.faint })).sense(Sense::click()));
+            if r.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if r.clicked() {
+                app.acts.push(Act::PickDate(node, field, r.rect.left_bottom() + vec2(0.0, 4.0)));
+            }
+            if let Some(d) = date
+                && ui
+                    .add(egui::Label::new(RichText::new(">").size(13.0).color(t.faint)).sense(Sense::click()))
+                    .on_hover_text("Open the day")
+                    .clicked()
+            {
+                app.acts.push(Act::Run("nav.day".into(), json!({"date": d.to_string()})));
+            }
+        }
+        FieldType::Options if !editing => {
             let current = text.clone().unwrap_or_default();
             let (label, color) = if current.is_empty() { (hint(def.field_type).to_string(), t.faint) } else { (current, t.text) };
             let r = ui.add(egui::Label::new(RichText::new(label).size(14.5).color(color)).sense(Sense::click()));
@@ -458,6 +541,9 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     item(ui, "Add field", Act::Pick(PickMode::Field, g.resolve(id), at));
     item(ui, if g.checkbox(id).is_some() { "Toggle done" } else { "Add checkbox" }, run("node.toggleDone"));
     item(ui, "Add description", Act::Ui("ui.editDescription"));
+    item(ui, "Toggle heading", run("node.toggleHeading"));
+    let pinned = g.get(g.resolve(id)).is_some_and(|n| n.pinned);
+    item(ui, if pinned { "Unpin from sidebar" } else { "Pin to sidebar" }, run("node.togglePin"));
     ui.separator();
     ui.menu_button("View as", |ui| {
         for k in tanacraft_core::ViewKind::ALL {

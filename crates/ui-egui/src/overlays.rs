@@ -174,13 +174,19 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
     let g = &app.session.graph;
     let q = p.query.trim().trim_start_matches('#').to_lowercase();
     let mut out: Vec<Choice> = match p.mode {
+        PickMode::Extend => g
+            .tags()
+            .into_iter()
+            .filter(|t| *t != p.node && *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
+            .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
+            .collect(),
         PickMode::Tag | PickMode::SearchTag => g
             .tags()
             .into_iter()
             .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
             .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
             .collect(),
-        PickMode::Field | PickMode::Column => g
+        PickMode::Field | PickMode::Column | PickMode::TemplateField => g
             .iter()
             .filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q))
             .map(|n| Choice::Existing(n.id, n.name.clone()))
@@ -217,7 +223,10 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
     };
     out.truncate(10);
     let exact = out.iter().any(|c| matches!(c, Choice::Existing(_, name) if name.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(p.mode, PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate) {
+    if !q.is_empty()
+        && !exact
+        && !matches!(p.mode, PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate | PickMode::Extend)
+    {
         out.push(Choice::Create(p.query.trim().trim_start_matches('#').to_string()));
     }
     out
@@ -268,7 +277,10 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
             let name = app.session.graph.name(t).to_string();
             app.exec("search.create", json!({"query": format!("#\"{name}\""), "name": format!("List of {name}"), "replace": node.0}))
         }
-        (PickMode::Slash | PickMode::SearchCreate, Choice::Create(_)) => Ok(json!({})),
+        (PickMode::Slash | PickMode::SearchCreate | PickMode::Extend, Choice::Create(_)) => Ok(json!({})),
+        (PickMode::Extend, Choice::Existing(base, _)) => app.exec("tag.extend", json!({"tag": node.0, "base": base.0})),
+        (PickMode::TemplateField, Choice::Existing(f, _)) => app.exec("tag.addField", json!({"tag": node.0, "field": f.0})),
+        (PickMode::TemplateField, Choice::Create(name)) => app.exec("tag.addField", json!({"tag": node.0, "field": name})),
         (PickMode::Choice, Choice::Existing(_, v) | Choice::Create(v)) => match p.field {
             Some(f) => app.exec("field.set", json!({"node": node.0, "field": f.0, "value": v})),
             None => Ok(json!({})),
@@ -322,6 +334,8 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::Choice => "Choose an option",
         PickMode::Slash => "Insert",
         PickMode::SearchCreate => "Create search node: find supertag",
+        PickMode::Extend => "Extend supertag",
+        PickMode::TemplateField => "Add a field to the template",
     };
     egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(p.anchor).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {

@@ -5,9 +5,14 @@
 {"focus": "Build four beds"}
 {"shot": "docs/images/outline.png"}
 {"cmd": "nav.supertags"}
+{"shot": "docs/images/supertags-overview.png"}
 {"open": "task"}
-{"cmd": "view.set", "params": {"kind": "table"}}
 {"shot": "docs/images/supertag.png"}
+{"cmd": "ui.configureSupertag"}
+{"shot": "docs/images/configure-supertag.png"}
+{"cmd": "ui.configureSupertag"}
+{"open": "Status"}
+{"shot": "docs/images/field-definition.png"}
 {"open": "Open tasks"}
 {"shot": "docs/images/search-table.png"}
 {"cmd": "ui.searchOptions"}

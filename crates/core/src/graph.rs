@@ -81,7 +81,7 @@ impl Graph {
         let mut root = Node::new(ids.root, "Workspace", None);
         root.children = vec![ids.library, ids.journal, ids.schema, ids.trash];
         g.nodes.insert(ids.root, root);
-        for (id, name) in [(ids.library, "Home"), (ids.journal, "Daily notes"), (ids.schema, "Supertags"), (ids.trash, "Trash")] {
+        for (id, name) in [(ids.library, "Library"), (ids.journal, "Daily notes"), (ids.schema, "Schema"), (ids.trash, "Trash")] {
             g.nodes.insert(id, Node::new(id, name, Some(ids.root)));
         }
         let mut day = Node::new(ids.day_tag, "day", Some(ids.schema));
@@ -214,9 +214,19 @@ impl Graph {
 
     /// Nodes that point at `target`: reference nodes and node-valued fields.
     pub fn references_to(&self, target: NodeId) -> Vec<NodeId> {
+        // A date value points at its day node (spec 01 §8).
+        let day_date = match self.get(target).map(|n| &n.kind) {
+            Some(Kind::Day { date }) => Some(*date),
+            _ => None,
+        };
         self.nodes
             .values()
-            .filter(|n| n.reference_target() == Some(target) || n.fields.iter().any(|f| f.value == Some(FieldValue::Node(target))))
+            .filter(|n| {
+                n.reference_target() == Some(target)
+                    || n.fields
+                        .iter()
+                        .any(|f| f.value == Some(FieldValue::Node(target)) || day_date.is_some_and(|d| f.value == Some(FieldValue::Date(d))))
+            })
             .filter(|n| !self.in_trash(n.id))
             .map(|n| n.id)
             .collect()
@@ -449,6 +459,18 @@ impl Graph {
         let id = self.alloc();
         self.put(Node::new(id, clean_name(name), Some(parent)));
         self.attach(id, parent, index)?;
+        // A supertag's "default child supertag" tags new children (spec 03 §5).
+        let child_tags: Vec<NodeId> = self
+            .node(parent)?
+            .tags
+            .clone()
+            .iter()
+            .filter_map(|t| self.tag_def(*t).and_then(|d| d.child_tag))
+            .filter(|t| self.tag_def(*t).is_some())
+            .collect();
+        for t in child_tags {
+            self.add_tag(id, t)?;
+        }
         Ok(id)
     }
 
@@ -510,6 +532,21 @@ impl Graph {
     /// `Some(done)` shows a checkbox, `None` hides it.
     pub fn set_done(&mut self, id: NodeId, done: Option<bool>) -> Result<()> {
         let target = self.resolve(id);
+        self.write_done(target, done)?;
+        // Done-state mapping: checking sets the mapped field (spec 03 §5).
+        for m in self.done_maps(target) {
+            let value = match done {
+                Some(true) => m.checked.clone(),
+                _ => m.unchecked.clone(),
+            };
+            if !value.is_empty() {
+                self.write_field_text(target, m.field, &value)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_done(&mut self, target: NodeId, done: Option<bool>) -> Result<()> {
         let n = self.node_mut(target)?;
         if done == Some(true) && n.done != Some(true) {
             n.done_at = Some(now_secs());
@@ -829,11 +866,48 @@ impl Graph {
         }
         self.node_mut(node)?.tags.push(tag);
         let fields = self.template_fields(tag);
+        let had: Vec<NodeId> = self.node(node)?.fields.iter().map(|f| f.field).collect();
         self.ensure_fields(node, &fields)?;
+        for f in fields.iter().filter(|f| !had.contains(f)) {
+            self.auto_init(node, *f)?;
+        }
+        // Template content: plain nodes copied under the tagged node.
+        let mut templates = Vec::new();
+        for t in self.tag_lineage(tag) {
+            templates.extend(self.tag_def(t).map(|d| d.template.clone()).unwrap_or_default());
+        }
+        templates.retain(|t| self.get(*t).is_some());
+        for t in templates {
+            let copy = self.copy_subtree(t, node, 0)?;
+            self.node_mut(node)?.children.push(copy);
+        }
         if self.tag_wants_checkbox(node) && self.node(node)?.done.is_none() {
             self.node_mut(node)?.done = Some(false);
         }
         Ok(())
+    }
+
+    /// Fills a newly added field from its auto-initialize rule.
+    fn auto_init(&mut self, node: NodeId, field: NodeId) -> Result<()> {
+        let Some(rule) = self.field_def(field).and_then(|d| d.auto_init) else { return Ok(()) };
+        let value = match rule {
+            AutoInit::CurrentDate => Some(FieldValue::Date(Date::today())),
+            AutoInit::AncestorDay => self.ancestors(node).iter().rev().find_map(|a| match self.get(*a).map(|n| &n.kind) {
+                Some(Kind::Day { date }) => Some(FieldValue::Date(*date)),
+                _ => None,
+            }),
+            AutoInit::AncestorValue => self.ancestors(node).iter().rev().find_map(|a| self.get(*a).and_then(|n| n.field_value(field)).cloned()),
+        };
+        if value.is_some() {
+            self.set_field(node, field, value)?;
+        }
+        Ok(())
+    }
+
+    /// The done mappings of a node's supertags.
+    fn done_maps(&self, node: NodeId) -> Vec<DoneMap> {
+        let tags = self.get(node).map(|n| n.tags.clone()).unwrap_or_default();
+        tags.iter().flat_map(|t| self.tag_lineage(*t)).filter_map(|t| self.tag_def(t).and_then(|d| d.done_map.clone())).collect()
     }
 
     /// Removes supertag `tag` from `node`. Empty fields that only that supertag brought go too.
@@ -853,6 +927,10 @@ impl Graph {
     /// Sets (or clears, with `None`) a field value on `node`.
     pub fn set_field(&mut self, node: NodeId, field: NodeId, value: Option<FieldValue>) -> Result<()> {
         let node = self.resolve(node);
+        // A date value is a link to its day: make sure the day exists (spec 01 §8).
+        if let Some(FieldValue::Date(d)) = &value {
+            self.day(*d)?;
+        }
         self.field_def(field).ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
         let n = self.node_mut(node)?;
         match n.fields.iter_mut().find(|e| e.field == field) {
@@ -865,6 +943,19 @@ impl Graph {
     /// Sets a field from typed text, parsed by the field's type. Options fields collect new choices;
     /// options-from-supertag fields link to (or create) a node with that supertag.
     pub fn set_field_text(&mut self, node: NodeId, field: NodeId, text: &str) -> Result<()> {
+        let node = self.resolve(node);
+        self.write_field_text(node, field, text)?;
+        // Done-state mapping the other way: the mapped field moves the checkbox.
+        for m in self.done_maps(node).into_iter().filter(|m| m.field == field) {
+            let checked = text.trim().eq_ignore_ascii_case(m.checked.trim());
+            if self.checkbox(node) != Some(checked) {
+                self.write_done(node, Some(checked))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_field_text(&mut self, node: NodeId, field: NodeId, text: &str) -> Result<()> {
         let def = self.field_def(field).cloned().ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
         if text.trim().is_empty() {
             return self.set_field(node, field, None);
@@ -884,6 +975,18 @@ impl Graph {
             }
             (ty, _) => FieldValue::parse(ty, text).map_err(Error::Invalid)?,
         };
+        if let FieldValue::Number(x) = value
+            && (def.min.is_some_and(|m| x < m) || def.max.is_some_and(|m| x > m))
+        {
+            {
+                let range = format!(
+                    "{} to {}",
+                    def.min.map(|m| m.to_string()).unwrap_or("any".into()),
+                    def.max.map(|m| m.to_string()).unwrap_or("any".into())
+                );
+                return Err(Error::Invalid(format!("{x} is outside the allowed range ({range})")));
+            }
+        }
         if let FieldValue::Choice(c) = &value
             && !def.options.iter().any(|o| o == c)
         {
@@ -899,6 +1002,76 @@ impl Graph {
         Ok(())
     }
 
+    // ---- supertag and field configuration -----------------------------------------------------
+
+    pub fn tag_set_done_map(&mut self, tag: NodeId, map: Option<DoneMap>) -> Result<()> {
+        if let Some(m) = &map {
+            self.field_def(m.field).ok_or_else(|| Error::Invalid(format!("node {} is not a field", m.field)))?;
+        }
+        self.tag_def_mut(tag)?.done_map = map;
+        Ok(())
+    }
+
+    pub fn tag_set_child_tag(&mut self, tag: NodeId, child: Option<NodeId>) -> Result<()> {
+        if let Some(c) = child {
+            self.tag_def(c).ok_or_else(|| Error::Invalid(format!("node {c} is not a supertag")))?;
+        }
+        self.tag_def_mut(tag)?.child_tag = child;
+        Ok(())
+    }
+
+    pub fn tag_set_base_type(&mut self, tag: NodeId, base: Option<&str>) -> Result<()> {
+        if let Some(b) = base
+            && !BASE_TYPES.contains(&b)
+        {
+            return Err(Error::Invalid(format!("unknown base type `{b}`; use one of {}", BASE_TYPES.join(", "))));
+        }
+        self.tag_def_mut(tag)?.base_type = base.map(str::to_string);
+        Ok(())
+    }
+
+    /// Adds a plain template node to the supertag (copied onto nodes tagged from now on).
+    pub fn tag_add_template_node(&mut self, tag: NodeId, name: &str) -> Result<NodeId> {
+        self.tag_def(tag).ok_or_else(|| Error::Invalid(format!("node {tag} is not a supertag")))?;
+        let id = self.create(tag, None, name)?;
+        self.tag_def_mut(tag)?.template.push(id);
+        Ok(id)
+    }
+
+    pub fn tag_remove_field(&mut self, tag: NodeId, field: NodeId) -> Result<()> {
+        self.tag_def_mut(tag)?.fields.retain(|f| *f != field);
+        Ok(())
+    }
+
+    /// Adds a view tab to a supertag's page: a search for the tag shown as `kind`.
+    pub fn tag_add_view(&mut self, tag: NodeId, kind: crate::view::ViewKind) -> Result<NodeId> {
+        self.tag_def(tag).ok_or_else(|| Error::Invalid(format!("node {tag} is not a supertag")))?;
+        let q =
+            crate::query::Query { any: false, clauses: vec![crate::query::Clause { not: false, kind: crate::query::ClauseKind::Tagged { tag } }] };
+        let name = format!("{} of #{}", kind.label(), self.name(tag));
+        let id = self.create_search(tag, None, &name, q)?;
+        self.view_mut(id)?.kind = kind;
+        self.tag_def_mut(tag)?.views.push(id);
+        Ok(id)
+    }
+
+    pub fn set_pinned(&mut self, id: NodeId, on: bool) -> Result<()> {
+        self.node_mut(id)?.pinned = on;
+        Ok(())
+    }
+
+    /// Pinned nodes, oldest first.
+    pub fn pinned(&self) -> Vec<NodeId> {
+        self.nodes.values().filter(|n| n.pinned && !self.in_trash(n.id)).map(|n| n.id).collect()
+    }
+
+    /// How many nodes carry the field, and how many supertags have it in their template.
+    pub fn field_usage(&self, field: NodeId) -> (usize, usize) {
+        let nodes = self.nodes.values().filter(|n| n.fields.iter().any(|f| f.field == field) && !self.in_trash(n.id)).count();
+        let tags = self.tags().into_iter().filter(|t| self.tag_def(*t).is_some_and(|d| d.fields.contains(&field))).count();
+        (nodes, tags)
+    }
+
     // ---- daily notes --------------------------------------------------------------------------
 
     /// The day node for `date`, created (with its year and week) when missing.
@@ -909,10 +1082,18 @@ impl Graph {
         let (wy, wk) = date.iso_week();
         let journal = self.sys.journal;
         let year = self.calendar_child(journal, Kind::Year { year: wy }, &wy.to_string(), wy as i64)?;
-        let week = self.calendar_child(year, Kind::Week { year: wy, week: wk }, &format!("Week {wk}"), wk as i64)?;
+        // Weeks are listed newest first on the year page (spec 01 §8).
+        let week = self.calendar_child(year, Kind::Week { year: wy, week: wk }, &format!("Week {wk}"), -(wk as i64))?;
         let day = self.calendar_child(week, Kind::Day { date }, &date.day_title(), date.to_days())?;
         let tag = self.sys.day_tag;
         self.add_tag(day, tag)?;
+        let week_tag = match self.find_tag("week") {
+            Some(t) => t,
+            None => self.create_tag("week", "grey")?,
+        };
+        if !self.node(week)?.tags.contains(&week_tag) {
+            self.add_tag(week, week_tag)?;
+        }
         Ok(day)
     }
 
@@ -922,7 +1103,10 @@ impl Graph {
         if let Some(c) = kids.iter().find(|c| self.get(**c).is_some_and(|n| n.kind == kind)) {
             return Ok(*c);
         }
-        let at = kids.iter().position(|c| self.get(*c).and_then(|n| calendar_key(&n.kind)).is_some_and(|k| k > key)).unwrap_or(kids.len());
+        let at = kids
+            .iter()
+            .position(|c| self.get(*c).and_then(|n| calendar_key(&n.kind)).map(|k| if n_kind_week(&kind) { -k } else { k }).is_some_and(|k| k > key))
+            .unwrap_or(kids.len());
         let id = self.create(parent, Some(at), name)?;
         self.node_mut(id)?.kind = kind;
         Ok(id)
@@ -1023,6 +1207,10 @@ struct GraphFile {
     #[serde(default)]
     expanded: Vec<NodeId>,
     nodes: Vec<Node>,
+}
+
+fn n_kind_week(k: &Kind) -> bool {
+    matches!(k, Kind::Week { .. })
 }
 
 fn calendar_key(k: &Kind) -> Option<i64> {

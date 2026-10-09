@@ -70,6 +70,82 @@ pub struct TagDef {
     /// Tagged nodes show a checkbox.
     #[serde(default)]
     pub checkbox: bool,
+    /// Checking / unchecking a tagged node sets a field (and setting the field moves the checkbox).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub done_map: Option<DoneMap>,
+    /// New children of a tagged node get this supertag.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_tag: Option<NodeId>,
+    /// Plain template nodes (children of the tag node) copied onto newly tagged nodes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub template: Vec<NodeId>,
+    /// A built-in semantic type (task, meeting, person...), one of [`BASE_TYPES`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_type: Option<String>,
+    /// Search nodes shown as view tabs on the supertag's page (children of the tag node).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub views: Vec<NodeId>,
+}
+
+/// Base types listed in the spec (03 §5).
+pub const BASE_TYPES: [&str; 13] =
+    ["task", "meeting", "person", "organization", "location", "project", "topic", "event", "article", "memo", "reflection", "day", "week"];
+
+/// Done-state mapping: checked means `field = checked`; unchecked means `field = unchecked`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DoneMap {
+    pub field: NodeId,
+    pub checked: String,
+    pub unchecked: String,
+}
+
+/// When a field row is hidden (spec 03 §6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HideMode {
+    #[default]
+    Never,
+    WhenEmpty,
+    WhenNotEmpty,
+    WhenDefault,
+    Always,
+}
+
+impl HideMode {
+    pub const ALL: [HideMode; 5] = [HideMode::Never, HideMode::WhenEmpty, HideMode::WhenNotEmpty, HideMode::WhenDefault, HideMode::Always];
+    pub fn name(self) -> &'static str {
+        match self {
+            HideMode::Never => "never",
+            HideMode::WhenEmpty => "when_empty",
+            HideMode::WhenNotEmpty => "when_not_empty",
+            HideMode::WhenDefault => "when_default",
+            HideMode::Always => "always",
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            HideMode::Never => "Never",
+            HideMode::WhenEmpty => "When empty",
+            HideMode::WhenNotEmpty => "When not empty",
+            HideMode::WhenDefault => "When value is default",
+            HideMode::Always => "Always",
+        }
+    }
+    pub fn parse(s: &str) -> Option<HideMode> {
+        HideMode::ALL.into_iter().find(|h| h.name() == s.trim().to_ascii_lowercase().replace(' ', "_"))
+    }
+}
+
+/// How a field fills itself when a supertag adds it (spec 03 §6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutoInit {
+    /// Today's date (date fields).
+    CurrentDate,
+    /// The date of the day node the item lives under.
+    AncestorDay,
+    /// The value of the nearest ancestor that has this field.
+    AncestorValue,
 }
 
 /// The value types a field can hold (public docs: Plain, Options, Date, Number, URL, Email, Checkbox,
@@ -131,6 +207,22 @@ pub struct FieldDef {
     /// Value a node gets when a supertag adds this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<FieldValue>,
+    /// Show a warning while empty.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub required: bool,
+    #[serde(default, skip_serializing_if = "is_never")]
+    pub hide: HideMode,
+    /// Number fields: allowed range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_init: Option<AutoInit>,
+}
+
+fn is_never(h: &HideMode) -> bool {
+    *h == HideMode::Never
 }
 
 /// A field value.
@@ -210,6 +302,9 @@ pub struct Node {
     pub done: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_from: Option<TrashedFrom>,
+    /// Pinned to the sidebar.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
     /// Shown as a heading (bigger, bold).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub heading: bool,
@@ -256,6 +351,7 @@ impl Node {
             trashed_from: None,
             view: None,
             heading: false,
+            pinned: false,
             created,
             edited: created,
             done_at: None,

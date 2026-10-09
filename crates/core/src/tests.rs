@@ -210,6 +210,13 @@ fn daily_notes() {
     let crumbs: Vec<&str> = g.ancestors(dec).iter().map(|a| g.name(*a)).collect();
     assert_eq!(crumbs, ["Workspace", "Daily notes", "2025", "Week 1"]);
     assert_eq!(names(&g, g.sys.journal), ["2025", "2026"]);
+    // Weeks newest first; week nodes carry #week.
+    let y2026 = g.children(g.sys.journal)[1];
+    assert_eq!(names(&g, y2026), ["Week 41"]);
+    g.day(Date::new(2026, 10, 20).unwrap()).unwrap();
+    assert_eq!(names(&g, y2026), ["Week 43", "Week 41"]);
+    let week = g.children(y2026)[0];
+    assert_eq!(g.get(week).unwrap().tags, vec![g.find_tag("week").unwrap()]);
 }
 
 #[test]
@@ -421,7 +428,7 @@ fn nested_groups_and_operators() {
     assert_eq!(names(&g, "(#meeting OR #person) AND NOT Outdoors:Yes"), ["Robin Ash"]);
     assert_eq!(names(&g, "#task AND (DONE OR \"Effort (hours)\">5)"), ["Build four beds", "Order cedar boards"]);
     assert_eq!(names(&g, "IS:TAG AND meet"), ["meeting"]);
-    assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks"]);
+    assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks", "Task board", "Task calendar"]);
     assert!(names(&g, "HAS:FIELD AND ON:DAY").contains(&"Volunteer meetup".to_string()));
     assert_eq!(names(&g, "DATE:2026-10-12"), ["Ask the hardware store about bulk compost"]);
     assert!(names(&g, "IN:LIBRARY AND seed").contains(&"Seed list".to_string()));
@@ -456,4 +463,59 @@ fn fuzzy_search_ranks_good_matches_first() {
     assert_eq!(names.first().copied(), Some("Fill with compost"), "word starts");
     assert!(g.fuzzy("zzzz", 5).is_empty());
     assert!(g.fuzzy("  ", 5).is_empty());
+}
+
+#[test]
+fn date_values_link_to_day_nodes() {
+    let mut g = garden();
+    let due = g.find_field("Due").unwrap();
+    let t = g.search("Build four beds")[0];
+    g.set_field_text(t, due, "2026-11-03").unwrap();
+    let day = g.find_day(Date::new(2026, 11, 3).unwrap()).expect("setting a date creates its day");
+    assert_eq!(g.references_to(day), vec![t]);
+}
+
+#[test]
+fn supertag_configuration_behaviours() {
+    let mut g = garden();
+    let task = g.find_tag("task").unwrap();
+    let status = g.find_field("Status").unwrap();
+    // Done-state mapping both ways.
+    let t = g.create(g.sys.library, None, "Mapped").unwrap();
+    g.add_tag(t, task).unwrap();
+    g.set_done(t, Some(true)).unwrap();
+    assert_eq!(g.get(t).unwrap().field_value(status), Some(&FieldValue::Choice("Done".into())));
+    g.set_field_text(t, status, "In progress").unwrap();
+    assert_eq!(g.checkbox(t), Some(false), "a non-done value unchecks");
+    g.set_field_text(t, status, "Done").unwrap();
+    assert_eq!(g.checkbox(t), Some(true));
+    // Template children are copied; default child supertag tags new children.
+    let meeting = g.find_tag("meeting").unwrap();
+    let m = g.create(g.sys.library, None, "Standup").unwrap();
+    g.add_tag(m, meeting).unwrap();
+    let kids: Vec<&str> = g.children(m).iter().map(|c| g.name(*c)).collect();
+    assert_eq!(kids, ["Agenda", "Notes"]);
+    g.tag_set_child_tag(meeting, Some(task)).unwrap();
+    let c = g.create(m, None, "Action item").unwrap();
+    assert!(g.get(c).unwrap().tags.contains(&task));
+    // Auto-initialize: the date of the ancestor day node.
+    let due = g.find_field("Due").unwrap();
+    g.field_def_mut(due).unwrap().auto_init = Some(AutoInit::AncestorDay);
+    let day = g.day(Date::new(2026, 10, 10).unwrap()).unwrap();
+    let d = g.create(day, None, "Due today").unwrap();
+    g.add_tag(d, task).unwrap();
+    assert_eq!(g.get(d).unwrap().field_value(due), Some(&FieldValue::Date(Date::new(2026, 10, 10).unwrap())));
+    // Number ranges.
+    let effort = g.find_field("Effort (hours)").unwrap();
+    g.field_def_mut(effort).unwrap().min = Some(0.0);
+    g.field_def_mut(effort).unwrap().max = Some(40.0);
+    assert!(g.set_field_text(t, effort, "41").is_err());
+    assert!(g.set_field_text(t, effort, "8").is_ok());
+    // Views, pins, usage.
+    assert_eq!(g.tag_def(task).unwrap().views.len(), 2);
+    assert_eq!(g.view_items(g.tag_def(task).unwrap().views[0]).len(), g.tagged(task).len());
+    assert!(g.pinned().contains(&task));
+    assert_eq!(g.field_usage(status).1, 2, "task and project");
+    assert!(g.tag_set_base_type(task, Some("spaceship")).is_err());
+    assert_eq!(HideMode::parse("when empty"), Some(HideMode::WhenEmpty));
 }

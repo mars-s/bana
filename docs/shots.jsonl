@@ -64,6 +64,10 @@
 {"theme": "dark"}
 {"cmd": "ui.shortcuts"}
 {"cmd": "nav.home"}
+{"focus": "Reading notes"}
+{"key": "Escape"}
+{"shot": "docs/images/selection.png"}
+{"key": "Escape"}
 {"focus": "Ideas"}
 {"key": "End"}
 {"type": " #"}

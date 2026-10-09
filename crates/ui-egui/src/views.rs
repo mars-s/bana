@@ -143,6 +143,8 @@ fn by_key(by: SortBy) -> String {
         SortBy::Name => "name".into(),
         SortBy::Created => "created".into(),
         SortBy::Done => "done".into(),
+        SortBy::Edited => "edited".into(),
+        SortBy::DoneTime => "done_time".into(),
         SortBy::Field(f) => f.0.to_string(),
     }
 }
@@ -161,6 +163,8 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
         SortBy::Name => "Name".to_string(),
         SortBy::Created => "Created time".into(),
         SortBy::Done => "Done".into(),
+        SortBy::Edited => "Last edited time".into(),
+        SortBy::DoneTime => "Done time".into(),
         SortBy::Field(f) => g.name(f).to_string(),
     };
     let mut acts = Vec::new();
@@ -202,9 +206,13 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             }
         });
         ui.menu_button(
-            RichText::new(if def.columns.is_empty() { "Display".to_string() } else { format!("Display ({})", def.columns.len()) })
-                .size(13.0)
-                .color(t.dim),
+            RichText::new(if def.columns.is_empty() && def.system.is_empty() {
+                "Display".to_string()
+            } else {
+                format!("Display ({})", def.columns.len() + def.system.len())
+            })
+            .size(13.0)
+            .color(t.dim),
             |ui| {
                 ui.label(RichText::new("Display fields").size(12.0).color(t.faint));
                 for (f, name, _) in &field_names {
@@ -223,11 +231,21 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 None => "Group".to_string(),
                 Some(GroupBy::Tags) => "Group: tags".into(),
                 Some(GroupBy::Done) => "Group: done".into(),
+                Some(GroupBy::Owner) => "Group: owner".into(),
+                Some(GroupBy::Created) => "Group: created".into(),
+                Some(GroupBy::Edited) => "Group: edited".into(),
                 Some(GroupBy::Field(f)) => format!("Group: {}", g.name(f)),
             };
             ui.menu_button(RichText::new(group_label).size(13.0).color(t.dim), |ui| {
                 ui.label(RichText::new("Group by").size(12.0).color(t.faint));
-                for (label, by) in [("None", "none".to_string()), ("Tags", "tags".into()), ("Done", "done".into())] {
+                for (label, by) in [
+                    ("None", "none".to_string()),
+                    ("Tags", "tags".into()),
+                    ("Done", "done".into()),
+                    ("Owner node", "owner".into()),
+                    ("Created time", "created".into()),
+                    ("Last edited time", "edited".into()),
+                ] {
                     if ui.button(label).clicked() {
                         acts.push(Act::Run("view.group".into(), json!({"node": node.0, "by": by})));
                         ui.close();
@@ -259,7 +277,13 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 });
             }
             ui.menu_button("+ Add sort", |ui| {
-                for (label, by) in [("Name", "name".to_string()), ("Created time", "created".into()), ("Done", "done".into())] {
+                for (label, by) in [
+                    ("Name", "name".to_string()),
+                    ("Created time", "created".into()),
+                    ("Last edited time", "edited".into()),
+                    ("Done", "done".into()),
+                    ("Done time", "done_time".into()),
+                ] {
                     if ui.button(label).clicked() {
                         acts.push(Act::Run("view.addSort".into(), json!({"node": node.0, "by": by})));
                         ui.close();
@@ -498,7 +522,26 @@ fn item_block(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, view: NodeId, item: No
 /// Outline layout for supertag pages and grouped outlines: group headers with their items.
 fn grouped_outline(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Group]) {
     for g in groups {
-        group_header(ui, t, &g.label, g.items.len());
+        if !g.label.is_empty() {
+            let key = (node, g.label.clone());
+            let closed = app.closed_groups.contains(&key);
+            ui.add_space(8.0);
+            let r = ui.horizontal(|ui| {
+                ui.label(RichText::new(if closed { ">" } else { "v" }).size(12.0).color(t.faint));
+                ui.label(RichText::new(&g.label).size(16.0).strong().color(t.text));
+                ui.label(RichText::new(g.items.len().to_string()).size(12.5).color(t.faint));
+            });
+            if r.response.interact(Sense::click()).clicked() {
+                if closed {
+                    app.closed_groups.remove(&key);
+                } else {
+                    app.closed_groups.insert(key);
+                }
+            }
+            if closed {
+                continue;
+            }
+        }
         if g.items.is_empty() && !g.label.is_empty() {
             let (r, _) = ui.allocate_exact_size(vec2(20.0, 22.0), Sense::hover());
             ui.painter().circle_filled(r.center(), 2.5, t.faint.gamma_multiply(0.6));
@@ -890,6 +933,14 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
             let d = day.add_days(k as i64);
             let cell = Rect::from_min_size(pos2(rr.left() + col_w * k as f32, rr.top()), vec2(col_w, rr.height()));
             painter.rect_filled(cell, 0.0, if k >= 5 { t.field_bg } else { t.panel });
+            // Drop an item on a day to move it there (sets the calendar's date field).
+            let drop = ui.interact(cell, egui::Id::new((app.panel_ix, "cal-day", node.0, d.to_days())), Sense::hover());
+            if drop.dnd_hover_payload::<CardDrag>().is_some() {
+                painter.rect_filled(cell, 0.0, t.accent.gamma_multiply(0.12));
+            }
+            if let (Some(p), Some(f)) = (drop.dnd_release_payload::<CardDrag>(), field) {
+                app.acts.push(Act::Run("field.set".into(), json!({"node": p.0.0, "field": f.0, "value": d.to_string()})));
+            }
             painter.rect_stroke(cell, 0.0, Stroke::new(1.0, t.line), StrokeKind::Inside);
             let in_month = week_mode || d.month == m;
             let num_pos = cell.right_top() + vec2(-8.0, 12.0);
@@ -936,9 +987,12 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
                     FontId::proportional(12.5),
                     if done { t.dim } else { t.text },
                 );
-                let resp = ui.interact(r, egui::Id::new((app.panel_ix, "cal-item", node.0, item.0, d.to_days())), Sense::click());
+                let resp = ui.interact(r, egui::Id::new((app.panel_ix, "cal-item", node.0, item.0, d.to_days())), Sense::click_and_drag());
                 if resp.clicked() {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": target.0})));
+                }
+                if resp.drag_started() {
+                    resp.dnd_set_drag_payload(CardDrag(target));
                 }
             }
             let extra = cell_items.len().saturating_sub(cap);

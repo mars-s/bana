@@ -184,11 +184,29 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let crumbs = app.session.breadcrumbs();
     ui.horizontal(|ui| {
         ui.add_space(20.0);
-        for (i, c) in crumbs.iter().enumerate() {
-            if i > 0 {
-                ui.label(RichText::new("/").size(13.0).color(t.faint));
-            }
-            let name = page_title(&app.session, *c);
+        // Workspace avatar: a small circle; it opens the Library (spec 07 §7).
+        let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::click());
+        ui.painter().circle_filled(r.center(), 8.0, t.faint);
+        ui.painter().line_segment([r.center() - vec2(4.0, 0.0), r.center() + vec2(4.0, 0.0)], Stroke::new(1.5, t.panel));
+        if resp.on_hover_text(PRODUCT_NAME_WORKSPACE).clicked() {
+            app.acts.push(Act::Run("nav.home".into(), json!({})));
+        }
+        // Long chains: first, "...", then the last two (spec 00 §4).
+        let shown: Vec<Option<NodeId>> = if crumbs.len() > 4 {
+            let mut v = vec![crumbs.first().copied(), None];
+            v.extend(crumbs.iter().skip(crumbs.len() - 2).copied().map(Some));
+            v
+        } else {
+            crumbs.iter().copied().map(Some).collect()
+        };
+        for c in shown {
+            ui.label(RichText::new("/").size(13.0).color(t.faint));
+            let Some(c) = c else {
+                let hidden: Vec<String> = crumbs.iter().skip(1).take(crumbs.len().saturating_sub(3)).map(|h| page_title(&app.session, *h)).collect();
+                ui.label(RichText::new("...").size(13.0).color(t.dim)).on_hover_text(hidden.join(" / "));
+                continue;
+            };
+            let name = page_title(&app.session, c);
             let r = ui.add(egui::Label::new(RichText::new(name).size(13.0).color(t.dim)).sense(Sense::click()));
             if r.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -197,11 +215,10 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
                 app.acts.push(Act::Run("nav.open".into(), json!({"node": c.0})));
             }
         }
-        if crumbs.is_empty() {
-            ui.label(RichText::new(" ").size(13.0));
-        }
     });
 }
+
+const PRODUCT_NAME_WORKSPACE: &str = "Workspace: open the Library";
 
 fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let s = &app.session;
@@ -894,6 +911,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
     if selected {
         let r = Rect::from_min_size(ui.cursor().min + vec2(indent - 4.0, 0.0), vec2(ui.available_width() - indent + 4.0, ROW_H));
         ui.painter().rect_filled(r, 4.0, t.accent.gamma_multiply(0.18));
+        ui.painter().rect_stroke(r, 4.0, Stroke::new(1.0, t.accent.gamma_multiply(0.7)), StrokeKind::Inside);
     }
     let row = ui.horizontal(|ui| {
         ui.set_min_height(ROW_H);
@@ -1028,7 +1046,35 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         }
     }
     drop_target(app, ui, t, id, center, row.response.rect);
+    if selected && app.session.sel == Some((id, id)) {
+        selection_toolbar(app, ui, t, id, row.response.rect);
+    }
     center
+}
+
+/// The floating toolbar above one selected node (spec 02 §8).
+fn selection_toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, row: Rect) {
+    let anchor = row.left_top() + vec2(18.0, -34.0);
+    let mut acts = Vec::new();
+    egui::Area::new(egui::Id::new((app.panel_ix, "sel-toolbar"))).order(egui::Order::Foreground).fixed_pos(anchor).show(ui.ctx(), |ui| {
+        egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(6.0).inner_margin(egui::Margin::symmetric(6, 3)).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let at = ui.min_rect().left_bottom() + vec2(0.0, 30.0);
+                for (label, act, tip) in [
+                    ("<", Act::Run("node.outdent".into(), json!({"node": id.0})), "Outdent"),
+                    (">", Act::Run("node.indent".into(), json!({"node": id.0})), "Indent"),
+                    ("# Tag", Act::Pick(PickMode::Tag, id, at), "Add supertag"),
+                    ("Move", Act::Pick(PickMode::MoveTo, id, at), "Move to"),
+                    ("H", Act::Run("node.toggleHeading".into(), json!({"node": id.0})), "Toggle heading"),
+                ] {
+                    if ui.add(egui::Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(tip).clicked() {
+                        acts.push(act);
+                    }
+                }
+            });
+        });
+    });
+    app.acts.extend(acts);
 }
 
 /// Drag and drop: a bullet dropped on a row lands after it; dropped right of the row's bullet
@@ -1044,18 +1090,21 @@ fn drop_target(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, bullet: e
     ui.painter().line_segment([pos2(x, rect.bottom()), pos2(rect.right(), rect.bottom())], Stroke::new(2.0, t.accent));
     if let Some(dragged) = resp.dnd_release_payload::<NodeId>() {
         let g = &app.session.graph;
+        // Dragging a selected bullet moves the whole selection.
+        let selected = app.session.selected();
+        let nodes: Vec<u64> = if selected.contains(&dragged) { selected.iter().map(|n| n.0).collect() } else { vec![dragged.0] };
         let params = if as_child {
-            json!({"node": dragged.0, "parent": g.resolve(id).0, "index": 0})
+            json!({"nodes": nodes, "parent": g.resolve(id).0, "index": 0})
         } else {
             match (g.parent(id), g.index_in_parent(id)) {
-                (Some(p), Some(i)) => json!({"node": dragged.0, "parent": p.0, "index": i + 1}),
+                (Some(p), Some(i)) => json!({"nodes": nodes, "parent": p.0, "index": i + 1}),
                 _ => return,
             }
         };
         if as_child {
             app.acts.push(Act::Run("node.expand".into(), json!({"node": id.0})));
         }
-        app.acts.push(Act::Run("node.move".into(), params));
+        app.acts.push(Act::Run("node.moveMany".into(), params));
     }
 }
 

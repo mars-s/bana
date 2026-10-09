@@ -522,3 +522,28 @@ fn convert_search_sort_children_select_all() {
     run(&mut s, "select.all", json!({}));
     assert_eq!(s.selected().len(), 3);
 }
+
+#[test]
+fn system_fields_in_views() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let task = s.graph.find_tag("task").unwrap();
+    run(&mut s, "view.group", json!({"node": task.0, "by": "owner"}));
+    let labels: Vec<String> = s.graph.view_groups(task).iter().map(|g| g.label.clone()).collect();
+    assert!(labels.contains(&"Raised beds".to_string()), "{labels:?}");
+    run(&mut s, "view.sort", json!({"node": task.0, "by": "edited", "desc": true}));
+    run(&mut s, "view.toggleSystemField", json!({"node": task.0, "field": "Owner node"}));
+    let item = s.graph.search("Build four beds")[0];
+    assert_eq!(s.graph.display_line(task, item), "Raised beds");
+    assert!(s.run("view.toggleSystemField", &json!({"node": task.0, "field": "Shoe size"})).is_err());
+}
+
+#[test]
+fn move_many_keeps_order() {
+    let mut s = blank();
+    let ids: Vec<NodeId> = ["a", "b", "c", "d"].iter().map(|n| id(&run(&mut s, "node.add", json!({"name": n})), "id")).collect();
+    let home = s.graph.sys.library;
+    run(&mut s, "node.moveMany", json!({"nodes": [ids[0].0, ids[1].0], "parent": home.0, "index": 4}));
+    assert_eq!(lines(&mut s), ["  - c", "  - d", "  - a", "  - b"]);
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(lines(&mut s), ["  - a", "  - b", "  - c", "  - d"]);
+}

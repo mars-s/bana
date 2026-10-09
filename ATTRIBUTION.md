@@ -30,3 +30,4 @@ sidebar glyphs are painted by `crates/ui-egui`.
 | `docs/images/configure-supertag.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/field-definition.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/two-panels.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/selection.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |

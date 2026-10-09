@@ -181,6 +181,10 @@ pub struct TanaApp {
     pub query_open: bool,
     clause_buf: String,
     tag_filter: String,
+    /// Group headers the person collapsed, per view node.
+    closed_groups: std::collections::HashSet<(NodeId, String)>,
+    /// Pinned sidebar rows shown expanded.
+    pin_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
     config_open: std::collections::HashSet<NodeId>,
     tag_tab: std::collections::HashMap<NodeId, NodeId>,
@@ -228,6 +232,8 @@ impl TanaApp {
             query_open: true,
             clause_buf: String::new(),
             tag_filter: String::new(),
+            closed_groups: Default::default(),
+            pin_open: Default::default(),
             config_open: Default::default(),
             tag_tab: Default::default(),
             template_buf: String::new(),
@@ -568,8 +574,10 @@ impl TanaApp {
         });
         ui.add_space(14.0);
         section(ui, &t, "Pinned");
+        let mut toggle = None;
         for p in g.pinned() {
             let name = outline::page_title(&self.session, p);
+            let kids: Vec<NodeId> = if g.tag_def(p).is_some() { Vec::new() } else { g.children(p).to_vec() };
             let resp = if let Some(def) = g.tag_def(p) {
                 let (strong, _) = theme::tag_color(&def.color, self.dark);
                 side_row(ui, &t, |pt, r| icons::hash(pt, r, strong), g.name(p), zoom == p)
@@ -584,9 +592,45 @@ impl TanaApp {
                     zoom == p,
                 )
             };
+            // Expandable pinned rows: a chevron in the left gutter shows the children (spec 07 §2).
+            let open = self.pin_open.contains(&p);
+            if !kids.is_empty() {
+                let chev = egui::Rect::from_center_size(resp.rect.left_center() - vec2(4.0, 0.0), vec2(10.0, 20.0));
+                let c = ui.interact(chev, egui::Id::new(("pin-chev", p.0)), Sense::click());
+                if resp.hovered() || open || c.hovered() {
+                    let m = chev.center();
+                    let pts = if open {
+                        vec![m + vec2(-3.0, -1.5), m + vec2(3.0, -1.5), m + vec2(0.0, 2.5)]
+                    } else {
+                        vec![m + vec2(-1.5, -3.0), m + vec2(2.5, 0.0), m + vec2(-1.5, 3.0)]
+                    };
+                    ui.painter().add(egui::Shape::convex_polygon(pts, t.dim, egui::Stroke::NONE));
+                }
+                if c.clicked() {
+                    toggle = Some(p);
+                }
+            }
             if resp.clicked() {
                 acts.push(Act::Run("nav.open".into(), json!({"node": p.0})));
             }
+            if open {
+                for k in kids.iter().take(30) {
+                    let text = g.text(*k);
+                    let label = if text.chars().count() > 26 { format!("{}...", text.chars().take(26).collect::<String>()) } else { text };
+                    let r = ui.horizontal(|ui| {
+                        ui.add_space(26.0);
+                        ui.add(egui::Label::new(RichText::new(label).size(13.5).color(t.dim)).sense(Sense::click()))
+                    });
+                    if r.inner.clicked() {
+                        acts.push(Act::Run("nav.open".into(), json!({"node": k.0})));
+                    }
+                }
+            }
+        }
+        if let Some(p) = toggle
+            && !self.pin_open.remove(&p)
+        {
+            self.pin_open.insert(p);
         }
         ui.add_space(14.0);
         section(ui, &t, "Workspace");

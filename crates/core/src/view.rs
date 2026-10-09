@@ -89,6 +89,10 @@ pub enum SortBy {
     Created,
     Done,
     Field(NodeId),
+    /// Last edited time.
+    Edited,
+    /// When the checkbox was checked.
+    DoneTime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -104,6 +108,50 @@ pub enum GroupBy {
     Field(NodeId),
     Tags,
     Done,
+    /// The owner node.
+    Owner,
+    /// The day the node was created.
+    Created,
+    /// The day the node was last edited.
+    Edited,
+}
+
+/// Fields every node has (spec 04 §11), usable as display fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemField {
+    Created,
+    Edited,
+    DoneTime,
+    Owner,
+    Tags,
+    References,
+}
+
+impl SystemField {
+    pub const ALL: [SystemField; 6] =
+        [SystemField::Created, SystemField::Edited, SystemField::DoneTime, SystemField::Owner, SystemField::Tags, SystemField::References];
+    pub fn label(self) -> &'static str {
+        match self {
+            SystemField::Created => "Created time",
+            SystemField::Edited => "Last edited time",
+            SystemField::DoneTime => "Done time",
+            SystemField::Owner => "Owner node",
+            SystemField::Tags => "Tags",
+            SystemField::References => "Number of references",
+        }
+    }
+    pub fn parse(s: &str) -> Option<SystemField> {
+        let s = s.trim().to_ascii_lowercase();
+        SystemField::ALL
+            .into_iter()
+            .find(|f| f.label().to_ascii_lowercase() == s || format!("{f:?}").to_ascii_lowercase() == s.replace(['_', ' '], ""))
+    }
+}
+
+/// A Unix time as a calendar day (UTC).
+fn day_of(secs: u64) -> Date {
+    Date::from_days((secs / 86_400) as i64)
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -125,6 +173,9 @@ pub struct ViewDef {
     /// The view toolbar is hidden.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hide_toolbar: bool,
+    /// System fields shown under items (after the display fields).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub system: Vec<SystemField>,
     /// The date field a calendar places items by. `None`: the first date field the items have.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub date_field: Option<NodeId>,
@@ -173,9 +224,11 @@ impl Graph {
     pub fn display_line(&self, view: NodeId, item: NodeId) -> String {
         let v = self.view_def(view);
         let n = self.get(self.resolve(item));
+        let item = self.resolve(item);
         v.columns
             .iter()
             .filter_map(|f| n.and_then(|n| n.field_value(*f)).map(|x| display_value(self, x)))
+            .chain(v.system.iter().map(|f| self.system_value(item, *f)))
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(" · ")
@@ -219,7 +272,7 @@ impl Graph {
         let order: Vec<String> = match group {
             GroupBy::Field(f) => self.field_def(f).map(|d| d.options.clone()).unwrap_or_default(),
             GroupBy::Done => vec!["Not done".into(), "Done".into()],
-            GroupBy::Tags => Vec::new(),
+            GroupBy::Tags | GroupBy::Owner | GroupBy::Created | GroupBy::Edited => Vec::new(),
         };
         groups.sort_by_key(|g| {
             let none = g.label == NO_VALUE;
@@ -239,6 +292,9 @@ impl Graph {
                 Some(false) => "Not done".into(),
                 None => String::new(),
             },
+            GroupBy::Owner => n.and_then(|n| n.parent).map(|p| self.text(p)).unwrap_or_default(),
+            GroupBy::Created => n.map(|n| day_of(n.created).to_string()).unwrap_or_default(),
+            GroupBy::Edited => n.map(|n| day_of(n.edited.max(n.created)).to_string()).unwrap_or_default(),
         };
         if label.is_empty() { NO_VALUE.to_string() } else { label }
     }
@@ -249,6 +305,8 @@ impl Graph {
             SortBy::Name => self.text(a).to_lowercase().cmp(&self.text(b).to_lowercase()),
             SortBy::Created => na.map(|n| n.created).cmp(&nb.map(|n| n.created)).then(a.cmp(&b)),
             SortBy::Done => self.checkbox(a).cmp(&self.checkbox(b)),
+            SortBy::Edited => na.map(|n| n.edited.max(n.created)).cmp(&nb.map(|n| n.edited.max(n.created))).then(a.cmp(&b)),
+            SortBy::DoneTime => na.and_then(|n| n.done_at).cmp(&nb.and_then(|n| n.done_at)),
             SortBy::Field(f) => {
                 let va = na.and_then(|n| n.field_value(f));
                 let vb = nb.and_then(|n| n.field_value(f));
@@ -261,6 +319,22 @@ impl Graph {
                     (Some(FieldValue::Date(x)), Some(FieldValue::Date(y))) => x.cmp(y),
                     (Some(x), Some(y)) => display_value(self, x).to_lowercase().cmp(&display_value(self, y).to_lowercase()),
                 }
+            }
+        }
+    }
+
+    /// A system field of a node, as text.
+    pub fn system_value(&self, id: NodeId, f: SystemField) -> String {
+        let Some(n) = self.get(id) else { return String::new() };
+        match f {
+            SystemField::Created => day_of(n.created).day_title(),
+            SystemField::Edited => day_of(n.edited.max(n.created)).day_title(),
+            SystemField::DoneTime => n.done_at.map(|t| day_of(t).day_title()).unwrap_or_default(),
+            SystemField::Owner => n.parent.map(|p| self.text(p)).unwrap_or_default(),
+            SystemField::Tags => n.tags.iter().map(|t| format!("#{}", self.name(*t))).collect::<Vec<_>>().join(" "),
+            SystemField::References => {
+                let c = self.references_to(id).len();
+                if c == 0 { String::new() } else { format!("{c} references") }
             }
         }
     }

@@ -321,3 +321,36 @@ fn inline_reference_left_right_and_select_all() {
     key(&mut h, Key::A, cmd);
     assert_eq!(h.state().session.selected().len(), 2);
 }
+
+#[test]
+fn dragging_a_selected_bullet_moves_the_selection() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    for n in ["one", "two", "three", "four"] {
+        h.state_mut().exec("node.add", json!({"name": n})).unwrap();
+    }
+    let g = &h.state().session.graph;
+    let (one, two) = (g.search("one")[0].0, g.search("two")[0].0);
+    h.state_mut().exec("select.set", json!({"from": one, "to": two})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let src = h.get_by_label("one").rect();
+    let dst = h.get_by_label("four").rect();
+    let from = Pos2::new(src.left() - 12.0, src.center().y);
+    let to = Pos2::new(dst.left() + 4.0, dst.center().y);
+    let ev = |h: &mut H<'_>, e: Event| {
+        h.input_mut().events.push(e);
+        h.step();
+    };
+    ev(&mut h, Event::PointerMoved(from));
+    ev(&mut h, Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    for k in 1..=10 {
+        ev(&mut h, Event::PointerMoved(from + (to - from) * (k as f32 / 10.0)));
+    }
+    ev(&mut h, Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(lines(&mut h), ["  - three", "  - four", "  - one", "  - two"]);
+}

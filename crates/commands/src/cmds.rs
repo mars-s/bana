@@ -29,6 +29,8 @@ pub fn registry() -> Registry {
         C::new("node.setName", "Rename node", "Node", set_name).params(r#"{"node"?: id, "name": string, "caret"?: chars}"#),
         C::new("node.setDescription", "Set description", "Node", set_description).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.move", "Move to", "Node", move_to).params(r#"{"node"?: id, "parent": id, "index"?: number}"#),
+        C::new("node.moveMany", "Move several nodes", "Node", move_many)
+            .params(r#"{"nodes": [id], "parent": id, "index"?: number}  (keeps their order)"#),
         C::new("node.reference", "Add reference", "Node", reference)
             .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),
@@ -71,7 +73,8 @@ pub fn registry() -> Registry {
         // Views.
         C::new("view.set", "View as", "Views", view_set)
             .params(r#"{"node"?: id, "kind": "outline|table|cards|board|lanes|list|side_menu|tabs|calendar"}"#),
-        C::new("view.sort", "Sort by", "Views", view_sort).params(r#"{"node"?: id, "by": "none|name|created|done|<field>", "desc"?: bool}"#),
+        C::new("view.sort", "Sort by", "Views", view_sort)
+            .params(r#"{"node"?: id, "by": "none|name|created|edited|done|done_time|<field>", "desc"?: bool}"#),
         C::new("view.addFilter", "Add filter", "Views", view_add_filter).params(r#"{"node"?: id, "clause": string}"#),
         C::new("view.removeFilter", "Remove filter", "Views", view_remove_filter).params(r#"{"node"?: id, "index": number}"#),
         C::new("view.addItem", "Add item to view", "Views", view_add_item)
@@ -80,9 +83,22 @@ pub fn registry() -> Registry {
         C::new("view.addSort", "Add sort rule", "Views", view_add_sort).params(r#"{"node"?: id, "by": "name|created|done|<field>", "desc"?: bool}"#),
         C::new("view.removeSort", "Remove sort rule", "Views", view_remove_sort).params(r#"{"node"?: id, "index": number}"#),
         C::new("view.toggleDisplay", "Display field", "Views", view_toggle_display).params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.toggleSystemField", "Display system field", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let name = p::req_str(v, "field")?;
+            let f = tanacraft_core::SystemField::parse(name).ok_or_else(|| CmdError::Params(format!("unknown system field `{name}`")))?;
+            let view = s.graph.view_mut(id)?;
+            if view.system.contains(&f) {
+                view.system.retain(|x| *x != f);
+            } else {
+                view.system.push(f);
+            }
+            view_json(s, id)
+        })
+        .params(r#"{"node"?: id, "field": "Created time|Last edited time|Done time|Owner node|Tags|Number of references"}"#),
         C::new("view.toggleToolbar", "Show or hide view toolbar", "Views", view_toggle_toolbar).params(r#"{"node"?: id}"#),
         C::new("view.calendarMode", "Calendar week or month", "Views", view_calendar_mode).params(r#"{"mode": "week|month"}"#).pure(),
-        C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|<field>"}"#),
+        C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|owner|created|edited|<field>"}"#),
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
         C::new("view.removeColumn", "Remove column", "Views", view_remove_column).params(r#"{"node"?: id, "field": name | id}"#),
@@ -1050,7 +1066,7 @@ fn view_set(s: &mut Session, v: &Value) -> CmdResult {
 fn field_or_keyword(s: &mut Session, v: &Value, key: &str) -> Result<Result<NodeId, String>, CmdError> {
     let raw = p::req_str(v, key)?.to_string();
     let lower = raw.trim().to_ascii_lowercase();
-    if ["none", "name", "created", "done", "tags"].contains(&lower.as_str()) {
+    if ["none", "name", "created", "done", "tags", "edited", "done_time", "owner"].contains(&lower.as_str()) {
         return Ok(Err(lower));
     }
     let probe = json!({"field": raw});
@@ -1065,6 +1081,8 @@ fn sort_by(s: &mut Session, v: &Value) -> Result<Option<SortBy>, CmdError> {
             "name" => Some(SortBy::Name),
             "created" => Some(SortBy::Created),
             "done" => Some(SortBy::Done),
+            "edited" => Some(SortBy::Edited),
+            "done_time" => Some(SortBy::DoneTime),
             other => return Err(CmdError::Params(format!("cannot sort by `{other}`"))),
         },
     })
@@ -1139,6 +1157,9 @@ fn view_group(s: &mut Session, v: &Value) -> CmdResult {
             "none" => None,
             "tags" => Some(GroupBy::Tags),
             "done" => Some(GroupBy::Done),
+            "owner" => Some(GroupBy::Owner),
+            "created" => Some(GroupBy::Created),
+            "edited" => Some(GroupBy::Edited),
             other => return Err(CmdError::Params(format!("cannot group by `{other}`"))),
         },
     };
@@ -1469,4 +1490,18 @@ fn sort_children(s: &mut Session, v: &Value) -> CmdResult {
     };
     s.graph.sort_children(id, by, p::bool(v, "desc").unwrap_or(false))?;
     Ok(json!({"node": id.0}))
+}
+
+/// Moves several nodes under `parent`, starting at `index`, keeping their order (one undo step).
+fn move_many(s: &mut Session, v: &Value) -> CmdResult {
+    let nodes = s.targets(v)?;
+    let parent = p::node(v, "parent")?.ok_or_else(|| CmdError::Params("`parent` is required".into()))?;
+    let parent = s.graph.resolve(parent);
+    let mut index = p::usize(v, "index");
+    for n in &nodes {
+        s.graph.move_to(*n, parent, index)?;
+        index = s.graph.index_in_parent(*n).map(|i| i + 1);
+    }
+    s.sel = None;
+    Ok(json!({"moved": nodes.len()}))
 }

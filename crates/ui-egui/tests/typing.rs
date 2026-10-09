@@ -1056,3 +1056,53 @@ fn list_view_opens_the_selected_item_in_the_next_panel() {
     assert_eq!(h.state().panel_count(), 2, "the same panel is reused");
     assert_eq!(h.state().tabs[0].panels[1].zoom, ids[0]);
 }
+
+#[test]
+fn content_width_panel_split_and_mini_sidebar_flyouts() {
+    use egui::{PointerButton, Pos2};
+    let mut h = harness();
+    h.state_mut().exec("ui.cycleContentWidth", json!({})).unwrap();
+    assert_eq!(h.state().content_width, 1);
+    // Two panels: dragging the gap between them moves the split.
+    h.state_mut().exec("ui.openInPanel", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let before = h.state().panel_split;
+    let y = h.get_by_label("Account").rect().bottom() + 200.0;
+    // Sweep for the column-resize handle: press where dragging changes the split.
+    let mut moved = false;
+    for x in (200..1100).step_by(4) {
+        let from = Pos2::new(x as f32, y);
+        let to = Pos2::new(x as f32 + 120.0, y);
+        let ev = |h: &mut H<'_>, e: Event| {
+            h.input_mut().events.push(e);
+            h.step();
+        };
+        ev(&mut h, Event::PointerMoved(from));
+        ev(&mut h, Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+        for k in 1..=4 {
+            ev(&mut h, Event::PointerMoved(from + (to - from) * (k as f32 / 4.0)));
+        }
+        ev(&mut h, Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+        if (h.state().panel_split - before).abs() > 0.02 {
+            moved = true;
+            break;
+        }
+    }
+    assert!(moved, "dragging the gap between panels resizes them");
+    // Mini sidebar: the Pinned flyout lists pinned nodes.
+    let ids = page_with(&mut h, &["Pin me"]);
+    h.state_mut().exec("node.togglePin", json!({"node": ids[0].0})).unwrap();
+    h.state_mut().exec("ui.singlePanel", json!({})).unwrap();
+    h.state_mut().sidebar = 1;
+    for _ in 0..3 {
+        h.step();
+    }
+    let before = h.query_all_by_label("Pin me").count();
+    h.get_by_label("Pinned").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.query_all_by_label("Pin me").count(), before + 1, "the flyout lists the pinned node");
+}

@@ -49,7 +49,12 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
     let full = !app.session.config_view
         && matches!(g.view_def(shown).kind, tanacraft_core::ViewKind::Table | tanacraft_core::ViewKind::Cards | tanacraft_core::ViewKind::Calendar)
         && (g.query(shown).is_some() || g.get(shown).is_some_and(|n| n.view.is_some()) || g.tag_def(zoom).is_some());
-    let max_w = if full { f32::INFINITY } else { MAX_W };
+    let max_w = match app.content_width {
+        _ if full => f32::INFINITY,
+        1 => 1080.0,
+        2 => f32::INFINITY,
+        _ => MAX_W,
+    };
     let content_w = if wide { (width - LEFT - side_w - 70.0).clamp(200.0, max_w) } else { (width - LEFT - 40.0).clamp(200.0, max_w) };
     ui.add_space(12.0);
     breadcrumbs(app, ui, &t);
@@ -411,6 +416,25 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             if r.clicked() {
                 app.acts.push(Act::Run("nav.open".into(), json!({"node": c.0})));
             }
+        }
+        // Set content width (single panel; with several panels this spot holds the close button).
+        if app.panel_count() == 1 {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(14.0);
+                let label = ["Auto", "Medium", "Full"].get(app.content_width as usize).copied().unwrap_or("Auto");
+                let r = ui
+                    .add(egui::Label::new(RichText::new("<->").size(12.0).color(t.faint)).sense(Sense::click()))
+                    .on_hover_text(format!("Content width: {label}"));
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Set content width"));
+                egui::Popup::menu(&r).show(|ui| {
+                    for (i, l) in ["Auto", "Medium", "Full"].iter().enumerate() {
+                        if ui.selectable_label(app.content_width as usize == i, *l).clicked() {
+                            app.content_width = i as u8;
+                            ui.close();
+                        }
+                    }
+                });
+            });
         }
     });
 }
@@ -1116,6 +1140,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     };
     let run = |cmd: &str| Act::Run(cmd.into(), n.clone());
     item(ui, "Open", run("nav.zoomIn"));
+    item(ui, "Open in new panel", Act::OpenInPanel(g.resolve(id)));
     item(ui, if g.is_expanded(id) { "Collapse" } else { "Expand" }, run("node.toggleExpand"));
     ui.separator();
     let at = ui.min_rect().left_bottom();
@@ -1143,6 +1168,8 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
         }
     };
     item(ui, "Duplicate", run("node.duplicate"));
+    item(ui, "Show or hide view toolbar", run("view.toggleToolbar"));
+    item(ui, "Show edit log", Act::EditLog(id));
     item(ui, "Move to...", Act::Pick(PickMode::MoveTo, id, at));
     item(ui, "Move and leave reference to...", Act::Pick(PickMode::MoveLeaveRef, id, at));
     item(ui, "Move to top", run("node.moveToTop"));
@@ -1162,6 +1189,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     if g.query(id).is_some() {
         item(ui, "Convert search node to plain list", run("search.toPlainList"));
     }
+    item(ui, "More commands", Act::Ui("ui.commandLine"));
     if g.get(id).is_some_and(|n| n.kind == Kind::Plain && n.reference_target().is_none()) && !g.is_system(id) {
         item(ui, "Convert to supertag", run("node.convertToSupertag"));
     }

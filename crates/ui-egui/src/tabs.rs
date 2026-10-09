@@ -130,8 +130,24 @@ impl TanaApp {
         let total = ui.available_rect_before_wrap();
         let gap = 8.0;
         let w = (total.width() - gap * (n as f32 - 1.0)) / n as f32;
+        // Two panels split where the handle between them was dragged (spec 07 §5).
+        let split = self.panel_split.clamp(0.2, 0.8);
+        let width_of = |i: usize| if n == 2 { (total.width() - gap) * if i == 0 { split } else { 1.0 - split } } else { w };
+        let left_of = |i: usize| (0..i).map(|k| width_of(k) + gap).sum::<f32>();
+        if n == 2 {
+            let handle = egui::Rect::from_min_size(total.min + vec2(width_of(0), 0.0), vec2(gap, total.height()));
+            let r = ui.interact(handle, egui::Id::new("panel-split"), Sense::drag());
+            if r.hovered() || r.dragged() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeColumn);
+            }
+            if r.dragged()
+                && let Some(p) = ui.ctx().pointer_interact_pos()
+            {
+                self.panel_split = ((p.x - total.left()) / total.width()).clamp(0.2, 0.8);
+            }
+        }
         for i in 0..n {
-            let rect = egui::Rect::from_min_size(total.min + vec2(i as f32 * (w + gap), 0.0), vec2(w, total.height()));
+            let rect = egui::Rect::from_min_size(total.min + vec2(left_of(i), 0.0), vec2(width_of(i), total.height()));
             let active = self.tabs.get(self.tab).map(|t| t.active).unwrap_or(0);
             let is_active = i == active;
             if !is_active {

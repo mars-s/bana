@@ -309,6 +309,14 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             if field_names.is_empty() {
                 ui.label(RichText::new("The items have no fields yet").color(t.faint));
             }
+            ui.separator();
+            ui.label(RichText::new("System fields").size(12.0).color(t.faint));
+            for sf in tanacraft_core::SystemField::ALL {
+                let mut on = def.system.contains(&sf);
+                if ui.checkbox(&mut on, sf.label()).changed() {
+                    acts.push(Act::Run("view.toggleSystemField".into(), json!({"node": node.0, "field": sf.label()})));
+                }
+            }
         });
         if def.kind != ViewKind::Table {
             let group_label = match def.group {

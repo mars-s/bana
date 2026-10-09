@@ -63,6 +63,22 @@ pub fn registry() -> Registry {
             Ok(json!({"trashed": id.0, "references_removed": refs.len()}))
         })
         .params(r#"{"node"?: id}"#),
+        C::new("node.editLog", "Show edit log", "Node", |s, v| {
+            // ponytail: one local editor, so the log is the node's created / edited / done times.
+            let id = s.graph.resolve(s.target(v)?);
+            let n = s.graph.node(id)?;
+            let when = Date::local_time;
+            let mut log = vec![json!({"event": "created", "at": when(n.created)})];
+            if n.edited > n.created {
+                log.push(json!({"event": "edited", "at": when(n.edited)}));
+            }
+            if let Some(d) = n.done_at {
+                log.push(json!({"event": "done", "at": when(d)}));
+            }
+            Ok(json!({"node": id.0, "log": log}))
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),

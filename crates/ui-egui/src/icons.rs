@@ -18,6 +18,8 @@ pub enum Icon {
     Recent,
     Help,
     Person,
+    Pin,
+    Building,
     /// View toolbar: display fields (lines with an eye), group (rows), sort (arrows), filter
     /// (funnel lines), view as (grid).
     Display,
@@ -114,6 +116,17 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Views => {
             for (x, y) in [(-0.8, -0.8), (0.1, -0.8), (-0.8, 0.1), (0.1, 0.1)] {
                 p.rect_stroke(Rect::from_min_max(r(x, y), r(x + 0.7, y + 0.7)), 1.0, st, StrokeKind::Middle);
+            }
+        }
+        Icon::Pin => {
+            p.circle_stroke(r(0.0, -0.35), s * 0.4, st);
+            p.line_segment([r(0.0, 0.05), r(0.0, 0.9)], st);
+        }
+        Icon::Building => {
+            p.rect_stroke(Rect::from_min_max(r(-0.6, -0.85), r(0.6, 0.85)), 1.0, st, StrokeKind::Middle);
+            for y in [-0.45, 0.0, 0.45] {
+                p.line_segment([r(-0.3, y), r(-0.1, y)], st);
+                p.line_segment([r(0.1, y), r(0.3, y)], st);
             }
         }
         Icon::Help => {

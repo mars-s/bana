@@ -47,6 +47,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.searchOptions", "Show or hide search conditions", ""),
     ("ui.insertDate", "Insert date...", ""),
     ("ui.help", "Help", ""),
+    ("ui.cycleContentWidth", "Cycle content widths", ""),
 ];
 
 /// The `#`, `>` and `@` pickers.
@@ -141,6 +142,9 @@ pub(crate) enum Act {
     /// "Go to date": a month picker that opens the chosen day.
     GoToDate(egui::Pos2),
     ClosePanel(usize),
+    OpenInPanel(NodeId),
+    /// Show the node's edit log as a notice.
+    EditLog(NodeId),
     /// Show a node in the panel to the right (list view detail).
     ShowBeside(NodeId),
     /// `@` typed mid-sentence at this caret.
@@ -232,6 +236,10 @@ pub struct TanaApp {
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
+    /// Content width: 0 auto, 1 medium, 2 full (spec 07 §5).
+    pub content_width: u8,
+    /// The first panel's share of the width when two panels are open.
+    pub panel_split: f32,
     /// A table column header being renamed (field, text).
     pub header_edit: Option<(NodeId, String)>,
     /// Settings: show reference counts next to nodes.
@@ -302,6 +310,8 @@ impl TanaApp {
             config_closed: Default::default(),
             ref_counter: false,
             header_edit: None,
+            content_width: 0,
+            panel_split: 0.5,
             tag_tab: Default::default(),
             template_buf: String::new(),
             option_buf: String::new(),
@@ -420,6 +430,7 @@ impl TanaApp {
                 self.recents_page = false;
                 self.help_page = false;
             }
+            "ui.cycleContentWidth" => self.content_width = (self.content_width + 1) % 3,
             "ui.help" => {
                 self.help_page = !self.help_page;
                 self.settings_page = false;
@@ -631,6 +642,16 @@ impl TanaApp {
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::ClosePanel(i) => self.close_panel(i),
                 Act::ShowBeside(n) => self.show_beside(n),
+                Act::OpenInPanel(n) => self.open_in_panel(n),
+                Act::EditLog(n) => {
+                    if let Ok(v) = self.exec("node.editLog", json!({"node": n.0})) {
+                        let lines: Vec<String> = v["log"]
+                            .as_array()
+                            .map(|a| a.iter().map(|e| format!("{} {}", e["event"].as_str().unwrap_or(""), e["at"].as_str().unwrap_or(""))).collect())
+                            .unwrap_or_default();
+                        self.toast(format!("Edit log: {}", lines.join(", ")));
+                    }
+                }
                 Act::PickTagInline(node, hash, at) => {
                     self.open_picker(PickMode::Tag, node, at);
                     if let Some(p) = self.picker.as_mut() {
@@ -754,6 +775,43 @@ impl TanaApp {
             }
             ui.add_space(4.0);
         }
+        // Pinned nodes and Workspaces open flyouts with the lists the full sidebar shows (spec 07 §1).
+        let mut acts = Vec::new();
+        let pin = icon_button(ui, Icon::Pin, t.dim, "Pinned");
+        egui::Popup::menu(&pin).show(|ui| {
+            ui.set_min_width(220.0);
+            let g = &self.session.graph;
+            let pinned = g.pinned();
+            if pinned.is_empty() {
+                ui.label(RichText::new("Nothing pinned yet").color(t.faint));
+            }
+            for p in pinned {
+                if ui.button(outline::page_title(&self.session, p)).clicked() {
+                    acts.push(Act::Run("nav.open".into(), json!({"node": p.0})));
+                    ui.close();
+                }
+            }
+        });
+        ui.add_space(4.0);
+        let ws = icon_button(ui, Icon::Building, t.dim, "Workspaces");
+        egui::Popup::menu(&ws).show(|ui| {
+            ui.set_min_width(220.0);
+            let g = &self.session.graph;
+            ui.label(RichText::new(g.name(g.sys.root)).strong());
+            for (label, id) in
+                [("Library", Some(g.sys.library)), ("Daily notes", Some(g.sys.journal)), ("Inbox", g.sys.inbox), ("Trash", Some(g.sys.trash))]
+            {
+                if let Some(id) = id
+                    && ui.button(label).clicked()
+                {
+                    acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
+                    ui.close();
+                }
+            }
+            ui.separator();
+            ui.menu_button("Manage workspaces", |ui| self.workspace_menu(ui, &mut acts));
+        });
+        self.acts.extend(acts);
     }
 
     fn sidebar_ui(&mut self, ui: &mut Ui) {

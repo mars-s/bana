@@ -24,6 +24,13 @@ impl Date {
     }
 
     /// Today in the local time zone.
+    /// A Unix time as local `YYYY-MM-DD HH:MM`.
+    pub fn local_time(secs: u64) -> String {
+        chrono::DateTime::from_timestamp(i64::try_from(secs).unwrap_or(0), 0)
+            .map(|d| d.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default()
+    }
+
     /// Minutes since local midnight now.
     pub fn now_minutes() -> u16 {
         use chrono::Timelike;

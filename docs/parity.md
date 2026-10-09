@@ -11,7 +11,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
 | Spec sections (99) | 63 | 29 | 5 | 2 |
-| Screenshots (153) | 99 | 32 | 21 | 1 |
+| Screenshots (153) | 114 | 29 | 9 | 1 |
 
 ## `00-overview.md`
 
@@ -169,12 +169,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | `01-today-shell-dark.png` | partial | Shell: sidebar, tabs, breadcrumbs, day page with Open tasks card. No AI button. |
 | `02-shortcuts-panel-1.png` | done | Shortcut sheet bindings. |
-| `03-shortcuts-panel-2.png` | partial | Editing and formatting shortcuts; Shift+Cmd+? differs. |
-| `10-supertags-overview.png` | partial | Supertags overview grid; no pinned cards. |
+| `03-shortcuts-panel-2.png` | done | Editing and formatting shortcuts, Shift+Cmd+? opens the sheet. |
+| `10-supertags-overview.png` | done | Pinned supertags as coloured cards, then the workspace's tiles. |
 | `11-tag-page-task.png` | partial | Tag page with view tabs; board default view differs. |
 | `12-tag-task-calendar.png` | done | Task calendar view. |
 | `13-tag-task-list.png` | done | Tag list view. |
-| `14-node-menu.jpg` | partial | Node menu subset. |
+| `14-node-menu.jpg` | partial | Node menu: open, open in new panel, view as, toolbar, duplicate, moves, copy link, tag/field/checkbox/description, heading, progress, pin, edit log, more commands, convert to supertag, delete / hard delete / remove reference. No AI, publish or appearance. |
 | `15-configure-supertag-task.png` | partial | Configure panel to the right with colour row and collapsible cards; no AI or voice sections. |
 | `16-supertag-content-template.png` | partial | Content template with fields and nodes. |
 | `17-supertag-config-lower.png` | partial | Checkbox and done mapping. |
@@ -198,9 +198,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `35-search-node-new.png` | done | Create search node. |
 | `36-search-node-result.png` | done | Search node results. |
 | `37-query-builder.png` | partial | Query builder (conditions panel). |
-| `38-view-display-menu.png` | partial | Display menu without system fields. |
+| `38-view-display-menu.png` | done | Display menu with fields and system fields. |
 | `39-list-with-display-field.png` | done | Display field line. |
-| `40-group-by-menu.jpg` | partial | Group by without system fields. |
+| `40-group-by-menu.jpg` | done | Group by: none, tags, done, owner, created, edited and every field; hidden groups can be shown again. |
 | `41-sort-menu.jpg` | done | Sort menu. |
 | `42-filter-menu.jpg` | done | Filter menu. |
 | `43-search-options-popover.png` | partial | Search options summary in the conditions panel. |
@@ -215,7 +215,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `52-calendar-view.png` | done | Calendar month view. |
 | `53-calendar-week-view.png` | done | Week view with all-day strip, hour grid and now line. |
 | `54-side-menu-view.png` | done | Side menu view. |
-| `55-list-nav-view.png` | partial | List view in one panel. |
+| `55-list-nav-view.png` | done | List with the selected item in the panel to the right. |
 | `56-command-line.png` | done | Command line. |
 | `57-search-panel.png` | done | Search and open. |
 | `58-search-typed.png` | done | Fuzzy results. |
@@ -225,11 +225,11 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `62-recents.png` | done | Recents page. |
 | `63-ai-chats.png` | missing | AI chats. |
 | `64-create-new.png` | done | Create new: untitled page with suggestions. |
-| `65-settings-menu.png` | missing | Account menu. |
+| `65-settings-menu.png` | partial | Account menu: Workspaces, Settings, theme, shortcuts, Help. No account, labs, API tokens or log out (local app). |
 | `66-settings-page.png` | partial | Settings page with our preferences. |
 | `67-today-light-mode.png` | done | Light mode. |
 | `68-reference-node.png` | done | Reference node. |
-| `69-bullet-context-menu.png` | partial | Bullet context menu subset. |
+| `69-bullet-context-menu.png` | partial | Bullet context menu (see 14); no AI, publish or appearance. |
 | `70-trash.png` | done | Trash. |
 | `71-sidebar-hidden-two-tabs.png` | done | Sidebar hidden and tabs. |
 | `72-two-panels.png` | done | Two panels. |
@@ -238,12 +238,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `75-number-field-config.png` | done | Number range. |
 | `76-table-number-cell.png` | done | Table number cell. |
 | `77-add-view-menu.png` | done | Add view menu. |
-| `78-description-and-heading.png` | partial | Heading and description (dialog). |
+| `78-description-and-heading.png` | done | Heading and a description edited in place under the name. |
 | `79-week-node.png` | partial | Week page without Schedule. |
 | `80-year-node.png` | done | Year page. |
 | `81-space-ai-prompt.png` | missing | AI prompt. |
 | `82-sidebar-pinned-expanded.png` | done | Expandable pinned rows. |
-| `83-help-menu.png` | missing | Help menu. |
+| `83-help-menu.png` | partial | Help opens a page listing every command; no docs links. |
 | `84-credits-popover.png` | missing | Credits. |
 | `85-library.png` | done | Library. |
 | `86-schema-node.png` | done | Schema. |
@@ -263,12 +263,12 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `100-drag-into-empty-child-list.jpg` | partial | Drop as first child. |
 | `101-drag-drop-line-depth.jpg` | partial | Drop line depth (child by pointer offset). |
 | `102-cmd-a-select-all.jpg` | done | Cmd+A: text, then all nodes. |
-| `103-paste-duplicate-skipped-toast.png` | missing | Paste duplicate toast. |
+| `103-paste-duplicate-skipped-toast.png` | done | Pasting nodes already in the list skips them with a notice at the top right. |
 | `104-paste-node-as-reference.png` | done | Pasting copied nodes inserts references. |
-| `105-pasted-url.png` | partial | URLs in text render as links; no paste special-casing. |
-| `106-pasted-url-empty-line.png` | partial | URLs in text render as links. |
+| `105-pasted-url.png` | done | URLs in text render blue with an arrow before them. |
+| `106-pasted-url-empty-line.png` | done | A URL-only node gets the link bullet and blue text. |
 | `107-system-field-owner-node.jpg` | done | Owner node system field. |
-| `108-field-row-tab-enter.jpg` | missing | Tab and Enter in field rows. |
+| `108-field-row-tab-enter.jpg` | done | Tab from the field name to the value; Enter adds a value line; Shift+Tab moves a value out. Tested. |
 | `109-user-field-picker.png` | missing | User field picker. |
 | `110-typed-field-values.png` | done | Typed field values validated. |
 | `111-options-from-supertag-picker.png` | done | Options from supertag: dropdown of tagged nodes; a new name is tagged on commit. |
@@ -277,7 +277,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `114-template-with-child-node.png` | done | Template child node copied. |
 | `115-required-field-and-template-child.png` | done | Required field and template child. |
 | `116-hidden-empty-field-outline.png` | done | Hidden empty field. |
-| `117-template-change-propagates.png` | partial | New template fields reach tagged nodes; template nodes do not. |
+| `117-template-change-propagates.png` | done | Template additions reach nodes tagged earlier. |
 | `118-extend-supertag.png` | done | Extend supertag. |
 | `119-tag-page-extends.jpg` | done | Tag page shows extends. |
 | `120-extended-tag-instance.png` | done | Extended tag instance gets inherited fields. |
@@ -289,16 +289,16 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `126-calendar-week-timed-drop.jpg` | done | Dropping an item on an hour gives it a time range. |
 | `127-lanes-lab.png` | done | Lanes. |
 | `128-lanes-drag.jpg` | missing | Lanes drag. |
-| `129-content-width-menu.png` | missing | Content width. |
-| `130-panel-resized.png` | missing | Panel resize. |
+| `129-content-width-menu.png` | done | Content width menu (Auto, Medium, Full) at the right of the breadcrumb; Cycle content widths command. |
+| `130-panel-resized.png` | done | Drag the gap between two panels to resize them; narrow panels stack field rows. Tested. |
 | `131-two-tabs.png` | done | Two tabs. |
-| `132-mini-sidebar-pinned-flyout.jpg` | missing | Mini sidebar flyout for pinned items. |
-| `133-mini-sidebar-workspace-flyout.jpg` | missing | Mini sidebar workspace flyout. |
-| `134-manage-workspaces.png` | missing | Manage workspaces. |
-| `135-create-workspace.png` | missing | Create workspace. |
-| `136-new-workspace.png` | missing | New workspace. |
+| `132-mini-sidebar-pinned-flyout.jpg` | done | Mini rail Pinned button opens a flyout of pinned nodes. Tested. |
+| `133-mini-sidebar-workspace-flyout.jpg` | done | Mini rail Workspaces button: workspace items and Manage workspaces. |
+| `134-manage-workspaces.png` | partial | Workspace menu: switch, new, rename. No members or settings per workspace. |
+| `135-create-workspace.png` | partial | New workspace by name from the workspace menu (a new graph file). |
+| `136-new-workspace.png` | partial | A new workspace opens on today with its own Library, Daily notes and Trash. |
 | `137-workspace-invite-step.jpg` | missing | Workspace invite. |
-| `138-sidebar-two-workspaces.png` | missing | Two workspaces in the sidebar. |
+| `138-sidebar-two-workspaces.png` | partial | One workspace shows at a time; others are a switch away in the menu. |
 | `139-workspace-home.png` | missing | Workspace home. |
 | `140-workspace-settings-other-ws.jpg` | missing | Workspace settings. |
 | `141-settings-api-keys.png` | missing | API keys settings. |

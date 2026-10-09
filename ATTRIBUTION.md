@@ -33,3 +33,7 @@ sidebar glyphs are painted by `crates/ui-egui`.
 | `docs/images/selection.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/recents.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/settings.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/help.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/query-builder.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/week-grid.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/workspaces.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |

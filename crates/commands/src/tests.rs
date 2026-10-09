@@ -183,6 +183,27 @@ fn references_render_their_target() {
 }
 
 #[test]
+fn duplicate_reference_replace_and_create_new() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "a"})), "id");
+    run(&mut s, "node.add", json!({"name": "kid", "parent": a.0}));
+    let copy = id(&run(&mut s, "node.duplicate", json!({"node": a.0})), "id");
+    assert_ne!(copy, a);
+    assert_eq!(s.graph.name(copy), "a");
+    assert_eq!(s.graph.children(copy).len(), 1);
+    assert_ne!(s.graph.children(copy)[0], s.graph.children(a)[0]);
+    let empty = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
+    run(&mut s, "focus.set", json!({"node": empty.0}));
+    let r = id(&run(&mut s, "node.reference", json!({"target": a.0, "replace": empty.0})), "id");
+    assert!(s.graph.get(empty).is_none());
+    assert_eq!(s.focus, Some(r));
+    assert_eq!(s.graph.index_in_parent(r), Some(2));
+    run(&mut s, "node.createNew", json!({}));
+    assert_eq!(s.graph.name(s.zoom), "Sat, 10 Oct");
+    assert!(s.focus.is_some());
+}
+
+#[test]
 fn file_save_and_open() {
     let dir = std::env::temp_dir().join(format!("tanacraft-cmd-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -219,4 +240,21 @@ fn hostile_params_never_panic() {
         Graph::from_json(&text).unwrap();
         assert!(s.graph.get(s.graph.sys.root).is_some());
     }
+}
+
+#[test]
+fn typing_a_word_is_one_undo_step() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
+    run(&mut s, "focus.set", json!({"node": a.0}));
+    for w in ["H", "Hi", "Hi!"] {
+        run(&mut s, "node.setName", json!({"name": w}));
+    }
+    run(&mut s, "node.enter", json!({}));
+    run(&mut s, "node.setName", json!({"name": "x"}));
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.graph.name(a), "Hi!");
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.graph.name(a), "");
 }

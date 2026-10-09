@@ -19,19 +19,22 @@ pub fn registry() -> Registry {
         C::new("node.moveDown", "Move down", "Node", |s, v| move_sibling(s, v, false)).key("Mod+Shift+Down").params(r#"{"node"?: id}"#),
         C::new("node.toggleDone", "Toggle checkbox", "Node", toggle_done).key("Mod+Enter").params(r#"{"node"?: id}"#),
         C::new("node.delete", "Delete (move to trash)", "Node", delete).key("Mod+Shift+Backspace").params(r#"{"node"?: id}"#),
+        C::new("node.duplicate", "Duplicate", "Node", duplicate).key("Mod+Shift+D").params(r#"{"node"?: id}"#),
+        C::new("node.createNew", "Create new", "Node", create_new).key("Mod+N"),
         C::new("node.add", "Add node", "Node", add).params(r#"{"name": string, "parent"?: id, "index"?: number}"#),
         C::new("node.setName", "Rename node", "Node", set_name).params(r#"{"node"?: id, "name": string, "caret"?: chars}"#),
         C::new("node.setDescription", "Set description", "Node", set_description).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.move", "Move to", "Node", move_to).params(r#"{"node"?: id, "parent": id, "index"?: number}"#),
-        C::new("node.reference", "Add reference", "Node", reference).params(r#"{"target": id, "parent"?: id, "index"?: number}"#),
+        C::new("node.reference", "Add reference", "Node", reference)
+            .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),
         C::new("trash.empty", "Empty trash", "Node", empty_trash),
         // Expand, collapse, focus.
         C::new("node.expand", "Expand", "View", |s, v| set_expanded(s, v, Some(true))).key("Mod+Down").params(r#"{"node"?: id}"#).pure(),
         C::new("node.collapse", "Collapse", "View", |s, v| set_expanded(s, v, Some(false))).key("Mod+Up").params(r#"{"node"?: id}"#).pure(),
         C::new("node.toggleExpand", "Expand or collapse", "View", |s, v| set_expanded(s, v, None)).params(r#"{"node"?: id}"#).pure(),
-        C::new("view.expandAll", "Expand all", "View", |s, _| expand_all(s, true)).pure(),
-        C::new("view.collapseAll", "Collapse all", "View", |s, _| expand_all(s, false)).pure(),
+        C::new("view.expandAll", "Expand all", "View", |s, _| expand_all(s, true)).key("Ctrl+Mod+Down").pure(),
+        C::new("view.collapseAll", "Collapse all", "View", |s, _| expand_all(s, false)).key("Ctrl+Mod+Up").pure(),
         C::new("focus.up", "Focus previous node", "View", |s, _| focus_step(s, -1)).key("Up").pure(),
         C::new("focus.down", "Focus next node", "View", |s, _| focus_step(s, 1)).key("Down").pure(),
         C::new("focus.set", "Focus node", "View", focus_set).params(r#"{"node": id, "caret"?: chars}"#).pure(),
@@ -276,6 +279,23 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"trashed": id.0}))
 }
 
+fn duplicate(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let copy = s.graph.duplicate(id)?;
+    s.set_focus(copy, usize::MAX);
+    Ok(json!({"id": copy.0}))
+}
+
+/// A new empty node at the end of today's page, focused.
+// spec-gap: where "Create new" puts the node; today's page is our choice.
+fn create_new(s: &mut Session, _: &Value) -> CmdResult {
+    let day = s.graph.day(s.today)?;
+    let id = s.graph.create(day, None, "")?;
+    s.open(day)?;
+    s.set_focus(id, 0);
+    Ok(json!({"id": id.0}))
+}
+
 fn add(s: &mut Session, v: &Value) -> CmdResult {
     let parent = p::node(v, "parent")?.unwrap_or(s.zoom);
     let name = p::str(v, "name").unwrap_or("");
@@ -309,8 +329,21 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
 
 fn reference(s: &mut Session, v: &Value) -> CmdResult {
     let target = p::node(v, "target")?.ok_or_else(|| CmdError::Params("`target` is required".into()))?;
-    let parent = p::node(v, "parent")?.unwrap_or(s.zoom);
-    let id = s.graph.create_reference(parent, p::usize(v, "index"), target)?;
+    let mut parent = p::node(v, "parent")?.unwrap_or(s.zoom);
+    let mut index = p::usize(v, "index");
+    if let Some(r) = p::node(v, "replace")? {
+        let n = s.graph.node(r)?;
+        if !n.name.is_empty() || !n.children.is_empty() || s.graph.is_system(r) {
+            return Err(CmdError::Failed("only an empty node can become a reference".into()));
+        }
+        parent = s.graph.parent(r).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+        index = s.graph.index_in_parent(r);
+        s.graph.delete_permanently(r)?;
+    }
+    let id = s.graph.create_reference(parent, index, target)?;
+    if s.focus.is_some_and(|f| s.graph.get(f).is_none()) {
+        s.set_focus(id, 0);
+    }
     Ok(json!({"id": id.0, "target": s.graph.resolve(id).0}))
 }
 

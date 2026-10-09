@@ -1,0 +1,442 @@
+//! TanaCraft's egui front end. Thin: it reads the [`Session`] and runs commands by id.
+//!
+//! Layout: a top bar (sidebar toggle, back/forward, the open page), a sidebar (Today, Supertags,
+//! Home, Daily notes, Trash, the supertag list, recents), the outline panel (breadcrumbs, title, tag
+//! chips, field rows, bullets) and overlays (command line, `#`/`>`/`@` pickers, shortcuts panel).
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+pub mod icons;
+mod keys;
+mod outline;
+mod overlays;
+pub mod theme;
+
+use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Ui, vec2};
+use serde_json::{Value, json};
+use tanacraft_commands::Session;
+use tanacraft_core::{NodeId, PRODUCT_NAME};
+
+use crate::icons::Icon;
+use crate::theme::Tokens;
+
+/// UI-only commands (no graph change), listed with the engine's in the command line and help.
+pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
+    ("ui.commandLine", "Command line", "Mod+K"),
+    ("ui.toggleSidebar", "Toggle sidebar", "Mod+\\"),
+    ("ui.shortcuts", "Keyboard shortcuts", "Mod+/"),
+    ("ui.toggleTheme", "Switch light or dark theme", ""),
+    ("ui.editDescription", "Add description", "Ctrl+I"),
+];
+
+/// The `#`, `>` and `@` pickers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PickMode {
+    Tag,
+    Field,
+    Reference,
+}
+
+#[derive(Debug, Clone)]
+pub struct Picker {
+    pub mode: PickMode,
+    /// Tag: the node to tag. Field: the node that gets the field. Reference: the empty node to replace.
+    pub node: NodeId,
+    pub query: String,
+    pub selected: usize,
+    pub anchor: egui::Pos2,
+    focus_once: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Palette {
+    pub query: String,
+    pub selected: usize,
+    focus_once: bool,
+}
+
+/// The bullet being typed into.
+#[derive(Debug, Default)]
+struct EditState {
+    node: Option<NodeId>,
+    buf: String,
+    /// Put the caret here on the next frame (and take keyboard focus).
+    set_cursor: Option<usize>,
+    selection_empty: bool,
+}
+
+#[derive(Debug, Clone)]
+struct FieldEdit {
+    node: NodeId,
+    field: NodeId,
+    buf: String,
+    focus_once: bool,
+}
+
+/// Deferred UI actions (collected while drawing, applied after).
+#[derive(Debug, Clone)]
+pub(crate) enum Act {
+    Run(String, Value),
+    Ui(&'static str),
+    Pick(PickMode, NodeId, egui::Pos2),
+    EditField(NodeId, NodeId, String),
+}
+
+/// A request from the JSON control channel (`tanacraft --control PORT`), answered on `reply`.
+pub struct ControlRequest {
+    pub method: String,
+    pub params: Value,
+    pub reply: std::sync::mpsc::Sender<Value>,
+}
+
+pub struct TanaApp {
+    pub session: Session,
+    /// Control-channel requests, handled once per frame.
+    pub control: Option<std::sync::mpsc::Receiver<ControlRequest>>,
+    pub dark: bool,
+    pub sidebar: bool,
+    pub help: bool,
+    pub palette: Option<Palette>,
+    pub picker: Option<Picker>,
+    pub mac: bool,
+    /// Save to `session.path` shortly after changes.
+    pub autosave: bool,
+    edit: EditState,
+    field_edit: Option<FieldEdit>,
+    title_buf: (Option<NodeId>, String),
+    desc_edit: Option<(NodeId, String)>,
+    dirty_since: Option<f64>,
+    acts: Vec<Act>,
+}
+
+impl TanaApp {
+    pub fn new(session: Session) -> TanaApp {
+        TanaApp {
+            session,
+            control: None,
+            dark: true,
+            sidebar: true,
+            help: false,
+            palette: None,
+            picker: None,
+            mac: cfg!(target_os = "macos"),
+            autosave: false,
+            edit: EditState::default(),
+            field_edit: None,
+            title_buf: (None, String::new()),
+            desc_edit: None,
+            dirty_since: None,
+            acts: Vec::new(),
+        }
+    }
+
+    pub fn tokens(&self) -> Tokens {
+        if self.dark { Tokens::dark() } else { Tokens::light() }
+    }
+
+    /// Runs a command or a `ui.*` command by id (used by the command line, scripts and tests).
+    pub fn exec(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        if id.starts_with("ui.") {
+            self.ui_command(id);
+            return Ok(json!({}));
+        }
+        let before = (self.session.focus, self.session.caret);
+        let r = self.session.run(id, &params).map_err(|e| e.to_string());
+        if (self.session.focus, self.session.caret) != before || id != "node.setName" {
+            self.edit.node = None; // reload text and caret on the next frame
+        }
+        r
+    }
+
+    fn ui_command(&mut self, id: &str) {
+        match id {
+            "ui.commandLine" => self.palette = Some(Palette { focus_once: true, ..Palette::default() }),
+            "ui.toggleSidebar" => self.sidebar = !self.sidebar,
+            "ui.shortcuts" => self.help = !self.help,
+            "ui.toggleTheme" => self.dark = !self.dark,
+            "ui.editDescription" => {
+                if let Some(f) = self.session.focus.or(Some(self.session.zoom)) {
+                    let t = self.session.graph.resolve(f);
+                    let text = self.session.graph.get(t).map(|n| n.description.clone()).unwrap_or_default();
+                    self.desc_edit = Some((t, text));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Opens a picker (`#` tag, `>` field, `@` reference) for `node` at `anchor`.
+    pub fn open_picker(&mut self, mode: PickMode, node: NodeId, anchor: egui::Pos2) {
+        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, focus_once: true });
+    }
+
+    /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
+    pub fn logic(&mut self, ctx: &egui::Context) {
+        self.apply_style(ctx);
+        self.serve_control();
+        self.sync_edit();
+        keys::handle(self, ctx);
+        self.sync_edit();
+        self.autosave_tick(ctx);
+    }
+
+    /// Control channel: `{"method": "command", "params": {"command": id, "params": {...}}}` runs a
+    /// command; `commands` lists them; `view` describes what the panel shows.
+    fn serve_control(&mut self) {
+        let reqs: Vec<ControlRequest> = self.control.as_ref().map(|rx| rx.try_iter().collect()).unwrap_or_default();
+        for r in reqs {
+            let reply = match r.method.as_str() {
+                "command" => {
+                    let id = r.params.get("command").and_then(Value::as_str).unwrap_or_default().to_string();
+                    let params = r.params.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
+                    match self.exec(&id, params) {
+                        Ok(v) => json!({"result": v}),
+                        Err(e) => json!({"error": e}),
+                    }
+                }
+                "commands" => json!({"result": self.session.registry.describe()}),
+                "view" => match self.session.run("graph.view", &json!({})) {
+                    Ok(v) => json!({"result": v}),
+                    Err(e) => json!({"error": e.to_string()}),
+                },
+                m => json!({"error": format!("unknown method `{m}`")}),
+            };
+            let _ = r.reply.send(reply);
+        }
+    }
+
+    fn sync_edit(&mut self) {
+        let focus = self.session.focus;
+        if self.edit.node != focus {
+            self.edit.node = focus;
+            self.edit.buf = focus.map(|f| self.session.graph.name(f).to_string()).unwrap_or_default();
+            self.edit.set_cursor = focus.map(|_| self.session.caret);
+        } else if let Some(f) = focus {
+            let name = self.session.graph.name(f);
+            if self.edit.buf != name {
+                self.edit.buf = name.to_string();
+                self.edit.set_cursor = Some(self.session.caret);
+            }
+        }
+    }
+
+    fn autosave_tick(&mut self, ctx: &egui::Context) {
+        if !self.autosave || self.session.path.is_none() || !self.session.graph.is_dirty() {
+            self.dirty_since = None;
+            return;
+        }
+        let now = ctx.input(|i| i.time);
+        let since = *self.dirty_since.get_or_insert(now);
+        if now - since > 1.0 {
+            if let Err(e) = self.session.run("file.save", &json!({})) {
+                self.session.status = e.to_string();
+            }
+            self.dirty_since = None;
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(1100));
+        }
+    }
+
+    fn apply_style(&self, ctx: &egui::Context) {
+        let t = self.tokens();
+        let mut v = if self.dark { egui::Visuals::dark() } else { egui::Visuals::light() };
+        v.panel_fill = t.bg;
+        v.window_fill = t.panel;
+        v.extreme_bg_color = t.field_bg;
+        v.override_text_color = Some(t.text);
+        v.selection.bg_fill = t.accent.gamma_multiply(0.45);
+        v.hyperlink_color = t.link;
+        v.widgets.noninteractive.bg_stroke.color = t.line;
+        v.window_stroke.color = t.line;
+        ctx.set_visuals(v);
+        ctx.global_style_mut(|s| {
+            s.spacing.item_spacing = vec2(6.0, 2.0);
+            s.spacing.button_padding = vec2(8.0, 4.0);
+            for (style, size) in [(egui::TextStyle::Body, theme::FONT), (egui::TextStyle::Button, 14.0), (egui::TextStyle::Small, 12.0)] {
+                if let Some(f) = s.text_styles.get_mut(&style) {
+                    f.size = size;
+                }
+            }
+        });
+    }
+
+    /// Draws the whole window.
+    pub fn ui(&mut self, ui: &mut Ui) {
+        let t = self.tokens();
+        let screen = ui.ctx().content_rect();
+        ui.ctx().layer_painter(egui::LayerId::background()).rect_filled(screen.expand(16.0), 0.0, t.bg);
+        egui::Panel::top("top")
+            .exact_size(40.0)
+            .frame(Frame::new().fill(t.sidebar).inner_margin(Margin::symmetric(10, 6)))
+            .show(ui, |ui| self.top_bar(ui));
+        if self.sidebar {
+            egui::Panel::left("sidebar")
+                .exact_size(236.0)
+                .resizable(false)
+                .show_separator_line(false)
+                .frame(Frame::new().fill(t.sidebar).inner_margin(Margin { left: 10, right: 10, top: 4, bottom: 10 }))
+                .show(ui, |ui| self.sidebar_ui(ui));
+        }
+        if self.help {
+            egui::Panel::right("help")
+                .exact_size(300.0)
+                .resizable(false)
+                .show_separator_line(false)
+                .frame(Frame::new().fill(t.sidebar).inner_margin(Margin::symmetric(14, 10)))
+                .show(ui, |ui| overlays::help_panel(self, ui));
+        }
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(t.panel).corner_radius(CornerRadius::same(10)).outer_margin(Margin { left: 0, right: 8, top: 0, bottom: 8 }))
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| outline::panel(self, ui));
+            });
+        let ctx = ui.ctx().clone();
+        overlays::palette(self, &ctx);
+        overlays::picker(self, &ctx);
+        overlays::description(self, &ctx);
+        self.flush();
+    }
+
+    pub(crate) fn flush(&mut self) {
+        for a in std::mem::take(&mut self.acts) {
+            match a {
+                Act::Run(id, params) => {
+                    let _ = self.exec(&id, params);
+                }
+                Act::Ui(id) => self.ui_command(id),
+                Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
+                Act::EditField(node, field, buf) => self.field_edit = Some(FieldEdit { node, field, buf, focus_once: true }),
+            }
+        }
+    }
+
+    fn top_bar(&mut self, ui: &mut Ui) {
+        let t = self.tokens();
+        ui.horizontal_centered(|ui| {
+            if self.mac {
+                ui.add_space(64.0); // traffic lights
+            }
+            if icon_button(ui, Icon::Sidebar, t.dim, "Toggle sidebar").clicked() {
+                self.acts.push(Act::Ui("ui.toggleSidebar"));
+            }
+            if icon_button(ui, Icon::Back, if self.session.can_go_back() { t.dim } else { t.faint }, "Back").clicked() {
+                self.acts.push(Act::Run("nav.back".into(), json!({})));
+            }
+            if icon_button(ui, Icon::Forward, if self.session.can_go_forward() { t.dim } else { t.faint }, "Forward").clicked() {
+                self.acts.push(Act::Run("nav.forward".into(), json!({})));
+            }
+            ui.add_space(6.0);
+            let title = outline::page_title(&self.session, self.session.zoom);
+            Frame::new().fill(t.panel).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(10, 4)).show(ui, |ui| {
+                ui.set_width(180.0);
+                ui.add(egui::Label::new(RichText::new(title).size(13.0).color(t.text)).truncate());
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
+                    self.acts.push(Act::Ui("ui.shortcuts"));
+                }
+                let dirty = if self.session.graph.is_dirty() && self.session.path.is_some() { " (unsaved)" } else { "" };
+                ui.label(RichText::new(format!("{PRODUCT_NAME}{dirty}")).size(12.0).color(t.faint));
+            });
+        });
+    }
+
+    fn sidebar_ui(&mut self, ui: &mut Ui) {
+        let t = self.tokens();
+        let g = &self.session.graph;
+        let zoom = self.session.zoom;
+        let today_open = g.get(zoom).is_some_and(|n| n.kind == tanacraft_core::Kind::Day { date: self.session.today });
+        ui.add_space(4.0);
+        let mut acts = Vec::new();
+        if side_item(ui, &t, Icon::Today, "Today", today_open).clicked() {
+            acts.push(Act::Run("nav.today".into(), json!({})));
+        }
+        if side_item(ui, &t, Icon::Tag, "Supertags", zoom == g.sys.schema).clicked() {
+            acts.push(Act::Run("nav.supertags".into(), json!({})));
+        }
+        if side_item(ui, &t, Icon::Search, "Search", self.palette.is_some()).clicked() {
+            acts.push(Act::Ui("ui.commandLine"));
+        }
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            let r = Frame::new().fill(t.hover).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(8, 5)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    let (rect, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                    icons::paint(ui.painter(), rect, Icon::Plus, t.text);
+                    ui.label(RichText::new("Create new").size(14.0));
+                });
+            });
+            if r.response.interact(Sense::click()).clicked() {
+                acts.push(Act::Run("node.createNew".into(), json!({})));
+            }
+        });
+        ui.add_space(14.0);
+        section(ui, &t, "Supertags");
+        for tag in g.tags() {
+            if tag == g.sys.day_tag {
+                continue;
+            }
+            let color = g.tag_def(tag).map(|d| d.color.clone()).unwrap_or_default();
+            let (strong, _) = theme::tag_color(&color, self.dark);
+            if side_row(ui, &t, |p, r| icons::hash(p, r, strong), g.name(tag), zoom == tag).clicked() {
+                acts.push(Act::Run("nav.open".into(), json!({"node": tag.0})));
+            }
+        }
+        ui.add_space(14.0);
+        section(ui, &t, "Workspace");
+        for (icon, label, id) in
+            [(Icon::Home, "Home", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
+        {
+            if side_item(ui, &t, icon, label, zoom == id).clicked() {
+                acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
+            }
+        }
+        let recents: Vec<NodeId> = self.session.recents.iter().copied().filter(|r| g.get(*r).is_some() && !g.is_system(*r)).take(6).collect();
+        if !recents.is_empty() {
+            ui.add_space(14.0);
+            section(ui, &t, "Recents");
+            for r in recents {
+                let name = outline::page_title(&self.session, r);
+                if side_item(ui, &t, Icon::Recent, &name, zoom == r).clicked() {
+                    acts.push(Act::Run("nav.open".into(), json!({"node": r.0})));
+                }
+            }
+        }
+        self.acts.extend(acts);
+    }
+}
+
+fn icon_button(ui: &mut Ui, icon: Icon, color: Color32, tip: &str) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 5.0, ui.visuals().widgets.hovered.weak_bg_fill);
+    }
+    icons::paint(ui.painter(), rect.shrink(6.0), icon, color);
+    resp.on_hover_text(tip)
+}
+
+fn section(ui: &mut Ui, t: &Tokens, label: &str) {
+    ui.add_space(2.0);
+    ui.label(RichText::new(label).size(13.0).color(t.faint));
+    ui.add_space(2.0);
+}
+
+fn side_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, active: bool) -> egui::Response {
+    let color = if active { t.text } else { t.dim };
+    side_row(ui, t, |p, r| icons::paint(p, r, icon, color), label, active)
+}
+
+fn side_row(ui: &mut Ui, t: &Tokens, paint_icon: impl FnOnce(&egui::Painter, egui::Rect), label: &str, active: bool) -> egui::Response {
+    let w = ui.available_width();
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, 28.0), Sense::click());
+    if active || resp.hovered() {
+        ui.painter().rect_filled(rect, 6.0, t.hover);
+    }
+    let icon_rect = egui::Rect::from_center_size(rect.left_center() + vec2(16.0, 0.0), vec2(15.0, 15.0));
+    paint_icon(ui.painter(), icon_rect);
+    let galley =
+        ui.painter().layout_no_wrap(label.to_string(), egui::FontId::proportional(14.5), if active { t.text } else { t.text.gamma_multiply(0.9) });
+    let clip = rect.shrink2(vec2(4.0, 0.0));
+    ui.painter().with_clip_rect(clip).galley(egui::pos2(rect.left() + 32.0, rect.center().y - galley.size().y / 2.0), galley, t.text);
+    resp
+}

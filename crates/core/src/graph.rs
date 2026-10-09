@@ -40,6 +40,8 @@ type PreImages = BTreeMap<NodeId, Option<Node>>;
 struct Step {
     label: String,
     nodes: PreImages,
+    /// Consecutive steps with the same key merge into one (typing a word is one undo step).
+    key: Option<String>,
 }
 
 /// The node graph of one workspace.
@@ -317,11 +319,26 @@ impl Graph {
 
     /// Closes the open step. Empty steps are dropped.
     pub fn commit(&mut self, label: &str) {
+        self.commit_keyed(label, None);
+    }
+
+    /// Like [`Graph::commit`], but merges into the previous step when both carry the same `key`.
+    pub fn commit_keyed(&mut self, label: &str, key: Option<String>) {
         let Some(nodes) = self.txn.take() else { return };
         if nodes.is_empty() {
             return;
         }
-        self.undo.push(Step { label: label.to_string(), nodes });
+        if let (Some(k), Some(last)) = (&key, self.undo.last_mut())
+            && last.key.as_ref() == Some(k)
+            && self.redo.is_empty()
+        {
+            for (id, img) in nodes {
+                last.nodes.entry(id).or_insert(img);
+            }
+            self.dirty = true;
+            return;
+        }
+        self.undo.push(Step { label: label.to_string(), nodes, key });
         if self.undo.len() > MAX_UNDO {
             self.undo.remove(0);
         }
@@ -340,7 +357,7 @@ impl Graph {
         self.commit("edit");
         let step = self.undo.pop()?;
         let back = self.apply(step.nodes);
-        self.redo.push(Step { label: step.label.clone(), nodes: back });
+        self.redo.push(Step { label: step.label.clone(), nodes: back, key: None });
         self.dirty = true;
         Some(step.label)
     }
@@ -348,7 +365,7 @@ impl Graph {
     pub fn redo(&mut self) -> Option<String> {
         let step = self.redo.pop()?;
         let back = self.apply(step.nodes);
-        self.undo.push(Step { label: step.label.clone(), nodes: back });
+        self.undo.push(Step { label: step.label.clone(), nodes: back, key: None });
         self.dirty = true;
         Some(step.label)
     }
@@ -574,6 +591,37 @@ impl Graph {
         }
         self.delete_permanently(src)?;
         Ok(caret)
+    }
+
+    /// Copies `id` and its owned subtree right after it. References stay references.
+    pub fn duplicate(&mut self, id: NodeId) -> Result<NodeId> {
+        if self.is_system(id) {
+            return Err(Error::Invalid("built-in nodes cannot be duplicated".into()));
+        }
+        let parent = self.parent(id).ok_or(Error::NoNode(id))?;
+        let at = self.index_in_parent(id).unwrap_or(0);
+        let copy = self.copy_subtree(id, parent, 0)?;
+        self.attach(copy, parent, Some(at + 1))?;
+        Ok(copy)
+    }
+
+    fn copy_subtree(&mut self, id: NodeId, parent: NodeId, depth: usize) -> Result<NodeId> {
+        if depth > 1000 {
+            return Err(Error::Invalid("outline too deep to copy".into()));
+        }
+        let src = self.node(id)?.clone();
+        let new = self.alloc();
+        let mut n = src.clone();
+        n.id = new;
+        n.parent = Some(parent);
+        n.children = Vec::new();
+        n.trashed_from = None;
+        self.put(n);
+        for c in src.children {
+            let cc = self.copy_subtree(c, new, depth + 1)?;
+            self.node_mut(new)?.children.push(cc);
+        }
+        Ok(new)
     }
 
     /// Creates a reference to `target` under `parent`.

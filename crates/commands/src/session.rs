@@ -38,6 +38,7 @@ pub struct Session {
     pub recents: Vec<NodeId>,
     /// Last status line (result or error of the last command).
     pub status: String,
+    command_count: u64,
 }
 
 impl Session {
@@ -59,6 +60,7 @@ impl Session {
             forward: Vec::new(),
             recents: Vec::new(),
             status: String::new(),
+            command_count: 0,
         }
     }
 
@@ -73,9 +75,19 @@ impl Session {
             .unwrap_or_else(|_| Err(CmdError::Failed(format!("`{id}` crashed; nothing was changed"))));
         if spec.mutates {
             match &result {
-                Ok(_) => self.graph.commit(spec.label),
+                Ok(_) => {
+                    // Typing into one bullet is one undo step, until any other command runs.
+                    let key = (id == "node.setName").then(|| {
+                        let node = crate::p::node(params, "node").ok().flatten().or(self.focus);
+                        format!("rename:{node:?}:{}", self.command_count)
+                    });
+                    self.graph.commit_keyed(spec.label, key);
+                }
                 Err(_) => self.graph.abort(),
             }
+        }
+        if id != "node.setName" {
+            self.command_count += 1;
         }
         self.fix_view();
         self.status = match &result {

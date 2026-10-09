@@ -1,0 +1,18 @@
+// README screenshots: `cargo xtask shots`. Today is fixed to Sat, 10 Oct 2026.
+{"size": [1440, 900]}
+{"shot": "docs/images/today.png"}
+{"open": "Community garden"}
+{"focus": "Build four beds"}
+{"shot": "docs/images/outline.png"}
+{"cmd": "nav.supertags"}
+{"open": "task"}
+{"shot": "docs/images/supertag.png"}
+{"cmd": "nav.today"}
+{"cmd": "ui.commandLine"}
+{"type": "garden"}
+{"shot": "docs/images/command-line.png"}
+{"key": "Escape"}
+{"theme": "light"}
+{"open": "Community garden"}
+{"cmd": "ui.shortcuts"}
+{"shot": "docs/images/light-shortcuts.png"}

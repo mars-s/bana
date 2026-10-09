@@ -23,11 +23,11 @@ impl Date {
         ok.then_some(Date { year, month, day })
     }
 
-    /// Today in UTC.
-    // ponytail: UTC, not the local zone; near midnight "today" can be off by one. Add a tz crate if that bites.
+    /// Today in the local time zone.
     pub fn today() -> Date {
-        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-        Date::from_days((secs / 86_400) as i64)
+        use chrono::Datelike;
+        let d = chrono::Local::now().date_naive();
+        Date::new(d.year(), d.month() as u8, d.day() as u8).unwrap_or_else(|| Date::from_days(0))
     }
 
     /// Days since 1970-01-01 (Howard Hinnant's algorithm).

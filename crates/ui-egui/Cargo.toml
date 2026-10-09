@@ -1,0 +1,19 @@
+[package]
+name = "tanacraft-ui-egui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TanaCraft egui front end: sidebar, outliner, breadcrumbs, tag chips, field rows, command palette"
+
+[lints]
+workspace = true
+
+[dependencies]
+tanacraft-core = { workspace = true }
+tanacraft-commands = { workspace = true }
+egui = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true, features = ["wgpu"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

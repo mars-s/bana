@@ -50,6 +50,10 @@ fn context_steps(app: &TanaApp, node: NodeId) -> Vec<Item> {
     for k in tanacraft_core::ViewKind::ALL {
         out.push(step(format!("View as {}", k.name()), Act::Run("view.set".into(), json!({"node": target.0, "kind": k.name()}))));
     }
+    // Command nodes run on the focused node (spec 01 §10).
+    for c in g.command_nodes() {
+        out.push(step(format!("Run {}", g.name(c)), Act::Run("commandNode.run".into(), json!({"command": c.0, "node": target.0}))));
+    }
     out
 }
 

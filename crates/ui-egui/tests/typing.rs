@@ -1577,3 +1577,16 @@ fn node_menu_has_filter_sort_group_display_and_copy() {
     }
     assert_eq!(h.state().session.graph.view_def(p).sort.first().map(|s| s.by), Some(tanacraft_core::SortBy::Edited));
 }
+
+#[test]
+fn command_line_runs_a_command_node_on_the_focused_node() {
+    let mut h = harness();
+    h.state_mut().exec("commandNode.create", json!({"name": "Mark urgent", "steps": ["tag.add {\"tag\": \"urgent\"}"]})).unwrap();
+    let ids = page_with(&mut h, &["Fix the gate"]);
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::K, CMD);
+    text(&mut h, "Mark urgent");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    assert_eq!(g.get(ids[0]).unwrap().tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>(), ["urgent"]);
+}

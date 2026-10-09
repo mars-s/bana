@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 75 | 14 | 4 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 75 | 15 | 3 | 2 |
 | Screenshots (160) | 140 | 14 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
@@ -40,7 +40,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 7. Workspaces | done | All workspaces live in one graph, side by side: the main one is the root (Library, Schema, Daily notes, Inbox made on first use, Trash); each further one (`workspace.create`) has its own Library, Schema and Trash: new supertags join the Schema of the workspace you are in, deleting goes to that workspace's trash, the Supertags overview groups tags by workspace, `WORKSPACE:` query condition. Daily notes and Today follow the main workspace (spec 07 §2). No members (local app). Tested. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
 | 9. Trash | done | Delete to trash, restore, banner, empty trash. |
-| 10. Other node kinds observed | missing | Chat, command nodes and settings pages not built. |
+| 10. Other node kinds observed | partial | Command nodes: saved command lines run in order on a node as one undo step (`commandNode.create`, `commandNode.run`, listed as Run <name> in the command line); Settings is a page with sub-pages; Help opens as a page. Missing: chat nodes (AI, out of scope). Tested. |
 | 11. Undo | done | Every command is one undo step; typing coalesced; failed commands roll back. |
 
 ## `02-outliner-editing.md`

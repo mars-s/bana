@@ -121,6 +121,20 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"node"?: id}"#)
         .pure(),
+        // Command nodes (spec 01 §10): saved sequences of commands, run on a node in one step.
+        C::new("commandNode.create", "New command node", "Command", |s, v| {
+            let steps: Vec<String> = match v.get("steps") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).map(str::to_string).take(200).collect(),
+                Some(_) => return Err(CmdError::Params("`steps` is a list of command lines".into())),
+            };
+            let ws = here_workspace(s, v);
+            let id = s.graph.create_command_node(ws, p::req_str(v, "name")?, &steps)?;
+            Ok(json!({"id": id.0}))
+        })
+        .params(r#"{"name": string, "steps"?: [string]}  (each step: `command.id {json params}`; `node` is filled in when run)"#),
+        C::new("commandNode.run", "Run command node", "Command", run_command_node)
+            .params(r#"{"command": name | id, "node"?: id}  (runs its steps in order on the node, as one undo step)"#),
         C::new("node.contextNote", "Notes for this context", "Node", |s, v| {
             let id = s.target(v)?;
             if let Some(text) = p::str(v, "text") {
@@ -1424,6 +1438,49 @@ fn settings_json(s: &Session) -> CmdResult {
         o.extend(shows);
     }
     Ok(v)
+}
+
+/// Runs a command node's steps on a node. Each step is `id {params}`; the node goes in as `node`
+/// unless the step names one. Steps run directly (not through `Session::run`), so the whole run is
+/// one transaction: a failing step rolls everything back.
+fn run_command_node(s: &mut Session, v: &Value) -> CmdResult {
+    let cmd = match v.get("command") {
+        Some(Value::String(n)) => s.graph.command_nodes().into_iter().find(|c| s.graph.name(*c) == n).or_else(|| n.parse::<NodeId>().ok()),
+        Some(Value::Number(n)) => n.as_u64().map(NodeId),
+        _ => None,
+    }
+    .filter(|c| s.graph.get(*c).is_some_and(|n| n.kind == tanacraft_core::Kind::Command))
+    .ok_or_else(|| CmdError::Params("`command`: the name or id of a command node".into()))?;
+    let target = s.target(v)?;
+    let steps: Vec<String> = s.graph.children(cmd).iter().map(|c| s.graph.name(*c).to_string()).collect();
+    let registry = s.registry.clone();
+    let mut ran = Vec::new();
+    for (i, line) in steps.iter().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let (id, rest) = line.split_once(' ').unwrap_or((line, ""));
+        let mut params: Value = if rest.trim().is_empty() {
+            json!({})
+        } else {
+            serde_json::from_str(rest).map_err(|e| CmdError::Params(format!("step {}: bad params: {e}", i + 1)))?
+        };
+        if !params.is_object() {
+            return Err(CmdError::Params(format!("step {}: params must be an object", i + 1)));
+        }
+        if params.get("node").is_none() {
+            params["node"] = json!(target.0);
+        }
+        // No nesting: a command node cannot start another (or itself).
+        let spec = registry
+            .get(id)
+            .filter(|c| !c.id.starts_with("commandNode.") && !c.id.starts_with("file.") && !c.id.starts_with("edit."))
+            .ok_or_else(|| CmdError::Params(format!("step {}: `{id}` cannot run in a command node", i + 1)))?;
+        (spec.run)(s, &params).map_err(|e| CmdError::Failed(format!("step {} ({id}): {e}", i + 1)))?;
+        ran.push(id.to_string());
+    }
+    Ok(json!({"command": cmd.0, "node": target.0, "ran": ran}))
 }
 
 fn workspace_param(s: &Session, v: &Value) -> Result<NodeId, CmdError> {

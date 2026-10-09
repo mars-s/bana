@@ -1034,3 +1034,33 @@ fn each_workspace_has_its_own_schema_and_trash() {
     run(&mut s, "node.delete", json!({"node": main_note.0}));
     assert_eq!(s.graph.parent(main_note), Some(s.graph.sys.trash));
 }
+
+#[test]
+fn command_nodes_run_their_steps_as_one_undo_step() {
+    // Spec 01 §10: command nodes.
+    let mut s = blank();
+    let c = id(
+        &run(
+            &mut s,
+            "commandNode.create",
+            json!({"name": "Make it a task", "steps": ["tag.add {\"tag\": \"task\"}", "node.toggleDone", "field.add {\"field\": \"Owner\", \"value\": \"Ada\"}"]}),
+        ),
+        "id",
+    );
+    assert_eq!(s.graph.parent(c), Some(s.graph.sys.schema));
+    let n = id(&run(&mut s, "node.add", json!({"name": "Fix the gate"})), "id");
+    let r = run(&mut s, "commandNode.run", json!({"command": "Make it a task", "node": n.0}));
+    assert_eq!(r["ran"].as_array().unwrap().len(), 3);
+    let node = s.graph.get(n).unwrap();
+    assert_eq!(node.tags.len(), 1);
+    assert_eq!(s.graph.checkbox(n), Some(false));
+    assert_eq!(node.field_values(s.graph.find_field("Owner").unwrap()).len(), 1);
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.graph.get(n).unwrap().tags.is_empty(), "one undo step for the whole run");
+    // A bad step rolls the whole run back.
+    let bad = id(&run(&mut s, "commandNode.create", json!({"name": "Broken", "steps": ["tag.add {\"tag\": \"x\"}", "nope.nope"]})), "id");
+    assert!(s.run("commandNode.run", &json!({"command": bad.0, "node": n.0})).is_err());
+    assert!(s.graph.get(n).unwrap().tags.is_empty());
+    let nested = id(&run(&mut s, "commandNode.create", json!({"name": "Loop", "steps": ["commandNode.run {\"command\": \"Loop\"}"]})), "id");
+    assert!(s.run("commandNode.run", &json!({"command": nested.0, "node": n.0})).is_err(), "no nesting");
+}

@@ -272,6 +272,24 @@ impl Graph {
         Ok(ws)
     }
 
+    /// Command nodes of every workspace, oldest first.
+    pub fn command_nodes(&self) -> Vec<NodeId> {
+        self.nodes.values().filter(|n| n.kind == Kind::Command && !self.in_trash(n.id)).map(|n| n.id).collect()
+    }
+
+    /// Creates a command node in workspace `ws`'s Schema with one child per step.
+    pub fn create_command_node(&mut self, ws: NodeId, name: &str, steps: &[String]) -> Result<NodeId> {
+        if name.trim().is_empty() {
+            return Err(Error::Invalid("a command node needs a name".into()));
+        }
+        let schema = self.workspace_schema(ws);
+        let id = self.create_raw(schema, None, name.trim(), Kind::Command)?;
+        for st in steps {
+            self.create_raw(id, None, st, Kind::Plain)?;
+        }
+        Ok(id)
+    }
+
     /// The capture inbox (spec 01 §7), created under the workspace on first use.
     pub fn inbox(&mut self) -> Result<NodeId> {
         if let Some(i) = self.sys.inbox.filter(|i| self.get(*i).is_some()) {

@@ -56,6 +56,9 @@ pub enum Kind {
     /// A further workspace beside the main one (spec 07 §2): its own Library under it. The main
     /// workspace is the graph root.
     Workspace,
+    /// A command node (spec 01 §10): its children are command lines (`tag.add {"tag": "task"}`)
+    /// run in order on a node, as one step.
+    Command,
 }
 
 /// Supertag colours: "none", twelve hues and grey. Rendered from the UI theme, not stored as RGB.

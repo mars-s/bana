@@ -178,6 +178,8 @@ impl Graph {
         [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id)
             || s.inbox == Some(id)
             || self.get(id).is_some_and(|n| n.kind == Kind::Workspace)
+            // A further workspace's Library (its first child).
+            || self.parent(id).and_then(|p| self.get(p)).is_some_and(|p| p.kind == Kind::Workspace && p.children.first() == Some(&id))
     }
 
     /// Every workspace, the main one (the root) first. All are open together (spec 07 §2).

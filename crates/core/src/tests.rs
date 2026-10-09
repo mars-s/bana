@@ -594,3 +594,36 @@ fn queries_read_as_sentences() {
     let q = Query::parse(&g, "#task AND NOT DONE AND Status:\"In progress\"").unwrap();
     assert_eq!(q.sentence(&g), "Search for nodes tagged #task and not done and where Status is In progress");
 }
+
+#[test]
+fn query_field_value_operators_and_workspace() {
+    // DIFFS N13: Field values (PARENT, GRANDPARENT, relative date, Set / Not Set, Defined) and
+    // Workspace.
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let project = g.create_field("Project", FieldType::Plain).unwrap();
+    let due = g.create_field("Due", FieldType::Date).unwrap();
+    let p = g.create(lib, None, "Garden").unwrap();
+    let a = g.create(lib, None, "a").unwrap();
+    let b = g.create(lib, None, "b").unwrap();
+    let c = g.create(lib, None, "c").unwrap();
+    g.set_field(a, project, Some(FieldValue::Node(p))).unwrap();
+    g.set_field(b, project, None).unwrap();
+    let today = Date::today();
+    g.set_field(c, due, Some(FieldValue::Date(today))).unwrap();
+    let search = g.create_search(p, None, "s", Query::parse(&g, "Project:PARENT").unwrap()).unwrap();
+    assert_eq!(g.query(search).unwrap().run(&g, search), [a]);
+    let run = |g: &Graph, q: &str| Query::parse(g, q).unwrap().run(g, NodeId(0));
+    assert_eq!(run(&g, "Project:DEFINED"), [a, b]);
+    assert_eq!(run(&g, "Project:SET"), [a]);
+    assert!(run(&g, "Project:UNDEFINED").contains(&c));
+    assert!(run(&g, "Project:NOTSET").contains(&b));
+    assert_eq!(run(&g, "Due:today"), [c]);
+    let q = Query::parse(&g, "Project:GRANDPARENT AND Due:NOTSET").unwrap();
+    assert_eq!(Query::parse(&g, &q.describe(&g)).unwrap(), q, "text form round-trips");
+    let ws = g.create_workspace("Lab").unwrap();
+    let lab = g.workspace_library(ws);
+    let x = g.create(lab, None, "in lab").unwrap();
+    assert_eq!(run(&g, &format!("WORKSPACE:{}", ws.0)), [x]);
+    assert!(!run(&g, &format!("WORKSPACE:{}", g.sys.root.0)).contains(&x));
+}

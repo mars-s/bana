@@ -9,7 +9,11 @@
 //! | `seeds`, `"seed swap"` | node text contains the words |
 //! | `TODO`, `DONE` | unchecked / checked checkbox |
 //! | `Status:"In progress"` | field value equals (case-insensitive) |
-//! | `Due:*` | field has a value |
+//! | `Due:*`, `Due:SET`, `Due:NOTSET` | field has a value / has none |
+//! | `Due:DEFINED`, `Due:UNDEFINED` | the node carries the field at all / does not |
+//! | `Project:PARENT`, `Project:GRANDPARENT` | the value is the search node's parent (grandparent) |
+//! | `Due:today`, `Due:yesterday` | a date field on that (relative) date |
+//! | `WORKSPACE:42` | in workspace 42 (the main one is the root) |
 //! | `Effort>2`, `Due<2026-10-20`, `Due<today` | number or date comparison |
 //! | `CREATED:7` | created in the last 7 days |
 //! | `UNDER:42` | inside node 42 |
@@ -51,6 +55,16 @@ pub enum Op {
     Eq,
     Lt,
     Gt,
+    /// Has no value (or no such field).
+    NotSet,
+    /// The node carries the field (with or without a value).
+    Defined,
+    Undefined,
+    /// The value is the search node's parent / grandparent (bound when the search runs).
+    Parent,
+    Grandparent,
+    /// The value is node `value` (an id); what Parent and Grandparent become when bound.
+    Node,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -106,6 +120,10 @@ pub enum ClauseKind {
     /// A nested group, in parentheses.
     Group {
         query: Query,
+    },
+    /// Lives in this workspace (spec 05 §2, the Workspace menu).
+    InWorkspace {
+        ws: NodeId,
     },
 }
 
@@ -228,8 +246,15 @@ impl Query {
                             Op::Eq => format!("{name}:{}", quote(value)),
                             Op::Lt => format!("{name}<{}", quote(value)),
                             Op::Gt => format!("{name}>{}", quote(value)),
+                            Op::NotSet => format!("{name}:NOTSET"),
+                            Op::Defined => format!("{name}:DEFINED"),
+                            Op::Undefined => format!("{name}:UNDEFINED"),
+                            Op::Parent => format!("{name}:PARENT"),
+                            Op::Grandparent => format!("{name}:GRANDPARENT"),
+                            Op::Node => format!("{name}:NODE{value}"),
                         }
                     }
+                    ClauseKind::InWorkspace { ws } => format!("WORKSPACE:{ws}"),
                     ClauseKind::CreatedWithin { days } => format!("CREATED:{days}"),
                     ClauseKind::EditedWithin { days } => format!("EDITED:{days}"),
                     ClauseKind::DoneWithin { days } => format!("DONE:{days}"),
@@ -268,12 +293,33 @@ impl Query {
 
     /// Every searchable node that matches, oldest first.
     pub fn run(&self, g: &Graph, exclude: NodeId) -> Vec<NodeId> {
-        let types = self.wants_types();
+        let bound = self.bind(g, exclude);
+        let this = &bound;
+        let types = this.wants_types();
         let ok = |id: NodeId| if types { candidate(g, id) } else { searchable(g, id) };
         let mut hits: Vec<(u64, NodeId)> =
-            g.iter().filter(|n| ok(n.id) && n.id != exclude && self.matches(g, n.id)).map(|n| (n.created, n.id)).take(MAX_RESULTS).collect();
+            g.iter().filter(|n| ok(n.id) && n.id != exclude && this.matches(g, n.id)).map(|n| (n.created, n.id)).take(MAX_RESULTS).collect();
         hits.sort();
         hits.into_iter().map(|(_, id)| id).collect()
+    }
+}
+
+impl Query {
+    /// Ties PARENT / GRANDPARENT to the search node `at` (its parent, its parent's parent).
+    pub fn bind(&self, g: &Graph, at: NodeId) -> Query {
+        let mut q = self.clone();
+        for c in &mut q.clauses {
+            match &mut c.kind {
+                ClauseKind::Field { op, value, .. } if matches!(op, Op::Parent | Op::Grandparent) => {
+                    let up = if *op == Op::Parent { g.parent(at) } else { g.parent(at).and_then(|p| g.parent(p)) };
+                    *op = Op::Node;
+                    *value = up.map(|u| u.0.to_string()).unwrap_or_default();
+                }
+                ClauseKind::Group { query } => *query = query.bind(g, at),
+                _ => {}
+            }
+        }
+        q
     }
 }
 
@@ -334,13 +380,28 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             n.created + u64::from(*days) * 86_400 >= now
         }
         ClauseKind::Under { node } => *node != id && g.is_ancestor_or_self(*node, id),
+        ClauseKind::InWorkspace { ws } => g.workspace_of(id) == *ws,
         ClauseKind::Field { field, op, value } => {
+            let set = || n.field_values(*field).into_iter().any(|v| !display_value(g, v).is_empty());
+            match op {
+                Op::NotSet => return !set(),
+                Op::Defined => return n.fields.iter().any(|e| e.field == *field),
+                Op::Undefined => return !n.fields.iter().any(|e| e.field == *field),
+                // Unbound (outside a running search): no node to compare with.
+                Op::Parent | Op::Grandparent => return false,
+                _ => {}
+            }
             // Any of the field's values may match.
             n.field_values(*field).into_iter().any(|v| match op {
                 Op::Set => !display_value(g, v).is_empty(),
-                Op::Eq => display_value(g, v).eq_ignore_ascii_case(value.trim()),
+                // A date matches its day, also given as `today`, `yesterday`... (relative dates).
+                Op::Eq => {
+                    display_value(g, v).eq_ignore_ascii_case(value.trim()) || v.date().is_some_and(|d| Date::parse(value).is_some_and(|t| t == d))
+                }
                 Op::Lt => compare(g, v, value).is_some_and(|o| o.is_lt()),
                 Op::Gt => compare(g, v, value).is_some_and(|o| o.is_gt()),
+                Op::Node => value.parse::<u64>().is_ok_and(|x| *v == FieldValue::Node(NodeId(x))),
+                Op::NotSet | Op::Defined | Op::Undefined | Op::Parent | Op::Grandparent => false,
             })
         }
     }
@@ -471,6 +532,13 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
             g.node(node)?;
             return Ok(ClauseKind::LinksTo { node });
         }
+        ("WORKSPACE", ':') => {
+            let ws: NodeId = value.parse().map_err(Error::Invalid)?;
+            if !g.workspaces().contains(&ws) {
+                return Err(Error::Invalid(format!("no workspace {ws}")));
+            }
+            return Ok(ClauseKind::InWorkspace { ws });
+        }
         ("UNDER", ':') => {
             let node: NodeId = value.parse().map_err(Error::Invalid)?;
             g.node(node)?;
@@ -483,7 +551,15 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
         return Ok(ClauseKind::Text { text: tok.text.clone() });
     };
     let op = match op {
-        ':' if value == "*" => Op::Set,
+        ':' if value == "*" || value == "SET" => Op::Set,
+        ':' if value == "NOTSET" => Op::NotSet,
+        ':' if value == "DEFINED" => Op::Defined,
+        ':' if value == "UNDEFINED" => Op::Undefined,
+        ':' if value == "PARENT" => Op::Parent,
+        ':' if value == "GRANDPARENT" => Op::Grandparent,
+        ':' if value.starts_with("NODE") && value[4..].parse::<u64>().is_ok() => {
+            return Ok(ClauseKind::Field { field, op: Op::Node, value: value[4..].to_string() });
+        }
         ':' => Op::Eq,
         '<' => Op::Lt,
         _ => Op::Gt,
@@ -509,7 +585,14 @@ fn clause_words(g: &Graph, c: &Clause) -> String {
             Op::Eq => format!("where {} is {value}", g.name(*field)),
             Op::Lt => format!("where {} is before or below {value}", g.name(*field)),
             Op::Gt => format!("where {} is after or above {value}", g.name(*field)),
+            Op::NotSet => format!("where {} is not set", g.name(*field)),
+            Op::Defined => format!("where {} is defined", g.name(*field)),
+            Op::Undefined => format!("where {} is not defined", g.name(*field)),
+            Op::Parent => format!("where {} is the parent", g.name(*field)),
+            Op::Grandparent => format!("where {} is the grandparent", g.name(*field)),
+            Op::Node => format!("where {} is {}", g.name(*field), value.parse::<u64>().map(|x| g.name(NodeId(x)).to_string()).unwrap_or_default()),
         },
+        ClauseKind::InWorkspace { ws } => format!("in workspace {}", g.name(*ws)),
         ClauseKind::CreatedWithin { days } => format!("created in the last {days} days"),
         ClauseKind::EditedWithin { days } => format!("edited in the last {days} days"),
         ClauseKind::DoneWithin { days } => format!("done in the last {days} days"),

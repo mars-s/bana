@@ -518,8 +518,11 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
     let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("this node has no parent".into()))?;
     let at = s.graph.index_in_parent(id).unwrap_or(0);
     let is_ref = s.graph.get(id).is_some_and(|x| x.reference_target().is_some());
-    if caret == n && s.graph.is_expanded(id) && !s.graph.children(id).is_empty() {
+    // A heading acts as an expanded parent: Enter at its end makes its first child (spec 02 §11).
+    let heading = n > 0 && s.graph.get(s.graph.resolve(id)).is_some_and(|x| x.heading);
+    if caret == n && (heading || s.graph.is_expanded(id) && !s.graph.children(id).is_empty()) {
         let new = s.graph.create(id, Some(0), "")?;
+        s.graph.set_expanded(id, true);
         s.set_focus(new, 0);
     } else if caret == 0 && n > 0 && !is_ref {
         // An empty node above; the caret goes into it (spec 02 §2).

@@ -312,7 +312,7 @@ impl TanaApp {
             title_buf: (None, String::new()),
             desc_edit: None,
             desc_focus: false,
-            query_open: true,
+            query_open: false,
             tag_filter: String::new(),
             closed_groups: Default::default(),
             pin_open: Default::default(),
@@ -383,6 +383,9 @@ impl TanaApp {
         }
         let before = (self.session.focus, self.session.caret);
         if id.starts_with("nav.") || id == "node.createNew" {
+            // An opened search node shows its results; the builder waits for "Open query editor"
+            // (spec 05 §1).
+            self.query_open = false;
             self.recents_page = false;
             self.settings_page = false;
             self.help_page = false;

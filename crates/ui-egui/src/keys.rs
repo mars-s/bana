@@ -82,9 +82,17 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
                 if skipped > 0 {
                     app.toast(format!("{skipped} node(s) were already here and were skipped"));
                 }
+                // Pasting into an empty line: the first reference takes that line's place (DIFFS N12).
+                let g = &app.session.graph;
+                let mut replace =
+                    Some(a).filter(|a| app.session.focus == Some(*a) && g.get(*a).is_some_and(|x| x.name.is_empty() && x.children.is_empty()));
                 for n in ids.into_iter().filter(|n| !present.contains(n)) {
                     if let Some(p) = parent {
-                        let r = app.exec("node.reference", json!({"target": n.0, "parent": p.0, "index": index}));
+                        let mut params = json!({"target": n.0, "parent": p.0, "index": index});
+                        if let Some(r) = replace.take() {
+                            params["replace"] = json!(r.0);
+                        }
+                        let r = app.exec("node.reference", params);
                         index = index.map(|i| i + 1);
                         if let Err(e) = r {
                             app.session.status = e;

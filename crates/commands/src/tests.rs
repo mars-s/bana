@@ -875,3 +875,16 @@ fn moving_the_first_top_level_node_up_stays_on_the_page() {
     run(&mut s, "node.moveUp", json!({}));
     assert_eq!(s.graph.children(page), [b, a]);
 }
+
+#[test]
+fn enter_at_the_end_of_a_heading_makes_its_first_child() {
+    // DIFFS N9.
+    let mut s = blank();
+    let h = id(&run(&mut s, "node.add", json!({"name": "Head"})), "id");
+    run(&mut s, "node.toggleHeading", json!({"node": h.0}));
+    run(&mut s, "focus.set", json!({"node": h.0, "caret": 4}));
+    run(&mut s, "node.enter", json!({}));
+    run(&mut s, "node.setName", json!({"name": "kid"}));
+    assert_eq!(s.graph.children(h).len(), 1);
+    assert_eq!(s.graph.name(s.graph.children(h)[0]), "kid");
+}

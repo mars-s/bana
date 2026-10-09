@@ -707,7 +707,13 @@ fn diffs_p2_board_ends_with_a_not_set_column_without_counts() {
         h.step();
     }
     h.get_by_label("Status not set");
-    assert!(h.query_all_by_label("Done").count() >= 2, "the Done column (and the builder's Done button)");
+    h.get_by_label("Done");
+    assert!(h.query_by_label("Query builder").is_none(), "DIFFS N10: an opened search node shows no builder");
+    h.state_mut().exec("ui.searchOptions", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Query builder");
 }
 
 #[test]
@@ -1301,4 +1307,36 @@ fn diffs_n4_cmd_period_puts_the_caret_in_the_page_title() {
     text(&mut h, "X");
     assert_eq!(h.state().session.zoom, p);
     assert_eq!(h.state().session.graph.name(p), "PX");
+}
+
+#[test]
+fn diffs_n11_selection_toolbar_has_link_panel_and_menus() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two"]);
+    focus(&mut h, ids[1], 1);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    for label in ["# Tag", "Move", "H", "Link", "Panel"] {
+        h.get_by_label(label);
+    }
+    assert_eq!(h.query_all_by_label("...").count(), 2);
+}
+
+#[test]
+fn diffs_n12_pasting_copied_nodes_into_an_empty_line_replaces_it() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["B", "C"]);
+    h.state_mut().exec("node.add", json!({"parent": ids[0].0, "name": "B1"})).unwrap();
+    let empty = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": ids[1].0, "name": ""})).unwrap()["id"].as_u64().unwrap());
+    h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
+    h.state_mut().exec("select.set", json!({"from": ids[0].0})).unwrap();
+    h.input_mut().events.push(Event::Copy);
+    h.step();
+    let clip = tanacraft_core::export::to_markdown(&h.state().session.graph, ids[0], false);
+    focus(&mut h, empty, 0);
+    h.input_mut().events.push(Event::Paste(clip));
+    h.step();
+    let g = &h.state().session.graph;
+    let kids = g.children(ids[1]);
+    assert_eq!(kids.len(), 1, "the empty line became the reference");
+    assert_eq!(g.resolve(kids[0]), ids[0]);
 }

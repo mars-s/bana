@@ -102,6 +102,46 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                         });
                     }
                 });
+                // Field values: a field's value relative to where the search sits, or its state
+                // (spec 05 §2). Fields of the query's supertags, else every field.
+                let value_fields: Vec<String> = if fields.is_empty() {
+                    g.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Field(_))).map(|n| n.name.clone()).take(40).collect()
+                } else {
+                    fields.iter().map(|(_, n)| n.clone()).collect()
+                };
+                ui.menu_button(RichText::new("Field values").size(13.0).color(t.dim), |ui| {
+                    for name in &value_fields {
+                        ui.menu_button(name, |ui| {
+                            for (label, v) in [
+                                ("PARENT", "PARENT"),
+                                ("GRANDPARENT", "GRANDPARENT"),
+                                ("FOR RELATIVE DATE: today", "today"),
+                                ("FOR RELATIVE DATE: yesterday", "yesterday"),
+                                ("FOR RELATIVE DATE: tomorrow", "tomorrow"),
+                                ("Set", "SET"),
+                                ("Not Set", "NOTSET"),
+                                ("Defined", "DEFINED"),
+                                ("Not Defined", "UNDEFINED"),
+                            ] {
+                                if ui.button(label).clicked() {
+                                    app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": format!("\"{name}\":{v}")})));
+                                    ui.close();
+                                }
+                            }
+                        });
+                    }
+                });
+                let workspaces = g.workspaces();
+                if workspaces.len() > 1 {
+                    ui.menu_button(RichText::new("Workspace").size(13.0).color(t.dim), |ui| {
+                        for w in workspaces {
+                            if ui.button(g.name(w)).clicked() {
+                                app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": format!("WORKSPACE:{}", w.0)})));
+                                ui.close();
+                            }
+                        }
+                    });
+                }
                 ui.menu_button(RichText::new("System fields").size(13.0).color(t.dim), |ui| {
                     for (label, clause) in [
                         ("Created time: last 7 days", "CREATED:7"),
@@ -223,11 +263,18 @@ fn group_box(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, q: &Query
                                 let (r, _) = ui.allocate_exact_size(vec2(14.0, 18.0), Sense::hover());
                                 crate::outline::paint_field_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(11.0, 11.0)), ty, t.dim);
                                 ui.label(RichText::new(g.name(*field)).size(13.5).color(t.dim));
+                                use tanacraft_core::query::Op;
                                 let (op_text, shown) = match op {
-                                    tanacraft_core::query::Op::Set => ("", "is set".to_string()),
-                                    tanacraft_core::query::Op::Eq => ("", value.clone()),
-                                    tanacraft_core::query::Op::Lt => ("<", value.clone()),
-                                    tanacraft_core::query::Op::Gt => (">", value.clone()),
+                                    Op::Set => ("", "Set".to_string()),
+                                    Op::Eq => ("", value.clone()),
+                                    Op::Lt => ("<", value.clone()),
+                                    Op::Gt => (">", value.clone()),
+                                    Op::NotSet => ("", "Not Set".to_string()),
+                                    Op::Defined => ("", "Defined".to_string()),
+                                    Op::Undefined => ("", "Not Defined".to_string()),
+                                    Op::Parent => ("", "PARENT".to_string()),
+                                    Op::Grandparent => ("", "GRANDPARENT".to_string()),
+                                    Op::Node => ("", value.parse::<u64>().map(|x| g.name(NodeId(x)).to_string()).unwrap_or_default()),
                                 };
                                 ui.add_space(12.0);
                                 if !op_text.is_empty() {

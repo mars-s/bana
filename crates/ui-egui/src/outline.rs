@@ -1837,25 +1837,55 @@ fn ghost_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, parent: NodeId, depth:
 fn selection_toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, row: Rect) {
     let anchor = row.left_top() + vec2(18.0, -34.0);
     let mut acts = Vec::new();
+    let mut app_toast = None;
     egui::Area::new(egui::Id::new((app.panel_ix, "sel-toolbar"))).order(egui::Order::Foreground).fixed_pos(anchor).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(6.0).inner_margin(egui::Margin::symmetric(6, 3)).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let at = ui.min_rect().left_bottom() + vec2(0.0, 30.0);
+                // [outdent][indent] | Tag, Move, ... | H | link, open in panel, ... (spec 02 §8; no AI).
+                let g = &app.session.graph;
+                let button =
+                    |ui: &mut Ui, label: &str, tip: &str| ui.add(egui::Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(tip);
+                let sep = |ui: &mut Ui| ui.label(RichText::new("|").size(12.0).color(t.faint));
                 for (label, act, tip) in [
                     ("<", Act::Run("node.outdent".into(), json!({"node": id.0})), "Outdent"),
                     (">", Act::Run("node.indent".into(), json!({"node": id.0})), "Indent"),
-                    ("# Tag", Act::Pick(PickMode::Tag, id, at), "Add supertag"),
-                    ("Move", Act::Pick(PickMode::MoveTo, id, at), "Move to"),
-                    ("H", Act::Run("node.toggleHeading".into(), json!({"node": id.0})), "Toggle heading"),
                 ] {
-                    if ui.add(egui::Button::new(RichText::new(label).size(12.5)).frame(false)).on_hover_text(tip).clicked() {
+                    if button(ui, label, tip).clicked() {
                         acts.push(act);
                     }
                 }
+                sep(ui);
+                for (label, act, tip) in
+                    [("# Tag", Act::Pick(PickMode::Tag, id, at), "Add supertag"), ("Move", Act::Pick(PickMode::MoveTo, id, at), "Move to")]
+                {
+                    if button(ui, label, tip).clicked() {
+                        acts.push(act);
+                    }
+                }
+                if button(ui, "...", "More commands").clicked() {
+                    acts.push(Act::Ui("ui.commandLine"));
+                }
+                sep(ui);
+                if button(ui, "H", "Toggle heading").clicked() {
+                    acts.push(Act::Run("node.toggleHeading".into(), json!({"node": id.0})));
+                }
+                sep(ui);
+                if button(ui, "Link", "Copy node link").clicked() {
+                    ui.ctx().copy_text(tanacraft_core::format::ref_token(g.resolve(id).0));
+                    app_toast = Some("Node link copied");
+                }
+                if button(ui, "Panel", "Open in new panel").clicked() {
+                    acts.push(Act::OpenInPanel(g.resolve(id)));
+                }
+                ui.menu_button(RichText::new("...").size(12.5), |ui| node_menu(ui, g, id, &mut acts)).response.on_hover_text("Node menu");
             });
         });
     });
     app.acts.extend(acts);
+    if let Some(m) = app_toast {
+        app.toast(m.to_string());
+    }
 }
 
 /// Drag and drop: a bullet dropped on a row lands after it; dropped right of the row's bullet

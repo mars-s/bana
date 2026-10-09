@@ -887,3 +887,25 @@ fn calendar_time_grid_drag_to_create_and_resize() {
     let g = &h.state().session.graph;
     assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-13:30");
 }
+
+#[test]
+fn switching_workspace_resets_tabs_and_shows_inbox_in_the_sidebar() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-ui-ws-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut h = harness();
+    h.state_mut().session.path = Some(dir.join("graph.json"));
+    h.state_mut().exec("node.capture", json!({"name": "idea"})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Inbox");
+    h.state_mut().exec("ui.openInPanel", json!({})).unwrap();
+    assert_eq!(h.state().panel_count(), 2);
+    h.state_mut().exec("workspace.create", json!({"name": "Second"})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().panel_count(), 1);
+    h.get_by_label("Second");
+    std::fs::remove_dir_all(&dir).ok();
+}

@@ -29,6 +29,10 @@ fn add_tag_field_export_round_trip() {
     assert_eq!(md.trim(), "- Write letter #task\n  - Due:: 2026-11-01");
     let (ok, hits) = cli(&f, &["search", "letter"]);
     assert!(ok && hits.contains("Write letter"));
+    let (ok, id) = cli(&f, &["capture", "Call", "the", "plumber"]);
+    assert!(ok, "{id}");
+    let (ok, inbox) = cli(&f, &["run", "--cmd", "nav.inbox", "--cmd", "graph.view"]);
+    assert!(ok && inbox.contains("Call the plumber"), "{inbox}");
     let (ok, err) = cli(&f, &["run", "--cmd", "no.such"]);
     assert!(!ok && err.contains("unknown command"));
     std::fs::remove_dir_all(&dir).ok();

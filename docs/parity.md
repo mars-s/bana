@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 51 | 40 | 6 | 2 |
+| Spec sections (99) | 52 | 40 | 5 | 2 |
 | Screenshots (153) | 96 | 35 | 21 | 1 |
 
 ## `00-overview.md`
@@ -36,7 +36,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 4. Supertags (tag definitions) | partial | Colour (none, hues, custom #rrggbb), base type, extends, template fields and child nodes, optional fields, pinned fields, title expression, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: building-block promotion, AI settings. |
 | 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. Several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Missing: user type. |
 | 6. Search nodes | partial | Live, editable results, magnifier bullet, views. Missing: convert to plain list. |
-| 7. Workspaces | missing | One workspace with Library, Schema, Daily notes, Trash. No Inbox, no multiple workspaces. |
+| 7. Workspaces | partial | Each workspace is its own graph file in one folder: list, create, switch (saves first), rename (`workspace.*`); sidebar avatar and name open the workspace menu. Library, Schema, Daily notes, Inbox (made on first use; `node.capture`, `tanacraft-cli capture`), Trash. Missing: tags grouped by several workspaces in one overview, cross-workspace search. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |
 | 9. Trash | done | Delete to trash, restore, banner, empty trash. |
 | 10. Other node kinds observed | missing | Chat, command nodes and settings pages not built. |
@@ -134,7 +134,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 5. Panels | partial | Cmd+M opens a panel to the right, x closes, own history and breadcrumb, Ctrl+Cmd+M single panel. Configure and list views stay in the same panel. |
 | 6. Navigation history | done | Back/forward per panel; zoom out restores the caret. |
 | 7. Breadcrumbs | done | Workspace avatar, clickable ancestors, long chains collapse to first / ... / last two. |
-| 8. Special pages | partial | Library, Schema, Trash, Settings (theme, sidebar, autosave). Inbox missing. |
+| 8. Special pages | done | Library, Schema, Inbox (Open capture inbox; explains where captures come from), Trash, Settings (theme, sidebar, autosave). |
 
 ## `08-ai-and-extras.md`
 

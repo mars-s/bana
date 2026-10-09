@@ -32,6 +32,9 @@ pub struct SystemNodes {
     pub trash: NodeId,
     /// The built-in `day` supertag on day nodes.
     pub day_tag: NodeId,
+    /// The capture inbox, made the first time it is needed (older files have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inbox: Option<NodeId>,
 }
 
 type PreImages = BTreeMap<NodeId, Option<Node>>;
@@ -67,7 +70,15 @@ impl Default for Graph {
 impl Graph {
     /// An empty workspace with its system nodes.
     pub fn new() -> Graph {
-        let ids = SystemNodes { root: NodeId(1), library: NodeId(2), journal: NodeId(3), schema: NodeId(4), trash: NodeId(5), day_tag: NodeId(6) };
+        let ids = SystemNodes {
+            root: NodeId(1),
+            library: NodeId(2),
+            journal: NodeId(3),
+            schema: NodeId(4),
+            trash: NodeId(5),
+            day_tag: NodeId(6),
+            inbox: None,
+        };
         let mut g = Graph {
             nodes: BTreeMap::new(),
             next_id: 7,
@@ -164,7 +175,19 @@ impl Graph {
 
     pub fn is_system(&self, id: NodeId) -> bool {
         let s = self.sys;
-        [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id)
+        [s.root, s.library, s.journal, s.schema, s.trash, s.day_tag].contains(&id) || s.inbox == Some(id)
+    }
+
+    /// The capture inbox (spec 01 §7), created under the workspace on first use.
+    pub fn inbox(&mut self) -> Result<NodeId> {
+        if let Some(i) = self.sys.inbox.filter(|i| self.get(*i).is_some()) {
+            return Ok(i);
+        }
+        let root = self.sys.root;
+        let at = self.node(root)?.children.iter().position(|c| *c == self.sys.trash);
+        let id = self.create(root, at, "Inbox")?;
+        self.sys.inbox = Some(id);
+        Ok(id)
     }
 
     pub fn is_expanded(&self, id: NodeId) -> bool {
@@ -1351,6 +1374,10 @@ impl Graph {
         }
         for n in nodes.values_mut() {
             n.parent = owner.get(&n.id).copied();
+        }
+        let mut s = s;
+        if s.inbox.is_some_and(|i| !nodes.contains_key(&i)) {
+            s.inbox = None;
         }
         let mut g = Graph {
             nodes,

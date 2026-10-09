@@ -52,6 +52,14 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             if zoom == app.session.graph.sys.trash {
                 trash_banner(ui, &t);
             }
+            if Some(zoom) == app.session.graph.sys.inbox {
+                ui.label(
+                    RichText::new("Captures land here: `tanacraft-cli capture`, the MCP `node.capture` tool and the Capture to inbox command. Move them where they belong.")
+                        .size(13.0)
+                        .color(t.dim),
+                );
+                ui.add_space(8.0);
+            }
             if zoom == app.session.graph.sys.schema {
                 tag_overview(app, ui, &t);
                 return;

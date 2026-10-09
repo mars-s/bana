@@ -326,6 +326,9 @@ impl TanaApp {
             self.settings_page = false;
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
+        if matches!(id, "workspace.switch" | "workspace.create" | "file.open") && r.is_ok() {
+            self.reset_tabs();
+        }
         if id == "node.createNew" && r.is_ok() {
             self.focus_title = true;
         }
@@ -772,24 +775,78 @@ impl TanaApp {
             self.pin_open.insert(p);
         }
         ui.add_space(14.0);
-        // The workspace: a small avatar circle with its initial, then its name.
-        ui.horizontal(|ui| {
-            let ws = g.name(g.sys.root).to_string();
+        // The workspace: a small avatar circle with its initial, then its name; click for the
+        // workspace menu (switch, new, rename).
+        let ws = g.name(g.sys.root).to_string();
+        let head = ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
             ui.painter().circle_filled(r.center(), 9.0, t.accent.gamma_multiply(0.7));
             let initial: String = ws.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
             ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initial, egui::FontId::proportional(11.0), egui::Color32::WHITE);
-            ui.label(RichText::new(ws).size(13.5).color(t.dim));
+            ui.label(RichText::new(&ws).size(13.5).color(t.dim));
         });
+        let head = ui.interact(head.response.rect, egui::Id::new("ws-head"), Sense::click()).on_hover_text("Workspaces");
+        egui::Popup::menu(&head).show(|ui| self.workspace_menu(ui, &mut acts));
         ui.add_space(2.0);
-        for (icon, label, id) in
-            [(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
-        {
+        let g = &self.session.graph;
+        let inbox = g.sys.inbox;
+        for (icon, label, id) in [
+            (Icon::Home, "Library", Some(g.sys.library)),
+            (Icon::Calendar, "Daily notes", Some(g.sys.journal)),
+            (Icon::Recent, "Inbox", inbox),
+            (Icon::Trash, "Trash", Some(g.sys.trash)),
+        ] {
+            let Some(id) = id else { continue };
             if side_item(ui, &t, icon, label, zoom == id).clicked() {
                 acts.push(Act::Run("nav.open".into(), json!({"node": id.0})));
             }
         }
         self.acts.extend(acts);
+    }
+}
+
+impl TanaApp {
+    /// The workspace menu: other workspaces to switch to, a new one, rename this one.
+    fn workspace_menu(&mut self, ui: &mut Ui, acts: &mut Vec<Act>) {
+        let list = self.session.run("workspace.list", &json!({})).unwrap_or_default();
+        for w in list["workspaces"].as_array().cloned().unwrap_or_default() {
+            let name = w["name"].as_str().unwrap_or_default().to_string();
+            if ui.selectable_label(w["current"].as_bool().unwrap_or(false), &name).clicked() {
+                acts.push(Act::Run("workspace.switch".into(), json!({"name": name})));
+                ui.close();
+            }
+        }
+        ui.separator();
+        let id = egui::Id::new("ws-new");
+        let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
+        let r = ui.add(egui::TextEdit::singleline(&mut buf).hint_text("New workspace name, Enter").desired_width(200.0));
+        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !buf.trim().is_empty() {
+            acts.push(Act::Run("workspace.create".into(), json!({"name": buf.trim()})));
+            buf.clear();
+            ui.close();
+        }
+        ui.data_mut(|d| d.insert_temp(id, buf));
+        let rid = egui::Id::new("ws-rename");
+        let mut name = ui.data_mut(|d| d.get_temp::<String>(rid)).unwrap_or_else(|| self.session.graph.name(self.session.graph.sys.root).to_string());
+        let r = ui.add(egui::TextEdit::singleline(&mut name).hint_text("Rename this workspace").desired_width(200.0));
+        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.trim().is_empty() {
+            acts.push(Act::Run("workspace.rename".into(), json!({"name": name.trim()})));
+            ui.data_mut(|d| d.remove::<String>(rid));
+            ui.close();
+        } else {
+            ui.data_mut(|d| d.insert_temp(rid, name));
+        }
+        if ui.button("Open capture inbox").clicked() {
+            acts.push(Act::Run("nav.inbox".into(), json!({})));
+            ui.close();
+        }
+    }
+
+    /// After the whole graph changed (another workspace or file): one tab on the current page.
+    pub(crate) fn reset_tabs(&mut self) {
+        self.tabs = vec![crate::tabs::Tab { panels: vec![self.session.nav_state()], active: 0 }];
+        self.tab = 0;
+        self.edit_reset();
     }
 }
 
@@ -826,5 +883,6 @@ fn side_row(ui: &mut Ui, t: &Tokens, paint_icon: impl FnOnce(&egui::Painter, egu
         ui.painter().layout_no_wrap(label.to_string(), egui::FontId::proportional(14.5), if active { t.text } else { t.text.gamma_multiply(0.9) });
     let clip = rect.shrink2(vec2(4.0, 0.0));
     ui.painter().with_clip_rect(clip).galley(egui::pos2(rect.left() + 32.0, rect.center().y - galley.size().y / 2.0), galley, t.text);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
     resp
 }

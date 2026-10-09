@@ -706,3 +706,32 @@ fn option_sources_and_auto_collect() {
     run(&mut s, "field.set", json!({"node": n.0, "field": "Colour", "value": "Teal"}));
     assert_eq!(s.graph.field_options(f), ["Teal", "Red", "Blue"]);
 }
+
+#[test]
+fn inbox_capture_and_workspaces() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-ws-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut s = blank();
+    s.path = Some(dir.join("graph.json"));
+    run(&mut s, "file.save", json!({}));
+    let v = run(&mut s, "node.capture", json!({"name": "Call the plumber", "tag": "task"}));
+    let inbox = id(&v, "inbox");
+    assert_eq!(s.graph.name(inbox), "Inbox");
+    assert!(s.graph.is_system(inbox));
+    run(&mut s, "nav.inbox", json!({}));
+    assert_eq!(s.zoom, inbox);
+    run(&mut s, "workspace.rename", json!({"name": "Home"}));
+    // A second workspace is its own file; switching saves the first.
+    run(&mut s, "workspace.create", json!({"name": "Work Projects"}));
+    assert_eq!(s.graph.name(s.graph.sys.root), "Work Projects");
+    assert!(s.graph.search("plumber").is_empty());
+    let list = run(&mut s, "workspace.list", json!({}));
+    let names: Vec<&str> = list["workspaces"].as_array().unwrap().iter().map(|w| w["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["graph", "work-projects"]);
+    run(&mut s, "workspace.switch", json!({"name": "graph"}));
+    assert_eq!(s.graph.name(s.graph.sys.root), "Home");
+    assert_eq!(s.graph.search("plumber").len(), 1);
+    assert!(s.run("workspace.switch", &json!({"name": "nope"})).is_err());
+    assert!(s.run("workspace.create", &json!({"name": "Work Projects"})).is_err(), "exists");
+    std::fs::remove_dir_all(&dir).ok();
+}

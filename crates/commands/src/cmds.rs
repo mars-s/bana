@@ -188,6 +188,28 @@ pub fn registry() -> Registry {
         C::new("nav.supertags", "Go to Supertags", "Navigate", |s, _| open_sys(s, s.graph.sys.schema)).pure(),
         C::new("nav.dailyNotes", "Go to Daily notes", "Navigate", |s, _| open_sys(s, s.graph.sys.journal)).pure(),
         C::new("nav.trash", "Go to Trash", "Navigate", |s, _| open_sys(s, s.graph.sys.trash)).pure(),
+        C::new("nav.inbox", "Open capture inbox", "Navigate", |s, _| {
+            let i = s.graph.inbox()?;
+            open_sys(s, i)
+        })
+        .pure(),
+        C::new("node.capture", "Capture to inbox", "Node", capture).params(r#"{"name": string, "tag"?: name | id}"#),
+        // Workspaces: one graph file each, side by side in one folder.
+        C::new("workspace.list", "List workspaces", "Workspace", workspace_list).pure(),
+        C::new("workspace.create", "New workspace", "Workspace", workspace_create).params(r#"{"name": string}"#).pure(),
+        C::new("workspace.switch", "Switch workspace", "Workspace", workspace_switch)
+            .params(r#"{"name": string}  (a name from workspace.list)"#)
+            .pure(),
+        C::new("workspace.rename", "Rename workspace", "Workspace", |s, v| {
+            let name = p::req_str(v, "name")?.trim();
+            if name.is_empty() {
+                return Err(CmdError::Params("`name` must not be empty".into()));
+            }
+            let root = s.graph.sys.root;
+            s.graph.set_name(root, name)?;
+            Ok(json!({"name": name}))
+        })
+        .params(r#"{"name": string}"#),
         // Supertags.
         C::new("tag.add", "Add supertag", "Supertag", tag_add)
             .key("#")
@@ -1004,6 +1026,93 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
     let path = s.path.clone().ok_or_else(|| CmdError::Params("no file yet: pass `path`".into()))?;
     s.graph.save(&path)?;
     Ok(json!({"saved": path.display().to_string()}))
+}
+
+fn capture(s: &mut Session, v: &Value) -> CmdResult {
+    let inbox = s.graph.inbox()?;
+    let id = s.graph.create(inbox, None, p::req_str(v, "name")?)?;
+    if p::str(v, "tag").is_some() {
+        let tag = tag_param(s, v, "tag", true)?;
+        s.graph.add_tag(id, tag)?;
+    }
+    Ok(json!({"id": id.0, "inbox": inbox.0}))
+}
+
+/// The folder that holds the workspaces: the current file's, else the default one.
+fn workspace_dir(s: &Session) -> std::path::PathBuf {
+    let p = s.path.clone().unwrap_or_else(tanacraft_core::default_graph_path);
+    p.parent().map(std::path::Path::to_path_buf).unwrap_or_default()
+}
+
+fn workspace_files(s: &Session) -> Vec<std::path::PathBuf> {
+    let mut v: Vec<std::path::PathBuf> = std::fs::read_dir(workspace_dir(s))
+        .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect())
+        .unwrap_or_default();
+    v.sort();
+    v.truncate(200);
+    v
+}
+
+fn file_name(p: &std::path::Path) -> String {
+    p.file_stem().map(|x| x.to_string_lossy().to_string()).unwrap_or_default()
+}
+
+fn workspace_list(s: &mut Session, _: &Value) -> CmdResult {
+    let current = s.path.clone();
+    let list: Vec<Value> = workspace_files(s)
+        .iter()
+        .map(|p| json!({"name": file_name(p), "path": p.display().to_string(), "current": Some(p) == current.as_ref()}))
+        .collect();
+    Ok(json!({"workspaces": list, "current": s.graph.name(s.graph.sys.root)}))
+}
+
+/// Saves the open workspace, then makes `graph` (stored at `path`) the open one.
+fn switch_to(s: &mut Session, graph: tanacraft_core::Graph, path: std::path::PathBuf) -> CmdResult {
+    if s.path.is_some() && s.graph.is_dirty() {
+        let p = s.path.clone().unwrap_or_default();
+        s.graph.save(&p)?;
+    }
+    s.graph = graph;
+    s.path = Some(path.clone());
+    s.zoom = s.graph.sys.library;
+    s.focus = None;
+    s.sel = None;
+    s.recents.clear();
+    s.move_target = None;
+    let day = s.graph.day(s.today)?;
+    s.open(day)?;
+    Ok(json!({"workspace": s.graph.name(s.graph.sys.root), "path": path.display().to_string()}))
+}
+
+fn workspace_create(s: &mut Session, v: &Value) -> CmdResult {
+    let name = p::req_str(v, "name")?.trim().to_string();
+    let slug: String = name.chars().map(|c| if c.is_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
+    let slug = slug.trim_matches('-').to_string();
+    if slug.is_empty() {
+        return Err(CmdError::Params("`name` needs a letter or digit".into()));
+    }
+    let path = workspace_dir(s).join(format!("{slug}.json"));
+    if path.exists() {
+        return Err(CmdError::Failed(format!("a workspace file `{slug}.json` already exists")));
+    }
+    let mut g = tanacraft_core::Graph::new();
+    let root = g.sys.root;
+    g.set_name(root, &name)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| CmdError::Failed(e.to_string()))?;
+    }
+    g.save(&path)?;
+    switch_to(s, g, path)
+}
+
+fn workspace_switch(s: &mut Session, v: &Value) -> CmdResult {
+    let name = p::req_str(v, "name")?;
+    let path = workspace_files(s).into_iter().find(|p| file_name(p) == name).ok_or_else(|| CmdError::Failed(format!("no workspace `{name}`")))?;
+    if s.path.as_ref() == Some(&path) {
+        return Ok(json!({"workspace": s.graph.name(s.graph.sys.root)}));
+    }
+    let g = tanacraft_core::Graph::load(&path)?;
+    switch_to(s, g, path)
 }
 
 fn open_file(s: &mut Session, v: &Value) -> CmdResult {

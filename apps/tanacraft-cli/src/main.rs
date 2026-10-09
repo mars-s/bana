@@ -16,6 +16,7 @@ commands:
   view [NODE]                       the outline as text
   add NAME [--parent NODE | --today] [--tag TAG]...
                                     add a node; prints its id
+  capture TEXT [--tag TAG]          add a node to the capture inbox; prints its id
   export [NODE] [--format md|json]  export a subtree (default: Markdown of Home)
   search QUERY                      find nodes
   tags                              list supertags with their fields
@@ -107,6 +108,21 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             let v = s.run("graph.view", &json!({})).map_err(cmd_err)?;
             let lines: Vec<&str> = v["lines"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
             Ok(format!("{}\n{}", v["title"].as_str().unwrap_or_default(), lines.join("\n")))
+        }
+        "capture" => {
+            let tag = take_opt(&mut args, "--tag");
+            let name = args.join(" ");
+            if name.trim().is_empty() {
+                return Err("capture needs TEXT".into());
+            }
+            let mut s = open(&file)?;
+            let mut p = json!({"name": name});
+            if let Some(t) = tag {
+                p["tag"] = json!(t);
+            }
+            let r = s.run("node.capture", &p).map_err(cmd_err)?;
+            save(&mut s)?;
+            Ok(r["id"].to_string())
         }
         "add" => {
             let parent = take_opt(&mut args, "--parent");

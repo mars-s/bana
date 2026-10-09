@@ -146,15 +146,20 @@ pub fn registry() -> Registry {
             .params(r#"{"command": name | id, "node"?: id}  (runs its steps in order on the node, as one undo step)"#),
         C::new("node.contextNote", "Notes for this context", "Node", |s, v| {
             let id = s.target(v)?;
-            if let Some(text) = p::str(v, "text") {
-                s.graph.set_context_note(id, text)?;
-            } else if s.graph.get(id).and_then(|n| n.reference_target()).is_none() {
+            if s.graph.get(id).and_then(|n| n.reference_target()).is_none() {
                 return Err(CmdError::Disabled("context notes belong to references".into()));
             }
-            Ok(json!({"node": id.0, "note": s.graph.get(id).map(|n| n.description.clone()).unwrap_or_default()}))
+            if let Some(text) = p::str(v, "text") {
+                s.graph.set_context_note(id, text)?;
+                return Ok(json!({"node": id.0, "note": s.graph.get(id).map(|n| n.description.clone()).unwrap_or_default()}));
+            }
+            // An outline of notes under the reference: the caret goes to its first line (DIFFS N22).
+            let line = s.graph.context_line(id)?;
+            s.set_focus(line, usize::MAX);
+            Ok(json!({"node": id.0, "line": line.0, "notes": s.graph.context_of(id).map(|c| c.0)}))
         })
         .key("Mod+Alt+Down")
-        .params(r#"{"node"?: id, "text"?: string}  (a note on this reference only; without text: read it)"#),
+        .params(r#"{"node"?: id, "text"?: string}  (notes on this reference only: without text, opens the notes outline under it, caret in its first line; with text, a one-line note)"#),
         C::new("node.contextField", "Field for this context", "Node", |s, v| {
             let id = s.target(v)?;
             let f = field_param(s, v, true)?;

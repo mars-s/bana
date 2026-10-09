@@ -1718,6 +1718,17 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             bottoms.push(ui.cursor().top());
             continue;
         }
+        // A reference's notes for this place start with a heading line (DIFFS N22).
+        let g = &app.session.graph;
+        if let Some(holder) = g.parent(row.id).filter(|h| g.is_context(*h) && g.children(*h).first() == Some(&row.id)) {
+            let reference = g.parent(holder).unwrap_or(holder);
+            let place = g.parent(reference).map(|p| page_title(&app.session, p)).unwrap_or_default();
+            let label = format!("Notes about {} in {place}", g.name(reference));
+            ui.horizontal(|ui| {
+                ui.add_space(row.depth as f32 * INDENT + 26.0);
+                ui.label(RichText::new(label).size(12.5).color(t.faint));
+            });
+        }
         let center = row_ui(app, ui, t, row.id, row.depth, selected);
         bullet_dx = center.x - left - row.depth as f32 * INDENT;
         bullets.push((row.depth, center));
@@ -1849,14 +1860,20 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         if app.session.graph.query(target).is_some() {
             crate::icons::paint(ui.painter(), Rect::from_center_size(center, vec2(12.0, 12.0)), crate::icons::Icon::Search, t.dim);
         } else if is_ref {
-            // Dashed ring: twelve short arcs around the dot.
-            for i in 0..12 {
-                let a0 = i as f32 / 12.0 * std::f32::consts::TAU;
-                let a1 = a0 + std::f32::consts::TAU / 24.0;
-                let at = |a: f32| center + vec2(a.cos(), a.sin()) * 6.0;
-                ui.painter().line_segment([at(a0), at(a1)], Stroke::new(1.2, bullet_color));
+            // Dashed ring: twelve short arcs around the dot. With notes for this place, a solid
+            // ring and a square dot instead (DIFFS N22).
+            if app.session.graph.context_of(id).is_some_and(|c| !app.session.graph.children(c).is_empty()) {
+                ui.painter().circle_stroke(center, 6.0, Stroke::new(1.2, bullet_color));
+                ui.painter().rect_filled(Rect::from_center_size(center, vec2(4.0, 4.0)), 0.5, bullet_color);
+            } else {
+                for i in 0..12 {
+                    let a0 = i as f32 / 12.0 * std::f32::consts::TAU;
+                    let a1 = a0 + std::f32::consts::TAU / 24.0;
+                    let at = |a: f32| center + vec2(a.cos(), a.sin()) * 6.0;
+                    ui.painter().line_segment([at(a0), at(a1)], Stroke::new(1.2, bullet_color));
+                }
+                ui.painter().circle_filled(center, 2.2, bullet_color);
             }
-            ui.painter().circle_filled(center, 2.2, bullet_color);
         } else if node.as_ref().is_some_and(|n| is_link_only(&n.name)) {
             // A node that is just a URL is a link node: the bullet becomes a link glyph (spec 02 §12).
             let st = Stroke::new(1.3, t.link);

@@ -982,10 +982,20 @@ fn context_notes_live_on_the_reference_not_the_target() {
     run(&mut s, "node.contextNote", json!({"node": r.0, "text": "for Sunday lunch"}));
     assert_eq!(s.graph.get(r).unwrap().description, "for Sunday lunch");
     assert_eq!(s.graph.get(a).unwrap().description, "", "the original is untouched");
-    assert_eq!(run(&mut s, "node.contextNote", json!({"node": r.0}))["note"], "for Sunday lunch");
     assert!(s.run("node.contextNote", &json!({"node": a.0, "text": "x"})).is_err());
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(s.graph.get(r).unwrap().description, "");
+    // Without text: an outline of notes under the reference, caret in its first line (DIFFS N22).
+    let line = id(&run(&mut s, "node.contextNote", json!({"node": r.0})), "line");
+    assert_eq!(s.focus, Some(line));
+    assert_eq!(s.graph.parent(line), s.graph.context_of(r));
+    run(&mut s, "node.enter", json!({}));
+    assert_eq!(s.graph.children(s.graph.context_of(r).unwrap()).len(), 2);
+    assert!(s.graph.children(a).is_empty());
+    assert!(s.run("node.outdent", &json!({"node": line.0})).is_err(), "notes stay under the reference");
+    run(&mut s, "node.expand", json!({"node": b.0}));
+    let rows: Vec<NodeId> = s.rows().iter().map(|r| r.id).collect();
+    assert!(rows.contains(&line));
 }
 
 #[test]

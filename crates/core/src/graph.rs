@@ -837,6 +837,39 @@ impl Graph {
         Ok(())
     }
 
+    /// The node holding a reference's notes for this place (spec 01 §3, DIFFS N22): the one plain
+    /// node a reference may own. Its children are the notes, an ordinary outline.
+    pub fn context_of(&self, reference: NodeId) -> Option<NodeId> {
+        let n = self.get(reference)?;
+        n.reference_target()?;
+        n.children.first().copied()
+    }
+
+    /// Whether `id` holds a reference's notes (its owner is a reference).
+    pub fn is_context(&self, id: NodeId) -> bool {
+        self.parent(id).and_then(|p| self.get(p)).is_some_and(|p| p.reference_target().is_some())
+    }
+
+    /// A line in a reference's notes for this place: the first one, or a new empty one.
+    pub fn context_line(&mut self, reference: NodeId) -> Result<NodeId> {
+        if self.node(reference)?.reference_target().is_none() {
+            return Err(Error::Invalid("notes for a context belong to references".into()));
+        }
+        let holder = match self.context_of(reference) {
+            Some(c) => c,
+            None => {
+                let c = self.alloc();
+                self.put(Node::new(c, String::new(), Some(reference)));
+                self.attach(c, reference, None)?;
+                c
+            }
+        };
+        match self.children(holder).first() {
+            Some(first) => Ok(*first),
+            None => self.create(holder, None, ""),
+        }
+    }
+
     /// A field value for this place only, on a reference node (spec 01 §3, "Notes and fields for
     /// this context"). Empty text removes it.
     pub fn set_context_field(&mut self, reference: NodeId, field: NodeId, text: &str) -> Result<()> {
@@ -899,7 +932,7 @@ impl Graph {
     pub fn outdent(&mut self, id: NodeId) -> Result<NodeId> {
         let parent = self.parent(id).ok_or(Error::NoNode(id))?;
         let grand = self.parent(parent).ok_or_else(|| Error::Invalid("already at the top".into()))?;
-        if self.is_system(parent) {
+        if self.is_system(parent) || self.is_context(parent) {
             return Err(Error::Invalid("already at the top".into()));
         }
         let at = self.index_in_parent(parent).unwrap_or(0);
@@ -1818,7 +1851,7 @@ impl Graph {
             }
         }
         // Repair kinds and links: built-in nodes keep their kind, a reference points at a node and
-        // owns nothing (else it becomes a plain node holding what it had), tags are supertags and
+        // owns at most its notes node (else it becomes a plain node holding what it had), tags are supertags and
         // fields are fields.
         let kinds: BTreeMap<NodeId, (bool, bool)> =
             nodes.values().map(|n| (n.id, (matches!(n.kind, Kind::Tag(_)), matches!(n.kind, Kind::Field(_))))).collect();
@@ -1833,8 +1866,9 @@ impl Graph {
                 n.kind = Kind::Tag(TagDef { color: "grey".into(), ..TagDef::default() });
             }
             // (A reference to a node that is gone stays, shown as broken.)
+            // A reference may own one node: its notes for this place (DIFFS N22).
             if let Kind::Reference { target } = n.kind
-                && (target == n.id || !n.children.is_empty() || !n.tags.is_empty())
+                && (target == n.id || n.children.len() > 1 || !n.tags.is_empty())
             {
                 n.kind = Kind::Plain;
             }

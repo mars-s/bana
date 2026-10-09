@@ -294,16 +294,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             }
             return true;
         }
-        // Alt+Cmd+Down on a reference: notes for this context, under the line (spec 01 §3).
-        "Mod+Alt+Down" if app.session.focus.is_some_and(|f| app.session.graph.get(f).is_some_and(|n| n.reference_target().is_some())) => {
-            if let Some(f) = app.session.focus {
-                let note = app.session.graph.get(f).map(|n| n.description.clone()).unwrap_or_default();
-                app.desc_edit = Some((f, note));
-                app.desc_focus = true;
-                app.session.focus = None;
-            }
-            return true;
-        }
+
         // Cmd+. zooms in and puts the caret in the new page's title (spec 02 §7).
         "Mod+." if editing => {
             match app.exec("nav.zoomIn", json!({})) {

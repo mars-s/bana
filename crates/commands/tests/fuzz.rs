@@ -167,12 +167,12 @@ fn check_invariants(g: &Graph, ctx: &str) {
         }
         let p = n.parent.unwrap_or_else(|| panic!("{ctx}: orphan {} ({:?})", n.id, n.name));
         assert!(
-            n.reference_target().is_none() || n.children.is_empty() && n.tags.is_empty(),
-            "{ctx}: reference {} has its own children or tags",
+            n.reference_target().is_none() || n.children.len() <= 1 && n.tags.is_empty(),
+            "{ctx}: reference {} has more than its notes, or tags",
             n.id
         );
         assert!(
-            g.get(p).is_some_and(|o| o.children.contains(&n.id)) && g.children(p).contains(&n.id),
+            g.get(p).is_some_and(|o| o.children.contains(&n.id)) && (g.children(p).contains(&n.id) || g.is_context(n.id)),
             "{ctx}: {} names owner {p}, which does not list it\n{:?}\n{:?}",
             n.id,
             n,

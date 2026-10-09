@@ -1512,12 +1512,22 @@ fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
     h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
     focus(&mut h, r, 0);
     key(&mut h, Key::ArrowDown, Modifiers { alt: true, command: true, mac_cmd: true, ..Modifiers::NONE });
+    // DIFFS N22: the notes are an outline under the reference, with a heading line.
     text(&mut h, "for Sunday");
-    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    text(&mut h, "double it");
     let g = &h.state().session.graph;
-    assert_eq!(g.get(r).unwrap().description, "for Sunday");
-    assert_eq!(g.get(ids[0]).unwrap().description, "");
-    h.get_by_label("In this context:");
+    let notes = g.context_of(r).expect("notes node");
+    let lines: Vec<&str> = g.children(notes).iter().map(|c| g.name(*c)).collect();
+    assert_eq!(lines, ["for Sunday", "double it"]);
+    assert!(g.children(ids[0]).is_empty(), "the referenced node is untouched");
+    h.get_by_label("Notes about Recipe in Plan");
+    // Shift+Tab does not carry a note out into the referenced node.
+    key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
+    assert_eq!(h.state().session.graph.children(notes).len(), 2);
+    // The notes survive a save and load.
+    let back = tanacraft_core::Graph::from_json(&h.state().session.graph.to_json().unwrap()).unwrap();
+    assert_eq!(back.context_of(r).map(|c| back.children(c).len()), Some(2));
 }
 
 #[test]

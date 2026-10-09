@@ -188,6 +188,10 @@ impl Session {
         }
         for c in self.row_children(parent) {
             out.push(Row { id: c, depth });
+            // A reference's notes for this place show under it, as lines of their own (DIFFS N22).
+            if let Some(notes) = self.graph.context_of(c) {
+                self.rows_into(notes, depth + 1, path, out);
+            }
             let target = self.graph.resolve(c);
             if self.graph.is_expanded(c) && !path.contains(&target) {
                 path.push(target);

@@ -221,16 +221,13 @@ pub fn registry() -> Registry {
                 s.graph.create(parent, at, "New checklist")?
             };
             s.graph.set_progress(target, true)?;
-            let mut first = None;
             for name in ["First item", "Second item"] {
                 let c = s.graph.create(target, None, name)?;
                 s.graph.set_done(c, Some(false))?;
-                first.get_or_insert(c);
             }
             s.graph.set_expanded(target, true);
-            if let Some(f) = first {
-                s.set_focus(f, usize::MAX);
-            }
+            // The caret goes to the start of "New checklist" (spec 02 §11, DIFFS P2 #13).
+            s.set_focus(target, 0);
             Ok(json!({"node": target.0}))
         })
         .params(r#"{"node"?: id}"#),

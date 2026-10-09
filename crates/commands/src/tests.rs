@@ -571,7 +571,8 @@ fn checklist() {
     let mut s = blank();
     let a = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
     run(&mut s, "node.insertChecklist", json!({"node": a.0}));
-    assert_eq!(lines(&mut s), ["  - New checklist", ">   - [ ] First item", "    - [ ] Second item"]);
+    assert_eq!(lines(&mut s), ["> - New checklist", "    - [ ] First item", "    - [ ] Second item"]);
+    assert_eq!((s.focus, s.caret), (Some(a), 0), "caret at the start of the checklist name");
     assert_eq!(s.graph.progress(a), (0, 2));
 }
 

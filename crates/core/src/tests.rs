@@ -398,7 +398,9 @@ fn views_sort_group_filter_and_columns() {
     assert_eq!(ViewKind::parse("board"), Some(ViewKind::Cards));
     assert_eq!(g.view_def(task).kind, ViewKind::Table, "supertag pages default to a table");
     g.view_mut(open).unwrap().columns = vec![status, due];
-    assert_eq!(g.display_line(open, g.search("Fill with compost")[0]), "Not started · 2026-10-22");
+    let due = export::shown_value(&g, &FieldValue::Date(Date::new(2026, 10, 22).unwrap()));
+    assert!(due.starts_with("Thu, 22 Oct"), "{due}");
+    assert_eq!(g.display_line(open, g.search("Fill with compost")[0]), format!("Not started · {due}"));
     assert_eq!(g.view_filtered_out(open), 2);
 }
 

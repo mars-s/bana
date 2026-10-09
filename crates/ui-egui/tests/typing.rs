@@ -685,3 +685,27 @@ fn diffs_p2_hash_then_cmd_enter_creates_and_applies() {
     assert_eq!(g.name(ids[0]), "Gamma");
     assert_eq!(g.get(ids[0]).unwrap().tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>(), ["Zebra"]);
 }
+
+#[test]
+fn diffs_p2_board_ends_with_a_not_set_column_without_counts() {
+    let s = Session::with_today(tanacraft_core::sample::sample(Date::new(2026, 10, 10).unwrap()).unwrap(), Date::new(2026, 10, 10).unwrap());
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1800.0, 900.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    let tasks = h.state().session.graph.search("Open tasks")[0];
+    h.state_mut().exec("nav.open", json!({"node": tasks.0})).unwrap();
+    h.state_mut().exec("view.set", json!({"kind": "board"})).unwrap();
+    h.state_mut().exec("view.group", json!({"by": "Status"})).unwrap();
+    for _ in 0..4 {
+        h.step();
+    }
+    h.get_by_label("Status not set");
+    h.get_by_label("Done");
+}

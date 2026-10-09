@@ -759,15 +759,22 @@ fn board(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
         Some(GroupBy::Field(f)) => app.session.graph.name(f).to_string(),
         _ => String::new(),
     };
+    // A field board always ends with a "<Field> not set" column (DIFFS P2 #11).
+    let mut groups = groups.to_vec();
+    let hidden = app.session.graph.view_def(node).hidden_groups.iter().any(|h| h == NO_VALUE);
+    if !field_name.is_empty() && !hidden && !groups.iter().any(|g| g.label == NO_VALUE) {
+        groups.push(Group { label: NO_VALUE.to_string(), items: Vec::new() });
+    }
+    // Columns share the width (220 to 290 points each); more scroll sideways.
+    let col_w = ((ui.available_width() - 16.0 * groups.len() as f32) / groups.len().max(1) as f32).clamp(220.0, 290.0);
     egui::ScrollArea::horizontal().id_salt(("board", node.0)).show(ui, |ui| {
         ui.horizontal_top(|ui| {
-            for g in groups {
+            for g in &groups {
                 let col = ui.vertical(|ui| {
-                    ui.set_width(290.0);
+                    ui.set_width(col_w);
                     let label = if g.label == NO_VALUE && !field_name.is_empty() { format!("{field_name} not set") } else { g.label.clone() };
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(label).strong().size(14.0));
-                        ui.label(RichText::new(g.items.len().to_string()).size(12.5).color(t.faint));
                         let preset = group.filter(|_| g.label != NO_VALUE).map(|gb| (gb, g.label.clone()));
                         add_button(app, ui, t, node, preset);
                         if ui
@@ -780,10 +787,10 @@ fn board(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                     });
                     ui.add_space(4.0);
                     for i in g.items.iter().take(300) {
-                        card(app, ui, t, node, *i, 268.0, true);
+                        card(app, ui, t, node, *i, col_w - 22.0, true);
                         ui.add_space(8.0);
                     }
-                    ui.allocate_space(vec2(290.0, 40.0));
+                    ui.allocate_space(vec2(col_w, 40.0));
                 });
                 let zone = ui.interact(col.response.rect, egui::Id::new((app.panel_ix, "board-col", node.0, g.label.as_str())), Sense::hover());
                 if zone.dnd_hover_payload::<CardDrag>().is_some() {
@@ -1088,7 +1095,8 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     ui.add_space(8.0);
     if field.is_none() {
         ui.label(RichText::new("Add a date field to the items to place them on the calendar.").size(13.0).color(t.dim));
-    } else if undated > 0 {
+    } else {
+        // Always shown, also at zero (DIFFS P2 #11).
         let open = app.show_undated.contains(&node);
         if ui
             .add(

@@ -18,6 +18,15 @@ pub fn display_value(g: &Graph, v: &FieldValue) -> String {
     }
 }
 
+/// A value as shown in the UI: dates read "Thu, 15 Oct" (with the year when it is not this year).
+pub fn shown_value(g: &Graph, v: &FieldValue) -> String {
+    match v {
+        FieldValue::Date(d) if d.year == crate::Date::today().year => d.day_title(),
+        FieldValue::Date(d) => format!("{}, {}", d.day_title(), d.year),
+        other => display_value(g, other),
+    }
+}
+
 /// One line of a node: checkbox, name (or `[[target]]` for a reference) and `#tags`.
 pub fn node_line(g: &Graph, id: NodeId) -> String {
     let Some(n) = g.get(id) else { return String::new() };

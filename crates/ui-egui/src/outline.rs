@@ -944,7 +944,12 @@ pub(crate) fn link_label(ui: &mut Ui, job: egui::text::LayoutJob, targets: &[Opt
 
 /// A clickable label with inline marks rendered; references and links open on click.
 pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &Tokens, text: &str, color: Color32, strike: bool) -> egui::Response {
-    let (job, targets) = rich_job_links(g, t, text, color, strike, theme::FONT);
+    let (mut job, targets) = rich_job_links(g, t, text, color, strike, theme::FONT);
+    // Wrap at the room left (cards, table cells, lists).
+    let room = ui.available_width();
+    if room.is_finite() && room > 60.0 {
+        job.wrap.max_width = room;
+    }
     let (resp, hit) = link_label(ui, job, &targets);
     match hit {
         Some(LinkTarget::Node(n)) => app_acts.push(Act::Run("nav.open".into(), json!({"node": n.0}))),

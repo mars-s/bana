@@ -2119,7 +2119,7 @@ fn diffs_n27_typing_on_a_selected_line_goes_into_it() {
     type_chars(&mut h, "W");
     let g = &h.state().session.graph;
     let names: Vec<&str> = ids.iter().map(|i| g.name(*i)).collect();
-    assert!(names.iter().filter(|n| n.ends_with('W')).count() == 1, "{names:?}");
+    assert_eq!(names, ["one", "Wtwo", "three"], "at the start of the last selected line (DIFFS N34)");
 
     // Cmd+E, then Escape: the caret goes back into the line.
     let mut h = harness();
@@ -2164,13 +2164,14 @@ fn diffs_n28_escape_in_a_new_field_name_selects_the_row_and_tab_edits_the_value(
     h.state_mut().field_sel = Some((page, f));
     key(&mut h, Key::ArrowUp, Modifiers::NONE);
     assert_eq!(h.state().session.focus, Some(x));
-    // Typing on a selected field row goes on at the end of its value.
+    // Typing on a selected field row goes on with its name (DIFFS N33).
     h.state_mut().exec("focus.set", json!({})).ok();
     h.state_mut().session.focus = None;
     h.state_mut().field_sel = Some((page, f));
     h.step();
     type_chars(&mut h, "e");
-    assert_eq!(values_of(&h, page, "Ppl"), ["Anne"]);
+    assert_eq!(h.state().session.graph.name(f), "Pple");
+    assert_eq!(values_of(&h, page, "Pple"), ["Ann"]);
 }
 
 #[test]
@@ -2274,4 +2275,46 @@ fn diffs_n26_a_field_name_survives_a_force_kill() {
     key(&mut h2, Key::Escape, Modifiers::NONE);
     assert!(kill_after_a_second(&mut h2).find_field("Gone").is_none());
     std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn diffs_n33_enter_on_a_selected_field_row_adds_a_line_below_and_letters_extend_the_name() {
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let y = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "y"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Qq");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, "N");
+    assert!(values_of(&h, page, "Qq").is_empty(), "nothing typed into the value");
+    let kids = h.state().session.graph.children(page).to_vec();
+    assert_eq!(kids.len(), 3);
+    assert_eq!((kids[0], kids[2]), (x, y));
+    assert_eq!(h.state().session.graph.name(kids[1]), "N", "a new line right below the field row");
+    // A letter on a selected field row extends its name.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["z"]);
+    focus(&mut h, ids[0], 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Qq8");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    type_chars(&mut h, "N");
+    let g = &h.state().session.graph;
+    assert!(g.find_field("Qq8N").is_some() && g.find_field("Qq8").is_none());
+}
+
+#[test]
+fn diffs_n34_typing_after_a_cleared_shift_down_selection_goes_in_at_the_start() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[0], 3);
+    key(&mut h, Key::ArrowDown, Modifiers { shift: true, ..Modifiers::NONE });
+    key(&mut h, Key::ArrowDown, Modifiers { shift: true, ..Modifiers::NONE });
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    type_chars(&mut h, "QR");
+    assert_eq!(h.state().session.graph.name(ids[1]), "QRtwo");
 }

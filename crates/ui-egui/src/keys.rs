@@ -262,6 +262,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         // The selection goes, but typing still lands in its last line (spec 02 §6, DIFFS N27).
         "Escape" if selecting => {
             app.ghost_sel = app.session.sel.map(|s| s.1);
+            app.ghost_at_start = true;
             app.session.sel = None;
             return true;
         }

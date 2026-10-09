@@ -382,6 +382,9 @@ pub struct TanaApp {
     /// §6), or else the line edited last: typed text goes there when nothing else has the
     /// keyboard (DIFFS N27).
     ghost_sel: Option<NodeId>,
+    /// Typing into `ghost_sel` goes in at the start of the line: the selection was cleared with
+    /// Escape (DIFFS N34).
+    pub(crate) ghost_at_start: bool,
     /// The line and caret to go back to when quick add closes (DIFFS N27).
     resume: Option<(NodeId, usize)>,
     /// Settings: show reference counts next to nodes.
@@ -471,6 +474,7 @@ impl TanaApp {
             header_edit: None,
             field_sel: None,
             ghost_sel: None,
+            ghost_at_start: false,
             resume: None,
             keymap: Vec::new(),
             last_results: Default::default(),
@@ -613,17 +617,28 @@ impl TanaApp {
 
     /// Types `text` where `typing_target` says: a field row's value, or the end of a line.
     pub(crate) fn type_into_target(&mut self, text: &str) -> bool {
-        if self.field_sel.is_some_and(|(_, f)| is_checkbox_field(self, f)) {
-            return true; // a checkbox takes no text (DIFFS N31)
-        }
-        if let Some((owner, field)) = self.field_sel.take() {
-            self.edit_field_value(owner, field, text);
+        // Typing on a selected field row goes on with its name (DIFFS N33); a checkbox field takes
+        // no blank (DIFFS N31).
+        if let Some((_, field)) = self.field_sel {
+            if !(text.trim().is_empty() && is_checkbox_field(self, field)) {
+                let name = format!("{}{text}", self.session.graph.name(field));
+                if let Err(e) = self.exec("node.setName", json!({"node": field.0, "name": name})) {
+                    self.session.status = e;
+                }
+            }
             return true;
         }
         let Some(n) = self.typing_target() else { return false };
         let target = self.session.graph.resolve(n);
-        let name = format!("{}{text}", self.session.graph.name(target));
-        let caret = name.chars().count();
+        let old = self.session.graph.name(target);
+        let start = self.ghost_at_start && self.session.sel.is_none() && self.ghost_sel == Some(n);
+        let (name, caret) = if start {
+            (format!("{text}{old}"), text.chars().count())
+        } else {
+            let name = format!("{old}{text}");
+            let end = name.chars().count();
+            (name, end)
+        };
         let sel = self.session.sel.take();
         if let Err(e) = self.exec("focus.set", json!({"node": n.0, "caret": caret})) {
             self.session.sel = sel.or(Some((n, n)));
@@ -650,15 +665,29 @@ impl TanaApp {
         self.start_field_edit(fe);
     }
 
-    /// Keys on a selected field row (DIFFS N28): Tab or Enter edit the value, Escape lets go,
+    /// Keys on a selected field row (DIFFS N28, N33): Tab edits the value, Enter adds a line below,
+    /// Escape lets go,
     /// Up and Down go to the lines around the row.
     pub(crate) fn field_row_key(&mut self, k: &str) -> bool {
         let Some((owner, field)) = self.field_sel else { return false };
         match k {
-            "Tab" | "Enter" | "Space" if is_checkbox_field(self, field) => {}
-            "Tab" | "Enter" => {
+            "Tab" | "Space" if is_checkbox_field(self, field) => {}
+            "Tab" => {
                 self.field_sel = None;
                 self.edit_field_value(owner, field, "");
+            }
+            // Enter starts a new line right below the field row (DIFFS N33).
+            "Enter" => {
+                let g = &self.session.graph;
+                let after = g.get(owner).and_then(|n| n.fields.iter().find(|e| e.field == field)).and_then(|e| e.after);
+                let index = after.and_then(|a| g.children(owner).iter().position(|c| *c == a)).map_or(0, |i| i + 1);
+                match self.exec("node.add", json!({"parent": owner.0, "index": index})) {
+                    Ok(v) => {
+                        self.field_sel = None;
+                        drop(self.exec("focus.set", json!({"node": v["id"], "caret": 0})));
+                    }
+                    Err(e) => self.session.status = e,
+                }
             }
             "Escape" => {
                 self.field_sel = None;
@@ -1123,6 +1152,7 @@ impl TanaApp {
         // The last line edited takes typing when nothing else has the keyboard (DIFFS N27).
         if let Some(f) = self.session.focus {
             self.ghost_sel = Some(f);
+            self.ghost_at_start = false;
         }
         if self.system_theme
             && let Some(theme) = ctx.system_theme()

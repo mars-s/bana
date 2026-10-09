@@ -36,10 +36,16 @@
 {"type": "garden"}
 {"shot": "docs/images/command-line.png"}
 {"key": "Escape"}
+{"cmd": "ui.searchOpen"}
+{"type": "comp"}
+{"shot": "docs/images/search-open.png"}
+{"key": "Escape"}
 {"cmd": "ui.quickAdd"}
 {"type": "Buy twine for the bean poles #task"}
-{"shot": "docs/images/quick-add.png"}
 {"key": "Enter"}
+{"type": "Ask Robin about the shed key"}
+{"shot": "docs/images/quick-add.png"}
+{"key": "E", "mod": true}
 {"cmd": "node.add", "params": {"name": "Format **bold**, *italic*, ==highlight== and `code` in any node"}}
 {"theme": "light"}
 {"open": "Community garden"}

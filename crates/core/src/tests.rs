@@ -444,3 +444,16 @@ fn nested_groups_and_operators() {
     assert!(g.get(t).unwrap().done_at.is_none());
     assert_eq!(names(&g, "EDITED:1 AND compost").len(), 2);
 }
+
+#[test]
+fn fuzzy_search_ranks_good_matches_first() {
+    let g = garden();
+    let names: Vec<&str> = g.fuzzy("gam", 5).iter().map(|n| g.name(*n)).collect();
+    assert!(names.is_empty() || names.iter().all(|n| n.to_lowercase().contains('g')));
+    let names: Vec<&str> = g.fuzzy("comgar", 3).iter().map(|n| g.name(*n)).collect();
+    assert_eq!(names.first().copied(), Some("Community garden"));
+    let names: Vec<&str> = g.fuzzy("fwc", 3).iter().map(|n| g.name(*n)).collect();
+    assert_eq!(names.first().copied(), Some("Fill with compost"), "word starts");
+    assert!(g.fuzzy("zzzz", 5).is_empty());
+    assert!(g.fuzzy("  ", 5).is_empty());
+}

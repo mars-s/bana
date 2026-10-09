@@ -32,7 +32,12 @@ pub fn palette_items(app: &TanaApp, query: &str) -> Vec<Item> {
             out.push(Item::Command { id: id.to_string(), label: label.to_string(), shortcut: shortcut.to_string() });
         }
     }
-    for c in app.session.registry.search(q) {
+    // Context first: with a bullet focused or selected, its node commands lead (spec 05 §3).
+    let mut cmds = app.session.registry.search(q);
+    if app.session.focus.is_some() || app.session.sel.is_some() {
+        cmds.sort_by_key(|c| !matches!(c.location, "Node" | "Supertag" | "Field" | "Format"));
+    }
+    for c in cmds {
         out.push(Item::Command { id: c.id.to_string(), label: c.label.to_string(), shortcut: c.shortcut.to_string() });
     }
     out.truncate(MAX_ITEMS + 6);
@@ -180,11 +185,31 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q))
             .map(|n| Choice::Existing(n.id, n.name.clone()))
             .collect(),
-        PickMode::Choice => p
-            .field
-            .and_then(|f| g.field_def(f))
-            .map(|d| d.options.iter().filter(|o| o.to_lowercase().contains(&q)).map(|o| Choice::Existing(NodeId(0), o.clone())).collect())
-            .unwrap_or_default(),
+        PickMode::Choice => {
+            // The other options (the current value is left out, spec 03 §8).
+            let current = p.field.and_then(|f| g.get(p.node)?.field_value(f)).map(|v| export::display_value(g, v)).unwrap_or_default();
+            p.field
+                .and_then(|f| g.field_def(f))
+                .map(|d| {
+                    d.options
+                        .iter()
+                        .filter(|o| **o != current && o.to_lowercase().contains(&q))
+                        .map(|o| Choice::Existing(NodeId(0), o.clone()))
+                        .collect()
+                })
+                .unwrap_or_default()
+        }
+        PickMode::Slash => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Command line"]
+            .into_iter()
+            .filter(|l| l.to_lowercase().contains(&q))
+            .map(|l| Choice::Existing(NodeId(0), l.to_string()))
+            .collect(),
+        PickMode::SearchCreate => g
+            .tags()
+            .into_iter()
+            .filter(|t| *t != g.sys.day_tag && g.name(*t).to_lowercase().contains(&q))
+            .map(|t| Choice::Existing(t, format!("#{}", g.name(t))))
+            .collect(),
         PickMode::Reference if q.is_empty() => Vec::new(),
         PickMode::Reference => {
             g.search(&q).into_iter().filter(|n| *n != p.node).take(10).map(|n| Choice::Existing(n, export::node_line(g, n))).collect()
@@ -192,7 +217,7 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
     };
     out.truncate(10);
     let exact = out.iter().any(|c| matches!(c, Choice::Existing(_, name) if name.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(p.mode, PickMode::Reference | PickMode::SearchTag) {
+    if !q.is_empty() && !exact && !matches!(p.mode, PickMode::Reference | PickMode::SearchTag | PickMode::Slash | PickMode::SearchCreate) {
         out.push(Choice::Create(p.query.trim().trim_start_matches('#').to_string()));
     }
     out
@@ -217,6 +242,33 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
         }
         (PickMode::Column, Choice::Existing(f, _)) => app.exec("view.addColumn", json!({"node": node.0, "field": f.0})),
         (PickMode::Column, Choice::Create(name)) => app.exec("view.addColumn", json!({"node": node.0, "field": name})),
+        (PickMode::Slash, Choice::Existing(_, label)) => {
+            let at = p.anchor;
+            match label.as_str() {
+                "Search node" => {
+                    app.open_picker(PickMode::SearchCreate, node, at);
+                    Ok(json!({}))
+                }
+                "Field" => {
+                    let parent = app.session.graph.parent(node).unwrap_or(node);
+                    let r = app.exec("node.backspace", json!({"node": node.0}));
+                    app.open_picker(PickMode::Field, parent, at);
+                    r
+                }
+                "Reference" => {
+                    app.open_picker(PickMode::Reference, node, at);
+                    Ok(json!({}))
+                }
+                "Heading" => app.exec("node.toggleHeading", json!({"node": node.0})),
+                "Checkbox" => app.exec("node.toggleDone", json!({"node": node.0})),
+                _ => app.exec("ui.commandLine", json!({})),
+            }
+        }
+        (PickMode::SearchCreate, Choice::Existing(t, _)) => {
+            let name = app.session.graph.name(t).to_string();
+            app.exec("search.create", json!({"query": format!("#\"{name}\""), "name": format!("List of {name}"), "replace": node.0}))
+        }
+        (PickMode::Slash | PickMode::SearchCreate, Choice::Create(_)) => Ok(json!({})),
         (PickMode::Choice, Choice::Existing(_, v) | Choice::Create(v)) => match p.field {
             Some(f) => app.exec("field.set", json!({"node": node.0, "field": f.0, "value": v})),
             None => Ok(json!({})),
@@ -268,6 +320,8 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::SearchTag => "Find nodes with supertag",
         PickMode::Column => "Add a field column",
         PickMode::Choice => "Choose an option",
+        PickMode::Slash => "Insert",
+        PickMode::SearchCreate => "Create search node: find supertag",
     };
     egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(p.anchor).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {
@@ -458,14 +512,19 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
 const MONTH_NAMES: [&str; 12] =
     ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/// Quick add (Mod+E): type a node, Enter puts it on today's page without leaving this one.
+/// Quick add (Mod+E): a small outline; Enter starts another line, Mod+E saves everything to the
+/// end of today's page and closes, Escape cancels (spec 05 §5).
 pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
-    let Some(mut text) = app.quick_add.take() else { return };
+    let Some(mut lines) = app.quick_add.take() else { return };
     let t = app.tokens();
     let screen = ctx.content_rect();
-    let w = 520.0_f32.min(screen.width() - 32.0);
-    let mut submit = false;
-    let mut close = false;
+    let w = 560.0_f32.min(screen.width() - 32.0);
+    let save = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::E));
+    let enter = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+    let mut close = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    if enter {
+        lines.push(String::new());
+    }
     egui::Area::new(egui::Id::new("quick-add-dim")).order(Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
         let (r, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
         ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(140));
@@ -473,54 +532,149 @@ pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
     });
     egui::Area::new(egui::Id::new("quick-add"))
         .order(Order::Foreground)
-        .fixed_pos(egui::pos2(screen.center().x - w / 2.0, screen.center().y - 90.0))
+        .fixed_pos(egui::pos2(screen.center().x - w / 2.0, screen.center().y - 120.0))
         .show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(egui::Margin::symmetric(22, 16)).show(ui, |ui| {
-                ui.set_width(w);
-                let (bar, _) = ui.allocate_exact_size(vec2(w, 3.0), Sense::hover());
-                ui.painter().rect_filled(bar, 1.5, t.accent);
-                ui.add_space(8.0);
-                ui.label(RichText::new("Quick add").size(18.0).strong());
-                ui.separator();
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(vec2(12.0, 22.0), Sense::hover());
-                    ui.painter().circle_filled(r.center(), 3.0, t.dim);
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut text)
-                            .id(egui::Id::new("quick-add-input"))
-                            .frame(egui::Frame::NONE)
-                            .hint_text("Type a node, #tag at the end")
-                            .desired_width(w - 20.0),
-                    );
-                    resp.request_focus();
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        submit = true;
+            egui::Frame::popup(ui.style())
+                .fill(t.panel)
+                .corner_radius(10.0)
+                .inner_margin(egui::Margin { left: 22, right: 22, top: 0, bottom: 16 })
+                .show(ui, |ui| {
+                    ui.set_width(w);
+                    let (bar, _) = ui.allocate_exact_size(vec2(w, 3.0), Sense::hover());
+                    ui.painter().rect_filled(bar.expand2(vec2(22.0, 0.0)), 1.5, egui::Color32::from_rgb(214, 178, 46));
+                    ui.add_space(12.0);
+                    ui.label(RichText::new("Quick add").size(18.0).strong());
+                    ui.separator();
+                    let last = lines.len().saturating_sub(1);
+                    for (i, line) in lines.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            let (r, _) = ui.allocate_exact_size(vec2(12.0, 22.0), Sense::hover());
+                            ui.painter().circle_filled(r.center(), 3.0, t.dim);
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(line)
+                                    .id(egui::Id::new(("quick-add-input", i)))
+                                    .frame(egui::Frame::NONE)
+                                    .hint_text("Type a node, #tag at the end")
+                                    .desired_width(w - 20.0),
+                            );
+                            let nothing_focused = ui.ctx().memory(|m| m.focused().is_none());
+                            if i == last && (enter || nothing_focused) {
+                                resp.request_focus();
+                            }
+                        });
                     }
+                    ui.separator();
+                    ui.vertical_centered(|ui| {
+                        let key = if app.mac { "Cmd+E" } else { "Ctrl+E" };
+                        ui.label(RichText::new(format!("Goes to the end of today's page. {key} saves, Escape cancels.")).size(12.5).color(t.dim));
+                    });
                 });
-                ui.separator();
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("Goes to today's page. Enter adds, Escape closes.").size(12.5).color(t.dim));
-                });
+        });
+    if save {
+        let mut added = 0;
+        for text in lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty()) {
+            // A trailing `#word` tags the node.
+            let (name, tag) = match text.rsplit_once(" #") {
+                Some((n, tg)) if !tg.contains(' ') && !tg.is_empty() => (n.to_string(), Some(tg.to_string())),
+                _ => (text.to_string(), None),
+            };
+            let mut p = json!({"name": name});
+            if let Some(tag) = tag {
+                p["tag"] = json!(tag);
+            }
+            match app.exec("node.quickAdd", p) {
+                Ok(_) => added += 1,
+                Err(e) => app.session.status = e,
+            }
+        }
+        if added > 0 {
+            app.session.status = format!("Added {added} to today");
+        }
+    } else if !close {
+        app.quick_add = Some(lines);
+    }
+}
+
+/// "Search and open" (Mod+S): recently viewed, or fuzzy matches with their location.
+pub fn search_open_items(app: &TanaApp, query: &str) -> Vec<NodeId> {
+    let g = &app.session.graph;
+    if query.trim().is_empty() { app.session.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(10).collect() } else { g.fuzzy(query, 12) }
+}
+
+pub fn search_open_key(app: &mut TanaApp, k: &str) -> bool {
+    let Some(p) = app.search_open.as_mut() else { return false };
+    match k {
+        "Escape" => app.search_open = None,
+        "Up" => p.selected = p.selected.saturating_sub(1),
+        "Down" => p.selected += 1,
+        "Enter" => {
+            let q = p.query.clone();
+            let sel = p.selected;
+            let items = search_open_items(app, &q);
+            app.search_open = None;
+            if let Some(id) = items.get(sel.min(items.len().saturating_sub(1))) {
+                let _ = app.exec("nav.open", json!({"node": id.0}));
+            }
+        }
+        _ => return false,
+    }
+    true
+}
+
+pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
+    let Some(mut p) = app.search_open.take() else { return };
+    let t = app.tokens();
+    let screen = ctx.content_rect();
+    let w = 520.0_f32.min(screen.width() - 32.0);
+    let items = search_open_items(app, &p.query);
+    p.selected = p.selected.min(items.len().saturating_sub(1));
+    let mut chosen = None;
+    let mut close = false;
+    egui::Area::new(egui::Id::new("search-dim")).order(Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+        let (r, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
+        ui.painter().rect_filled(r, 0.0, egui::Color32::from_black_alpha(120));
+        close |= resp.clicked();
+    });
+    egui::Area::new(egui::Id::new("search-open"))
+        .order(Order::Foreground)
+        .fixed_pos(egui::pos2(screen.center().x - w / 2.0, screen.top() + 110.0))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(12.0).show(ui, |ui| {
+                ui.set_width(w);
+                ui.label(RichText::new("Search and open").size(15.0).strong());
+                let r =
+                    ui.add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("search-open-query")).hint_text("Search...").desired_width(w));
+                if p.focus_once {
+                    r.request_focus();
+                    p.focus_once = false;
+                }
+                if r.changed() {
+                    p.selected = 0;
+                }
+                ui.add_space(6.0);
+                ui.label(RichText::new(if p.query.trim().is_empty() { "RECENTLY VIEWED" } else { "FUZZY SEARCH" }).size(11.5).color(t.faint));
+                let g = &app.session.graph;
+                for (i, id) in items.iter().enumerate() {
+                    let crumbs: Vec<String> = g.ancestors(*id).iter().skip(1).map(|a| crate::outline::page_title(&app.session, *a)).collect();
+                    let (rect, resp) = ui.allocate_exact_size(vec2(w, 40.0), Sense::click());
+                    if i == p.selected || resp.hovered() {
+                        ui.painter().rect_filled(rect, 5.0, if i == p.selected { t.accent.gamma_multiply(0.25) } else { t.hover });
+                    }
+                    let painter = ui.painter();
+                    painter.text(rect.left_top() + vec2(10.0, 4.0), Align2::LEFT_TOP, crumbs.join(" / "), FontId::proportional(11.5), t.faint);
+                    painter.text(rect.left_top() + vec2(10.0, 19.0), Align2::LEFT_TOP, export::node_line(g, *id), FontId::proportional(14.5), t.text);
+                    if resp.clicked() {
+                        chosen = Some(*id);
+                    }
+                }
+                if items.is_empty() {
+                    ui.label(RichText::new(if p.query.trim().is_empty() { "Nothing viewed yet" } else { "No matches" }).color(t.faint));
+                }
             });
         });
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        close = true;
-    }
-    if submit && !text.trim().is_empty() {
-        // A trailing `#word` tags the node.
-        let (name, tag) = match text.trim().rsplit_once(" #") {
-            Some((n, t)) if !t.contains(' ') && !t.is_empty() => (n.to_string(), Some(t.to_string())),
-            _ => (text.trim().to_string(), None),
-        };
-        let mut p = json!({"name": name});
-        if let Some(tag) = tag {
-            p["tag"] = json!(tag);
-        }
-        match app.exec("node.quickAdd", p) {
-            Ok(_) => app.session.status = "Added to today".into(),
-            Err(e) => app.session.status = e,
-        }
-    } else if !close && !submit {
-        app.quick_add = Some(text);
+    if let Some(id) = chosen {
+        let _ = app.exec("nav.open", json!({"node": id.0}));
+    } else if !close {
+        app.search_open = Some(p);
     }
 }

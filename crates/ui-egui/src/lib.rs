@@ -28,6 +28,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.toggleTheme", "Switch light or dark theme", ""),
     ("ui.editDescription", "Add description", "Ctrl+I"),
     ("ui.quickAdd", "Quick add", "Mod+E"),
+    ("ui.searchOpen", "Search and open", "Mod+S"),
     ("ui.searchOptions", "Show or hide search conditions", ""),
 ];
 
@@ -43,6 +44,10 @@ pub enum PickMode {
     Column,
     /// A value of an options field (`Picker::field`).
     Choice,
+    /// The `/` insert menu on an empty line.
+    Slash,
+    /// Pick the supertag of a new search node ("List of #tag").
+    SearchCreate,
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +127,10 @@ pub struct TanaApp {
     pub palette: Option<Palette>,
     pub picker: Option<Picker>,
     pub date_pick: Option<DatePick>,
-    pub quick_add: Option<String>,
+    /// Quick add lines (a small outline of new nodes for today).
+    pub quick_add: Option<Vec<String>>,
+    /// The "Search and open" dialog.
+    pub search_open: Option<Palette>,
     pub mac: bool,
     /// Save to `session.path` shortly after changes.
     pub autosave: bool,
@@ -157,6 +165,7 @@ impl TanaApp {
             picker: None,
             date_pick: None,
             quick_add: None,
+            search_open: None,
             mac: cfg!(target_os = "macos"),
             autosave: false,
             edit: EditState::default(),
@@ -199,7 +208,8 @@ impl TanaApp {
             "ui.toggleSidebar" => self.sidebar = !self.sidebar,
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => self.dark = !self.dark,
-            "ui.quickAdd" => self.quick_add = Some(String::new()),
+            "ui.quickAdd" => self.quick_add = Some(vec![String::new()]),
+            "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
             "ui.searchOptions" => self.query_open = !self.query_open,
             "ui.editDescription" => {
                 if let Some(f) = self.session.focus.or(Some(self.session.zoom)) {
@@ -343,6 +353,7 @@ impl TanaApp {
         overlays::description(self, &ctx);
         overlays::date_picker(self, &ctx);
         overlays::quick_add(self, &ctx);
+        overlays::search_open(self, &ctx);
         self.flush();
     }
 
@@ -418,8 +429,8 @@ impl TanaApp {
         if side_item(ui, &t, Icon::Tag, "Supertags", zoom == g.sys.schema).clicked() {
             acts.push(Act::Run("nav.supertags".into(), json!({})));
         }
-        if side_item(ui, &t, Icon::Search, "Search", self.palette.is_some()).clicked() {
-            acts.push(Act::Ui("ui.commandLine"));
+        if side_item(ui, &t, Icon::Search, "Search", self.search_open.is_some()).clicked() {
+            acts.push(Act::Ui("ui.searchOpen"));
         }
         ui.add_space(8.0);
         ui.horizontal(|ui| {

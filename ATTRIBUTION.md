@@ -25,3 +25,4 @@ sidebar glyphs are painted by `crates/ui-egui`.
 | `docs/images/quick-add.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/grouped-outline.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
 | `docs/images/list-view.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |
+| `docs/images/search-open.png` | TanaCraft contributors | screenshot of TanaCraft itself (sample graph written for TanaCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Tana UI or assets |

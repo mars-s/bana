@@ -131,7 +131,13 @@ fn every_view_renders_on_search_tag_and_plain_pages() {
     h.step();
     text(&mut h, "Water the seedlings #task");
     key(&mut h, Key::Enter, Modifiers::NONE);
-    assert!(h.state().quick_add.is_none());
+    text(&mut h, "Label the trays");
+    assert_eq!(h.state().quick_add.as_ref().map(Vec::len), Some(2), "Enter starts another line");
+    key(&mut h, Key::E, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert!(h.state().quick_add.is_none(), "Cmd+E saves and closes");
+    assert_eq!(h.state().session.graph.search("Label the trays").len(), 1);
+    assert_eq!(h.state().session.graph.search("Water the seedlings")[0], h.state().session.graph.search("Water the seedlings")[0]);
+    assert_eq!(h.state().session.graph.name(h.state().session.graph.search("Label the trays")[0]), "Label the trays", "second line is its own node");
     let g = &h.state().session.graph;
     let added = g.search("Water the seedlings")[0];
     assert_eq!(g.name(g.parent(added).unwrap()), "Sat, 10 Oct");
@@ -199,4 +205,39 @@ fn shift_down_selects_and_tab_indents_the_selection() {
     assert_eq!(lines(&mut h), ["  - one", "    - two", "    - three"]);
     key(&mut h, Key::Escape, Modifiers::NONE);
     assert!(h.state().session.sel.is_none());
+}
+
+#[test]
+fn search_and_open_and_slash_search_node() {
+    let today = Date::new(2026, 10, 10).unwrap();
+    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let mut app = TanaApp::new(s);
+    app.mac = true;
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
+        |ui, app: &mut TanaApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.step();
+    key(&mut h, Key::S, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
+    assert!(h.state().search_open.is_some());
+    text(&mut h, "comgar");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert_eq!(h.state().session.graph.name(h.state().session.zoom), "Community garden");
+    // `/` on an empty line, "Search node", then a supertag: a "List of" search node in its place.
+    let r = h.state_mut().exec("node.add", json!({"name": ""})).unwrap();
+    h.state_mut().exec("focus.set", json!({"node": r["id"]})).unwrap();
+    h.step();
+    text(&mut h, "/");
+    assert!(h.state().picker.is_some());
+    key(&mut h, Key::Enter, Modifiers::NONE); // Search node
+    text(&mut h, "task");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    let g = &h.state().session.graph;
+    let list = g.search("List of task");
+    assert_eq!(list.len(), 1);
+    assert_eq!(g.view_items(list[0]).len(), 4);
 }

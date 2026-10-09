@@ -843,6 +843,7 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
             Some('#') => Some(PickMode::Tag),
             Some('>') if buf == ">" => Some(PickMode::Field),
             Some('@') if buf == "@" => Some(PickMode::Reference),
+            Some('/') if buf == "/" => Some(PickMode::Slash),
             _ => None,
         };
         match trigger {

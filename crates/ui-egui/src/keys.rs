@@ -93,6 +93,9 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
     if app.picker.is_some() {
         return crate::overlays::picker_key(app, &k);
     }
+    if app.search_open.is_some() {
+        return crate::overlays::search_open_key(app, &k);
+    }
     if app.quick_add.is_some() || app.date_pick.is_some() {
         return false; // the overlay reads Enter and Escape itself
     }

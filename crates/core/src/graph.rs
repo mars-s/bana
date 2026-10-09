@@ -195,6 +195,23 @@ impl Graph {
             .collect()
     }
 
+    /// Fuzzy search: every query character must appear in order. Contiguous runs, word starts and
+    /// prefixes score higher. Best first, at most `limit`.
+    pub fn fuzzy(&self, query: &str, limit: usize) -> Vec<NodeId> {
+        let q: Vec<char> = query.to_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
+        if q.is_empty() {
+            return Vec::new();
+        }
+        let mut hits: Vec<(i64, NodeId)> = self
+            .nodes
+            .values()
+            .filter(|n| n.reference_target().is_none() && !self.is_system(n.id) && !self.in_trash(n.id))
+            .filter_map(|n| fuzzy_score(&q, &crate::format::plain(&n.name).to_lowercase()).map(|s| (s, n.id)))
+            .collect();
+        hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        hits.into_iter().take(limit).map(|(_, id)| id).collect()
+    }
+
     /// Nodes that point at `target`: reference nodes and node-valued fields.
     pub fn references_to(&self, target: NodeId) -> Vec<NodeId> {
         self.nodes
@@ -1020,4 +1037,26 @@ fn calendar_key(k: &Kind) -> Option<i64> {
 /// Node names are one line.
 fn clean_name(s: &str) -> String {
     if s.contains(['\n', '\r']) { s.replace("\r\n", " ").replace(['\n', '\r'], " ") } else { s.to_string() }
+}
+
+/// Subsequence score of `q` in `text` (both lowercase), or `None` when it does not match.
+pub fn fuzzy_score(q: &[char], text: &str) -> Option<i64> {
+    let t: Vec<char> = text.chars().collect();
+    let mut score = 0i64;
+    let mut ti = 0;
+    let mut prev: Option<usize> = None;
+    for qc in q {
+        let at = (ti..t.len()).find(|i| t.get(*i) == Some(qc))?;
+        score += 10;
+        if prev.is_some_and(|p| p + 1 == at) {
+            score += 15;
+        }
+        if at == 0 || t.get(at - 1).is_some_and(|c| !c.is_alphanumeric()) {
+            score += 20;
+        }
+        prev = Some(at);
+        ti = at + 1;
+    }
+    // Shorter names and earlier matches rank higher.
+    Some(score - t.len() as i64 / 4 - prev.unwrap_or(0) as i64 / 8)
 }

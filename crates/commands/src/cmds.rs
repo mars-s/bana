@@ -133,7 +133,7 @@ pub fn registry() -> Registry {
         // Edit and file.
         C::new("edit.undo", "Undo", "Edit", |s, _| Ok(json!({"undone": s.graph.undo()}))).key("Mod+Z").pure(),
         C::new("edit.redo", "Redo", "Edit", |s, _| Ok(json!({"redone": s.graph.redo()}))).key("Mod+Shift+Z").pure(),
-        C::new("file.save", "Save", "File", save).key("Mod+S").params(r#"{"path"?: string}"#).pure(),
+        C::new("file.save", "Save", "File", save).params(r#"{"path"?: string}"#).pure(),
         C::new("file.open", "Open graph file", "File", open_file).params(r#"{"path": string}"#).pure(),
         // Reading (for agents and the CLI).
         C::new("graph.inspect", "Inspect", "Graph", inspect).params(r#"{"node"?: id}  (default: the zoomed node)"#).pure(),
@@ -863,10 +863,24 @@ fn parse_query(s: &Session, text: &str) -> Result<Query, CmdError> {
 
 fn search_create(s: &mut Session, v: &Value) -> CmdResult {
     let q = parse_query(s, p::req_str(v, "query")?)?;
-    let parent = p::node(v, "parent")?.unwrap_or(s.zoom);
+    let mut parent = p::node(v, "parent")?.unwrap_or(s.zoom);
+    let mut index = p::usize(v, "index");
+    // `replace`: an empty line that becomes the search node (slash menu).
+    if let Some(r) = p::node(v, "replace")? {
+        let n = s.graph.node(r)?;
+        if !n.name.is_empty() || !n.children.is_empty() || s.graph.is_system(r) {
+            return Err(CmdError::Failed("only an empty node can become a search node".into()));
+        }
+        parent = s.graph.parent(r).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+        index = s.graph.index_in_parent(r);
+        s.graph.delete_permanently(r)?;
+    }
     let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| q.describe(&s.graph));
-    let id = s.graph.create_search(parent, p::usize(v, "index"), &name, q)?;
+    let id = s.graph.create_search(parent, index, &name, q)?;
     s.graph.set_expanded(id, true);
+    if p::node(v, "replace")?.is_some() {
+        s.set_focus(id, usize::MAX);
+    }
     Ok(json!({"id": id.0, "results": s.graph.view_items(id).len()}))
 }
 

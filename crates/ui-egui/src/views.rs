@@ -878,6 +878,10 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                     if !e.has_focus() && !e.lost_focus() {
                         e.request_focus();
                     }
+                    // Saved as typed (DIFFS N26).
+                    if e.changed() && !buf.trim().is_empty() {
+                        app.acts.push(Act::Run("node.setName".into(), json!({"node": f.0, "name": buf.trim()})));
+                    }
                     if e.lost_focus() {
                         let name = buf.trim().to_string();
                         app.header_edit = None;

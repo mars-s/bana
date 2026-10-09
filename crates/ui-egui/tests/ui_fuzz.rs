@@ -85,7 +85,7 @@ fn editing(ctx: &egui::Context) -> bool {
     ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some())
 }
 
-fn run_seed(seed: u64, events: usize) {
+fn run_seed(seed: u64, events: usize) -> egui_kittest::Harness<'static, TanaApp> {
     let mut r = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1);
     let today = Date::new(2026, 10, 10).unwrap_or_else(|| panic!("date"));
     let s = Session::with_today(sample::sample(today).unwrap_or_else(|e| panic!("{e}")), today);
@@ -108,14 +108,12 @@ fn run_seed(seed: u64, events: usize) {
         // lets egui drop the focus of a box that just closed)
         h.step();
         let before_focus = editing(&h.ctx);
-        let before_home = before_focus || h.state().overlay_open() || h.state().session.sel.is_some();
+        let before_target = h.state().typing_target().is_some();
+        let before_home = before_focus || h.state().overlay_open() || h.state().session.sel.is_some() || before_target;
         let before_graph = h.state().session.graph.to_json().unwrap_or_default();
         let before_text = h.state().pending_text();
         let action = r.below(12);
         let mut typed_text = "";
-        // Escape on a selection clears it on purpose (spec 02 §8): nothing holds the keyboard then.
-        let mut escape_on_selection = false;
-        let before_sel = h.state().session.sel.is_some();
         log.push(format!(
             "  (focus {:?}, egui focus {before_focus}, sel {:?}, overlay {:?}, zoom {})",
             h.state().session.focus,
@@ -142,7 +140,6 @@ fn run_seed(seed: u64, events: usize) {
                     _ => Modifiers::NONE,
                 };
                 log.push(format!("key {k:?} {m:?}"));
-                escape_on_selection = k == Key::Escape && before_sel;
                 h.input_mut().events.push(Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
             }
             5..=7 => {
@@ -182,7 +179,7 @@ fn run_seed(seed: u64, events: usize) {
             }
             let app = h.state();
             let page = app.recents_page || app.settings_page || app.help_page;
-            let home = editing(&h.ctx) || app.overlay_open() || app.session.sel.is_some() || page;
+            let home = editing(&h.ctx) || app.overlay_open() || app.session.sel.is_some() || app.typing_target().is_some() || page;
             let tail = || {
                 log.iter()
                     .rev()
@@ -192,7 +189,7 @@ fn run_seed(seed: u64, events: usize) {
                     .collect::<Vec<_>>()
                     .join("\n")
             };
-            if !home && !escape_on_selection && app.outline_shown() && !app.session.rows().is_empty() {
+            if !home && app.outline_shown() && !app.session.rows().is_empty() {
                 let focused = h.query_all(egui_kittest::kittest::by()).find(|n| n.is_focused()).map(|n| format!("{n:?}")).unwrap_or_default();
                 let app = h.state();
                 panic!(
@@ -203,8 +200,11 @@ fn run_seed(seed: u64, events: usize) {
                     tail()
                 );
             }
-            // (Spaces alone may be trimmed when saved.)
-            let typed = !typed_text.trim().is_empty() && before_focus;
+            // (Spaces alone may be trimmed when saved.) Text typed while a line is selected, or
+            // while nothing has the keyboard, goes into a line too (DIFFS N27).
+            // A lone `**` is an empty format mark, which is never kept (DIFFS N19).
+            // (The Recents, Settings and Help pages have no lines to type into.)
+            let typed = !typed_text.trim().trim_matches('*').is_empty() && !page && (before_focus || before_target || app.outline_shown());
             // It shows in the text box that has the keyboard, or it changed the graph or an editor.
             let shown_in_box =
                 h.query_all(egui_kittest::kittest::by()).any(|n| n.is_focused() && n.value().is_some_and(|v| v.contains(typed_text.trim())));
@@ -218,6 +218,7 @@ fn run_seed(seed: u64, events: usize) {
             }
         }
     }
+    h
 }
 
 #[test]
@@ -228,6 +229,37 @@ fn random_keys_never_crash_the_ui() {
     for seed in first..=seeds.max(first) {
         run_seed(seed, events);
     }
+}
+
+/// Quit at a random point (DIFFS N26): after any run of random keys, text and clicks, saving on
+/// quit and loading the file again keeps every line's text and the text of every open editor.
+#[test]
+fn quitting_at_a_random_point_keeps_typed_text() {
+    let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
+    let dir = std::env::temp_dir().join(format!("tanacraft-quit-fuzz-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
+    for seed in 1..=seeds {
+        let events = 20 + (Rng(seed | 1).next() % 120) as usize;
+        let mut h = run_seed(seed + 1000, events);
+        let editors = h.state().unsaved_text();
+        let path = dir.join(format!("{seed}.json"));
+        h.state_mut().session.path = Some(path.clone());
+        h.state_mut().exec("ui.quit", json!({})).ok();
+        let before = h.state().session.graph.clone();
+        h.state_mut().save_on_quit().unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        let g = Graph::load(&path).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        // (Empty format marks are never saved, DIFFS N19.)
+        let clean = |s: &str| tanacraft_core::format::strip_empty(s, 0).0;
+        for n in before.iter() {
+            assert_eq!(g.get(n.id).map(|m| clean(&m.name)), Some(clean(&n.name)), "seed {seed}: node {} lost its text", n.id);
+        }
+        let file = g.to_json().unwrap_or_default();
+        for t in editors {
+            let quoted = serde_json::to_string(&t).unwrap_or_default();
+            assert!(file.contains(quoted.trim_matches('"')), "seed {seed}: {t:?} from an open editor was not saved");
+        }
+    }
+    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// A file with broken links (references to nothing, views naming missing fields) opens and every

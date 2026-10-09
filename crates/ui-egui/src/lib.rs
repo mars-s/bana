@@ -221,12 +221,6 @@ pub(crate) struct FieldEdit {
     focus_once: bool,
 }
 
-impl FieldEdit {
-    pub(crate) fn new(node: NodeId, field: NodeId, index: usize) -> Self {
-        FieldEdit { node, field, index, buf: String::new(), focus_once: true }
-    }
-}
-
 /// Deferred UI actions (collected while drawing, applied after).
 #[derive(Debug, Clone)]
 pub(crate) enum Act {
@@ -377,14 +371,26 @@ pub struct TanaApp {
     pub keymap: Vec<(String, String)>,
     /// A table column header being renamed (field, text).
     pub header_edit: Option<(NodeId, String)>,
+    /// A selected field row (owner, field): Escape in a new field name selects it, Tab or Enter
+    /// edits its value (DIFFS N28).
+    pub field_sel: Option<(NodeId, NodeId)>,
+    /// The line a selection was cleared from with Escape (the selection stays invisibly, spec 02
+    /// §6), or else the line edited last: typed text goes there when nothing else has the
+    /// keyboard (DIFFS N27).
+    ghost_sel: Option<NodeId>,
+    /// The line and caret to go back to when quick add closes (DIFFS N27).
+    resume: Option<(NodeId, usize)>,
     /// Settings: show reference counts next to nodes.
     pub ref_counter: bool,
     /// Configure-supertag sections the user folded.
     config_closed: std::collections::HashSet<String>,
     tag_tab: std::collections::HashMap<NodeId, NodeId>,
-    template_buf: String,
-    option_buf: String,
-    range_buf: Option<(String, String)>,
+    /// The "add a template node" box of a supertag page: the supertag and the text.
+    template_buf: (Option<NodeId>, String),
+    /// The "add an option" box of a field page: the field and the text.
+    option_buf: (Option<NodeId>, String),
+    /// Minimum and maximum being typed on a number field's page.
+    range_buf: Option<(NodeId, String, String)>,
     /// Quick text filter per view node (toolbar magnifier).
     quick_filter: std::collections::HashMap<NodeId, String>,
     quick_filter_open: Option<NodeId>,
@@ -457,14 +463,17 @@ impl TanaApp {
             config_closed: Default::default(),
             ref_counter: false,
             header_edit: None,
+            field_sel: None,
+            ghost_sel: None,
+            resume: None,
             keymap: Vec::new(),
             last_results: Default::default(),
             flash_until: Default::default(),
             content_width: 0,
             panel_split: 0.5,
             tag_tab: Default::default(),
-            template_buf: String::new(),
-            option_buf: String::new(),
+            template_buf: (None, String::new()),
+            option_buf: (None, String::new()),
             range_buf: None,
             quick_filter: Default::default(),
             quick_filter_open: None,
@@ -498,17 +507,164 @@ impl TanaApp {
     /// typed (DIFFS N15); values that are collected or looked up (options, dates) are saved here.
     pub(crate) fn commit_field_edit(&mut self) -> Option<FieldEdit> {
         let fe = self.field_edit.take()?;
+        self.write_field_buf(&fe);
+        Some(fe)
+    }
+
+    /// Writes a value editor's text into its field. Text that is not a valid value of the field's
+    /// type is kept as typed (shown with a warning) instead of being lost (DIFFS N26).
+    fn write_field_buf(&mut self, fe: &FieldEdit) {
         let g = &self.session.graph;
         let stored = g
             .get(g.resolve(fe.node))
             .and_then(|n| n.field_values(fe.field).get(fe.index).map(|v| tanacraft_core::export::display_value(g, v)))
             .unwrap_or_default();
         if stored != fe.buf.trim()
-            && let Err(e) = self.exec("field.set", json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index, "value": fe.buf}))
+            && let Err(e) = self.exec("field.set", json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index, "value": fe.buf, "keep": true}))
         {
             self.session.status = e;
         }
-        Some(fe)
+    }
+
+    /// Writes a description (or, on a reference, its note for this place) into the graph.
+    pub(crate) fn write_description(&mut self, node: NodeId, text: &str) {
+        let Some(n) = self.session.graph.get(node) else { return };
+        if n.description == text.trim() {
+            return;
+        }
+        let cmd = if n.reference_target().is_some() { "node.contextNote" } else { "node.setDescription" };
+        if let Err(e) = self.exec(cmd, json!({"node": node.0, "text": text})) {
+            self.session.status = e;
+        }
+    }
+
+    /// Writes the text of every open editor into the graph, without closing it: the field value
+    /// and the field name being typed, a description, a column name, quick add lines and the add
+    /// boxes of supertag and field pages. Quitting calls it, so typed text is never lost (DIFFS
+    /// N26). Node text and page titles are written as they are typed.
+    pub fn commit_editors(&mut self) {
+        self.flush();
+        if let Some(fe) = self.field_edit.clone() {
+            self.write_field_buf(&fe);
+        }
+        if self.picker.as_ref().is_some_and(|p| p.mode == PickMode::Field && p.line.is_some() && !p.query.trim().is_empty()) {
+            overlays::keep_field_name(self);
+        }
+        if let Some((node, text)) = self.desc_edit.clone() {
+            self.write_description(node, &text);
+        }
+        if let Some((f, name)) = self.header_edit.clone().filter(|(_, n)| !n.trim().is_empty()) {
+            drop(self.exec("node.setName", json!({"node": f.0, "name": name.trim()})));
+        }
+        if let Some(lines) = self.quick_add.take() {
+            overlays::save_quick_add(self, &lines);
+        }
+        if let (Some(tag), name) = std::mem::take(&mut self.template_buf)
+            && !name.trim().is_empty()
+        {
+            drop(self.exec("tag.addTemplateNode", json!({"tag": tag.0, "name": name})));
+        }
+        if let (Some(f), option) = std::mem::take(&mut self.option_buf)
+            && !option.trim().is_empty()
+        {
+            drop(self.exec("field.addOption", json!({"field": f.0, "option": option})));
+        }
+        if let Some((f, lo, hi)) = self.range_buf.take() {
+            drop(self.exec("field.setRange", crate::schema_ui::range_params(f, &lo, &hi)));
+        }
+        self.flush();
+    }
+
+    /// Where a typed character goes when no text box has the keyboard: a selected field row, the
+    /// head of the selection, or the line a selection was cleared from (DIFFS N27).
+    #[doc(hidden)]
+    pub fn typing_target(&self) -> Option<NodeId> {
+        let g = &self.session.graph;
+        if self.session.focus.is_some() || self.field_edit.is_some() || self.desc_edit.is_some() || self.overlay_open() {
+            return None;
+        }
+        if self.recents_page || self.settings_page || self.help_page {
+            return None;
+        }
+        if let Some((owner, _)) = self.field_sel {
+            return Some(owner);
+        }
+        let live = |n: &NodeId| g.get(*n).is_some();
+        // An invisible selection only counts while its line is on screen.
+        let ghost = self.ghost_sel.filter(|n| self.session.rows().iter().any(|r| r.id == *n));
+        self.session.sel.map(|s| s.1).or(ghost).filter(live)
+    }
+
+    /// Types `text` where `typing_target` says: a field row's value, or the end of a line.
+    pub(crate) fn type_into_target(&mut self, text: &str) -> bool {
+        if let Some((owner, field)) = self.field_sel.take() {
+            self.edit_field_value(owner, field, text);
+            return true;
+        }
+        let Some(n) = self.typing_target() else { return false };
+        let target = self.session.graph.resolve(n);
+        let name = format!("{}{text}", self.session.graph.name(target));
+        let caret = name.chars().count();
+        let sel = self.session.sel.take();
+        if let Err(e) = self.exec("focus.set", json!({"node": n.0, "caret": caret})) {
+            self.session.sel = sel.or(Some((n, n)));
+            self.session.status = e;
+        }
+        // (The line itself is named: on a reference row this edits the node it points at.)
+        if let Err(e) = self.exec("node.setName", json!({"node": n.0, "name": name, "caret": caret})) {
+            self.session.status = e;
+        }
+        true
+    }
+
+    /// Opens the editor of a field's first value, with `append` typed at its end.
+    pub(crate) fn edit_field_value(&mut self, owner: NodeId, field: NodeId, append: &str) {
+        let g = &self.session.graph;
+        let stored = g
+            .get(g.resolve(owner))
+            .and_then(|n| n.field_values(field).first().map(|v| tanacraft_core::export::display_value(g, v)))
+            .unwrap_or_default();
+        let fe = FieldEdit { node: owner, field, index: 0, buf: format!("{stored}{append}"), focus_once: true };
+        if !append.is_empty() {
+            self.write_field_buf(&fe);
+        }
+        self.start_field_edit(fe);
+    }
+
+    /// Keys on a selected field row (DIFFS N28): Tab or Enter edit the value, Escape lets go,
+    /// Up and Down go to the lines around the row.
+    pub(crate) fn field_row_key(&mut self, k: &str) -> bool {
+        let Some((owner, field)) = self.field_sel else { return false };
+        match k {
+            "Tab" | "Enter" => {
+                self.field_sel = None;
+                self.edit_field_value(owner, field, "");
+            }
+            "Escape" => {
+                self.field_sel = None;
+                let (rows, pos) = self.field_row_pos(owner, field);
+                self.ghost_sel = pos.checked_sub(1).and_then(|i| rows.get(i)).or(rows.get(pos)).map(|r| r.id);
+            }
+            "Up" | "Down" => {
+                let (rows, pos) = self.field_row_pos(owner, field);
+                let next = if k == "Up" { pos.checked_sub(1).and_then(|i| rows.get(i)) } else { rows.get(pos) };
+                if let Some(r) = next {
+                    self.field_sel = None;
+                    drop(self.exec("focus.set", json!({"node": r.id.0, "caret": if k == "Up" { usize::MAX } else { 0 }})));
+                }
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    /// Before the app closes: every editor's text goes into the graph, then the file is saved.
+    pub fn save_on_quit(&mut self) -> Result<(), String> {
+        self.commit_editors();
+        if self.session.path.is_some() && self.session.graph.is_dirty() {
+            self.session.run("file.save", &json!({})).map_err(|e| e.to_string())?;
+        }
+        Ok(())
     }
 
     /// Where the row of `field` on `owner` sits among the visible rows: the index of the first row
@@ -585,6 +741,19 @@ impl TanaApp {
         out.join("\u{1}")
     }
 
+    /// Text in editors that `commit_editors` writes into the graph (not yet a node's name or a
+    /// field's stored value). Tests check that quitting keeps all of it.
+    #[doc(hidden)]
+    pub fn unsaved_text(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        out.extend(self.field_edit.as_ref().map(|f| f.buf.clone()));
+        out.extend(self.picker.as_ref().filter(|p| p.mode == PickMode::Field && p.line.is_some()).map(|p| p.query.clone()));
+        out.extend(self.desc_edit.as_ref().map(|d| d.1.clone()));
+        out.extend(self.header_edit.as_ref().map(|d| d.1.clone()));
+        out.extend(self.quick_add.iter().flatten().map(|l| l.rsplit_once(" #").map_or(l.as_str(), |(n, _)| n).to_string()));
+        out.into_iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).collect()
+    }
+
     /// An overlay that reads the keyboard itself is open (command line, a picker, quick add...).
     #[doc(hidden)]
     pub fn overlay_open(&self) -> bool {
@@ -609,7 +778,12 @@ impl TanaApp {
     /// After a menu or editor closes with nothing left holding the keyboard: select `near` (or the
     /// first line), or put the caret in the page title, so the next keys still do something.
     pub(crate) fn keyboard_home(&mut self, near: NodeId) {
-        if self.session.focus.is_some() || self.session.sel.is_some() || self.field_edit.is_some() || self.desc_edit.is_some() {
+        if self.session.focus.is_some()
+            || self.session.sel.is_some()
+            || self.field_edit.is_some()
+            || self.desc_edit.is_some()
+            || self.field_sel.is_some()
+        {
             return;
         }
         let rows = if self.outline_shown() { self.session.rows() } else { Vec::new() };
@@ -816,7 +990,10 @@ impl TanaApp {
             "ui.singlePanel" => self.single_panel(),
             "ui.shortcuts" => self.help = !self.help,
             "ui.toggleTheme" => (self.dark, self.system_theme) = (!self.dark, false),
-            "ui.quit" => self.window_cmds.push(WindowCmd::Close),
+            "ui.quit" => {
+                self.commit_editors();
+                self.window_cmds.push(WindowCmd::Close);
+            }
             "ui.cut" | "ui.copy" | "ui.paste" => self.menu_item(id),
             "ui.fullScreen" => self.window_cmds.push(WindowCmd::FullScreen),
             "ui.minimize" => self.window_cmds.push(WindowCmd::Minimize),
@@ -826,11 +1003,14 @@ impl TanaApp {
             "ui.quickAdd" => {
                 // The modal takes the keyboard from the line being edited (DIFFS P1 #5).
                 self.quick_add = Some(vec![String::new()]);
+                self.resume = self.session.focus.map(|f| (f, self.session.caret));
                 self.session.focus = None;
                 self.edit.node = None;
             }
             "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
             // While the builder is open the results wait for Run once or Done (spec 05 §2).
+            // Only a search node has a query editor; elsewhere the key does nothing (DIFFS N27).
+            "ui.searchOptions" if self.session.graph.query(self.session.graph.resolve(self.session.zoom)).is_none() && !self.query_open => {}
             "ui.searchOptions" => {
                 self.query_open = !self.query_open;
                 let zoom = self.session.zoom;
@@ -907,6 +1087,14 @@ impl TanaApp {
             let evs = std::mem::take(&mut self.injected);
             ctx.input_mut(|i| i.events.extend(evs));
         }
+        // A field row or an invisible selection only holds the keyboard while nothing else does.
+        if self.session.focus.is_some() || self.session.sel.is_some() || self.field_edit.is_some() || self.overlay_open() {
+            self.field_sel = None;
+        }
+        // The last line edited takes typing when nothing else has the keyboard (DIFFS N27).
+        if let Some(f) = self.session.focus {
+            self.ghost_sel = Some(f);
+        }
         if self.system_theme
             && let Some(theme) = ctx.system_theme()
         {
@@ -926,7 +1114,15 @@ impl TanaApp {
                 )
             })
         });
-        if arrows {
+        // Tab indents, picks in a menu or moves into a field value; while the outline or a menu
+        // has the keyboard it must not also carry egui's focus off to a button (fuzz-found).
+        let tab = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::Tab, pressed: true, .. })));
+        let outline_keys = self.session.focus.is_some()
+            || self.session.sel.is_some()
+            || self.picker.is_some()
+            || self.field_edit.is_some()
+            || self.field_sel.is_some();
+        if arrows || tab && outline_keys {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
         for c in std::mem::take(&mut self.window_cmds) {
@@ -1095,9 +1291,32 @@ impl TanaApp {
         if let (Some(was), None) = (self.kb_owner, owner) {
             // The caret goes back into the line it was in, or the page gets a selection.
             self.edit.node = None;
-            self.keyboard_home(was);
+            match self.resume.take().filter(|(n, _)| self.session.graph.get(*n).is_some() && !self.session.graph.in_trash(*n)) {
+                Some((n, caret)) if self.session.focus.is_none() => drop(self.exec("focus.set", json!({"node": n.0, "caret": caret}))),
+                _ => self.keyboard_home(was),
+            }
         }
         self.kb_owner = owner;
+        // Something (an undo, a page change, a caret put on the page node itself) left nothing
+        // holding the keyboard: the page takes it, so the next keys are not lost (DIFFS N27).
+        let z = self.session.zoom;
+        if self.session.focus.is_some_and(|f| f == z) {
+            self.session.focus = None;
+        }
+        let text_box = ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(&ctx, id).is_some());
+        if owner.is_none()
+            && !text_box
+            && !self.focus_title
+            && self.session.focus.is_none()
+            && self.session.sel.is_none()
+            && self.typing_target().is_none()
+            && !self.recents_page
+            && !self.settings_page
+            && !self.help_page
+            && self.outline_shown()
+        {
+            self.keyboard_home(z);
+        }
     }
 
     /// The node behind whatever reads the keyboard instead of the outline (an overlay, a field
@@ -1109,6 +1328,7 @@ impl TanaApp {
             .map(|p| p.node)
             .or(self.field_edit.as_ref().map(|f| f.node))
             .or(self.desc_edit.as_ref().map(|d| d.0))
+            .or(self.field_sel.map(|f| f.0))
             .or(self.date_pick.as_ref().map(|d| d.node))
             .or((self.palette.is_some() || self.quick_add.is_some() || self.search_open.is_some() || self.confirm_delete.is_some()).then_some(z))
     }

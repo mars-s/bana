@@ -1005,10 +1005,14 @@ pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId
             continue;
         }
         let missing = def.required && empty;
-        let invalid = values.iter().any(|v| !v.is_valid());
+        // Text kept in a typed field (a number, date or checkbox field) is not a valid value either.
+        let typed_text = matches!(def.field_type, FieldType::Number | FieldType::Date | FieldType::Checkbox);
+        let invalid = values.iter().any(|v| !v.is_valid() || (typed_text && matches!(v, FieldValue::Text(_))));
         // Narrow panels stack the name above the value (spec 03 §9).
         let narrow = ui.available_width() - indent < 420.0;
-        ui.horizontal(|ui| {
+        // A selected field row gets the selection highlight (DIFFS N28).
+        let highlight = ui.painter().add(egui::Shape::Noop);
+        let row = ui.horizontal(|ui| {
             ui.add_space(indent);
             ui.vertical(|ui| {
                 let body = |ui: &mut Ui, app: &mut TanaApp| {
@@ -1040,6 +1044,11 @@ pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId
                 }
             });
         });
+        if app.field_sel == Some((target, e.field)) {
+            let r = Rect::from_min_max(row.response.rect.min + vec2(indent - 4.0, 0.0), row.response.rect.max);
+            ui.painter().set(highlight, egui::Shape::rect_filled(r, 4.0, t.accent.gamma_multiply(0.18)));
+            ui.painter().rect_stroke(r, 4.0, Stroke::new(1.0, t.accent.gamma_multiply(0.7)), StrokeKind::Inside);
+        }
     }
     if slot.is_some() {
         return;
@@ -1157,7 +1166,7 @@ pub(crate) fn field_value(
     text: Option<String>,
     editing: bool,
 ) {
-    let set = |v: String| Act::Run("field.set".into(), json!({"node": node.0, "field": field.0, "index": index, "value": v}));
+    let set = |v: String| Act::Run("field.set".into(), json!({"node": node.0, "field": field.0, "index": index, "value": v, "keep": true}));
     match def.field_type {
         FieldType::Checkbox => {
             let on = matches!(value, Some(FieldValue::Checkbox(true)));
@@ -1240,7 +1249,8 @@ pub(crate) fn field_value(
             // Saved as typed, like a bullet's text (DIFFS N15). Options and looked-up values are
             // saved when the editor closes, so half-typed words do not become choices or nodes.
             let live = matches!(def.field_type, FieldType::Plain | FieldType::Number | FieldType::Url | FieldType::Email);
-            if resp.changed() && live && (fe.buf.trim().is_empty() || FieldValue::parse(def.field_type, &fe.buf).is_ok()) {
+            // Text that is not a valid value yet is kept as typed (DIFFS N26).
+            if resp.changed() && live {
                 app.acts.push(set(fe.buf.clone()));
             }
             if fe.focus_once {
@@ -2104,16 +2114,17 @@ fn description_line(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, te
             .margin(egui::Margin::ZERO)
             .desired_width(ui.available_width()),
     );
+    // Saved as typed (DIFFS N26). On a reference this is the note for this context.
+    let text = buf.clone();
+    if resp.changed() {
+        app.write_description(node, &text);
+    }
     if app.desc_focus {
         resp.request_focus();
         app.desc_focus = false;
     } else if resp.lost_focus() {
-        let text = buf.clone();
         app.desc_edit = None;
-        // On a reference this is the note for this context, not the target's description.
-        let is_ref = app.session.graph.get(node).is_some_and(|n| n.reference_target().is_some());
-        let cmd = if is_ref { "node.contextNote" } else { "node.setDescription" };
-        app.acts.push(Act::Run(cmd.into(), json!({"node": node.0, "text": text})));
+        app.write_description(node, &text);
         if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             app.acts.push(Act::Run("focus.set".into(), json!({"node": node.0, "caret": usize::MAX})));
         }

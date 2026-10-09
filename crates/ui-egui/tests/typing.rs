@@ -1929,3 +1929,242 @@ fn diffs_n13_query_editor_opens_from_the_keyboard() {
     key(&mut h, Key::Enter, Modifiers::NONE);
     assert!(h.state().query_open);
 }
+
+fn type_chars(h: &mut H<'_>, s: &str) {
+    for c in s.chars() {
+        h.input_mut().events.push(Event::Text(c.to_string()));
+        h.step();
+    }
+}
+
+/// Quits the app the way Cmd+Q does (commands, then the app's exit hook), and reads the saved
+/// file back.
+fn quit_and_reload(h: &mut H<'_>, name: &str) -> Graph {
+    let dir = std::env::temp_dir().join(format!("tanacraft-quit-{}-{name}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("graph.json");
+    h.state_mut().session.path = Some(path.clone());
+    h.state_mut().exec("ui.quit", json!({})).unwrap();
+    h.step();
+    h.state_mut().save_on_quit().unwrap();
+    let g = Graph::load(&path).unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    g
+}
+
+fn has_name(g: &Graph, name: &str) -> bool {
+    g.iter().any(|n| n.name == name && !g.in_trash(n.id))
+}
+
+fn field_texts(g: &Graph, node: tanacraft_core::NodeId, field: &str) -> Vec<String> {
+    let f = g.find_field(field).expect("field exists");
+    g.get(node).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect()
+}
+
+#[test]
+fn diffs_n26_quitting_mid_edit_keeps_every_editor() {
+    // Node text.
+    let mut h = harness();
+    let ids = page_with(&mut h, &[""]);
+    focus(&mut h, ids[0], 0);
+    type_chars(&mut h, "half a line");
+    assert!(has_name(&quit_and_reload(&mut h, "node"), "half a line"));
+
+    // A field value, quit at once.
+    let mut h = harness();
+    let (page, _) = field_after_x(&mut h, "Note8");
+    type_chars(&mut h, "value");
+    assert_eq!(field_texts(&quit_and_reload(&mut h, "value"), page, "Note8"), ["value"]);
+
+    // A field name typed after `>`: the field row is kept and the blank line goes.
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Qq7");
+    let g = quit_and_reload(&mut h, "name");
+    let f = g.find_field("Qq7").expect("field kept");
+    assert!(g.get(page).unwrap().fields.iter().any(|e| e.field == f));
+    assert_eq!(g.children(page), &[x]);
+
+    // A value that is not valid for its type (a number field) is kept as typed.
+    let mut h = harness();
+    h.state_mut().exec("field.create", json!({"name": "Count", "type": "number"})).unwrap();
+    let (page, _) = field_after_x(&mut h, "Count");
+    type_chars(&mut h, "about 4");
+    assert_eq!(field_texts(&quit_and_reload(&mut h, "number"), page, "Count"), ["about 4"]);
+
+    // An options field, whose value is only collected when the editor closes.
+    let mut h = harness();
+    h.state_mut().exec("field.create", json!({"name": "Mood", "type": "options"})).unwrap();
+    let (page, _) = field_after_x(&mut h, "Mood");
+    type_chars(&mut h, "calm");
+    assert_eq!(field_texts(&quit_and_reload(&mut h, "options"), page, "Mood"), ["calm"]);
+
+    // The page title.
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let a = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, a, 0);
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    type_chars(&mut h, " two");
+    assert!(has_name(&quit_and_reload(&mut h, "title"), "Page two"));
+
+    // A description. (A reference's notes for this place are lines, like node text.)
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Thing", ""]);
+    focus(&mut h, ids[0], 0);
+    h.state_mut().exec("ui.editDescription", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    type_chars(&mut h, "about it");
+    let g = quit_and_reload(&mut h, "desc");
+    assert_eq!(g.get(ids[0]).unwrap().description, "about it");
+    // Quick add lines.
+    let mut h = harness();
+    key(&mut h, Key::E, CMD);
+    type_chars(&mut h, "Later");
+    assert!(has_name(&quit_and_reload(&mut h, "quick"), "Later"));
+
+    // A table column being renamed.
+    let mut h = harness();
+    let s = h.state_mut();
+    s.exec("tag.create", json!({"name": "book"})).unwrap();
+    s.exec("tag.addField", json!({"tag": "book", "field": "Pages", "type": "number"})).unwrap();
+    let tag = s.session.graph.find_tag("book").unwrap().0;
+    let b = s.exec("node.add", json!({"name": "Dune"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("tag.add", json!({"node": b, "tag": "book"})).unwrap();
+    s.exec("nav.open", json!({"node": tag})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let pages = h.state().session.graph.find_field("Pages").unwrap();
+    h.state_mut().header_edit = Some((pages, String::new()));
+    for _ in 0..3 {
+        h.step();
+    }
+    type_chars(&mut h, "Length");
+    assert_eq!(quit_and_reload(&mut h, "header").name(pages), "Length");
+}
+
+fn by_hint<'a>(h: &'a H<'_>, hint: &'a str) -> egui_kittest::Node<'a> {
+    h.query_all(egui_kittest::kittest::by().predicate(move |n| n.placeholder() == Some(hint))).next().expect("a text box with this hint")
+}
+
+#[test]
+fn diffs_n26_quitting_keeps_supertag_and_field_page_boxes() {
+    // The "add a template node" box of a supertag and the option box of a field page.
+    let mut h = harness();
+    h.state_mut().exec("tag.create", json!({"name": "agenda"})).unwrap();
+    let tag = h.state().session.graph.find_tag("agenda").unwrap();
+    h.state_mut().exec("nav.open", json!({"node": tag.0})).unwrap();
+    h.state_mut().exec("ui.configureSupertag", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    by_hint(&h, "Add a template node, Enter").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    type_chars(&mut h, "Minutes");
+    let g = quit_and_reload(&mut h, "template");
+    assert!(g.tag_def(tag).unwrap().template.iter().any(|n| g.name(*n) == "Minutes"));
+
+    let mut h = harness();
+    h.state_mut().exec("field.create", json!({"name": "Mood", "type": "options"})).unwrap();
+    let f = h.state().session.graph.find_field("Mood").unwrap();
+    h.state_mut().exec("nav.open", json!({"node": f.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    by_hint(&h, "Empty").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    type_chars(&mut h, "calm");
+    let g = quit_and_reload(&mut h, "option");
+    assert_eq!(g.field_def(f).unwrap().options, ["calm"]);
+}
+
+#[test]
+fn diffs_n27_typing_on_a_selected_line_goes_into_it() {
+    // Escape, then a letter.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[1], 3);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(h.state().session.sel, Some((ids[1], ids[1])));
+    type_chars(&mut h, "Z");
+    assert_eq!(h.state().session.graph.name(ids[1]), "twoZ");
+    type_chars(&mut h, "y");
+    assert_eq!(h.state().session.graph.name(ids[1]), "twoZy", "the caret stays in the line");
+
+    // Shift+Down twice, then Escape: the selection is gone but typing lands in its last line.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two", "three"]);
+    focus(&mut h, ids[0], 0);
+    let shift = Modifiers { shift: true, ..Modifiers::NONE };
+    key(&mut h, Key::ArrowDown, shift);
+    key(&mut h, Key::ArrowDown, shift);
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert_eq!(h.state().session.sel, None);
+    type_chars(&mut h, "W");
+    let g = &h.state().session.graph;
+    let names: Vec<&str> = ids.iter().map(|i| g.name(*i)).collect();
+    assert!(names.iter().filter(|n| n.ends_with('W')).count() == 1, "{names:?}");
+
+    // Cmd+E, then Escape: the caret goes back into the line.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two"]);
+    focus(&mut h, ids[1], 3);
+    key(&mut h, Key::E, CMD);
+    assert!(h.state().quick_add.is_some());
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    type_chars(&mut h, "Q");
+    assert_eq!(h.state().session.graph.name(ids[1]), "twoQ");
+
+    // Cmd+Shift+O on an ordinary line does nothing; Escape then a letter types into it.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["one", "two"]);
+    focus(&mut h, ids[1], 3);
+    key(&mut h, Key::O, Modifiers { shift: true, ..CMD });
+    assert!(!h.state().query_open);
+    type_chars(&mut h, "x");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    type_chars(&mut h, "Q");
+    assert_eq!(h.state().session.graph.name(ids[1]), "twoxQ");
+}
+
+#[test]
+fn diffs_n28_escape_in_a_new_field_name_selects_the_row_and_tab_edits_the_value() {
+    let mut h = harness();
+    let page = page_with(&mut h, &["Page"])[0];
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    focus(&mut h, x, 1);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    type_chars(&mut h, ">Ppl");
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    let f = h.state().session.graph.find_field("Ppl").unwrap();
+    assert_eq!(h.state().field_sel, Some((page, f)));
+    assert_eq!(h.state().session.sel, None, "the line above is not selected");
+    key(&mut h, Key::Tab, Modifiers::NONE);
+    type_chars(&mut h, "Ann");
+    assert_eq!(values_of(&h, page, "Ppl"), ["Ann"]);
+    // Escape from the value, then Up and Down around a selected field row.
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    h.state_mut().field_sel = Some((page, f));
+    key(&mut h, Key::ArrowUp, Modifiers::NONE);
+    assert_eq!(h.state().session.focus, Some(x));
+    // Typing on a selected field row goes on at the end of its value.
+    h.state_mut().exec("focus.set", json!({})).ok();
+    h.state_mut().session.focus = None;
+    h.state_mut().field_sel = Some((page, f));
+    h.step();
+    type_chars(&mut h, "e");
+    assert_eq!(values_of(&h, page, "Ppl"), ["Anne"]);
+}

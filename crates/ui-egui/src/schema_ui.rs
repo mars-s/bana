@@ -255,9 +255,12 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
                     ui.label(g.name(*n));
                 });
             }
-            let r = ui.add(egui::TextEdit::singleline(&mut app.template_buf).hint_text("Add a template node, Enter").desired_width(260.0));
-            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.template_buf.trim().is_empty() {
-                let name = std::mem::take(&mut app.template_buf);
+            if app.template_buf.0 != Some(tag) {
+                app.template_buf = (Some(tag), String::new());
+            }
+            let r = ui.add(egui::TextEdit::singleline(&mut app.template_buf.1).hint_text("Add a template node, Enter").desired_width(260.0));
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.template_buf.1.trim().is_empty() {
+                let name = std::mem::take(&mut app.template_buf.1);
                 acts.push(Act::Run("tag.addTemplateNode".into(), json!({"tag": tag.0, "name": name})));
             }
             ui.horizontal(|ui| {
@@ -346,8 +349,11 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
                 let mut buf = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| def.title_expr.clone().unwrap_or_default());
                 let r = ui
                     .add(egui::TextEdit::singleline(&mut buf).font(egui::TextStyle::Monospace).hint_text("${name} (${Field})").desired_width(300.0));
+                // Saved as typed (DIFFS N26).
+                if r.changed() || r.lost_focus() {
+                    acts.push(Act::Run("tag.setTitleExpression".into(), json!({"tag": tag.0, "expression": buf.clone()})));
+                }
                 if r.lost_focus() {
-                    acts.push(Act::Run("tag.setTitleExpression".into(), json!({"tag": tag.0, "expression": buf})));
                     ui.data_mut(|d| d.remove::<String>(id));
                 } else if r.has_focus() {
                     ui.data_mut(|d| d.insert_temp(id, buf));
@@ -480,11 +486,14 @@ pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
                         }
                         ui.horizontal(|ui| {
                             ui.add_space(20.0);
+                            if app.option_buf.0 != Some(field) {
+                                app.option_buf = (Some(field), String::new());
+                            }
                             let r = ui.add(
-                                egui::TextEdit::singleline(&mut app.option_buf).frame(egui::Frame::NONE).hint_text("Empty").desired_width(220.0),
+                                egui::TextEdit::singleline(&mut app.option_buf.1).frame(egui::Frame::NONE).hint_text("Empty").desired_width(220.0),
                             );
-                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.option_buf.trim().is_empty() {
-                                let o = std::mem::take(&mut app.option_buf);
+                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !app.option_buf.1.trim().is_empty() {
+                                let o = std::mem::take(&mut app.option_buf.1);
                                 acts.push(Act::Run("field.addOption".into(), json!({"field": f, "option": o})));
                                 r.request_focus();
                             }
@@ -527,24 +536,17 @@ pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
             }
             FieldType::Number => {
                 row(ui, t, "Minimum / maximum", |ui| {
-                    let (mut lo, mut hi) = app
-                        .range_buf
-                        .clone()
-                        .unwrap_or_else(|| (def.min.map(|x| x.to_string()).unwrap_or_default(), def.max.map(|x| x.to_string()).unwrap_or_default()));
+                    let (mut lo, mut hi) =
+                        app.range_buf.clone().filter(|r| r.0 == field).map(|r| (r.1, r.2)).unwrap_or_else(|| {
+                            (def.min.map(|x| x.to_string()).unwrap_or_default(), def.max.map(|x| x.to_string()).unwrap_or_default())
+                        });
                     let a = ui.add(egui::TextEdit::singleline(&mut lo).hint_text("min").desired_width(70.0));
                     let b = ui.add(egui::TextEdit::singleline(&mut hi).hint_text("max").desired_width(70.0));
                     if a.lost_focus() || b.lost_focus() {
-                        let mut p = json!({"field": f});
-                        if let Ok(x) = lo.trim().parse::<f64>() {
-                            p["min"] = json!(x);
-                        }
-                        if let Ok(x) = hi.trim().parse::<f64>() {
-                            p["max"] = json!(x);
-                        }
-                        acts.push(Act::Run("field.setRange".into(), p));
+                        acts.push(Act::Run("field.setRange".into(), range_params(field, &lo, &hi)));
                         app.range_buf = None;
                     } else if a.has_focus() || b.has_focus() {
-                        app.range_buf = Some((lo, hi));
+                        app.range_buf = Some((field, lo, hi));
                     }
                 });
             }
@@ -599,4 +601,15 @@ pub fn field_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId) {
         });
     });
     app.acts.extend(acts);
+}
+
+/// `field.setRange` parameters from the typed minimum and maximum (a blank or non-number is left out).
+pub(crate) fn range_params(field: NodeId, lo: &str, hi: &str) -> serde_json::Value {
+    let mut p = json!({"field": field.0});
+    for (k, v) in [("min", lo), ("max", hi)] {
+        if let Ok(x) = v.trim().parse::<f64>() {
+            p[k] = json!(x);
+        }
+    }
+    p
 }

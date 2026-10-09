@@ -542,7 +542,7 @@ pub fn registry() -> Registry {
             .key(">")
             .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string, "after"?: id}  (after: the child the field row shows after; default above the children)"#),
         C::new("field.set", "Set field value", "Field", field_set)
-            .params(r#"{"node"?: id, "field": name | id, "value": string, "index"?: number}  (index picks one of several values; empty removes it)"#),
+            .params(r#"{"node"?: id, "field": name | id, "value": string, "index"?: number, "keep"?: bool}  (index picks one of several values; empty removes it; keep: store text that does not parse as typed)"#),
         C::new("field.addValue", "Add field value", "Field", field_add_value).params(r#"{"node"?: id, "field": name | id, "value": string}"#),
         C::new("field.valueToNode", "Move value out of field", "Field", field_value_to_node)
             .params(r#"{"node"?: id, "field": name | id, "index": number, "text"?: string}  (text: the value being typed, if any)"#),
@@ -732,8 +732,9 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
         let (head, tail) = char_split(&clean, caret);
         s.graph.set_name(id, &head)?;
         let new = s.graph.create(parent, Some(at + 1), &tail)?;
-        // The line after a checkbox item is a checkbox item too, unchecked (DIFFS N18).
-        if s.graph.get(id).is_some_and(|x| x.done.is_some()) {
+        // The line after a checkbox item is a checkbox item too, unchecked (DIFFS N18), but only
+        // when the box is the node's own: a supertag's box stays with the tag (DIFFS N29).
+        if s.graph.get(id).is_some_and(|x| x.done.is_some()) && !s.graph.tag_wants_checkbox(id) {
             s.graph.set_done(new, Some(false))?;
         }
         s.set_focus(new, 0);
@@ -1070,15 +1071,33 @@ fn move_sibling(s: &mut Session, v: &Value, up: bool) -> CmdResult {
     // The open page is the edge: its first (last) top-level node does not move up (down) out of
     // it into a neighbouring page (spec 02 §6).
     let page = s.graph.resolve(s.zoom);
+    // The same holds for a reference's notes for this place: a note does not move out of them.
     let at_edge = |s: &Session, id: NodeId| {
-        let kids = s.graph.children(page);
-        s.graph.parent(id) == Some(page) && if up { kids.first() == Some(&id) } else { kids.last() == Some(&id) }
+        let Some(parent) = s.graph.parent(id).filter(|p| *p == page || s.graph.is_context(*p)) else { return false };
+        let kids = s.graph.children(parent);
+        if up { kids.first() == Some(&id) } else { kids.last() == Some(&id) }
     };
     if ids.first().is_some_and(|id| at_edge(s, *id)) {
         return Err(CmdError::Disabled(format!("already at the {} of the page", if up { "top" } else { "bottom" })));
     }
-    for id in ids {
-        s.graph.move_sibling(id, up)?;
+    // A line on screen stays on screen: one shown through a reference (its target's children)
+    // does not move away into a part of the graph this page does not show.
+    let rows: Vec<NodeId> = s.rows().iter().map(|r| r.id).collect();
+    let shown: Vec<(NodeId, Option<NodeId>, Option<usize>)> =
+        ids.iter().filter(|i| rows.contains(i)).map(|i| (*i, s.graph.parent(*i), s.graph.index_in_parent(*i))).collect();
+    for id in &ids {
+        s.graph.move_sibling(*id, up)?;
+    }
+    if !shown.is_empty() {
+        let rows: Vec<NodeId> = s.rows().iter().map(|r| r.id).collect();
+        if shown.iter().any(|(i, _, _)| !rows.contains(i)) {
+            for (i, parent, index) in shown.into_iter().rev() {
+                if let Some(p) = parent {
+                    s.graph.move_to(i, p, index)?;
+                }
+            }
+            return Err(CmdError::Disabled("the line would leave this page".into()));
+        }
     }
     Ok(s.focus_json())
 }
@@ -1501,7 +1520,15 @@ fn field_add(s: &mut Session, v: &Value) -> CmdResult {
 fn field_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let field = field_param(s, v, false)?;
-    s.graph.set_field_text_at(id, field, p::usize(v, "index").unwrap_or(0), p::req_str(v, "value")?)?;
+    let (index, text) = (p::usize(v, "index").unwrap_or(0), p::req_str(v, "value")?);
+    match s.graph.set_field_text_at(id, field, index, text) {
+        // `keep`: text that is not a valid value is stored as typed (shown with a warning) instead
+        // of being thrown away (DIFFS N26).
+        Err(_) if p::bool(v, "keep") == Some(true) => {
+            s.graph.set_field_at(s.graph.resolve(id), field, index, Some(tanacraft_core::FieldValue::Text(text.trim().to_string())))?
+        }
+        r => r?,
+    }
     Ok(field_json(s, id, field))
 }
 

@@ -467,25 +467,34 @@ fn next_color(app: &TanaApp) -> &'static str {
     tanacraft_core::TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey")
 }
 
+/// The field name typed after `>` becomes a field row in place of the line `>` was typed on, and
+/// the picker closes. Returns the owner and the field.
+pub(crate) fn keep_field_name(app: &mut TanaApp) -> Option<(NodeId, NodeId)> {
+    let p = app.picker.as_ref()?;
+    let (q, node, line) = (p.query.trim().to_string(), p.node, p.line);
+    let exact = picker_items(app).into_iter().find(|c| matches!(c, Choice::Existing(_, n) if n.eq_ignore_ascii_case(&q)));
+    let picked = match &exact {
+        Some(Choice::Existing(f, _)) => Some(*f),
+        _ => None,
+    };
+    apply_choice(app, exact.unwrap_or(Choice::Create(q)));
+    app.picker = None;
+    if let Some(l) = line {
+        drop(app.exec("node.delete", json!({"node": l.0})));
+    }
+    let f = picked.or_else(|| app.session.graph.get(node).and_then(|n| n.fields.last()).map(|e| e.field))?;
+    Some((node, f))
+}
+
 pub fn picker_key(app: &mut TanaApp, k: &str) -> bool {
     let Some(p) = app.picker.as_mut() else { return false };
     match k {
-        // A field name typed after `>` is kept: Escape leaves the new field row (DIFFS N15).
+        // A field name typed after `>` is kept: Escape leaves the name and selects the new field
+        // row, so Tab goes on to its value (DIFFS N15, N28).
         "Escape" if p.mode == PickMode::Field && p.line.is_some() && !p.query.trim().is_empty() => {
-            let (q, node, line) = (p.query.trim().to_string(), p.node, p.line);
-            let exact = picker_items(app).into_iter().find(|c| matches!(c, Choice::Existing(_, n) if n.eq_ignore_ascii_case(&q)));
-            let picked = match &exact {
-                Some(Choice::Existing(f, _)) => Some(*f),
-                _ => None,
-            };
-            apply_choice(app, exact.unwrap_or(Choice::Create(q)));
-            if let Some(l) = line {
-                drop(app.exec("node.delete", json!({"node": l.0})));
-            }
-            let f = picked.or_else(|| app.session.graph.get(node).and_then(|n| n.fields.last()).map(|e| e.field));
-            if let Some(f) = f {
-                app.start_field_edit(crate::FieldEdit::new(node, f, 0));
-                app.leave_field("Escape");
+            app.field_sel = keep_field_name(app);
+            if app.field_sel.is_some() {
+                (app.session.focus, app.session.sel) = (None, None);
             }
         }
         "Escape" => {
@@ -944,6 +953,9 @@ pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
                     ui.label(RichText::new("Quick add").size(18.0).strong());
                     ui.separator();
                     let last = lines.len().saturating_sub(1);
+                    // The box takes the keyboard from anything else (a page title...) while open.
+                    let count = lines.len();
+                    let in_box = ui.ctx().memory(|m| m.focused()).is_some_and(|f| (0..count).any(|j| egui::Id::new(("quick-add-input", j)) == f));
                     for (i, line) in lines.iter_mut().enumerate() {
                         ui.horizontal(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(12.0, 22.0), Sense::hover());
@@ -956,8 +968,7 @@ pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
                                     .hint_text("Type a node, #tag at the end")
                                     .desired_width(w - 20.0),
                             );
-                            let nothing_focused = ui.ctx().memory(|m| m.focused().is_none());
-                            if i == last && (enter || nothing_focused) {
+                            if i == last && (enter || !in_box) {
                                 resp.request_focus();
                             }
                         });
@@ -970,27 +981,31 @@ pub fn quick_add(app: &mut TanaApp, ctx: &egui::Context) {
                 });
         });
     if save {
-        let mut added = 0;
-        for text in lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty()) {
-            // A trailing `#word` tags the node.
-            let (name, tag) = match text.rsplit_once(" #") {
-                Some((n, tg)) if !tg.contains(' ') && !tg.is_empty() => (n.to_string(), Some(tg.to_string())),
-                _ => (text.to_string(), None),
-            };
-            let mut p = json!({"name": name});
-            if let Some(tag) = tag {
-                p["tag"] = json!(tag);
-            }
-            match app.exec("node.quickAdd", p) {
-                Ok(_) => added += 1,
-                Err(e) => app.session.status = e,
-            }
-        }
-        if added > 0 {
-            app.session.status = format!("Added {added} to today");
-        }
+        save_quick_add(app, &lines);
     } else if !close {
         app.quick_add = Some(lines);
+    }
+}
+
+/// Adds the quick add lines to today's page; a trailing `#word` tags the node.
+pub(crate) fn save_quick_add(app: &mut TanaApp, lines: &[String]) {
+    let mut added = 0;
+    for text in lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty()) {
+        let (name, tag) = match text.rsplit_once(" #") {
+            Some((n, tg)) if !tg.contains(' ') && !tg.is_empty() => (n.to_string(), Some(tg.to_string())),
+            _ => (text.to_string(), None),
+        };
+        let mut p = json!({"name": name});
+        if let Some(tag) = tag {
+            p["tag"] = json!(tag);
+        }
+        match app.exec("node.quickAdd", p) {
+            Ok(_) => added += 1,
+            Err(e) => app.session.status = e,
+        }
+    }
+    if added > 0 {
+        app.session.status = format!("Added {added} to today");
     }
 }
 

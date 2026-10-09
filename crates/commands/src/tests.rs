@@ -993,6 +993,8 @@ fn context_notes_live_on_the_reference_not_the_target() {
     assert_eq!(s.graph.children(s.graph.context_of(r).unwrap()).len(), 2);
     assert!(s.graph.children(a).is_empty());
     assert!(s.run("node.outdent", &json!({"node": line.0})).is_err(), "notes stay under the reference");
+    assert!(s.run("node.moveDown", &json!({"node": s.graph.children(s.graph.context_of(r).unwrap())[1].0})).is_err(), "or by moving");
+    assert!(s.run("node.moveUp", &json!({"node": line.0})).is_err());
     run(&mut s, "node.expand", json!({"node": b.0}));
     let rows: Vec<NodeId> = s.rows().iter().map(|r| r.id).collect();
     assert!(rows.contains(&line));
@@ -1144,6 +1146,48 @@ fn diffs_n18_enter_after_a_checkbox_item_makes_another() {
     run(&mut s, "focus.set", json!({"node": c.0}));
     run(&mut s, "node.enter", json!({}));
     assert_eq!(s.graph.checkbox(s.focus.unwrap()), None);
+}
+
+#[test]
+fn a_line_shown_through_a_reference_does_not_move_off_the_page() {
+    // Found by the UI fuzz: Cmd+Shift+Down on the last child of a referenced node moved it into
+    // the target's next sibling, somewhere this page does not show, and the caret was lost.
+    let mut s = blank();
+    let lib = s.graph.sys.library;
+    let target = id(&run(&mut s, "node.add", json!({"name": "Target", "parent": lib.0})), "id");
+    run(&mut s, "node.add", json!({"name": "Other", "parent": lib.0}));
+    let child = id(&run(&mut s, "node.add", json!({"name": "child", "parent": target.0})), "id");
+    let page = id(&run(&mut s, "node.add", json!({"name": "Page"})), "id");
+    run(&mut s, "nav.open", json!({"node": page.0}));
+    let r = id(&run(&mut s, "node.reference", json!({"target": target.0, "parent": page.0})), "id");
+    run(&mut s, "node.expand", json!({"node": r.0}));
+    run(&mut s, "focus.set", json!({"node": child.0}));
+    assert!(s.run("node.moveDown", &json!({})).is_err());
+    assert_eq!(s.graph.parent(child), Some(target));
+    assert_eq!(s.focus, Some(child));
+}
+
+#[test]
+fn diffs_n29_line_after_a_tagged_task_is_plain() {
+    // The checkbox of a #task node comes from the tag: the next line gets none, checked or not.
+    let mut s = blank();
+    run(&mut s, "tag.create", json!({"name": "Task"}));
+    run(&mut s, "tag.setCheckbox", json!({"tag": "Task", "on": true}));
+    for check in [false, true] {
+        let a = id(&run(&mut s, "node.add", json!({"name": "tk1"})), "id");
+        run(&mut s, "tag.add", json!({"node": a.0, "tag": "Task"}));
+        assert_eq!(s.graph.checkbox(a), Some(false));
+        if check {
+            run(&mut s, "node.toggleDone", json!({"node": a.0}));
+        }
+        run(&mut s, "focus.set", json!({"node": a.0, "caret": 3}));
+        run(&mut s, "node.enter", json!({}));
+        let b = s.focus.unwrap();
+        assert_eq!(s.graph.checkbox(b), None, "checked {check}");
+        run(&mut s, "node.setName", json!({"name": "tk2"}));
+        run(&mut s, "node.enter", json!({}));
+        assert_eq!(s.graph.checkbox(s.focus.unwrap()), None);
+    }
 }
 
 #[test]

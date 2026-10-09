@@ -54,7 +54,19 @@ pub fn matches(spec: &str, pressed: &str, mac: bool) -> bool {
 pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
     let events = ctx.input(|i| i.events.clone());
     let mut used = Vec::new();
+    let text_box = ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(ctx, id).is_some());
     for (i, ev) in events.iter().enumerate() {
+        // Text typed while no text box has the keyboard goes into the selected line (or field
+        // row), never nowhere (DIFFS N27).
+        if let Event::Text(t) = ev
+            && !text_box
+            && !t.is_empty()
+            && app.typing_target().is_some()
+            && app.type_into_target(t)
+        {
+            used.push(i);
+            continue;
+        }
         // Cmd+C on selected nodes copies them (plain text and HTML); pasting that text back
         // inserts references to the same nodes.
         if matches!(ev, Event::Copy) && app.session.sel.is_some() && (app.session.focus.is_none() || app.edit.selection_empty) {
@@ -166,9 +178,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
         // Escape and Up leave the description (keeping it); Up goes back to the name.
         if k == "Escape" || k == "Up" {
             app.desc_edit = None;
-            let is_ref = app.session.graph.get(node).is_some_and(|n| n.reference_target().is_some());
-            let cmd = if is_ref { "node.contextNote" } else { "node.setDescription" };
-            app.exec(cmd, json!({"node": node.0, "text": text})).ok();
+            app.write_description(node, &text);
             if k == "Up" {
                 app.exec("focus.set", json!({"node": node.0, "caret": usize::MAX})).ok();
             }
@@ -244,9 +254,14 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             return false;
         }
     }
+    if app.field_row_key(&k) {
+        return true;
+    }
     let selecting = app.session.sel.is_some();
     match k.as_str() {
+        // The selection goes, but typing still lands in its last line (spec 02 §6, DIFFS N27).
         "Escape" if selecting => {
+            app.ghost_sel = app.session.sel.map(|s| s.1);
             app.session.sel = None;
             return true;
         }

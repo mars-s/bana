@@ -37,8 +37,10 @@ impl eframe::App for App {
         self.0.ui(ui);
     }
     fn on_exit(&mut self) {
-        if self.0.session.path.is_some() && self.0.session.graph.is_dirty() {
-            let _ = self.0.session.run("file.save", &json!({}));
+        // Text still in an open editor (a field value or name, a description...) is saved too
+        // (DIFFS N26).
+        if let Err(e) = self.0.save_on_quit() {
+            eprintln!("{PRODUCT_NAME}: could not save: {e}");
         }
     }
 }

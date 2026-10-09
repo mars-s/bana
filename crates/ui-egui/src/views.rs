@@ -8,6 +8,7 @@ use tanacraft_core::query::{Clause, ClauseKind, Query};
 use tanacraft_core::view::{Group, NO_VALUE};
 use tanacraft_core::{Date, FieldType, GroupBy, NodeId, SortBy, ViewKind};
 
+use crate::icons::Icon;
 use crate::outline::{checkbox, chip, field_values, rich_label};
 use crate::theme::{self, Tokens};
 use crate::{Act, PickMode, TanaApp};
@@ -17,6 +18,26 @@ const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "Jun
 /// Board cards are dragged with this payload (bullets use a bare `NodeId`).
 #[derive(Debug, Clone, Copy)]
 struct CardDrag(NodeId);
+
+/// A square icon button of the view toolbar; active settings get a blue outline (spec 04 §1).
+fn tool_button(ui: &mut Ui, t: &Tokens, icon: Icon, active: bool, tip: &str) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(28.0, 26.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 5.0, t.hover);
+    }
+    if active {
+        ui.painter().rect_stroke(rect.shrink(1.0), 5.0, Stroke::new(1.2, t.accent), StrokeKind::Inside);
+    }
+    crate::icons::paint(ui.painter(), rect.shrink(7.0), icon, if active { t.accent } else { t.dim });
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tip));
+    resp.on_hover_text(tip)
+}
+
+/// A toolbar icon button that opens a menu.
+fn tool_menu(ui: &mut Ui, t: &Tokens, icon: Icon, active: bool, tip: &str, add: impl FnOnce(&mut Ui)) {
+    let r = tool_button(ui, t, icon, active, tip);
+    egui::Popup::menu(&r).show(add);
+}
 
 fn small_button(ui: &mut Ui, t: &Tokens, label: &str, active: bool) -> egui::Response {
     let b = egui::Button::new(RichText::new(label).size(13.0).color(if active { t.text } else { t.dim }))
@@ -254,14 +275,11 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             if r.lost_focus() && buf.is_empty() {
                 app.quick_filter_open = None;
             }
-        } else if small_button(ui, t, "Search", app.quick_filter.get(&node).is_some_and(|s| !s.is_empty()))
-            .on_hover_text("Filter the items by text")
-            .clicked()
-        {
+        } else if tool_button(ui, t, Icon::Search, app.quick_filter.get(&node).is_some_and(|s| !s.is_empty()), "Filter items by text").clicked() {
             app.quick_filter_open = Some(node);
             app.quick_filter_focus = true;
         }
-        ui.menu_button(RichText::new(format!("View: {}", def.kind.label())).size(13.0).color(t.dim), |ui| {
+        tool_menu(ui, t, Icon::Views, false, &format!("View as: {}", def.kind.label()), |ui| {
             for k in ViewKind::ALL {
                 if k == ViewKind::List {
                     ui.separator();
@@ -278,27 +296,20 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 ui.close();
             }
         });
-        ui.menu_button(
-            RichText::new(if def.columns.is_empty() && def.system.is_empty() {
-                "Display".to_string()
-            } else {
-                format!("Display ({})", def.columns.len() + def.system.len())
-            })
-            .size(13.0)
-            .color(t.dim),
-            |ui| {
-                ui.label(RichText::new("Display fields").size(12.0).color(t.faint));
-                for (f, name, _) in &field_names {
-                    let mut on = def.columns.contains(f);
-                    if ui.checkbox(&mut on, name).changed() {
-                        acts.push(Act::Run("view.toggleDisplay".into(), json!({"node": node.0, "field": f.0})));
-                    }
+        let shown: Vec<String> = def.columns.iter().map(|f| g.name(*f).to_string()).chain(def.system.iter().map(|x| x.label().to_string())).collect();
+        let display_tip = if shown.is_empty() { "Display".to_string() } else { format!("Displaying: {}", shown.join(", ")) };
+        tool_menu(ui, t, Icon::Display, !shown.is_empty(), &display_tip, |ui| {
+            ui.label(RichText::new("Display fields").size(12.0).color(t.faint));
+            for (f, name, _) in &field_names {
+                let mut on = def.columns.contains(f);
+                if ui.checkbox(&mut on, name).changed() {
+                    acts.push(Act::Run("view.toggleDisplay".into(), json!({"node": node.0, "field": f.0})));
                 }
-                if field_names.is_empty() {
-                    ui.label(RichText::new("The items have no fields yet").color(t.faint));
-                }
-            },
-        );
+            }
+            if field_names.is_empty() {
+                ui.label(RichText::new("The items have no fields yet").color(t.faint));
+            }
+        });
         if def.kind != ViewKind::Table {
             let group_label = match def.group {
                 None => "Group".to_string(),
@@ -309,7 +320,8 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 Some(GroupBy::Edited) => "Group: edited".into(),
                 Some(GroupBy::Field(f)) => format!("Group: {}", g.name(f)),
             };
-            ui.menu_button(RichText::new(group_label).size(13.0).color(t.dim), |ui| {
+            let group_tip = group_label.replace("Group: ", "Grouped by: ");
+            tool_menu(ui, t, Icon::Group, def.group.is_some(), &group_tip, |ui| {
                 ui.label(RichText::new("Group by").size(12.0).color(t.faint));
                 for hidden in &def.hidden_groups {
                     if ui.button(format!("Show hidden group: {hidden}")).clicked() {
@@ -342,7 +354,8 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             None => "Sort".to_string(),
             Some(r) => format!("Sort: {}{}", sort_label(r.by), if def.sort.len() > 1 { format!(" +{}", def.sort.len() - 1) } else { String::new() }),
         };
-        ui.menu_button(RichText::new(sort_text).size(13.0).color(t.dim), |ui| {
+        let sort_tip = sort_text.replace("Sort: ", "Sorted by: ");
+        tool_menu(ui, t, Icon::Sort, !def.sort.is_empty(), &sort_tip, |ui| {
             ui.label(RichText::new("Sort by").size(12.0).color(t.faint));
             for (i, r) in def.sort.iter().enumerate() {
                 ui.horizontal(|ui| {
@@ -380,7 +393,7 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 ui.close();
             }
         });
-        ui.menu_button(RichText::new("Filter by").size(13.0).color(t.dim), |ui| {
+        tool_menu(ui, t, Icon::Filter, !def.filter.clauses.is_empty(), "Filter by", |ui| {
             ui.menu_button("Checked state", |ui| {
                 for (label, clause) in [("Done", "DONE"), ("Not done", "TODO")] {
                     if ui.button(label).clicked() {
@@ -423,7 +436,7 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
         });
         if def.kind == ViewKind::Calendar {
             let date_fields: Vec<&(NodeId, String, FieldType)> = field_names.iter().filter(|(_, _, ty)| *ty == FieldType::Date).collect();
-            ui.menu_button(RichText::new("Date field").size(13.0).color(t.dim), |ui| {
+            tool_menu(ui, t, Icon::Calendar, def.date_field.is_some(), "Date fields", |ui| {
                 for (f, name, _) in date_fields {
                     if ui.button(name).clicked() {
                         acts.push(Act::Run("view.dateField".into(), json!({"node": node.0, "field": f.0})));
@@ -681,12 +694,49 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
             if let Some(s) = sort.first().filter(|s| s.by == SortBy::Field(*f)) {
                 label.push_str(if s.desc { "  v" } else { "  ^" });
             }
-            ui.painter().with_clip_rect(r).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(13.5), t.dim);
-            if resp.clicked() {
-                let desc = sort.first().is_some_and(|s| s.by == SortBy::Field(*f) && !s.desc);
-                app.acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": f.0.to_string(), "desc": desc})));
+            // The field-type icon opens the field; the name is renamed in place (spec 04 §3).
+            let icon = Rect::from_center_size(r.left_center() + vec2(10.0, 0.0), vec2(11.0, 11.0));
+            let ty = g.field_def(*f).map(|d| d.field_type).unwrap_or_default();
+            crate::outline::paint_field_icon(ui.painter(), icon, ty, t.dim);
+            let icon_resp =
+                ui.interact(icon.expand(3.0), egui::Id::new((app.panel_ix, "col-icon", node.0, f.0)), Sense::click()).on_hover_text("Open the field");
+            if icon_resp.clicked() {
+                app.acts.push(Act::Run("nav.open".into(), json!({"node": f.0})));
+            }
+            let renaming = app.header_edit.as_ref().filter(|(x, _)| *x == *f).is_some();
+            if renaming {
+                let text_rect = Rect::from_min_max(r.min + vec2(22.0, 2.0), r.max - vec2(6.0, 2.0));
+                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(text_rect));
+                if let Some((_, buf)) = app.header_edit.as_mut() {
+                    let e = child.add(
+                        egui::TextEdit::singleline(buf)
+                            .id(egui::Id::new(("col-rename", f.0)))
+                            .frame(egui::Frame::NONE)
+                            .desired_width(text_rect.width()),
+                    );
+                    if !e.has_focus() && !e.lost_focus() {
+                        e.request_focus();
+                    }
+                    if e.lost_focus() {
+                        let name = buf.trim().to_string();
+                        app.header_edit = None;
+                        if !name.is_empty() {
+                            app.acts.push(Act::Run("node.setName".into(), json!({"node": f.0, "name": name})));
+                        }
+                    }
+                }
+            } else {
+                ui.painter().with_clip_rect(r).text(r.left_center() + vec2(22.0, 0.0), Align2::LEFT_CENTER, label, FontId::proportional(13.5), t.dim);
+                if resp.clicked() && !icon_resp.hovered() {
+                    app.header_edit = Some((*f, g.name(*f).to_string()));
+                }
             }
             resp.context_menu(|ui| {
+                if ui.button("Sort by this field").clicked() {
+                    let desc = sort.first().is_some_and(|s| s.by == SortBy::Field(*f) && !s.desc);
+                    app.acts.push(Act::Run("view.sort".into(), json!({"node": node.0, "by": f.0.to_string(), "desc": desc})));
+                    ui.close();
+                }
                 if ui.button("Open field").clicked() {
                     app.acts.push(Act::Run("nav.open".into(), json!({"node": f.0})));
                     ui.close();

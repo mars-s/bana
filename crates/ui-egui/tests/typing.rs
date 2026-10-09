@@ -1006,3 +1006,30 @@ fn top_bar_help_lists_every_command() {
     h.get_by_label("edit.insertDate");
     h.get_by_label("Account");
 }
+
+#[test]
+fn table_header_renames_the_field_in_place() {
+    let mut h = harness();
+    let s = h.state_mut();
+    s.exec("tag.create", json!({"name": "book"})).unwrap();
+    s.exec("tag.addField", json!({"tag": "book", "field": "Pages", "type": "number"})).unwrap();
+    let tag = s.session.graph.find_tag("book").unwrap().0;
+    let b = s.exec("node.add", json!({"name": "Dune"})).unwrap()["id"].as_u64().unwrap();
+    s.exec("tag.add", json!({"node": b, "tag": "book"})).unwrap();
+    s.exec("nav.open", json!({"node": tag})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let pages = h.state().session.graph.find_field("Pages").unwrap();
+    h.state_mut().header_edit = Some((pages, String::new()));
+    for _ in 0..3 {
+        h.step();
+    }
+    text(&mut h, "Page count");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    for _ in 0..2 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.name(pages), "Page count");
+    assert!(h.state().header_edit.is_none());
+}

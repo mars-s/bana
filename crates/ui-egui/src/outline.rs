@@ -42,7 +42,15 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
     let width = ui.available_width();
     let side_w = 360.0;
     let wide = width > LEFT + MAX_W.min(600.0) + side_w + 80.0 && !app.session.graph.related_for(app.session.zoom).is_empty();
-    let content_w = if wide { (width - LEFT - side_w - 70.0).clamp(200.0, MAX_W) } else { (width - LEFT - 40.0).clamp(200.0, MAX_W) };
+    // Tables, boards and calendars use the full panel width (spec 04 §3).
+    let zoom = app.session.zoom;
+    let g = &app.session.graph;
+    let shown = if g.tag_def(zoom).is_some() { app.tag_tab.get(&zoom).copied().unwrap_or(zoom) } else { zoom };
+    let full = !app.session.config_view
+        && matches!(g.view_def(shown).kind, tanacraft_core::ViewKind::Table | tanacraft_core::ViewKind::Cards | tanacraft_core::ViewKind::Calendar)
+        && (g.query(shown).is_some() || g.get(shown).is_some_and(|n| n.view.is_some()) || g.tag_def(zoom).is_some());
+    let max_w = if full { f32::INFINITY } else { MAX_W };
+    let content_w = if wide { (width - LEFT - side_w - 70.0).clamp(200.0, max_w) } else { (width - LEFT - 40.0).clamp(200.0, max_w) };
     ui.add_space(12.0);
     breadcrumbs(app, ui, &t);
     ui.add_space(18.0);
@@ -607,7 +615,7 @@ pub(crate) fn field_label(ui: &mut Ui, t: &Tokens, name: &str, ty: FieldType) {
 }
 
 /// A small glyph per field type (drawn, not an image).
-fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Color32) {
+pub(crate) fn paint_field_icon(p: &egui::Painter, r: Rect, ty: FieldType, c: Color32) {
     let st = Stroke::new(1.2, c);
     match ty {
         FieldType::Date => {

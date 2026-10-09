@@ -230,6 +230,8 @@ pub struct TanaApp {
     /// Pinned sidebar rows shown expanded.
     pin_open: std::collections::HashSet<NodeId>,
     /// Supertag pages with the configure section open, and their active view tab.
+    /// A table column header being renamed (field, text).
+    pub header_edit: Option<(NodeId, String)>,
     /// Settings: show reference counts next to nodes.
     pub ref_counter: bool,
     /// Configure-supertag sections the user folded.
@@ -297,6 +299,7 @@ impl TanaApp {
             col_drag: None,
             config_closed: Default::default(),
             ref_counter: false,
+            header_edit: None,
             tag_tab: Default::default(),
             template_buf: String::new(),
             option_buf: String::new(),

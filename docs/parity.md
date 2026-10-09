@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 59 | 33 | 5 | 2 |
+| Spec sections (99) | 61 | 31 | 5 | 2 |
 | Screenshots (153) | 99 | 32 | 21 | 1 |
 
 ## `00-overview.md`
@@ -83,9 +83,9 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Where view controls live | partial | Toolbar: quick filter, view as, display, group, sort, filter, active filter chips; options menu. Text buttons rather than icons. |
+| 1. Where view controls live | done | View toolbar of square icon buttons: magnifier (quick filter), view as, display, group, sort, filter by, date fields (calendar); active ones get a blue outline and the tooltip summarises them (Displaying:, Grouped by:, Sorted by:); filter chips; options menu. |
 | 2. Outline (default) | done | Bullets with display-field line. |
-| 3. Table | partial | Tag-named first column (Title when mixed) with tag-colour underline, field columns, resizable columns, sort by header, + Add field, in-place cells. Header rename in place missing. |
+| 3. Table | done | Full panel width; tag-named first column (Title when mixed) with tag-colour underline; field columns with type icon (opens the field) and name (click renames in place); a supertag's template fields are columns even before anything is tagged; resizable columns; + Add field; in-place cells that grow with wrapped text; sort from the toolbar or the header's context menu. Tested. |
 | 4. Cards | done | Grid of cards: tag header, checkbox and name, display fields footer, + Add. |
 | 5. Board (cards grouped) | done | Columns per value including empty options and <Field> not set; dragging a card sets the value; + Add per column. |
 | 6. Lanes | done | Each item a lane with its children. |

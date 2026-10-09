@@ -364,7 +364,8 @@ impl Graph {
         if !v.columns.is_empty() {
             return v.columns.into_iter().filter(|c| self.field_def(*c).is_some()).collect();
         }
-        let mut out = Vec::new();
+        // A supertag's own view starts with its template fields, also before anything is tagged.
+        let mut out = if self.tag_def(id).is_some() { self.template_fields(id) } else { Vec::new() };
         for i in self.view_items(id).iter().take(500) {
             for f in self.get(self.resolve(*i)).map(|n| n.fields.as_slice()).unwrap_or(&[]) {
                 if !out.contains(&f.field) {

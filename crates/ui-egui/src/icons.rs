@@ -18,6 +18,13 @@ pub enum Icon {
     Recent,
     Help,
     Person,
+    /// View toolbar: display fields (lines with an eye), group (rows), sort (arrows), filter
+    /// (funnel lines), view as (grid).
+    Display,
+    Group,
+    Sort,
+    Filter,
+    Views,
 }
 
 pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -78,6 +85,36 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 p.circle_filled(r(x, -0.15), 0.9, color);
             }
             p.line_segment([r(-0.45, 0.25), r(0.45, 0.25)], st);
+        }
+        Icon::Display => {
+            for i in 0..3 {
+                let y = -0.6 + i as f32 * 0.45;
+                p.line_segment([r(-0.85, y), r(0.1, y)], st);
+            }
+            p.circle_stroke(r(0.5, 0.35), s * 0.28, st);
+            p.circle_filled(r(0.5, 0.35), 1.2, color);
+        }
+        Icon::Group => {
+            p.rect_stroke(Rect::from_min_max(r(-0.85, -0.75), r(0.85, -0.15)), 1.5, st, StrokeKind::Middle);
+            p.rect_stroke(Rect::from_min_max(r(-0.85, 0.15), r(0.85, 0.75)), 1.5, st, StrokeKind::Middle);
+        }
+        Icon::Sort => {
+            p.line_segment([r(-0.4, -0.75), r(-0.4, 0.75)], st);
+            p.line_segment([r(-0.4, -0.75), r(-0.75, -0.35)], st);
+            p.line_segment([r(-0.4, -0.75), r(-0.05, -0.35)], st);
+            p.line_segment([r(0.4, 0.75), r(0.4, -0.75)], st);
+            p.line_segment([r(0.4, 0.75), r(0.05, 0.35)], st);
+            p.line_segment([r(0.4, 0.75), r(0.75, 0.35)], st);
+        }
+        Icon::Filter => {
+            p.line_segment([r(-0.85, -0.55), r(0.85, -0.55)], st);
+            p.line_segment([r(-0.5, 0.0), r(0.5, 0.0)], st);
+            p.line_segment([r(-0.2, 0.55), r(0.2, 0.55)], st);
+        }
+        Icon::Views => {
+            for (x, y) in [(-0.8, -0.8), (0.1, -0.8), (-0.8, 0.1), (0.1, 0.1)] {
+                p.rect_stroke(Rect::from_min_max(r(x, y), r(x + 0.7, y + 0.7)), 1.0, st, StrokeKind::Middle);
+            }
         }
         Icon::Help => {
             p.circle_stroke(c, s * 0.85, st);

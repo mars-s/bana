@@ -1,5 +1,7 @@
 //! Fuzz-style test of the real UI: random keys, text and commands typed into the sample graph. The
 //! UI must never panic (egui code runs outside the command guard) and the graph must stay sound.
+//! While typing, the keyboard must never go nowhere: after each key an editor or a menu still has
+//! it, or a line is selected, and typed text shows up somewhere (DIFFS N16).
 //! Longer runs: `UI_FUZZ_SEEDS=200 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
 
 use egui::{Event, Key, Modifiers};

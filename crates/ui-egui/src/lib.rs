@@ -44,7 +44,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.configureSupertag", "Configure supertag", ""),
     ("ui.recents", "Open recents", ""),
     ("ui.settings", "Open settings", ""),
-    ("ui.searchOptions", "Show or hide search conditions", ""),
+    ("ui.searchOptions", "Open or close the query editor (search conditions)", "Mod+Shift+O"),
     ("ui.insertDate", "Insert date...", ""),
     ("ui.help", "Help", ""),
     ("ui.cycleContentWidth", "Cycle content widths", ""),

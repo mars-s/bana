@@ -1909,3 +1909,23 @@ fn diffs_n20_deleting_a_node_used_elsewhere_asks_first() {
     h.state_mut().exec("node.delete", json!({"node": r.0})).unwrap();
     assert!(h.state().confirm_delete.is_none());
 }
+
+#[test]
+fn diffs_n13_query_editor_opens_from_the_keyboard() {
+    let mut h = harness();
+    let q = h.state_mut().exec("search.create", json!({"query": "garden", "name": "Garden search"})).unwrap();
+    h.state_mut().exec("nav.open", json!({"node": q["id"]})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(!h.state().query_open);
+    key(&mut h, Key::O, Modifiers { shift: true, ..CMD });
+    assert!(h.state().query_open, "Cmd+Shift+O opens it");
+    key(&mut h, Key::O, Modifiers { shift: true, ..CMD });
+    assert!(!h.state().query_open);
+    // The command line finds it by name.
+    key(&mut h, Key::K, CMD);
+    text(&mut h, "query editor");
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert!(h.state().query_open);
+}

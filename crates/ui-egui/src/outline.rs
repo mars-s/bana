@@ -35,6 +35,10 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
         settings_page(app, ui, &t);
         return;
     }
+    if app.help_page {
+        help_page(app, ui, &t);
+        return;
+    }
     let width = ui.available_width();
     let side_w = 360.0;
     let wide = width > LEFT + MAX_W.min(600.0) + side_w + 80.0 && !app.session.graph.related_for(app.session.zoom).is_empty();
@@ -195,6 +199,58 @@ pub(crate) fn recents_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 }
 
 /// The Settings page (spec 07 §8): the preferences this app has.
+/// Help: what the app is, then every command (engine and UI) by area, with shortcut and params.
+pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
+    ui.add_space(12.0);
+    ui.horizontal(|ui| {
+        ui.add_space(LEFT);
+        ui.vertical(|ui| {
+            ui.set_width(MAX_W.min(ui.available_width() - 40.0));
+            ui.label(RichText::new("Help").size(30.0).strong());
+            ui.label(
+                RichText::new(format!(
+                    "Every action in {} is a command. The same commands run from the keyboard, the command line (Cmd+K), the CLI and the MCP server.",
+                    tanacraft_core::PRODUCT_NAME
+                ))
+                .color(t.dim),
+            );
+            ui.add_space(10.0);
+            let reg = app.session.registry.clone();
+            let mut areas: Vec<&str> = reg.all().iter().map(|c| c.location).collect();
+            areas.dedup();
+            areas.sort_unstable();
+            areas.dedup();
+            let row = |ui: &mut Ui, label: &str, id: &str, key: &str, params: &str| {
+                ui.horizontal(|ui| {
+                    let cell = |ui: &mut Ui, w: f32, text: RichText| {
+                        ui.allocate_ui_with_layout(vec2(w, 18.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.set_min_width(w);
+                            ui.label(text);
+                        });
+                    };
+                    cell(ui, 260.0, RichText::new(label).size(13.5));
+                    cell(ui, 150.0, RichText::new(crate::overlays::pretty_shortcut(key, app.mac)).size(12.5).color(t.dim));
+                    ui.label(RichText::new(id).size(12.0).monospace().color(t.faint));
+                })
+                .response
+                .on_hover_text(params);
+            };
+            for area in areas {
+                ui.add_space(8.0);
+                ui.label(RichText::new(area).strong().size(15.0));
+                for c in reg.all().iter().filter(|c| c.location == area) {
+                    row(ui, c.label, c.id, c.shortcut, c.params);
+                }
+            }
+            ui.add_space(8.0);
+            ui.label(RichText::new("Window").strong().size(15.0));
+            for (id, label, key) in crate::UI_COMMANDS {
+                row(ui, label, id, key, "");
+            }
+        });
+    });
+}
+
 pub(crate) fn settings_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     ui.add_space(12.0);
     ui.horizontal(|ui| {

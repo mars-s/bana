@@ -994,3 +994,15 @@ fn date_picker_takes_a_day_and_a_time_then_ok() {
     let v = g.get(tanacraft_core::NodeId(n)).unwrap().field_value(when).unwrap();
     assert_eq!(tanacraft_core::export::display_value(g, v), "2026-10-15 09:30-10:15");
 }
+
+#[test]
+fn top_bar_help_lists_every_command() {
+    let mut h = harness();
+    h.get_by_label("Help").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.state().help_page);
+    h.get_by_label("edit.insertDate");
+    h.get_by_label("Account");
+}

@@ -46,6 +46,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str)] = &[
     ("ui.settings", "Open settings", ""),
     ("ui.searchOptions", "Show or hide search conditions", ""),
     ("ui.insertDate", "Insert date...", ""),
+    ("ui.help", "Help", ""),
 ];
 
 /// The `#`, `>` and `@` pickers.
@@ -215,6 +216,8 @@ pub struct TanaApp {
     /// The Recents and Settings pages (they are views, not nodes).
     pub recents_page: bool,
     pub settings_page: bool,
+    /// The Help page: every command with its shortcut.
+    pub help_page: bool,
     recents_selected: Option<NodeId>,
     /// Put the caret in the page title on the next frame.
     pub(crate) focus_title: bool,
@@ -286,6 +289,7 @@ impl TanaApp {
             pin_open: Default::default(),
             recents_page: false,
             settings_page: false,
+            help_page: false,
             recents_selected: None,
             focus_title: false,
             node_clip: None,
@@ -336,6 +340,7 @@ impl TanaApp {
         if id.starts_with("nav.") || id == "node.createNew" {
             self.recents_page = false;
             self.settings_page = false;
+            self.help_page = false;
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
         if matches!(id, "workspace.switch" | "workspace.create" | "file.open") && r.is_ok() {
@@ -403,9 +408,16 @@ impl TanaApp {
             "ui.recents" => {
                 self.recents_page = true;
                 self.settings_page = false;
+                self.help_page = false;
             }
             "ui.settings" => {
                 self.settings_page = true;
+                self.recents_page = false;
+                self.help_page = false;
+            }
+            "ui.help" => {
+                self.help_page = !self.help_page;
+                self.settings_page = false;
                 self.recents_page = false;
             }
             "ui.configureSupertag" => {
@@ -690,17 +702,29 @@ impl TanaApp {
             ui.add_space(6.0);
             self.tabs_ui(ui);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Right cluster (spec 00 §2): account menu, keyboard shortcuts, help.
+                let account = icon_button(ui, Icon::Person, t.dim, "Account");
+                let mut acts = Vec::new();
+                egui::Popup::menu(&account).show(|ui| {
+                    ui.menu_button("Workspaces", |ui| self.workspace_menu(ui, &mut acts));
+                    for (label, act) in [
+                        ("Settings", Act::Ui("ui.settings")),
+                        ("Switch light or dark theme", Act::Ui("ui.toggleTheme")),
+                        ("Keyboard shortcuts", Act::Ui("ui.shortcuts")),
+                        ("Help", Act::Ui("ui.help")),
+                    ] {
+                        if ui.button(label).clicked() {
+                            acts.push(act);
+                            ui.close();
+                        }
+                    }
+                });
+                self.acts.extend(acts);
                 if icon_button(ui, Icon::Keyboard, if self.help { t.text } else { t.dim }, "Keyboard shortcuts").clicked() {
                     self.acts.push(Act::Ui("ui.shortcuts"));
                 }
-                if ui
-                    .add(
-                        egui::Label::new(RichText::new("Settings").size(12.5).color(if self.settings_page { t.text } else { t.dim }))
-                            .sense(Sense::click()),
-                    )
-                    .clicked()
-                {
-                    self.acts.push(Act::Ui("ui.settings"));
+                if icon_button(ui, Icon::Help, if self.help_page { t.text } else { t.dim }, "Help").clicked() {
+                    self.acts.push(Act::Ui("ui.help"));
                 }
                 let dirty = if self.session.graph.is_dirty() && self.session.path.is_some() { " (unsaved)" } else { "" };
                 ui.label(RichText::new(format!("{PRODUCT_NAME}{dirty}")).size(12.0).color(t.faint));

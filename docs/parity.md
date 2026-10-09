@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 58 | 34 | 5 | 2 |
+| Spec sections (99) | 59 | 33 | 5 | 2 |
 | Screenshots (153) | 99 | 32 | 21 | 1 |
 
 ## `00-overview.md`
@@ -18,7 +18,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Section | Status | Notes |
 |---|---|---|
 | 1. The big picture | done | Single window: top bar, sidebar, panel area; every line is a node; any node opens as a page. |
-| 2. Top bar (full window width, ~44 px tall) | partial | Sidebar button, back/forward, tab strip with +, keyboard-shortcuts toggle. Missing: help, credits, account menu. |
+| 2. Top bar (full window width, ~44 px tall) | done | Sidebar button, back/forward, tab strip with +, then Help (a page listing every command with shortcut and id), keyboard shortcuts toggle and an Account menu (Workspaces, Settings, theme, shortcuts, Help). Credits left out (no billing). |
 | 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents, Create new with a square Search button, Pinned (expandable), workspace avatar and name (menu: switch, new, rename), Library, Daily notes, Inbox, Trash. Missing: AI chats. |
 | 4. Panel area | partial | Breadcrumbs, title, tag chips, ... menu, content column, related-content side card, References. Missing: icon/banner, breadcrumb collapse, AI button, dock button. |
 | 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight. Own palette; default egui font (no Inter); no flash on new live results. |

@@ -16,6 +16,8 @@ pub enum Icon {
     Sidebar,
     Keyboard,
     Recent,
+    Help,
+    Person,
 }
 
 pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
@@ -76,6 +78,16 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 p.circle_filled(r(x, -0.15), 0.9, color);
             }
             p.line_segment([r(-0.45, 0.25), r(0.45, 0.25)], st);
+        }
+        Icon::Help => {
+            p.circle_stroke(c, s * 0.85, st);
+            p.text(c, egui::Align2::CENTER_CENTER, "?", egui::FontId::proportional(s * 1.3), color);
+        }
+        Icon::Person => {
+            p.circle_stroke(r(0.0, -0.35), s * 0.35, st);
+            p.line_segment([r(-0.7, 0.8), r(-0.4, 0.25)], st);
+            p.line_segment([r(-0.4, 0.25), r(0.4, 0.25)], st);
+            p.line_segment([r(0.4, 0.25), r(0.7, 0.8)], st);
         }
         Icon::Recent => {
             p.circle_stroke(c, s * 0.8, st);

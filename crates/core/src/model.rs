@@ -266,11 +266,32 @@ impl FieldValue {
     }
 }
 
-/// One field on a node: which field and its value.
+/// One field on a node: which field and its values (a field can hold several, spec 01 §5).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldEntry {
     pub field: NodeId,
+    /// The first value.
     pub value: Option<FieldValue>,
+    /// Further values, after `value`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub more: Vec<FieldValue>,
+}
+
+impl FieldEntry {
+    pub fn new(field: NodeId, value: Option<FieldValue>) -> FieldEntry {
+        FieldEntry { field, value, more: Vec::new() }
+    }
+
+    /// All values in order.
+    pub fn values(&self) -> impl Iterator<Item = &FieldValue> {
+        self.value.iter().chain(self.more.iter())
+    }
+
+    /// Replaces all values.
+    pub fn set_values(&mut self, mut vals: Vec<FieldValue>) {
+        self.value = if vals.is_empty() { None } else { Some(vals.remove(0)) };
+        self.more = vals;
+    }
 }
 
 /// Where a trashed node came from, so it can be restored.
@@ -373,7 +394,18 @@ impl Node {
         }
     }
 
+    /// The first value of `field`.
     pub fn field_value(&self, field: NodeId) -> Option<&FieldValue> {
         self.fields.iter().find(|f| f.field == field).and_then(|f| f.value.as_ref())
+    }
+
+    /// Every value of `field`.
+    pub fn field_values(&self, field: NodeId) -> Vec<&FieldValue> {
+        self.fields.iter().find(|f| f.field == field).map(|f| f.values().collect()).unwrap_or_default()
+    }
+
+    /// True when any field holds `v`.
+    pub fn has_value(&self, v: &FieldValue) -> bool {
+        self.fields.iter().any(|f| f.values().any(|x| x == v))
     }
 }

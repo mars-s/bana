@@ -558,7 +558,9 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
         let Some(def) = g.field_def(e.field).cloned() else { continue };
         let name = g.name(e.field).to_string();
         let value_text = e.value.as_ref().map(|v| export::display_value(g, v));
-        let editing = app.field_edit.as_ref().is_some_and(|f| f.node == target && f.field == e.field);
+        let values: Vec<FieldValue> = e.values().cloned().collect();
+        let edit_ix = app.field_edit.as_ref().filter(|f| f.node == target && f.field == e.field).map(|f| f.index);
+        let editing = edit_ix.is_some();
         // Hide-field rules (spec 03 §6).
         let empty = value_text.as_deref().is_none_or(str::is_empty);
         let is_default = def.default.is_some() && e.value == def.default;
@@ -586,7 +588,7 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
                     if narrow {
                         ui.end_row();
                     }
-                    field_value(app, ui, t, target, e.field, &def, e.value.as_ref(), value_text.clone(), editing);
+                    field_values(app, ui, t, target, e.field, &def, &values, edit_ix);
                     if missing {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
@@ -614,7 +616,7 @@ pub(crate) fn fields(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, i
             ui.add_space(indent + 4.0);
             for (f, name) in folded {
                 if ui.add(egui::Label::new(RichText::new(format!("+ {name}")).size(12.5).color(t.faint)).sense(Sense::click())).clicked() {
-                    app.acts.push(Act::EditField(target, f, String::new()));
+                    app.acts.push(Act::EditField(target, f, 0, String::new()));
                 }
             }
         });
@@ -632,6 +634,54 @@ fn field_frame_mut(ui: &mut Ui, t: &Tokens, app: &mut TanaApp, add: impl FnOnce(
     ui.add_space(3.0);
 }
 
+/// Every value of a field side by side, each editable, then a faint + that adds another value (a
+/// field can hold several, spec 01 §5). `edit_ix` is the value being typed into.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn field_values(
+    app: &mut TanaApp,
+    ui: &mut Ui,
+    t: &Tokens,
+    node: NodeId,
+    field: NodeId,
+    def: &tanacraft_core::FieldDef,
+    values: &[FieldValue],
+    edit_ix: Option<usize>,
+) {
+    let n = values.len().max(1);
+    for i in 0..n {
+        if i > 0 {
+            ui.add_space(-ui.spacing().item_spacing.x);
+            ui.label(RichText::new(",").size(14.5).color(t.faint));
+        }
+        let v = values.get(i);
+        let text = v.map(|v| export::display_value(&app.session.graph, v));
+        field_value(app, ui, t, node, field, i, def, v, text, edit_ix == Some(i));
+    }
+    if values.is_empty() || def.field_type == FieldType::Checkbox {
+        return;
+    }
+    let add = values.len();
+    if edit_ix == Some(add) {
+        ui.add_space(-ui.spacing().item_spacing.x);
+        ui.label(RichText::new(",").size(14.5).color(t.faint));
+        field_value(app, ui, t, node, field, add, def, None, None, true);
+        return;
+    }
+    // The + shows while the pointer is over the row.
+    let shown = ui.rect_contains_pointer(ui.max_rect());
+    let r = ui
+        .add(egui::Label::new(RichText::new("+").size(14.0).color(if shown { t.faint } else { Color32::TRANSPARENT })).sense(Sense::click()))
+        .on_hover_text("Add another value");
+    if r.clicked() {
+        let at = r.rect.left_bottom() + vec2(0.0, 4.0);
+        app.acts.push(match def.field_type {
+            FieldType::Options => Act::PickChoice(node, field, add, at),
+            FieldType::Date => Act::PickDate(node, field, add, at),
+            _ => Act::EditField(node, field, add, String::new()),
+        });
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn field_value(
     app: &mut TanaApp,
@@ -639,12 +689,13 @@ pub(crate) fn field_value(
     t: &Tokens,
     node: NodeId,
     field: NodeId,
+    index: usize,
     def: &tanacraft_core::FieldDef,
     value: Option<&FieldValue>,
     text: Option<String>,
     editing: bool,
 ) {
-    let set = |v: String| Act::Run("field.set".into(), json!({"node": node.0, "field": field.0, "value": v}));
+    let set = |v: String| Act::Run("field.set".into(), json!({"node": node.0, "field": field.0, "index": index, "value": v}));
     match def.field_type {
         FieldType::Checkbox => {
             let on = matches!(value, Some(FieldValue::Checkbox(true)));
@@ -675,7 +726,7 @@ pub(crate) fn field_value(
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
             if r.clicked() {
-                app.acts.push(Act::PickDate(node, field, r.rect.left_bottom() + vec2(0.0, 4.0)));
+                app.acts.push(Act::PickDate(node, field, index, r.rect.left_bottom() + vec2(0.0, 4.0)));
             }
             if let Some(d) = date
                 && ui
@@ -695,7 +746,11 @@ pub(crate) fn field_value(
             }
             if r.clicked() {
                 let at = r.rect.left_bottom() + vec2(0.0, 4.0);
-                app.acts.push(if def.field_type == FieldType::Date { Act::PickDate(node, field, at) } else { Act::PickChoice(node, field, at) });
+                app.acts.push(if def.field_type == FieldType::Date {
+                    Act::PickDate(node, field, index, at)
+                } else {
+                    Act::PickChoice(node, field, index, at)
+                });
             }
         }
         _ if editing => {
@@ -726,7 +781,7 @@ pub(crate) fn field_value(
             };
             let r = ui.add(egui::Label::new(RichText::new(label).size(14.5).color(color)).sense(Sense::click()));
             if r.clicked() {
-                app.acts.push(Act::EditField(node, field, text.unwrap_or_default()));
+                app.acts.push(Act::EditField(node, field, index, text.unwrap_or_default()));
             }
         }
     }

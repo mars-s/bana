@@ -574,3 +574,28 @@ fn checklist() {
     assert_eq!(lines(&mut s), ["  - New checklist", ">   - [ ] First item", "    - [ ] Second item"]);
     assert_eq!(s.graph.progress(a), (0, 2));
 }
+
+#[test]
+fn fields_hold_several_values() {
+    let mut s = blank();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Launch"})), "id");
+    run(&mut s, "field.add", json!({"node": n.0, "field": "Owners", "type": "plain"}));
+    run(&mut s, "field.addValue", json!({"node": n.0, "field": "Owners", "value": "Ada"}));
+    run(&mut s, "field.addValue", json!({"node": n.0, "field": "Owners", "value": "Sam"}));
+    let v = run(&mut s, "field.addValue", json!({"node": n.0, "field": "Owners", "value": "Sam"}));
+    assert_eq!(v["values"], json!(["Ada", "Sam"]), "duplicates are not added twice");
+    // Edit the second value, then remove the first: the second moves up.
+    run(&mut s, "field.set", json!({"node": n.0, "field": "Owners", "index": 1, "value": "Kim"}));
+    let v = run(&mut s, "field.removeValue", json!({"node": n.0, "field": "Owners", "index": 0}));
+    assert_eq!(v["values"], json!(["Kim"]));
+    run(&mut s, "field.addValue", json!({"node": n.0, "field": "Owners", "value": "Lee"}));
+    assert_eq!(export_md(&mut s, n), "- Launch\n  - Owners:: Kim, Lee\n");
+    // Search matches any value.
+    let lib = s.graph.sys.library.0;
+    let found = run(&mut s, "search.create", json!({"query": "Owners:Lee", "parent": lib}));
+    assert_eq!(found["results"], json!(1), "{found}");
+    run(&mut s, "edit.undo", json!({}));
+    // Undo takes back one value at a time.
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(export_md(&mut s, n), "- Launch\n  - Owners:: Kim\n");
+}

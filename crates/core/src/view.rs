@@ -233,7 +233,7 @@ impl Graph {
         let item = self.resolve(item);
         v.columns
             .iter()
-            .filter_map(|f| n.and_then(|n| n.field_value(*f)).map(|x| display_value(self, x)))
+            .filter_map(|f| n.and_then(|n| n.fields.iter().find(|e| e.field == *f)).map(|e| crate::export::entry_text(self, e)))
             .chain(v.system.iter().map(|f| self.system_value(item, *f)))
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()

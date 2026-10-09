@@ -80,7 +80,8 @@ fn md_node(g: &Graph, id: NodeId, depth: usize, out: &mut String) {
     }
     if let Some(n) = g.get(id) {
         for f in &n.fields {
-            let v = f.value.as_ref().map(|v| format!(" {}", display_value(g, v))).unwrap_or_default();
+            let v = entry_text(g, f);
+            let v = if v.is_empty() { v } else { format!(" {v}") };
             out.push_str(&format!("{pad}  - {}::{v}\n", g.name(f.field)));
         }
     }
@@ -110,7 +111,15 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
         let fields: serde_json::Map<String, Value> = n
             .fields
             .iter()
-            .map(|f| (g.name(f.field).to_string(), f.value.as_ref().map(|x| json!(display_value(g, x))).unwrap_or(Value::Null)))
+            .map(|f| {
+                let vals: Vec<String> = f.values().map(|x| display_value(g, x)).collect();
+                let v = match vals.len() {
+                    0 => Value::Null,
+                    1 => json!(vals[0]),
+                    _ => json!(vals),
+                };
+                (g.name(f.field).to_string(), v)
+            })
             .collect();
         v["fields"] = Value::Object(fields);
     }
@@ -132,4 +141,9 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
         v["children"] = Value::Array(n.children.iter().map(|c| json_node(g, *c, depth + 1)).collect());
     }
     v
+}
+
+/// All values of a field entry as text, comma separated.
+pub fn entry_text(g: &Graph, e: &crate::FieldEntry) -> String {
+    e.values().map(|v| display_value(g, v)).collect::<Vec<_>>().join(", ")
 }

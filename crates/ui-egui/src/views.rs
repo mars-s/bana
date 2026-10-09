@@ -8,7 +8,7 @@ use tanacraft_core::query::{Clause, ClauseKind, Query};
 use tanacraft_core::view::{Group, NO_VALUE};
 use tanacraft_core::{Date, FieldType, GroupBy, NodeId, SortBy, ViewKind};
 
-use crate::outline::{checkbox, chip, field_value, rich_label};
+use crate::outline::{checkbox, chip, field_values, rich_label};
 use crate::theme::{self, Tokens};
 use crate::{Act, PickMode, TanaApp};
 
@@ -645,10 +645,9 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                     cell(ui, col_ws.get(ci).copied().unwrap_or(160.0), |ui| {
                         let g = &app.session.graph;
                         let Some(def) = g.field_def(*f).cloned() else { return };
-                        let value = g.get(target).and_then(|n| n.field_value(*f)).cloned();
-                        let text = value.as_ref().map(|v| tanacraft_core::export::display_value(g, v));
-                        let editing = app.field_edit.as_ref().is_some_and(|e| e.node == target && e.field == *f);
-                        field_value(app, ui, t, target, *f, &def, value.as_ref(), text, editing);
+                        let values: Vec<_> = g.get(target).map(|n| n.field_values(*f).into_iter().cloned().collect()).unwrap_or_default();
+                        let edit_ix = app.field_edit.as_ref().filter(|e| e.node == target && e.field == *f).map(|e| e.index);
+                        field_values(app, ui, t, target, *f, &def, &values, edit_ix);
                     });
                 }
             });

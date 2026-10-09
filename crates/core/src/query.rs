@@ -298,13 +298,10 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         ClauseKind::OnDay => g.ancestors(id).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(Kind::Day { .. }))),
         ClauseKind::ForDate { date } => {
             let Some(d) = Date::parse(date) else { return false };
-            n.fields.iter().any(|f| f.value == Some(FieldValue::Date(d)))
-                || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
+            n.has_value(&FieldValue::Date(d)) || g.ancestors(id).iter().any(|a| g.get(*a).is_some_and(|x| x.kind == Kind::Day { date: d }))
         }
         ClauseKind::LinksTo { node } => {
-            n.reference_target() == Some(*node)
-                || crate::format::refs(&n.name).contains(&node.0)
-                || n.fields.iter().any(|f| f.value == Some(FieldValue::Node(*node)))
+            n.reference_target() == Some(*node) || crate::format::refs(&n.name).contains(&node.0) || n.has_value(&FieldValue::Node(*node))
         }
         ClauseKind::Group { query } => query.matches(g, id),
         ClauseKind::Tagged { tag } => n.tags.iter().any(|t| g.tag_lineage(*t).contains(tag)),
@@ -317,14 +314,13 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         }
         ClauseKind::Under { node } => *node != id && g.is_ancestor_or_self(*node, id),
         ClauseKind::Field { field, op, value } => {
-            let v = n.field_value(*field);
-            match (op, v) {
-                (Op::Set, v) => v.is_some_and(|v| !display_value(g, v).is_empty()),
-                (_, None) => false,
-                (Op::Eq, Some(v)) => display_value(g, v).eq_ignore_ascii_case(value.trim()),
-                (Op::Lt, Some(v)) => compare(g, v, value).is_some_and(|o| o.is_lt()),
-                (Op::Gt, Some(v)) => compare(g, v, value).is_some_and(|o| o.is_gt()),
-            }
+            // Any of the field's values may match.
+            n.field_values(*field).into_iter().any(|v| match op {
+                Op::Set => !display_value(g, v).is_empty(),
+                Op::Eq => display_value(g, v).eq_ignore_ascii_case(value.trim()),
+                Op::Lt => compare(g, v, value).is_some_and(|o| o.is_lt()),
+                Op::Gt => compare(g, v, value).is_some_and(|o| o.is_gt()),
+            })
         }
     }
 }

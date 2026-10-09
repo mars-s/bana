@@ -193,13 +193,16 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
             .collect(),
         PickMode::Choice => {
             // The other options (the current value is left out, spec 03 §8).
-            let current = p.field.and_then(|f| g.get(p.node)?.field_value(f)).map(|v| export::display_value(g, v)).unwrap_or_default();
+            let current: Vec<String> = p
+                .field
+                .and_then(|f| Some(g.get(p.node)?.field_values(f).into_iter().map(|v| export::display_value(g, v)).collect()))
+                .unwrap_or_default();
             p.field
                 .and_then(|f| g.field_def(f))
                 .map(|d| {
                     d.options
                         .iter()
-                        .filter(|o| **o != current && o.to_lowercase().contains(&q))
+                        .filter(|o| !current.contains(o) && o.to_lowercase().contains(&q))
                         .map(|o| Choice::Existing(NodeId(0), o.clone()))
                         .collect()
                 })
@@ -338,7 +341,7 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
         (PickMode::TemplateField, Choice::Existing(f, _)) => app.exec("tag.addField", json!({"tag": node.0, "field": f.0})),
         (PickMode::TemplateField, Choice::Create(name)) => app.exec("tag.addField", json!({"tag": node.0, "field": name})),
         (PickMode::Choice, Choice::Existing(_, v) | Choice::Create(v)) => match p.field {
-            Some(f) => app.exec("field.set", json!({"node": node.0, "field": f.0, "value": v})),
+            Some(f) => app.exec("field.set", json!({"node": node.0, "field": f.0, "index": p.index, "value": v})),
             None => Ok(json!({})),
         },
     };
@@ -577,7 +580,7 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
     match pick {
         Some(v) => {
             let r = match dp.field {
-                Some(f) => app.exec("field.set", json!({"node": dp.node.0, "field": f.0, "value": v})),
+                Some(f) => app.exec("field.set", json!({"node": dp.node.0, "field": f.0, "index": dp.index, "value": v})),
                 None if !v.trim().is_empty() => app.exec("nav.day", json!({"date": v})),
                 None => Ok(json!({})),
             };

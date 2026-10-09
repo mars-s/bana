@@ -290,13 +290,14 @@ fn markdown_and_json_export() {
     let md = export::to_markdown(&g, garden, false);
     assert!(md.starts_with("- Community garden #project\n"), "{md}");
     assert!(md.contains("  - Status:: In progress\n"), "{md}");
-    assert!(md.contains("  - Owner:: Robin Ash\n"), "{md}");
+    assert!(md.contains("  - Owner:: Robin Ash, Mia Chen\n"), "{md}");
     assert!(md.contains("    - [x] Order cedar boards #task\n"), "{md}");
     let day = g.find_day(Date::new(2026, 10, 10).unwrap()).unwrap();
     let md = export::to_markdown(&g, day, true);
     assert!(md.contains("- [[Community garden]] #project\n"), "{md}");
     let j = export::to_json_tree(&g, garden);
     assert_eq!(j["fields"]["Status"], "In progress");
+    assert_eq!(j["fields"]["Owner"], serde_json::json!(["Robin Ash", "Mia Chen"]), "several values export as a list");
     assert_eq!(j["tags"][0], "project");
 }
 
@@ -341,7 +342,7 @@ fn queries_find_the_right_nodes() {
     assert_eq!(names("#item AND \"Effort (hours)\">2"), ["Build four beds", "Fill with compost"], "inherited supertag matches");
     assert_eq!(names("Due<2026-10-12"), ["Order cedar boards"]);
     assert_eq!(names("Status:\"in progress\" AND #task"), ["Build four beds"]);
-    assert_eq!(names("#meeting OR #person"), ["Robin Ash", "Volunteer meetup"]);
+    assert_eq!(names("#meeting OR #person"), ["Mia Chen", "Robin Ash", "Volunteer meetup"]);
     assert_eq!(names("rota AND NOT water"), Vec::<String>::new());
     assert_eq!(names("water AND NOT weekdays"), ["Agree on the water rota", "Soil is alive: feed it, do not just water it", "Water rota"]);
     assert!(names("").is_empty(), "an empty search finds nothing");
@@ -425,7 +426,7 @@ fn nested_groups_and_operators() {
         v.sort();
         v
     };
-    assert_eq!(names(&g, "(#meeting OR #person) AND NOT Outdoors:Yes"), ["Robin Ash"]);
+    assert_eq!(names(&g, "(#meeting OR #person) AND NOT Outdoors:Yes"), ["Mia Chen", "Robin Ash"]);
     assert_eq!(names(&g, "#task AND (DONE OR \"Effort (hours)\">5)"), ["Build four beds", "Order cedar boards"]);
     assert_eq!(names(&g, "IS:TAG AND meet"), ["meeting"]);
     assert_eq!(names(&g, "IS:SEARCH"), ["Open tasks", "Open tasks", "Task board", "Task calendar"]);

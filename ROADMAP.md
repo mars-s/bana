@@ -37,7 +37,6 @@ Multiple workspaces, sync, settings, mobile and web (wasm) builds.
 
 ## Known simplifications
 
-- One value per field (Tana allows several).
 - Bold is drawn brighter rather than with a bold font (egui's default font has one weight).
 - Search results are live; the spec's "Run once" / "Done" editing step is not modelled.
 - The caret lands at the end when you click a bullet's text.

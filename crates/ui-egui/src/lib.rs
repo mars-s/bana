@@ -83,6 +83,8 @@ pub struct Picker {
     pub field: Option<NodeId>,
     /// Where an inline reference goes (chars), for `InlineRef`.
     pub caret: Option<usize>,
+    /// Which of the field's values a `Choice` sets (the count adds one).
+    pub index: usize,
     focus_once: bool,
 }
 
@@ -108,6 +110,8 @@ struct EditState {
 struct FieldEdit {
     node: NodeId,
     field: NodeId,
+    /// Which value (the count adds one).
+    index: usize,
     buf: String,
     focus_once: bool,
 }
@@ -118,9 +122,10 @@ pub(crate) enum Act {
     Run(String, Value),
     Ui(&'static str),
     Pick(PickMode, NodeId, egui::Pos2),
-    EditField(NodeId, NodeId, String),
-    PickChoice(NodeId, NodeId, egui::Pos2),
-    PickDate(NodeId, NodeId, egui::Pos2),
+    /// Edit value number `usize` of a field (the count adds a value).
+    EditField(NodeId, NodeId, usize, String),
+    PickChoice(NodeId, NodeId, usize, egui::Pos2),
+    PickDate(NodeId, NodeId, usize, egui::Pos2),
     /// "Go to date": a month picker that opens the chosen day.
     GoToDate(egui::Pos2),
     ClosePanel(usize),
@@ -134,6 +139,8 @@ pub struct DatePick {
     pub node: NodeId,
     /// The date field to set; `None` = "Go to date" (open the picked day).
     pub field: Option<NodeId>,
+    /// Which of the field's values (the count adds one).
+    pub index: usize,
     pub month: (i32, u8),
     pub anchor: egui::Pos2,
     pub buf: String,
@@ -355,7 +362,7 @@ impl TanaApp {
 
     /// Opens a picker (`#` tag, `>` field, `@` reference) for `node` at `anchor`.
     pub fn open_picker(&mut self, mode: PickMode, node: NodeId, anchor: egui::Pos2) {
-        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, caret: None, focus_once: true });
+        self.picker = Some(Picker { mode, node, query: String::new(), selected: 0, anchor, field: None, caret: None, index: 0, focus_once: true });
     }
 
     /// Per-frame logic before drawing: styles, keyboard shortcuts, edit-buffer sync, autosave.
@@ -538,17 +545,19 @@ impl TanaApp {
                 }
                 Act::GoToDate(anchor) => {
                     let d = self.session.today;
-                    self.date_pick = Some(DatePick { node: self.session.zoom, field: None, month: (d.year, d.month), anchor, buf: String::new() });
+                    self.date_pick =
+                        Some(DatePick { node: self.session.zoom, field: None, index: 0, month: (d.year, d.month), anchor, buf: String::new() });
                 }
-                Act::EditField(node, field, buf) => self.field_edit = Some(FieldEdit { node, field, buf, focus_once: true }),
-                Act::PickChoice(node, field, at) => {
+                Act::EditField(node, field, index, buf) => self.field_edit = Some(FieldEdit { node, field, index, buf, focus_once: true }),
+                Act::PickChoice(node, field, index, at) => {
                     self.open_picker(PickMode::Choice, node, at);
                     if let Some(p) = self.picker.as_mut() {
                         p.field = Some(field);
+                        p.index = index;
                     }
                 }
-                Act::PickDate(node, field, anchor) => {
-                    let current = match self.session.graph.get(node).and_then(|n| n.field_value(field)) {
+                Act::PickDate(node, field, index, anchor) => {
+                    let current = match self.session.graph.get(node).and_then(|n| n.field_values(field).get(index).copied()) {
                         Some(tanacraft_core::FieldValue::Date(d)) => Some(*d),
                         _ => None,
                     };
@@ -556,6 +565,7 @@ impl TanaApp {
                     self.date_pick = Some(DatePick {
                         node,
                         field: Some(field),
+                        index,
                         month: (d.year, d.month),
                         anchor,
                         buf: current.map(|d| d.to_string()).unwrap_or_default(),

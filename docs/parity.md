@@ -34,7 +34,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Children and the trailing line | done | Ghost line after every child list; click to add. |
 | 3. References and inline references | partial | Reference nodes (dashed ring, live), inline references (@ mid-sentence, blue, clickable), References section incl. date backlinks. Missing: reference counter, clone reference, per-context notes. |
 | 4. Supertags (tag definitions) | partial | Colour, base type, extends, template fields and child nodes, checkbox, done mapping, default child tag, view tabs, related content, usage. Missing: optional fields, title expression, building block, AI settings. |
-| 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. One value per field (spec allows several). |
+| 5. Fields | partial | Eight types (no user type), required, hide modes, auto-initialize, number range, used in. Several values per field (`field.addValue`, `field.removeValue`, `field.set` with `index`; + in the row adds one; search matches any value). Missing: user type. |
 | 6. Search nodes | partial | Live, editable results, magnifier bullet, views. Missing: convert to plain list. |
 | 7. Workspaces | missing | One workspace with Library, Schema, Daily notes, Trash. No Inbox, no multiple workspaces. |
 | 8. Calendar nodes (daily notes) | done | Year, ISO week (#week, newest first), day (#day); created lazily, also by date values; relative titles. |

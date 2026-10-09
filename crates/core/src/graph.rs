@@ -236,9 +236,8 @@ impl Graph {
             .filter(|n| {
                 n.reference_target() == Some(target)
                     || (n.name.contains("[[id:") && crate::format::refs(&n.name).contains(&target.0))
-                    || n.fields
-                        .iter()
-                        .any(|f| f.value == Some(FieldValue::Node(target)) || day_date.is_some_and(|d| f.value == Some(FieldValue::Date(d))))
+                    || n.has_value(&FieldValue::Node(target))
+                    || day_date.is_some_and(|d| n.has_value(&FieldValue::Date(d)))
             })
             .filter(|n| !self.in_trash(n.id))
             .map(|n| n.id)
@@ -553,7 +552,8 @@ impl Graph {
                 _ => m.unchecked.clone(),
             };
             if !value.is_empty() {
-                self.write_field_text(target, m.field, &value)?;
+                let v = self.parse_field_text(m.field, &value)?;
+                self.set_field(target, m.field, Some(v))?;
             }
         }
         Ok(())
@@ -864,7 +864,7 @@ impl Graph {
             fields.iter().copied().filter(|f| self.get(node).is_some_and(|n| !n.fields.iter().any(|e| e.field == *f))).collect();
         for f in missing {
             let value = self.field_def(f).and_then(|d| d.default.clone());
-            self.node_mut(node)?.fields.push(FieldEntry { field: f, value });
+            self.node_mut(node)?.fields.push(FieldEntry::new(f, value));
         }
         Ok(())
     }
@@ -937,8 +937,14 @@ impl Graph {
         Ok(())
     }
 
-    /// Sets (or clears, with `None`) a field value on `node`.
+    /// Sets (or clears, with `None`) the first value of a field on `node`. Clearing promotes the
+    /// next value, if any.
     pub fn set_field(&mut self, node: NodeId, field: NodeId, value: Option<FieldValue>) -> Result<()> {
+        self.set_field_at(node, field, 0, value)
+    }
+
+    /// Sets value number `index` of a field (`index` == count appends; `None` removes that value).
+    pub fn set_field_at(&mut self, node: NodeId, field: NodeId, index: usize, value: Option<FieldValue>) -> Result<()> {
         let node = self.resolve(node);
         // A date value is a link to its day: make sure the day exists (spec 01 §8).
         if let Some(FieldValue::Date(d)) = &value {
@@ -946,33 +952,57 @@ impl Graph {
         }
         self.field_def(field).ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
         let n = self.node_mut(node)?;
-        match n.fields.iter_mut().find(|e| e.field == field) {
-            Some(e) => e.value = value,
-            None => n.fields.push(FieldEntry { field, value }),
+        let ix = match n.fields.iter().position(|e| e.field == field) {
+            Some(i) => i,
+            None => {
+                n.fields.push(FieldEntry::new(field, None));
+                n.fields.len() - 1
+            }
+        };
+        let e = &mut n.fields[ix];
+        let mut vals: Vec<FieldValue> = e.values().cloned().collect();
+        let index = index.min(vals.len());
+        match value {
+            Some(v) if index < vals.len() => vals[index] = v,
+            Some(v) if !vals.contains(&v) => vals.push(v),
+            Some(_) => {}
+            None if index < vals.len() => {
+                vals.remove(index);
+            }
+            None => {}
         }
+        e.set_values(vals);
         Ok(())
     }
 
     /// Sets a field from typed text, parsed by the field's type. Options fields collect new choices;
     /// options-from-supertag fields link to (or create) a node with that supertag.
     pub fn set_field_text(&mut self, node: NodeId, field: NodeId, text: &str) -> Result<()> {
+        self.set_field_text_at(node, field, 0, text)
+    }
+
+    /// Like [`Graph::set_field_text`] for value number `index` (`index` == count adds a value; empty
+    /// text removes that value).
+    pub fn set_field_text_at(&mut self, node: NodeId, field: NodeId, index: usize, text: &str) -> Result<()> {
         let node = self.resolve(node);
-        self.write_field_text(node, field, text)?;
+        let value = if text.trim().is_empty() { None } else { Some(self.parse_field_text(field, text)?) };
+        self.set_field_at(node, field, index, value)?;
         // Done-state mapping the other way: the mapped field moves the checkbox.
-        for m in self.done_maps(node).into_iter().filter(|m| m.field == field) {
-            let checked = text.trim().eq_ignore_ascii_case(m.checked.trim());
-            if self.checkbox(node) != Some(checked) {
-                self.write_done(node, Some(checked))?;
+        if index == 0 {
+            for m in self.done_maps(node).into_iter().filter(|m| m.field == field) {
+                let checked = text.trim().eq_ignore_ascii_case(m.checked.trim());
+                if self.checkbox(node) != Some(checked) {
+                    self.write_done(node, Some(checked))?;
+                }
             }
         }
         Ok(())
     }
 
-    fn write_field_text(&mut self, node: NodeId, field: NodeId, text: &str) -> Result<()> {
+    /// Parses text into a value of `field`'s type. Options fields collect new choices;
+    /// options-from-supertag fields link to (or create) a node with that supertag.
+    fn parse_field_text(&mut self, field: NodeId, text: &str) -> Result<FieldValue> {
         let def = self.field_def(field).cloned().ok_or_else(|| Error::Invalid(format!("node {field} is not a field")))?;
-        if text.trim().is_empty() {
-            return self.set_field(node, field, None);
-        }
         let value = match (def.field_type, def.source_tag) {
             (FieldType::OptionsFromTag, Some(tag)) => {
                 let found = self.tagged(tag).into_iter().find(|n| self.name(*n).eq_ignore_ascii_case(text.trim()));
@@ -991,21 +1021,16 @@ impl Graph {
         if let FieldValue::Number(x) = value
             && (def.min.is_some_and(|m| x < m) || def.max.is_some_and(|m| x > m))
         {
-            {
-                let range = format!(
-                    "{} to {}",
-                    def.min.map(|m| m.to_string()).unwrap_or("any".into()),
-                    def.max.map(|m| m.to_string()).unwrap_or("any".into())
-                );
-                return Err(Error::Invalid(format!("{x} is outside the allowed range ({range})")));
-            }
+            let range =
+                format!("{} to {}", def.min.map(|m| m.to_string()).unwrap_or("any".into()), def.max.map(|m| m.to_string()).unwrap_or("any".into()));
+            return Err(Error::Invalid(format!("{x} is outside the allowed range ({range})")));
         }
         if let FieldValue::Choice(c) = &value
             && !def.options.iter().any(|o| o == c)
         {
             self.field_def_mut(field)?.options.push(c.clone());
         }
-        self.set_field(node, field, Some(value))
+        Ok(value)
     }
 
     /// Removes the field entry entirely.

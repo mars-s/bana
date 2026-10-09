@@ -242,7 +242,11 @@ pub fn registry() -> Registry {
         C::new("field.add", "Add field", "Field", field_add)
             .key(">")
             .params(r#"{"node"?: id, "field": name | id, "type"?: string, "value"?: string}"#),
-        C::new("field.set", "Set field value", "Field", field_set).params(r#"{"node"?: id, "field": name | id, "value": string}"#),
+        C::new("field.set", "Set field value", "Field", field_set)
+            .params(r#"{"node"?: id, "field": name | id, "value": string, "index"?: number}  (index picks one of several values; empty removes it)"#),
+        C::new("field.addValue", "Add field value", "Field", field_add_value).params(r#"{"node"?: id, "field": name | id, "value": string}"#),
+        C::new("field.removeValue", "Remove field value", "Field", field_remove_value)
+            .params(r#"{"node"?: id, "field": name | id, "index": number}"#),
         C::new("field.remove", "Remove field", "Field", field_remove).params(r#"{"node"?: id, "field": name | id}"#),
         C::new("field.create", "Create field", "Field", field_create)
             .params(r#"{"name": string, "type"?: "plain|options|options_from_tag|date|number|url|email|checkbox"}"#),
@@ -833,9 +837,31 @@ fn field_add(s: &mut Session, v: &Value) -> CmdResult {
 fn field_set(s: &mut Session, v: &Value) -> CmdResult {
     let id = s.target(v)?;
     let field = field_param(s, v, false)?;
-    s.graph.set_field_text(id, field, p::req_str(v, "value")?)?;
-    let value = s.graph.get(s.graph.resolve(id)).and_then(|n| n.field_value(field)).map(|x| export::display_value(&s.graph, x));
-    Ok(json!({"node": id.0, "field": field.0, "value": value}))
+    s.graph.set_field_text_at(id, field, p::usize(v, "index").unwrap_or(0), p::req_str(v, "value")?)?;
+    Ok(field_json(s, id, field))
+}
+
+fn field_json(s: &Session, id: NodeId, field: NodeId) -> Value {
+    let n = s.graph.get(s.graph.resolve(id));
+    let value = n.and_then(|n| n.field_value(field)).map(|x| export::display_value(&s.graph, x));
+    let values: Vec<String> = n.map(|n| n.field_values(field).into_iter().map(|x| export::display_value(&s.graph, x)).collect()).unwrap_or_default();
+    json!({"node": id.0, "field": field.0, "value": value, "values": values})
+}
+
+fn field_add_value(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let field = field_param(s, v, true)?;
+    let count = s.graph.get(s.graph.resolve(id)).map(|n| n.field_values(field).len()).unwrap_or(0);
+    s.graph.set_field_text_at(id, field, count, p::req_str(v, "value")?)?;
+    Ok(field_json(s, id, field))
+}
+
+fn field_remove_value(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let field = field_param(s, v, false)?;
+    let index = p::usize(v, "index").ok_or_else(|| CmdError::Params("`index` (number) is required".into()))?;
+    s.graph.set_field_at(id, field, index, None)?;
+    Ok(field_json(s, id, field))
 }
 
 fn field_remove(s: &mut Session, v: &Value) -> CmdResult {

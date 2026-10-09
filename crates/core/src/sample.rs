@@ -48,6 +48,7 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.set_field_text(garden, status, "In progress")?;
     g.set_field_text(garden, site, "https://example.org/garden")?;
     g.set_field_text(garden, owner, "Robin Ash")?;
+    g.set_field_text_at(garden, owner, 1, "Mia Chen")?;
     let beds = g.create(garden, None, "Raised beds")?;
     for (name, done, effort_h, status_v, due_in) in [
         ("Order cedar boards", true, "2", "Done", -3),

@@ -44,7 +44,7 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
   server: async ({ serveArgs }, use, info) => {
     const port = nextPort + info.workerIndex * 200 + (info.repeatEachIndex % 200)
     nextPort += 1
-    const file = join(mkdtempSync(join(tmpdir(), 'tanacraft-')), 'graph.json')
+    const file = join(mkdtempSync(join(tmpdir(), 'tanacraft-')), 'graph.tanacraft')
     let proc = await startServer(file, port, serveArgs)
     const s: Server = {
       url: `http://127.0.0.1:${port}/`,

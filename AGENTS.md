@@ -57,5 +57,5 @@ Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and
   http://127.0.0.1:8787/ (or `pnpm --dir web dev` on :5173, which proxies to the server).
 - `cargo xtask shots` writes Playwright screenshots to `docs/images/web/`. For UI work, **look at the
   PNG** next to the spec screenshot before committing (see `.claude/skills/tanacraft-ui`).
-- `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.json`.
+- `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.tanacraft`.
 - Parallel agents: use a separate `CARGO_TARGET_DIR`; keep builds to a few jobs (`.cargo/config.toml`).

@@ -1,8 +1,7 @@
 //! `tanacraft-mcp [--file FILE | --connect HOST:PORT]`: MCP server on stdio.
-//! Default file: `~/TanaCraft/graph.json`. With `--connect`, drives a running app.
+//! Default file: `~/TanaCraft/graph.tanacraft`. With `--connect`, drives a running app.
 
 use tanacraft_commands::Session;
-use tanacraft_core::Graph;
 use tanacraft_mcp::{Backend, Server};
 
 fn main() -> Result<(), String> {
@@ -12,7 +11,7 @@ fn main() -> Result<(), String> {
         Some(addr) => Backend::connect(&addr)?,
         None => {
             let path = opt("--file").map(std::path::PathBuf::from).unwrap_or_else(tanacraft_core::default_graph_path);
-            let graph = if path.exists() { Graph::load(&path).map_err(|e| e.to_string())? } else { Graph::new() };
+            let graph = tanacraft_core::load_or_migrate(&path).map_err(|e| e.to_string())?.unwrap_or_default();
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
             }

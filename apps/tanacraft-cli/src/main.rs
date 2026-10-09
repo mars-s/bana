@@ -1,4 +1,4 @@
-//! TanaCraft command line. Every subcommand works on a graph file (default `~/TanaCraft/graph.json`,
+//! TanaCraft command line. Every subcommand works on a graph file (default `~/TanaCraft/graph.tanacraft`,
 //! or `--file FILE`) and runs the same commands as the app.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -62,7 +62,7 @@ fn take_flag(args: &mut Vec<String>, name: &str) -> bool {
 }
 
 fn open(path: &std::path::Path) -> Result<Session, String> {
-    let graph = if path.exists() { Graph::load(path).map_err(|e| e.to_string())? } else { Graph::new() };
+    let graph = tanacraft_core::load_or_migrate(path).map_err(|e| e.to_string())?.unwrap_or_default();
     let mut s = Session::new(graph);
     s.path = Some(path.to_path_buf());
     Ok(s)

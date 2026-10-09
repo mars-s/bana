@@ -1,7 +1,7 @@
 //! TanaCraft desktop app: a Tauri window showing the web UI, with the engine in this process.
 //!
 //! `tanacraft [FILE] [--sample] [--serve PORT]`
-//! - FILE: the graph file (default `~/TanaCraft/graph.json`). Autosaves within a second; saves on quit.
+//! - FILE: the graph file (default `~/TanaCraft/graph.tanacraft`). Autosaves within a second; saves on quit.
 //! - `--sample`: start from the built-in sample graph (not saved unless FILE is given).
 //! - `--serve PORT`: also serve the same engine over HTTP on 127.0.0.1 (agents, a browser window).
 //!

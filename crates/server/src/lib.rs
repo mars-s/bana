@@ -148,7 +148,7 @@ pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Optio
         (Some(f), false) => (Graph::new(), Some(f.clone())),
         (None, false) => {
             let p = tanacraft_core::default_graph_path();
-            if p.exists() { (Graph::load(&p).map_err(|e| e.to_string())?, Some(p)) } else { (Graph::new(), Some(p)) }
+            (tanacraft_core::load_or_migrate(&p).map_err(|e| e.to_string())?.unwrap_or_default(), Some(p))
         }
     };
     let mut s = Session::with_today(graph, today);

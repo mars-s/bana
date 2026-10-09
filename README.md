@@ -66,7 +66,7 @@ live. TanaCraft rebuilds that model as open source:
 | **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, week Schedule, go to date, insert date, dates that link to their day |
 | **Shell** | Tabs, resizable panels, sidebar full/mini/hidden with flyouts, pinned items, quick add, capture Inbox, several workspaces side by side (each with its own Library, Schema and Trash), page icons and banners, content width, Help page, settings with sub-pages (date and time, sidebar entries, URL embeds), a native macOS menu bar, trash |
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
-| **Files** | One JSON graph file (`~/TanaCraft/graph.json` by default) holding every workspace, atomic autosave, repair of damaged files, Markdown, JSON and OPML export, Markdown and OPML import, HTML plus text on the clipboard |
+| **Files** | One graph file (`~/TanaCraft/graph.tanacraft` by default, a Loro CRDT document so copies edited apart merge; older JSON files are read once and kept as a backup) holding every workspace, atomic autosave, repair of damaged files, Markdown, JSON and OPML export, Markdown and OPML import, HTML plus text on the clipboard |
 
 Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (77 of 95 spec sections
 done, 13 partial; 140 of 160 screenshots done). AI features are out of scope for now.
@@ -132,7 +132,7 @@ tanacraft-cli import notes.md                           # a Markdown outline int
 tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
 tanacraft-cli export today                              # Markdown outline
 tanacraft-cli export 2 --format json                    # JSON tree of the Library
-tanacraft-mcp --file graph.json                         # MCP server on stdio (headless)
+tanacraft-mcp --file graph.tanacraft                      # MCP server on stdio (headless)
 tanacraft-cli serve --port 8787                         # web UI + JSON API (POST /rpc) on 127.0.0.1
 ```
 

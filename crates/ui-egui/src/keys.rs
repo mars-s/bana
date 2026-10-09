@@ -150,6 +150,15 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
     if app.search_open.is_some() {
         return crate::overlays::search_open_key(app, &k);
     }
+    // The "used elsewhere" question: Enter deletes anyway, Escape cancels.
+    if app.confirm_delete.is_some() {
+        match k.as_str() {
+            "Enter" => app.answer_delete(Some(true)),
+            "Escape" => app.answer_delete(None),
+            _ => {}
+        }
+        return true;
+    }
     if app.quick_add.is_some() || app.date_pick.is_some() {
         return false; // the overlay reads Enter and Escape itself
     }
@@ -256,6 +265,7 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             let rows = app.session.rows();
             let first = app.session.sel.and_then(|(a, h)| rows.iter().position(|r| r.id == a || r.id == h));
             match app.exec("node.delete", json!({})) {
+                Ok(v) if v.get("confirm").is_some() => {}
                 Ok(_) => {
                     app.session.sel = None;
                     let rows = app.session.rows();

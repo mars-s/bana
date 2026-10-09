@@ -287,6 +287,9 @@ pub struct TanaApp {
     pub quick_add: Option<Vec<String>>,
     /// The "Search and open" dialog.
     pub search_open: Option<Palette>,
+    /// "Used elsewhere" question before a delete: the delete's params, the node's name and how
+    /// many places use it (DIFFS N20).
+    pub confirm_delete: Option<(Value, String, usize)>,
     pub mac: bool,
     /// Save to `session.path` shortly after changes.
     pub autosave: bool,
@@ -394,6 +397,7 @@ impl TanaApp {
             date_pick: None,
             quick_add: None,
             search_open: None,
+            confirm_delete: None,
             mac: cfg!(target_os = "macos"),
             autosave: false,
             edit: EditState::default(),
@@ -566,6 +570,7 @@ impl TanaApp {
             (self.search_open.is_some(), "search"),
             (self.quick_add.is_some(), "quick add"),
             (self.date_pick.is_some(), "date picker"),
+            (self.confirm_delete.is_some(), "delete question"),
         ]
         .into_iter()
         .find(|o| o.0)
@@ -600,6 +605,41 @@ impl TanaApp {
     fn lineless_page(&self) -> bool {
         let (g, z) = (&self.session.graph, self.session.zoom);
         z == g.sys.schema || g.tag_def(z).is_some() || g.field_def(z).is_some()
+    }
+
+    /// How many places outside `ids` (and their contents) point at them. Deleting a reference
+    /// line only removes that line, so it does not count.
+    fn used_elsewhere(&self, ids: &[NodeId]) -> usize {
+        let g = &self.session.graph;
+        let inside = |r: NodeId| ids.iter().any(|d| g.is_ancestor_or_self(*d, r));
+        ids.iter()
+            .filter(|i| g.resolve(**i) == **i)
+            .flat_map(|i| g.references_to(*i))
+            .filter(|r| !inside(*r))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+    }
+
+    /// Answers the "used elsewhere" question: `Some(true)` deletes anyway, `Some(false)` shows
+    /// where the node is used, `None` cancels.
+    pub(crate) fn answer_delete(&mut self, answer: Option<bool>) {
+        let Some((mut params, _, _)) = self.confirm_delete.take() else { return };
+        match answer {
+            Some(true) => {
+                params["force"] = json!(true);
+                if let Err(e) = self.exec("node.delete", params) {
+                    self.session.status = e;
+                }
+            }
+            Some(false) => {
+                let node = params.get("node").and_then(Value::as_u64).map(NodeId).or(self.session.sel.map(|s| s.0)).or(self.session.focus);
+                if let Some(n) = node {
+                    let n = self.session.graph.resolve(n);
+                    drop(self.exec("nav.open", json!({"node": n.0})));
+                }
+            }
+            None => {}
+        }
     }
 
     /// Forget the text field state (another panel or tab is now active).
@@ -637,6 +677,20 @@ impl TanaApp {
                 if elsewhere > 0 {
                     self.toast(format!("This node also appears in {elsewhere} other place(s); the edit shows everywhere"));
                 }
+            }
+        }
+        // Deleting a node that is used elsewhere asks first (DIFFS N20).
+        if id == "node.delete" && !params["force"].as_bool().unwrap_or(false) {
+            let ids: Vec<NodeId> = match params.get("node").and_then(Value::as_u64) {
+                Some(n) => vec![NodeId(n)],
+                None if self.session.sel.is_some() => self.session.selected(),
+                None => self.session.focus.into_iter().collect(),
+            };
+            let used = self.used_elsewhere(&ids);
+            if used > 0 {
+                let name = ids.first().map(|i| self.session.graph.name(*i).to_string()).unwrap_or_default();
+                self.confirm_delete = Some((params, name, used));
+                return Ok(json!({"confirm": used}));
             }
         }
         let r = self.session.run(id, &params).map_err(|e| e.to_string());
@@ -960,6 +1014,7 @@ impl TanaApp {
         overlays::date_picker(self, &ctx);
         overlays::quick_add(self, &ctx);
         overlays::search_open(self, &ctx);
+        overlays::confirm_delete(self, &ctx);
         self.toast_ui(&ctx);
         self.flush();
         // A menu, dialog or value editor that closed with nothing else taking the keyboard hands
@@ -983,7 +1038,7 @@ impl TanaApp {
             .or(self.field_edit.as_ref().map(|f| f.node))
             .or(self.desc_edit.as_ref().map(|d| d.0))
             .or(self.date_pick.as_ref().map(|d| d.node))
-            .or((self.palette.is_some() || self.quick_add.is_some() || self.search_open.is_some()).then_some(z))
+            .or((self.palette.is_some() || self.quick_add.is_some() || self.search_open.is_some() || self.confirm_delete.is_some()).then_some(z))
     }
 
     fn toast_ui(&mut self, ctx: &egui::Context) {

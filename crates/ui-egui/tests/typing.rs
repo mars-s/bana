@@ -1829,3 +1829,30 @@ fn diffs_n19_bold_toggled_off_leaves_no_empty_marks() {
     key(&mut h, Key::ArrowUp, Modifiers::NONE);
     assert_eq!(h.state().session.graph.name(next), "Next");
 }
+
+#[test]
+fn diffs_n20_deleting_a_node_used_elsewhere_asks_first() {
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Kickoff", "", "after"]);
+    h.state_mut().exec("node.reference", json!({"target": ids[0].0, "replace": ids[1].0})).unwrap();
+    let del = Modifiers { command: true, mac_cmd: true, shift: true, ..Modifiers::NONE };
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::Backspace, del);
+    assert_eq!(h.state().confirm_delete.as_ref().map(|c| c.2), Some(1));
+    assert!(!h.state().session.graph.in_trash(ids[0]));
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert!(h.state().confirm_delete.is_none());
+    assert!(!h.state().session.graph.in_trash(ids[0]));
+    // Enter deletes anyway.
+    focus(&mut h, ids[0], 0);
+    key(&mut h, Key::Backspace, del);
+    key(&mut h, Key::Enter, Modifiers::NONE);
+    assert!(h.state().session.graph.in_trash(ids[0]));
+    // Deleting the reference line itself does not ask.
+    let mut h = harness();
+    let ids = page_with(&mut h, &["Kickoff", ""]);
+    h.state_mut().exec("node.reference", json!({"target": ids[0].0, "replace": ids[1].0})).unwrap();
+    let r = *h.state().session.graph.children(h.state().session.zoom).last().unwrap();
+    h.state_mut().exec("node.delete", json!({"node": r.0})).unwrap();
+    assert!(h.state().confirm_delete.is_none());
+}

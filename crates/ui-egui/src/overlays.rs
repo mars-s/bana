@@ -1106,3 +1106,39 @@ pub fn search_open(app: &mut TanaApp, ctx: &egui::Context) {
         app.search_new_tab = false;
     }
 }
+
+/// "Used elsewhere" question before deleting a node that other places point at (DIFFS N20).
+pub fn confirm_delete(app: &mut TanaApp, ctx: &egui::Context) {
+    let Some((_, name, used)) = app.confirm_delete.clone() else { return };
+    let t = app.tokens();
+    let screen = ctx.content_rect();
+    let w = 420.0_f32.min(screen.width() - 32.0);
+    let mut answer = None;
+    egui::Area::new(egui::Id::new("confirm-delete"))
+        .order(Order::Foreground)
+        .fixed_pos(egui::pos2(screen.center().x - w / 2.0, screen.top() + 140.0))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(10.0).inner_margin(14.0).show(ui, |ui| {
+                ui.set_width(w);
+                let places = if used == 1 { "1 other place".to_string() } else { format!("{used} other places") };
+                let name = if name.trim().is_empty() { "This node".to_string() } else { format!("\"{name}\"") };
+                ui.label(RichText::new(format!("{name} is referenced in {places}. Delete it?")).size(14.5));
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        answer = Some(None);
+                    }
+                    if ui.button("Show references").clicked() {
+                        answer = Some(Some(false));
+                    }
+                    if ui.button(RichText::new("Delete anyway").color(egui::Color32::from_rgb(220, 70, 60))).clicked() {
+                        answer = Some(Some(true));
+                    }
+                });
+                ui.label(RichText::new("Enter deletes, Escape cancels").size(11.5).color(t.faint));
+            });
+        });
+    if let Some(a) = answer {
+        app.answer_delete(a);
+    }
+}

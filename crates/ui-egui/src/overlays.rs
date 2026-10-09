@@ -314,8 +314,23 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
     let Some(p) = app.picker.take() else { return };
     let node = p.node;
     let r = match (p.mode, choice) {
-        (PickMode::Tag, Choice::Existing(t, _)) => app.exec("tag.add", json!({"node": node.0, "tag": t.0})),
-        (PickMode::Tag, Choice::Create(name)) => app.exec("tag.add", json!({"node": node.0, "tag": name, "color": next_color(app)})),
+        (PickMode::Tag, choice) => {
+            // Inline `#name`: the typed text leaves the line (and trailing spaces with it).
+            if let Some(h) = p.caret {
+                let name: Vec<char> = app.session.graph.name(node).chars().collect();
+                let end = (h + 1 + p.query.chars().count()).min(name.len());
+                if name.get(h) == Some(&'#') {
+                    let kept: String = name[..h].iter().collect::<String>().trim_end().to_string();
+                    let rest: String = name[end..].iter().collect();
+                    let caret = kept.chars().count();
+                    let _ = app.exec("node.setName", json!({"node": node.0, "name": format!("{kept}{rest}"), "caret": caret}));
+                }
+            }
+            match choice {
+                Choice::Existing(t, _) => app.exec("tag.add", json!({"node": node.0, "tag": t.0})),
+                Choice::Create(name) => app.exec("tag.add", json!({"node": node.0, "tag": name, "color": next_color(app)})),
+            }
+        }
         (PickMode::Field, Choice::Existing(f, _)) => {
             app.exec("field.add", json!({"node": node.0, "field": f.0})).inspect(|_| app.session.graph.set_expanded(node, true))
         }
@@ -488,18 +503,28 @@ pub fn picker(app: &mut TanaApp, ctx: &egui::Context) {
         PickMode::MoveLeaveRef => "Move and leave reference to",
         PickMode::OptionSource => "Source of options",
     };
-    egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(p.anchor).show(ctx, |ui| {
+    // Above the line when there is no room below it (spec 02 §11).
+    let est = 26.0 * items.len().max(1) as f32 + if p.mode == PickMode::Tag && p.caret.is_some() { 20.0 } else { 60.0 };
+    let at = if p.anchor.y + est > ctx.content_rect().bottom() { egui::pos2(p.anchor.x, p.anchor.y - est - 30.0) } else { p.anchor };
+    egui::Area::new(egui::Id::new("picker")).order(Order::Foreground).fixed_pos(at).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).fill(t.panel).corner_radius(8.0).inner_margin(8.0).show(ui, |ui| {
             ui.set_width(300.0);
-            ui.label(RichText::new(title).size(12.0).color(t.faint));
-            let r =
-                ui.add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("picker-query")).hint_text("Type to search").desired_width(300.0));
-            if p.focus_once {
-                r.request_focus();
-                p.focus_once = false;
-            }
-            if r.changed() {
-                p.selected = 0;
+            // The `#` menu filters by what is typed in the line itself (spec 02 §11); other menus
+            // have their own search box.
+            let inline = p.mode == PickMode::Tag && p.caret.is_some();
+            if !inline {
+                ui.label(RichText::new(title).size(12.0).color(t.faint));
+                let r = ui
+                    .add(egui::TextEdit::singleline(&mut p.query).id(egui::Id::new("picker-query")).hint_text("Type to search").desired_width(300.0));
+                if p.focus_once {
+                    r.request_focus();
+                    p.focus_once = false;
+                }
+                if r.changed() {
+                    p.selected = 0;
+                }
+            } else if items.is_empty() {
+                ui.label(RichText::new("Type a supertag name").size(12.5).color(t.faint));
             }
             // The tag menu shows "Create and apply" on top (spec 02 §11); Enter still picks the
             // highlighted match, Cmd+Enter creates.

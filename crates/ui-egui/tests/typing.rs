@@ -808,3 +808,20 @@ fn diffs_p3_square_search_button_and_day_nav_icons() {
     let g = &h.state().session.graph;
     assert_eq!(g.name(h.state().session.zoom), "Sun, 11 Oct");
 }
+
+#[test]
+fn diffs_p3_hash_menu_filters_from_the_line() {
+    let mut h = harness();
+    h.state_mut().exec("tag.create", json!({"name": "task"})).unwrap();
+    h.state_mut().exec("tag.create", json!({"name": "topic"})).unwrap();
+    let ids = page_with(&mut h, &["Read"]);
+    focus(&mut h, ids[0], 4);
+    text(&mut h, " #");
+    text(&mut h, "ta");
+    assert_eq!(h.state().session.graph.name(ids[0]), "Read #ta", "the typed text stays in the line");
+    assert_eq!(h.state().picker.as_ref().map(|p| p.query.clone()), Some("ta".to_string()));
+    // Escape closes the menu and leaves the text.
+    key(&mut h, Key::Escape, Modifiers::NONE);
+    assert!(h.state().picker.is_none());
+    assert_eq!(h.state().session.graph.name(ids[0]), "Read #ta");
+}

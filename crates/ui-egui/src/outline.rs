@@ -1600,8 +1600,29 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
         let caret = app.session.caret;
         let anchor = out.response.rect.left_bottom() + vec2(0.0, 4.0);
         let typed = caret.checked_sub(1).and_then(|i| buf.chars().nth(i));
+        // An open inline `#` menu follows the text typed after the `#`.
+        if let Some(p) = app.picker.as_mut()
+            && p.mode == PickMode::Tag
+            && let Some(h) = p.caret
+        {
+            let chars: Vec<char> = buf.chars().collect();
+            if chars.get(h) == Some(&'#') && caret > h {
+                let q: String = chars[h + 1..caret.min(chars.len())].iter().collect();
+                if q != p.query {
+                    p.query = q;
+                    p.selected = 0;
+                }
+            } else {
+                app.picker = None;
+            }
+        }
         let trigger = match typed {
-            Some('#') => Some(PickMode::Tag),
+            Some('#') => {
+                // The `#` stays in the line; the menu filters by what follows it.
+                app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": buf, "caret": caret})));
+                app.acts.push(Act::PickTagInline(id, caret - 1, anchor));
+                return;
+            }
             Some('>') if buf == ">" => Some(PickMode::Field),
             Some('@') if buf == "@" => Some(PickMode::Reference),
             Some('@') => Some(PickMode::InlineRef),

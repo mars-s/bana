@@ -139,6 +139,8 @@ pub(crate) enum Act {
     ClosePanel(usize),
     /// `@` typed mid-sentence at this caret.
     PickInline(NodeId, usize, egui::Pos2),
+    /// `#` typed at this char index: the tag menu filters by the text after it.
+    PickTagInline(NodeId, usize, egui::Pos2),
 }
 
 /// The date picker of a date field.
@@ -563,6 +565,13 @@ impl TanaApp {
                 Act::Ui(id) => self.ui_command(id),
                 Act::Pick(mode, node, at) => self.open_picker(mode, node, at),
                 Act::ClosePanel(i) => self.close_panel(i),
+                Act::PickTagInline(node, hash, at) => {
+                    self.open_picker(PickMode::Tag, node, at);
+                    if let Some(p) = self.picker.as_mut() {
+                        p.caret = Some(hash);
+                        p.focus_once = false;
+                    }
+                }
                 Act::PickInline(node, caret, at) => {
                     self.open_picker(PickMode::InlineRef, node, at);
                     if let Some(p) = self.picker.as_mut() {

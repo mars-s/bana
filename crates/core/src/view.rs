@@ -222,7 +222,7 @@ impl Graph {
             "median" if nums.is_empty() => none(),
             "median" => {
                 let m = nums.len() / 2;
-                fmt(if nums.len() % 2 == 0 { (nums[m - 1] + nums[m]) / 2.0 } else { nums[m] })
+                fmt(if nums.len().is_multiple_of(2) { (nums[m - 1] + nums[m]) / 2.0 } else { nums[m] })
             }
             "min" => nums.first().map(|x| fmt(*x)).unwrap_or_else(none),
             "max" => nums.last().map(|x| fmt(*x)).unwrap_or_else(none),

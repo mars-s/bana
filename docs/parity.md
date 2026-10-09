@@ -10,8 +10,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95) | 43 | 44 | 8 | 0 |
-| Screenshots (148) | 82 | 37 | 28 | 1 |
+| Spec sections (95) | 43 | 44 | 6 | 2 |
+| Screenshots (150) | 87 | 37 | 25 | 1 |
 
 ## `00-overview.md`
 
@@ -160,8 +160,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| Open gaps (still not observed or not verified) | missing | Not reviewed yet. |
-| Test data left in the demo workspace | missing | Not reviewed yet. |
+| Open gaps (still not observed or not verified) | n/a | The spec team's open questions. |
+| Test data left in the demo workspace | n/a | Spec notes. |
 
 ## Screenshots
 
@@ -309,12 +309,14 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `146-field-name-autocomplete.jpg` | done | Field name autocomplete. |
 | `147-auto-collected-option.png` | done | Auto-collected option. |
 | `148-calendar-day-view.png` | partial | Calendar day view as a list (no time grid). |
-| `149-multi-select-indent.png` | missing | New, not reviewed yet. |
-| `150-bang-heading.jpg` | missing | New, not reviewed yet. |
-| `151-heading-with-child.jpg` | missing | New, not reviewed yet. |
-| `152-checklist-inserted.jpg` | missing | New, not reviewed yet. |
-| `153-checklist-progress.png` | missing | New, not reviewed yet. |
-| `154-table-column-resize.jpg` | missing | New, not reviewed yet. |
+| `149-multi-select-indent.png` | done | Indent a multi-selection. |
+| `150-bang-heading.jpg` | done | ! on an empty line makes a heading. |
+| `151-heading-with-child.jpg` | done | Heading with children. |
+| `152-checklist-inserted.jpg` | done | Checklist from the slash menu. |
+| `153-checklist-progress.png` | done | Checklist progress bar. |
+| `154-table-column-resize.jpg` | missing | Table column resize. |
+| `155-calendar-drag-create.png` | missing | New, not reviewed yet. |
+| `156-calendar-event-resize.jpg` | missing | New, not reviewed yet. |
 
 ## Beyond the spec
 

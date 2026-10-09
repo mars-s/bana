@@ -183,6 +183,31 @@ pub fn registry() -> Registry {
             Ok(json!({"node": id.0, "progress": on}))
         })
         .params(r#"{"node"?: id}"#),
+        C::new("node.insertChecklist", "Checklist", "Node", |s, v| {
+            // An empty line becomes "New checklist" with a progress bar and two checkbox items.
+            let id = s.target(v)?;
+            let target = if s.graph.name(id).is_empty() {
+                s.graph.set_name(id, "New checklist")?;
+                id
+            } else {
+                let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
+                let at = s.graph.index_in_parent(id).map(|i| i + 1);
+                s.graph.create(parent, at, "New checklist")?
+            };
+            s.graph.set_progress(target, true)?;
+            let mut first = None;
+            for name in ["First item", "Second item"] {
+                let c = s.graph.create(target, None, name)?;
+                s.graph.set_done(c, Some(false))?;
+                first.get_or_insert(c);
+            }
+            s.graph.set_expanded(target, true);
+            if let Some(f) = first {
+                s.set_focus(f, usize::MAX);
+            }
+            Ok(json!({"node": target.0}))
+        })
+        .params(r#"{"node"?: id}"#),
         C::new("node.togglePin", "Pin or unpin in sidebar", "Node", toggle_pin).params(r#"{"node"?: id}"#),
         // Fields.
         C::new("field.setType", "Field type", "Field", field_set_type).params(r#"{"field": name | id, "type": string}"#),

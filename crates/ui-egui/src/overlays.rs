@@ -205,7 +205,7 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
                 })
                 .unwrap_or_default()
         }
-        PickMode::Slash => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Command line"]
+        PickMode::Slash => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "Command line"]
             .into_iter()
             .filter(|l| l.to_lowercase().contains(&q))
             .map(|l| Choice::Existing(NodeId(0), l.to_string()))
@@ -294,6 +294,7 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
                 }
                 "Heading" => app.exec("node.toggleHeading", json!({"node": node.0})),
                 "Checkbox" => app.exec("node.toggleDone", json!({"node": node.0})),
+                "Checklist" => app.exec("node.insertChecklist", json!({"node": node.0})),
                 _ => app.exec("ui.commandLine", json!({})),
             }
         }

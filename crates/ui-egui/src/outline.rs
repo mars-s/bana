@@ -1205,18 +1205,6 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 ui.painter().rect_stroke(r.rect.expand(2.0), 3.0, Stroke::new(1.0, t.accent), StrokeKind::Outside);
             }
         }
-        // Progress bar of checkbox children.
-        if node.as_ref().is_some_and(|n| n.progress) {
-            let (done_n, total) = app.session.graph.progress(target);
-            let (r, _) = ui.allocate_exact_size(vec2(64.0, ROW_H), Sense::hover());
-            let bar = Rect::from_min_size(r.left_center() - vec2(0.0, 2.0), vec2(56.0, 4.0));
-            ui.painter().rect_filled(bar, 2.0, t.line);
-            if total > 0 {
-                let w = bar.width() * done_n as f32 / total as f32;
-                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, Color32::from_rgb(76, 160, 96));
-            }
-            ui.label(RichText::new(format!("{done_n}/{total}")).size(12.0).color(t.faint));
-        }
         // Tag chips (hover the "#" to remove).
         if let Some(n) = &node {
             for tag in n.tags.clone() {
@@ -1246,6 +1234,21 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
         ui.horizontal(|ui| {
             ui.add_space(indent + 26.0);
             ui.label(RichText::new(description).size(13.0).color(t.dim));
+        });
+    }
+    // Progress bar of checkbox children, under the name (spec screenshot 152).
+    if node.as_ref().is_some_and(|n| n.progress) {
+        let (done_n, total) = app.session.graph.progress(target);
+        ui.horizontal(|ui| {
+            ui.add_space(indent + 26.0);
+            let (r, _) = ui.allocate_exact_size(vec2(100.0, 12.0), Sense::hover());
+            let bar = Rect::from_min_size(r.left_center() - vec2(0.0, 2.0), vec2(96.0, 4.0));
+            ui.painter().rect_filled(bar, 2.0, t.line);
+            if total > 0 {
+                let w = bar.width() * done_n as f32 / total as f32;
+                ui.painter().rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, Color32::from_rgb(76, 160, 96));
+            }
+            ui.label(RichText::new(format!("{done_n} / {total}")).size(11.5).color(t.faint));
         });
     }
     if depth == 0 {
@@ -1358,6 +1361,13 @@ fn edit_row(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId) {
             Some('@') if buf == "@" => Some(PickMode::Reference),
             Some('@') => Some(PickMode::InlineRef),
             Some('/') if buf == "/" => Some(PickMode::Slash),
+            Some('!') if buf == "!" => {
+                // `!` on an empty line makes it a heading (spec 02 §10).
+                app.acts.push(Act::Run("node.setName".into(), json!({"node": id.0, "name": "", "caret": 0})));
+                app.acts.push(Act::Run("node.toggleHeading".into(), json!({"node": id.0})));
+                app.edit.buf.clear();
+                return;
+            }
             _ => None,
         };
         match trigger {

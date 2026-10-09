@@ -561,3 +561,12 @@ fn move_many_keeps_order() {
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(lines(&mut s), ["  - a", "  - b", "  - c", "  - d"]);
 }
+
+#[test]
+fn checklist() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
+    run(&mut s, "node.insertChecklist", json!({"node": a.0}));
+    assert_eq!(lines(&mut s), ["  - New checklist", ">   - [ ] First item", "    - [ ] Second item"]);
+    assert_eq!(s.graph.progress(a), (0, 2));
+}

@@ -9,12 +9,12 @@ Status: **done** (behaviour implemented and tested), **partial** (a first versio
 
 ## Summary
 
-Of the 68 spec screenshots (`cargo xtask parity` recounts):
+Of the 69 spec screenshots (`cargo xtask parity` recounts):
 
 | Status | Spec items |
 |---|---|
 | done | 9 |
-| partial | 21 |
+| partial | 22 |
 | missing | 38 |
 
 ## Shell and navigation
@@ -67,6 +67,7 @@ Of the 68 spec screenshots (`cargo xtask parity` recounts):
 | `17-supertag-config-lower.png` | missing | |
 | `18-supertag-advanced.png` | missing | |
 | `19-field-config-options.png` | partial | Options list (`field.setOptions`), auto-collect of new option values, default value. Missing: hide-field rules, required, config UI. |
+| `75-number-field-config.png` | partial | Number fields accept finite numbers only. Missing: min/max limits and their config UI. |
 | `20-field-type-dropdown.png` | done | Field types: plain, options, options from supertag, date, number, URL, email, checkbox, each validated on input. User type not implemented. |
 | `21-tagged-node-zoomed.png` | done | Zoomed tagged node: checkbox before the title, tag chip, field rows (name column with type glyph, value column, placeholders such as "Add date"), then children. |
 | `22-options-picker.png` | partial | Options are picked from a dropdown. Missing: search inside the picker, creating options inline. |

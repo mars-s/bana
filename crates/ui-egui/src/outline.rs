@@ -61,11 +61,20 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
 /// Our own wording: how the Trash works.
 fn trash_banner(ui: &mut Ui, t: &Tokens) {
     let warm = Color32::from_rgb(232, 128, 96);
-    egui::Frame::new().fill(warm.gamma_multiply(0.12)).stroke(Stroke::new(1.0, warm.gamma_multiply(0.5))).corner_radius(8.0).inner_margin(egui::Margin::symmetric(14, 10)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.label(RichText::new("Deleted nodes wait here").strong().color(warm));
-        ui.label(RichText::new("Restore a node with the command line (Restore from trash), or empty the trash for good (Empty trash).").size(13.5).color(t.dim));
-    });
+    egui::Frame::new()
+        .fill(warm.gamma_multiply(0.12))
+        .stroke(Stroke::new(1.0, warm.gamma_multiply(0.5)))
+        .corner_radius(8.0)
+        .inner_margin(egui::Margin::symmetric(14, 10))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new("Deleted nodes wait here").strong().color(warm));
+            ui.label(
+                RichText::new("Restore a node with the command line (Restore from trash), or empty the trash for good (Empty trash).")
+                    .size(13.5)
+                    .color(t.dim),
+            );
+        });
     ui.add_space(10.0);
 }
 

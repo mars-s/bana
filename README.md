@@ -79,8 +79,8 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 |---|---|
 | Typing one character (engine) | 0.001 ms |
 | Enter, expand or collapse, undo (engine) | under 0.01 ms |
-| Whole UI frame with all 51,550 rows expanded (typing, idle, expand key) | about 10 ms |
-| First frame after opening that page and expanding everything | 14 ms |
+| Whole UI frame with all 51,550 rows expanded (typing, idle, expand key) | about 6 ms |
+| First frame after opening that page and expanding everything | 8 ms |
 | Substring search / fuzzy Search and open over every node | 14 ms / 23 ms |
 | Save / load the graph file | 15 ms / 44 ms |
 

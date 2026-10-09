@@ -1693,7 +1693,9 @@ fn rows(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
                 break;
             }
             open_rows.pop();
-            if anchored(app, rows[oi].id) {
+            // Off screen they are left out like the rows around them (cheap for huge outlines).
+            let near = ui.cursor().top() <= clip.bottom() && ui.cursor().top() >= clip.top();
+            if near && anchored(app, rows[oi].id) {
                 let r = rows[oi];
                 let parent = app.session.graph.parent(r.id).unwrap_or(app.session.zoom);
                 fields_at(app, ui, t, parent, r.depth as f32 * INDENT + 8.0, Some(r.id));

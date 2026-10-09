@@ -33,6 +33,10 @@ pub struct Session {
     pub focus: Option<NodeId>,
     /// Caret position in the focused bullet, in chars.
     pub caret: usize,
+    /// The other end of the text selection in the focused bullet (== caret when nothing is selected).
+    pub anchor: usize,
+    /// The month a calendar view shows (year, month); `None` = the month of `today`.
+    pub calendar_month: Option<(i32, u8)>,
     back: Vec<NodeId>,
     forward: Vec<NodeId>,
     pub recents: Vec<NodeId>,
@@ -56,6 +60,8 @@ impl Session {
             zoom,
             focus: None,
             caret: 0,
+            anchor: 0,
+            calendar_month: None,
             back: Vec::new(),
             forward: Vec::new(),
             recents: Vec::new(),
@@ -108,7 +114,9 @@ impl Session {
             self.focus = None;
         }
         if let Some(f) = self.focus {
-            self.caret = self.caret.min(self.graph.name(f).chars().count());
+            let n = self.graph.name(f).chars().count();
+            self.caret = self.caret.min(n);
+            self.anchor = self.anchor.min(n);
         }
     }
 
@@ -129,15 +137,26 @@ impl Session {
         if depth >= MAX_ROW_DEPTH {
             return;
         }
-        for c in self.graph.children(parent) {
-            out.push(Row { id: *c, depth });
-            let target = self.graph.resolve(*c);
-            if self.graph.is_expanded(*c) && !path.contains(&target) {
+        for c in self.row_children(parent) {
+            out.push(Row { id: c, depth });
+            let target = self.graph.resolve(c);
+            if self.graph.is_expanded(c) && !path.contains(&target) {
                 path.push(target);
-                self.rows_into(*c, depth + 1, path, out);
+                self.rows_into(c, depth + 1, path, out);
                 path.pop();
             }
         }
+    }
+
+    /// What a bullet shows when expanded: its children, or a search node's results, after the
+    /// node's view filter and sort.
+    pub fn row_children(&self, id: NodeId) -> Vec<NodeId> {
+        let target = self.graph.resolve(id);
+        let plain = self.graph.query(target).is_none() && self.graph.get(target).is_some_and(|n| n.view.is_none());
+        if plain {
+            return self.graph.children(target).to_vec();
+        }
+        self.graph.view_groups(target).into_iter().flat_map(|g| g.items).collect()
     }
 
     /// Opens `id` in the panel, remembering where we were.
@@ -184,6 +203,7 @@ impl Session {
     pub fn set_focus(&mut self, id: NodeId, caret: usize) {
         self.focus = Some(id);
         self.caret = caret.min(self.graph.name(id).chars().count());
+        self.anchor = self.caret;
     }
 
     /// The target node of a command: the `node` param, else the focused bullet.

@@ -4,7 +4,11 @@
 //! common outliner conventions chosen here (spec-gap until the behaviour spec names them).
 
 use serde_json::{Value, json};
-use tanacraft_core::{Date, FieldType, NodeId, TAG_COLORS, export};
+use tanacraft_core::format::Mark;
+use tanacraft_core::query::{Clause, Query};
+use tanacraft_core::{Date, FieldType, GroupBy, NodeId, Sort, SortBy, TAG_COLORS, ViewKind, export};
+
+const FMT: &str = r#"{"node"?: id, "start"?: chars, "end"?: chars}  (default: the selection, or the whole text)"#;
 
 use crate::{CmdError, CmdResult, CommandSpec as C, Registry, Session, p};
 
@@ -29,6 +33,34 @@ pub fn registry() -> Registry {
             .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),
         C::new("trash.empty", "Empty trash", "Node", empty_trash),
+        C::new("node.insert", "Insert node", "Node", insert).key("Shift+Enter").params(r#"{"node"?: id}"#),
+        C::new("node.quickAdd", "Quick add to today", "Node", quick_add).params(r#"{"name": string, "tag"?: string}"#),
+        // Inline formatting (marks in the text; see core::format).
+        C::new("format.bold", "Bold", "Format", |s, v| format_mark(s, v, Mark::Bold)).key("Mod+B").params(FMT),
+        C::new("format.italic", "Italic", "Format", |s, v| format_mark(s, v, Mark::Italic)).key("Mod+I").params(FMT),
+        C::new("format.underline", "Underline", "Format", |s, v| format_mark(s, v, Mark::Underline)).key("Mod+U").params(FMT),
+        C::new("format.highlight", "Highlight", "Format", |s, v| format_mark(s, v, Mark::Highlight)).key("Ctrl+H").params(FMT),
+        C::new("format.code", "Code", "Format", |s, v| format_mark(s, v, Mark::Code)).params(FMT),
+        // Search nodes.
+        C::new("search.create", "New search node", "Search", search_create)
+            .params(r#"{"query": string, "name"?: string, "parent"?: id}  (query syntax: see core::query)"#),
+        C::new("search.setQuery", "Set search query", "Search", search_set_query).params(r#"{"node"?: id, "query": string}"#),
+        C::new("search.addClause", "Add search condition", "Search", search_add_clause).params(r#"{"node"?: id, "clause": string, "not"?: bool}"#),
+        C::new("search.removeClause", "Remove search condition", "Search", search_remove_clause).params(r#"{"node"?: id, "index": number}"#),
+        C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not).params(r#"{"node"?: id, "index": number}"#),
+        C::new("search.setMode", "Match all or any", "Search", search_set_mode).params(r#"{"node"?: id, "any": bool}"#),
+        // Views.
+        C::new("view.set", "View as", "Views", view_set).params(r#"{"node"?: id, "kind": "list|table|cards|board|calendar"}"#),
+        C::new("view.sort", "Sort by", "Views", view_sort).params(r#"{"node"?: id, "by": "none|name|created|done|<field>", "desc"?: bool}"#),
+        C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|<field>"}"#),
+        C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
+        C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
+        C::new("view.removeColumn", "Remove column", "Views", view_remove_column).params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.dateField", "Calendar date field", "Views", view_date_field).params(r#"{"node"?: id, "field": name | id}"#),
+        C::new("view.month", "Calendar month", "Views", view_month)
+            .params(r#"{"step"?: number, "month"?: "YYYY-MM"}  (step -1/1 moves; nothing: this month)"#)
+            .pure(),
+        C::new("graph.results", "View results", "Graph", results).params(r#"{"node"?: id}"#).pure(),
         // Expand, collapse, focus.
         C::new("node.expand", "Expand", "View", |s, v| set_expanded(s, v, Some(true))).key("Mod+Down").params(r#"{"node"?: id}"#).pure(),
         C::new("node.collapse", "Collapse", "View", |s, v| set_expanded(s, v, Some(false))).key("Mod+Up").params(r#"{"node"?: id}"#).pure(),
@@ -615,4 +647,282 @@ fn view(s: &mut Session, _: &Value) -> CmdResult {
         })
         .collect();
     Ok(json!({"title": s.graph.name(s.zoom), "zoom": s.zoom.0, "lines": lines}))
+}
+
+// ---- insert, quick add, formatting --------------------------------------------------------------
+
+/// Shift+Enter: a new empty node right after this one, leaving the text whole.
+// spec-gap: the spec lists "Insert node" for Shift+Enter without saying where; we add below.
+fn insert(s: &mut Session, v: &Value) -> CmdResult {
+    let id = s.target(v)?;
+    let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("this node has no parent".into()))?;
+    let at = s.graph.index_in_parent(id).unwrap_or(0);
+    let new = s.graph.create(parent, Some(at + 1), "")?;
+    s.set_focus(new, 0);
+    Ok(json!({"id": new.0}))
+}
+
+/// Adds a node to today's page without leaving the current page.
+fn quick_add(s: &mut Session, v: &Value) -> CmdResult {
+    let name = p::req_str(v, "name")?;
+    if name.trim().is_empty() {
+        return Err(CmdError::Params("`name` is empty".into()));
+    }
+    let day = s.graph.day(s.today)?;
+    let id = s.graph.create(day, None, name)?;
+    if let Some(t) = p::str(v, "tag") {
+        let tag = match s.graph.find_tag(t) {
+            Some(t) => t,
+            None => s.graph.create_tag(t, "grey")?,
+        };
+        s.graph.add_tag(id, tag)?;
+    }
+    Ok(json!({"id": id.0, "day": day.0}))
+}
+
+fn format_mark(s: &mut Session, v: &Value, mark: Mark) -> CmdResult {
+    let id = s.graph.resolve(s.target(v)?);
+    let focused = s.focus.map(|f| s.graph.resolve(f)) == Some(id);
+    let (a, b) = match (p::usize(v, "start"), p::usize(v, "end")) {
+        (Some(a), Some(b)) => (a, b),
+        _ if focused => (s.anchor, s.caret),
+        _ => (0, 0),
+    };
+    let (text, a2, b2) = tanacraft_core::format::toggle(s.graph.name(id), a, b, mark);
+    s.graph.set_name(id, &text)?;
+    if focused {
+        s.caret = b2;
+        s.anchor = a2;
+    }
+    Ok(json!({"node": id.0, "name": text, "start": a2, "end": b2}))
+}
+
+// ---- search nodes -------------------------------------------------------------------------------
+
+/// The search node a command acts on: `node`, else the focused bullet or the open page if either is one.
+fn search_target(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
+    let candidates = [p::node(v, "node")?, s.focus, Some(s.zoom)];
+    candidates
+        .into_iter()
+        .flatten()
+        .map(|c| s.graph.resolve(c))
+        .find(|c| s.graph.query(*c).is_some())
+        .ok_or_else(|| CmdError::Params("no search node: pass `node`".into()))
+}
+
+fn parse_query(s: &Session, text: &str) -> Result<Query, CmdError> {
+    Query::parse(&s.graph, text).map_err(|e| CmdError::Params(e.to_string()))
+}
+
+fn search_create(s: &mut Session, v: &Value) -> CmdResult {
+    let q = parse_query(s, p::req_str(v, "query")?)?;
+    let parent = p::node(v, "parent")?.unwrap_or(s.zoom);
+    let name = p::str(v, "name").map(str::to_string).unwrap_or_else(|| q.describe(&s.graph));
+    let id = s.graph.create_search(parent, p::usize(v, "index"), &name, q)?;
+    s.graph.set_expanded(id, true);
+    Ok(json!({"id": id.0, "results": s.graph.view_items(id).len()}))
+}
+
+fn query_result(s: &Session, id: NodeId) -> CmdResult {
+    let q = s.graph.query(id).map(|q| q.describe(&s.graph)).unwrap_or_default();
+    Ok(json!({"node": id.0, "query": q, "results": s.graph.view_items(id).len()}))
+}
+
+fn search_set_query(s: &mut Session, v: &Value) -> CmdResult {
+    let id = search_target(s, v)?;
+    let q = parse_query(s, p::req_str(v, "query")?)?;
+    s.graph.set_query(id, q)?;
+    query_result(s, id)
+}
+
+fn edit_query(s: &mut Session, v: &Value, f: impl FnOnce(&mut Query) -> Result<(), CmdError>) -> CmdResult {
+    let id = search_target(s, v)?;
+    let mut q = s.graph.query(id).cloned().unwrap_or_default();
+    f(&mut q)?;
+    s.graph.set_query(id, q)?;
+    query_result(s, id)
+}
+
+fn search_add_clause(s: &mut Session, v: &Value) -> CmdResult {
+    let parsed = parse_query(s, p::req_str(v, "clause")?)?;
+    let not = p::bool(v, "not").unwrap_or(false);
+    edit_query(s, v, |q| {
+        q.clauses.extend(parsed.clauses.into_iter().map(|c| Clause { not: c.not != not, kind: c.kind }));
+        Ok(())
+    })
+}
+
+fn clause_index(v: &Value, q: &Query) -> Result<usize, CmdError> {
+    p::usize(v, "index").filter(|i| *i < q.clauses.len()).ok_or_else(|| CmdError::Params("`index` must name an existing condition".into()))
+}
+
+fn search_remove_clause(s: &mut Session, v: &Value) -> CmdResult {
+    edit_query(s, v, |q| {
+        let i = clause_index(v, q)?;
+        q.clauses.remove(i);
+        Ok(())
+    })
+}
+
+fn search_toggle_not(s: &mut Session, v: &Value) -> CmdResult {
+    edit_query(s, v, |q| {
+        let i = clause_index(v, q)?;
+        if let Some(c) = q.clauses.get_mut(i) {
+            c.not = !c.not;
+        }
+        Ok(())
+    })
+}
+
+fn search_set_mode(s: &mut Session, v: &Value) -> CmdResult {
+    let any = p::bool(v, "any").ok_or_else(|| CmdError::Params("`any` (bool) is required".into()))?;
+    edit_query(s, v, |q| {
+        q.any = any;
+        Ok(())
+    })
+}
+
+// ---- views --------------------------------------------------------------------------------------
+
+/// The node whose view a command changes: `node`, else the open page.
+fn view_target(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
+    let id = p::node(v, "node")?.unwrap_or(s.zoom);
+    s.graph.node(id)?;
+    Ok(s.graph.resolve(id))
+}
+
+fn view_json(s: &Session, id: NodeId) -> CmdResult {
+    let d = s.graph.view_def(id);
+    Ok(json!({"node": id.0, "kind": d.kind.name(), "groups": s.graph.view_groups(id).len()}))
+}
+
+fn view_set(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let kind = p::req_str(v, "kind")?;
+    let kind = ViewKind::parse(kind).ok_or_else(|| CmdError::Params(format!("unknown view `{kind}`")))?;
+    let needs_group = kind == ViewKind::Board && s.graph.view_def(id).group.is_none();
+    // A board needs lanes: default to the first options field, else done / not done.
+    let default_group = needs_group.then(|| {
+        s.graph
+            .view_columns(id)
+            .into_iter()
+            .find(|f| s.graph.field_def(*f).is_some_and(|d| d.field_type == FieldType::Options))
+            .map(GroupBy::Field)
+            .unwrap_or(GroupBy::Done)
+    });
+    let view = s.graph.view_mut(id)?;
+    view.kind = kind;
+    if let Some(g) = default_group {
+        view.group = Some(g);
+    }
+    view_json(s, id)
+}
+
+fn field_or_keyword(s: &mut Session, v: &Value, key: &str) -> Result<Result<NodeId, String>, CmdError> {
+    let raw = p::req_str(v, key)?.to_string();
+    let lower = raw.trim().to_ascii_lowercase();
+    if ["none", "name", "created", "done", "tags"].contains(&lower.as_str()) {
+        return Ok(Err(lower));
+    }
+    let probe = json!({"field": raw});
+    Ok(Ok(field_param(s, &probe, false)?))
+}
+
+fn view_sort(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let desc = p::bool(v, "desc").unwrap_or(false);
+    let by = match field_or_keyword(s, v, "by")? {
+        Ok(f) => Some(SortBy::Field(f)),
+        Err(k) => match k.as_str() {
+            "none" => None,
+            "name" => Some(SortBy::Name),
+            "created" => Some(SortBy::Created),
+            "done" => Some(SortBy::Done),
+            other => return Err(CmdError::Params(format!("cannot sort by `{other}`"))),
+        },
+    };
+    s.graph.view_mut(id)?.sort = by.map(|by| Sort { by, desc });
+    view_json(s, id)
+}
+
+fn view_group(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let by = match field_or_keyword(s, v, "by")? {
+        Ok(f) => Some(GroupBy::Field(f)),
+        Err(k) => match k.as_str() {
+            "none" => None,
+            "tags" => Some(GroupBy::Tags),
+            "done" => Some(GroupBy::Done),
+            other => return Err(CmdError::Params(format!("cannot group by `{other}`"))),
+        },
+    };
+    s.graph.view_mut(id)?.group = by;
+    view_json(s, id)
+}
+
+fn view_filter(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let q = parse_query(s, p::str(v, "query").unwrap_or(""))?;
+    s.graph.view_mut(id)?.filter = q;
+    view_json(s, id)
+}
+
+fn view_add_column(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let f = field_param(s, v, true)?;
+    let mut cols = s.graph.view_columns(id);
+    if !cols.contains(&f) {
+        cols.push(f);
+    }
+    s.graph.view_mut(id)?.columns = cols;
+    view_json(s, id)
+}
+
+fn view_remove_column(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let f = field_param(s, v, false)?;
+    let cols: Vec<NodeId> = s.graph.view_columns(id).into_iter().filter(|c| *c != f).collect();
+    s.graph.view_mut(id)?.columns = cols;
+    view_json(s, id)
+}
+
+fn view_date_field(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let f = field_param(s, v, false)?;
+    if s.graph.field_def(f).is_none_or(|d| d.field_type != FieldType::Date) {
+        return Err(CmdError::Params("the calendar needs a date field".into()));
+    }
+    s.graph.view_mut(id)?.date_field = Some(f);
+    view_json(s, id)
+}
+
+fn view_month(s: &mut Session, v: &Value) -> CmdResult {
+    let (mut y, mut m) = s.calendar_month.unwrap_or((s.today.year, s.today.month));
+    if let Some(text) = p::str(v, "month") {
+        let d = Date::parse(&format!("{text}-01")).ok_or_else(|| CmdError::Params("`month` must be YYYY-MM".into()))?;
+        (y, m) = (d.year, d.month);
+    } else if let Some(step) = v.get("step").and_then(Value::as_i64) {
+        let total = (y as i64 * 12 + (m as i64 - 1)).saturating_add(step.clamp(-1200, 1200));
+        y = total.div_euclid(12) as i32;
+        m = (total.rem_euclid(12) + 1) as u8;
+    } else {
+        (y, m) = (s.today.year, s.today.month);
+    }
+    if Date::new(y, m, 1).is_none() {
+        return Err(CmdError::Params("month out of range".into()));
+    }
+    s.calendar_month = Some((y, m));
+    Ok(json!({"month": format!("{y:04}-{m:02}")}))
+}
+
+fn results(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let groups: Vec<Value> = s
+        .graph
+        .view_groups(id)
+        .into_iter()
+        .map(|g| json!({"label": g.label, "items": g.items.iter().map(|i| json!({"id": i.0, "line": export::node_line(&s.graph, *i)})).collect::<Vec<_>>()}))
+        .collect();
+    let d = s.graph.view_def(id);
+    Ok(json!({"node": id.0, "view": d.kind.name(), "query": s.graph.query(id).map(|q| q.describe(&s.graph)), "groups": groups}))
 }

@@ -258,3 +258,69 @@ fn typing_a_word_is_one_undo_step() {
     run(&mut s, "edit.undo", json!({}));
     assert_eq!(s.graph.name(a), "");
 }
+
+#[test]
+fn search_nodes_and_views_by_command() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let r = run(&mut s, "search.create", json!({"query": "#task AND TODO", "name": "Todo"}));
+    let search = id(&r, "id");
+    assert_eq!(r["results"], 3);
+    // Expanded search nodes list their results as rows.
+    assert!(lines(&mut s).iter().any(|l| l.contains("Fill with compost")), "{:?}", lines(&mut s));
+    run(&mut s, "search.addClause", json!({"node": search.0, "clause": "compost", "not": true}));
+    assert_eq!(run(&mut s, "graph.results", json!({"node": search.0}))["groups"][0]["items"].as_array().unwrap().len(), 1);
+    run(&mut s, "search.toggleNot", json!({"node": search.0, "index": 2}));
+    run(&mut s, "search.setMode", json!({"node": search.0, "any": true}));
+    let q = run(&mut s, "search.removeClause", json!({"node": search.0, "index": 0}));
+    assert_eq!(q["query"], "TODO OR compost");
+    assert!(s.run("search.removeClause", &json!({"node": search.0, "index": 9})).is_err());
+    assert!(s.run("search.setQuery", &json!({"node": search.0, "query": "#nope"})).is_err());
+
+    run(&mut s, "nav.open", json!({"node": search.0}));
+    run(&mut s, "view.set", json!({"kind": "board"}));
+    assert_eq!(
+        s.graph.view_def(search).group,
+        Some(tanacraft_core::GroupBy::Field(s.graph.find_field("Status").unwrap())),
+        "board picks an options field for lanes"
+    );
+    run(&mut s, "view.sort", json!({"by": "Due", "desc": true}));
+    run(&mut s, "view.group", json!({"by": "none"}));
+    run(&mut s, "view.filter", json!({"query": "#task"}));
+    run(&mut s, "view.addColumn", json!({"field": "Status"}));
+    run(&mut s, "view.removeColumn", json!({"field": "Due"}));
+    assert!(!s.graph.view_columns(search).contains(&s.graph.find_field("Due").unwrap()));
+    assert!(s.run("view.set", &json!({"kind": "pie"})).is_err());
+    assert!(s.run("view.sort", &json!({"by": "nosuchfield"})).is_err());
+    assert!(s.run("view.dateField", &json!({"field": "Status"})).is_err());
+    run(&mut s, "view.dateField", json!({"field": "Due"}));
+    run(&mut s, "view.month", json!({"month": "2026-12"}));
+    assert_eq!(run(&mut s, "view.month", json!({"step": 1}))["month"], "2027-01");
+    // View changes are undoable.
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.graph.view_def(search).date_field, None);
+}
+
+#[test]
+fn insert_quick_add_and_formatting() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Hello world"})), "id");
+    run(&mut s, "focus.set", json!({"node": a.0, "caret": 3}));
+    run(&mut s, "node.insert", json!({}));
+    assert_eq!(lines(&mut s), ["  - Hello world", "> - "]);
+    let r = run(&mut s, "node.quickAdd", json!({"name": "Call the plumber", "tag": "task"}));
+    assert_eq!(s.zoom, s.graph.sys.library, "quick add stays on the page");
+    assert_eq!(s.graph.name(s.graph.parent(id(&r, "id")).unwrap()), "Sat, 10 Oct");
+    assert!(s.run("node.quickAdd", &json!({"name": "  "})).is_err());
+
+    run(&mut s, "format.bold", json!({"node": a.0, "start": 6, "end": 11}));
+    assert_eq!(s.graph.name(a), "Hello **world**");
+    run(&mut s, "format.bold", json!({"node": a.0, "start": 8, "end": 13}));
+    assert_eq!(s.graph.name(a), "Hello world");
+    // With focus, the text selection is used.
+    run(&mut s, "focus.set", json!({"node": a.0, "caret": 5}));
+    s.anchor = 0;
+    run(&mut s, "format.highlight", json!({}));
+    assert_eq!(s.graph.name(a), "==Hello== world");
+    assert_eq!((s.anchor, s.caret), (2, 7));
+    assert_eq!(s.graph.search("hello world"), vec![a], "search ignores marks");
+}

@@ -8,13 +8,18 @@
 
 pub mod date;
 pub mod export;
+pub mod format;
 pub mod graph;
 pub mod model;
+pub mod query;
 pub mod sample;
+pub mod view;
 
 pub use date::Date;
 pub use graph::{Graph, SystemNodes};
 pub use model::*;
+pub use query::Query;
+pub use view::{GroupBy, Sort, SortBy, ViewDef, ViewKind};
 
 /// The product name shown to people. Rename the product here.
 pub const PRODUCT_NAME: &str = "TanaCraft";

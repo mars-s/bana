@@ -185,7 +185,12 @@ impl Graph {
         let q = query.to_lowercase();
         self.nodes
             .values()
-            .filter(|n| n.reference_target().is_none() && !self.is_system(n.id) && n.name.to_lowercase().contains(&q) && !self.in_trash(n.id))
+            .filter(|n| {
+                n.reference_target().is_none()
+                    && !self.is_system(n.id)
+                    && crate::format::plain(&n.name).to_lowercase().contains(&q)
+                    && !self.in_trash(n.id)
+            })
             .map(|n| n.id)
             .collect()
     }
@@ -631,6 +636,39 @@ impl Graph {
         let id = self.create(parent, index, "")?;
         self.node_mut(id)?.kind = Kind::Reference { target };
         Ok(id)
+    }
+
+    // ---- search nodes and views ---------------------------------------------------------------
+
+    /// Creates a search node under `parent` that lists the query's results live.
+    pub fn create_search(&mut self, parent: NodeId, index: Option<usize>, name: &str, query: crate::query::Query) -> Result<NodeId> {
+        let id = self.create(parent, index, name)?;
+        self.node_mut(id)?.kind = Kind::Search(query);
+        Ok(id)
+    }
+
+    pub fn set_query(&mut self, id: NodeId, query: crate::query::Query) -> Result<()> {
+        let id = self.resolve(id);
+        match &mut self.node_mut(id)?.kind {
+            Kind::Search(q) => {
+                *q = query;
+                Ok(())
+            }
+            _ => Err(Error::Invalid(format!("node {id} is not a search node"))),
+        }
+    }
+
+    pub fn query(&self, id: NodeId) -> Option<&crate::query::Query> {
+        match &self.get(self.resolve(id))?.kind {
+            Kind::Search(q) => Some(q),
+            _ => None,
+        }
+    }
+
+    /// The view settings of `id`, created on first change (undoable like any edit).
+    pub fn view_mut(&mut self, id: NodeId) -> Result<&mut crate::view::ViewDef> {
+        let id = self.resolve(id);
+        Ok(self.node_mut(id)?.view.get_or_insert_with(Default::default))
     }
 
     // ---- supertags and fields -----------------------------------------------------------------

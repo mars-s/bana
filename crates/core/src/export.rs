@@ -108,6 +108,11 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
     match &n.kind {
         Kind::Day { date } => v["date"] = json!(date.to_string()),
         Kind::Tag(_) => v["kind"] = json!("supertag"),
+        Kind::Search(q) => {
+            v["kind"] = json!("search");
+            v["query"] = json!(q.describe(g));
+            v["results"] = json!(q.run(g, id).iter().map(|r| r.0).collect::<Vec<_>>());
+        }
         Kind::Field(f) => v["kind"] = json!(format!("field:{}", f.field_type.name())),
         _ => {}
     }

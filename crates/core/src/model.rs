@@ -38,6 +38,8 @@ pub enum Kind {
     Tag(TagDef),
     /// A field definition.
     Field(FieldDef),
+    /// A live search: its items are the query's results, not stored children.
+    Search(crate::query::Query),
     /// A calendar node.
     Day {
         date: Date,
@@ -208,6 +210,9 @@ pub struct Node {
     pub done: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trashed_from: Option<TrashedFrom>,
+    /// How the node shows its items (list when absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<crate::view::ViewDef>,
     /// Unix seconds.
     #[serde(default)]
     pub created: u64,
@@ -231,6 +236,7 @@ impl Node {
             fields: Vec::new(),
             done: None,
             trashed_from: None,
+            view: None,
             created,
         }
     }

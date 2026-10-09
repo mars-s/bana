@@ -45,11 +45,17 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.set_field_text(garden, site, "https://example.org/garden")?;
     g.set_field_text(garden, owner, "Robin Ash")?;
     let beds = g.create(garden, None, "Raised beds")?;
-    for (name, done, effort_h) in [("Order cedar boards", true, "2"), ("Build four beds", false, "6"), ("Fill with compost", false, "3")] {
+    for (name, done, effort_h, status_v, due_in) in [
+        ("Order cedar boards", true, "2", "Done", -3),
+        ("Build four beds", false, "6", "In progress", 5),
+        ("Fill with compost", false, "3", "Not started", 12),
+    ] {
         let t = g.create(beds, None, name)?;
         g.add_tag(t, task)?;
         g.set_done(t, Some(done))?;
         g.set_field_text(t, effort, effort_h)?;
+        g.set_field_text(t, status, status_v)?;
+        g.set_field_text(t, due, &today.add_days(due_in).to_string())?;
     }
     let seeds = g.create(garden, None, "Seed list")?;
     for s in ["Tomatoes: two heirloom kinds", "Runner beans", "Marigolds along the edges"] {
@@ -85,5 +91,12 @@ pub fn sample(today: Date) -> Result<Graph> {
     g.add_tag(t, task)?;
     g.set_field_text(t, due, &today.add_days(2).to_string())?;
     g.create_reference(day, None, garden)?;
+
+    // A live search with a table view.
+    let q = crate::query::Query::parse(&g, "#task AND TODO")?;
+    let open = g.create_search(home, Some(1), "Open tasks", q)?;
+    let v = g.view_mut(open)?;
+    v.kind = crate::view::ViewKind::Table;
+    v.sort = Some(crate::view::Sort { by: crate::view::SortBy::Field(due), desc: false });
     Ok(g)
 }

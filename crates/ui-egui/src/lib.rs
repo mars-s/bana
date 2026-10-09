@@ -238,6 +238,10 @@ pub struct DatePick {
     pub time: (String, String),
     /// Drawn at least once (the click that opened it does not close it).
     pub drawn: bool,
+    /// Date fields: the last day of a span ("Add end", spec 03 §8), and whether the next day
+    /// clicked is that end.
+    pub end: Option<String>,
+    pub picking_end: bool,
 }
 
 /// A request from the JSON control channel (`tanacraft --control PORT`), answered on `reply`.
@@ -516,6 +520,8 @@ impl TanaApp {
                         buf: String::new(),
                         time: Default::default(),
                         drawn: false,
+                        end: None,
+                        picking_end: false,
                     });
                 }
             }
@@ -825,6 +831,8 @@ impl TanaApp {
                         buf: String::new(),
                         time: Default::default(),
                         drawn: false,
+                        end: None,
+                        picking_end: false,
                     });
                 }
                 Act::EditField(node, field, index, buf) => self.start_field_edit(FieldEdit { node, field, index, buf, focus_once: true }),
@@ -853,6 +861,11 @@ impl TanaApp {
                         buf: current.map(|d| d.to_string()).unwrap_or_default(),
                         time,
                         drawn: false,
+                        end: match &value {
+                            Some(tanacraft_core::FieldValue::Span { end, .. }) => Some(end.to_string()),
+                            _ => None,
+                        },
+                        picking_end: false,
                     });
                 }
             }

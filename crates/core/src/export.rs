@@ -14,6 +14,7 @@ pub fn display_value(g: &Graph, v: &FieldValue) -> String {
         FieldValue::Number(n) => format!("{n}"),
         FieldValue::Date(d) => d.to_string(),
         FieldValue::Timed { date, start, end } => format!("{date} {}-{}", crate::model::fmt_hm(*start), crate::model::fmt_hm(*end)),
+        FieldValue::Span { start, end } => format!("{start}/{end}"),
         FieldValue::Checkbox(b) => if *b { "Yes" } else { "No" }.to_string(),
         FieldValue::Node(id) => g.name(*id).to_string(),
     }
@@ -27,6 +28,9 @@ pub fn shown_value(g: &Graph, v: &FieldValue) -> String {
         FieldValue::Timed { date, start, end } => {
             let day = shown_value(g, &FieldValue::Date(*date));
             format!("{day}, {} - {}", g.fmt_time(*start), g.fmt_time(*end))
+        }
+        FieldValue::Span { start, end } => {
+            format!("{} - {}", shown_value(g, &FieldValue::Date(*start)), shown_value(g, &FieldValue::Date(*end)))
         }
         other => display_value(g, other),
     }

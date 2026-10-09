@@ -430,6 +430,17 @@ impl Graph {
         self.get(self.resolve(item)).and_then(|n| n.field_value(field?)).and_then(FieldValue::date)
     }
 
+    /// Every day an item covers in a calendar view (a span lists each of its days).
+    pub fn item_dates(&self, item: NodeId, field: Option<NodeId>) -> Vec<Date> {
+        match self.get(self.resolve(item)).and_then(|n| n.field_value(field?)) {
+            Some(FieldValue::Span { start, end }) => {
+                (0..=(end.to_days() - start.to_days()).clamp(0, crate::model::MAX_SPAN_DAYS)).map(|k| start.add_days(k)).collect()
+            }
+            Some(v) => v.date().into_iter().collect(),
+            None => Vec::new(),
+        }
+    }
+
     /// The time range of an item in a calendar view, when its date has one (minutes).
     pub fn item_time(&self, item: NodeId, field: Option<NodeId>) -> Option<(u16, u16)> {
         match self.get(self.resolve(item)).and_then(|n| n.field_value(field?)) {

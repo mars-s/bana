@@ -1142,6 +1142,10 @@ pub(crate) fn field_value(
                 Some(FieldValue::Timed { start, end, .. }) => {
                     format!(", {} - {}", app.session.graph.fmt_time(*start), app.session.graph.fmt_time(*end))
                 }
+                // A span reads "Thu, 15 Oct - Sat, 17 Oct".
+                Some(FieldValue::Span { end, .. }) => {
+                    format!(" - {}", export::shown_value(&app.session.graph, &FieldValue::Date(*end)))
+                }
                 _ => String::new(),
             };
             let label = match date {

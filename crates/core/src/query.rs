@@ -396,9 +396,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             n.field_values(*field).into_iter().any(|v| match op {
                 Op::Set => !display_value(g, v).is_empty(),
                 // A date matches its day, also given as `today`, `yesterday`... (relative dates).
-                Op::Eq => {
-                    display_value(g, v).eq_ignore_ascii_case(value.trim()) || v.date().is_some_and(|d| Date::parse(value).is_some_and(|t| t == d))
-                }
+                Op::Eq => display_value(g, v).eq_ignore_ascii_case(value.trim()) || Date::parse(value).is_some_and(|t| v.covers(t)),
                 Op::Lt => compare(g, v, value).is_some_and(|o| o.is_lt()),
                 Op::Gt => compare(g, v, value).is_some_and(|o| o.is_gt()),
                 Op::Node => value.parse::<u64>().is_ok_and(|x| *v == FieldValue::Node(NodeId(x))),
@@ -412,7 +410,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
 pub fn compare(g: &Graph, v: &FieldValue, text: &str) -> Option<std::cmp::Ordering> {
     match v {
         FieldValue::Number(x) => text.trim().parse::<f64>().ok().and_then(|y| x.partial_cmp(&y)),
-        FieldValue::Date(d) | FieldValue::Timed { date: d, .. } => Date::parse(text).map(|t| d.cmp(&t)),
+        FieldValue::Date(d) | FieldValue::Timed { date: d, .. } | FieldValue::Span { start: d, .. } => Date::parse(text).map(|t| d.cmp(&t)),
         other => Some(display_value(g, other).to_lowercase().cmp(&text.trim().to_lowercase())),
     }
 }

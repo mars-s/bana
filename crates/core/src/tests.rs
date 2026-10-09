@@ -634,3 +634,22 @@ fn html_export_is_a_nested_escaped_list() {
     g.create(ids[0], None, "B1 & co").unwrap();
     assert_eq!(export::to_html(&g, &ids), "<ul><li>B &lt;b&gt;<ul><li>B1 &amp; co</li></ul></li><li>C</li></ul>");
 }
+
+#[test]
+fn date_spans_cover_their_days() {
+    // Spec 03 §8 "Add end": a date range across days.
+    let v = FieldValue::parse(FieldType::Date, "2026-10-15/2026-10-17").unwrap();
+    let d = |n| Date::new(2026, 10, n).unwrap();
+    assert_eq!(v, FieldValue::Span { start: d(15), end: d(17) });
+    assert!(v.covers(d(16)) && !v.covers(d(18)));
+    assert_eq!(export::display_value(&Graph::new(), &v), "2026-10-15/2026-10-17");
+    assert!(FieldValue::parse(FieldType::Date, "2026-10-17/2026-10-15").is_err());
+    assert!(FieldValue::parse(FieldType::Date, "2026-10-17/3026-10-15").is_err());
+    let mut g = Graph::new();
+    let f = g.create_field("Trip", FieldType::Date).unwrap();
+    let n = g.create(g.sys.library, None, "Holiday").unwrap();
+    g.set_field_text(n, f, "2026-10-15/2026-10-17").unwrap();
+    assert_eq!(g.item_dates(n, Some(f)), [d(15), d(16), d(17)]);
+    assert_eq!(Query::parse(&g, "Trip:2026-10-16").unwrap().run(&g, NodeId(0)), [n]);
+    assert!(g.get(n).unwrap().has_date(d(17)));
+}

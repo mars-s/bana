@@ -279,6 +279,11 @@ pub enum FieldValue {
         start: u16,
         end: u16,
     },
+    /// A range of whole days, `start < end` ("Add end" in the date picker, spec 03 §8).
+    Span {
+        start: Date,
+        end: Date,
+    },
     Checkbox(bool),
     Url(String),
     Email(String),
@@ -300,9 +305,23 @@ pub fn fmt_hm(min: u16) -> String {
     format!("{:02}:{:02}", min / 60, min % 60)
 }
 
-/// A date, optionally followed by `HH:MM` or `HH:MM-HH:MM` (one hour when no end is given).
+/// Days a span may cover (a hostile file cannot make a calendar loop for years).
+pub const MAX_SPAN_DAYS: i64 = 3660;
+
+/// A date, optionally followed by `HH:MM` or `HH:MM-HH:MM` (one hour when no end is given), or a
+/// span of days `YYYY-MM-DD/YYYY-MM-DD`.
 fn parse_date_value(s: &str) -> Result<FieldValue, String> {
-    let bad = || format!("`{s}` is not a date (YYYY-MM-DD, optionally HH:MM-HH:MM)");
+    let bad = || format!("`{s}` is not a date (YYYY-MM-DD, optionally HH:MM-HH:MM, or YYYY-MM-DD/YYYY-MM-DD)");
+    if let Some((a, b)) = s.split_once('/') {
+        let (start, end) = (Date::parse(a.trim()).ok_or_else(bad)?, Date::parse(b.trim()).ok_or_else(bad)?);
+        if end <= start {
+            return Err(format!("`{s}`: the end must be after the start"));
+        }
+        if end.to_days() - start.to_days() > MAX_SPAN_DAYS {
+            return Err(format!("`{s}`: a span is at most ten years"));
+        }
+        return Ok(FieldValue::Span { start, end });
+    }
     if let Some((day, time)) = s.rsplit_once(' ')
         && time.contains(':')
     {
@@ -335,11 +354,19 @@ impl FieldValue {
         }
     }
 
-    /// The day of a date value (timed or not).
+    /// The day of a date value (timed or not; a span's first day).
     pub fn date(&self) -> Option<Date> {
         match self {
-            FieldValue::Date(d) | FieldValue::Timed { date: d, .. } => Some(*d),
+            FieldValue::Date(d) | FieldValue::Timed { date: d, .. } | FieldValue::Span { start: d, .. } => Some(*d),
             _ => None,
+        }
+    }
+
+    /// Whether a date value falls on `d` (a span covers every day from start to end).
+    pub fn covers(&self, d: Date) -> bool {
+        match self {
+            FieldValue::Span { start, end } => *start <= d && d <= *end,
+            other => other.date() == Some(d),
         }
     }
 
@@ -514,7 +541,7 @@ impl Node {
 
     /// True when any field holds a date (timed or not) on `d`.
     pub fn has_date(&self, d: Date) -> bool {
-        self.fields.iter().any(|f| f.values().any(|x| x.date() == Some(d)))
+        self.fields.iter().any(|f| f.values().any(|x| x.covers(d)))
     }
 
     /// True when any field holds `v`.

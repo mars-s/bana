@@ -697,6 +697,9 @@ pub fn help_panel(app: &mut TanaApp, ui: &mut Ui) {
 
 /// The picked day plus the typed time range, as a field value text.
 fn date_with_time(dp: &crate::DatePick) -> String {
+    if let Some(end) = dp.end.as_ref().filter(|e| !e.trim().is_empty()) {
+        return format!("{}/{}", dp.buf.trim(), end.trim());
+    }
     let (a, b) = (dp.time.0.trim(), dp.time.1.trim());
     match (a.is_empty(), b.is_empty()) {
         (true, _) => dp.buf.trim().to_string(),
@@ -756,9 +759,14 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                         let d = start.add_days(w * 7 + k);
                         let (r, resp) = ui.allocate_exact_size(vec2(cell, 26.0), Sense::click());
                         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, d.to_string()));
-                        let selected = dp.buf == d.to_string();
+                        let ds = d.to_string();
+                        let selected = dp.buf == ds || dp.end.as_deref() == Some(ds.as_str());
+                        // Days inside a span are shaded (ISO dates compare as text).
+                        let inside = dp.end.as_deref().is_some_and(|e| dp.buf.as_str() < ds.as_str() && ds.as_str() < e);
                         if selected {
                             ui.painter().rect_filled(r.shrink(2.0), 5.0, t.accent);
+                        } else if inside {
+                            ui.painter().rect_filled(r.shrink(2.0), 5.0, t.accent.gamma_multiply(0.3));
                         } else if d == today {
                             ui.painter().circle_filled(r.center(), 11.0, egui::Color32::from_rgb(226, 92, 64));
                         } else if resp.hovered() {
@@ -777,7 +785,12 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                             ui.painter().circle_filled(r.center_bottom() - vec2(0.0, 4.0), 2.0, t.accent);
                         }
                         if resp.clicked() {
-                            if is_field {
+                            if is_field && dp.picking_end {
+                                if ds.as_str() > dp.buf.as_str() {
+                                    dp.end = Some(ds.clone());
+                                    dp.picking_end = false;
+                                }
+                            } else if is_field {
                                 dp.buf = d.to_string();
                             } else {
                                 pick = Some(d.to_string());
@@ -792,6 +805,23 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                     ui.add(egui::TextEdit::singleline(&mut dp.time.0).hint_text("-- : --").desired_width(52.0));
                     ui.label(RichText::new("to").size(12.5).color(t.dim));
                     ui.add(egui::TextEdit::singleline(&mut dp.time.1).hint_text("end").desired_width(52.0));
+                });
+                // A span of days: "Add end", then click the last day (spec 03 §8).
+                ui.horizontal(|ui| match dp.end.clone() {
+                    Some(e) => {
+                        ui.label(RichText::new(format!("Ends {e}")).size(12.5).color(t.dim));
+                        if ui.small_button("x").on_hover_text("Remove the end").clicked() {
+                            dp.end = None;
+                        }
+                    }
+                    None if dp.picking_end => {
+                        ui.label(RichText::new("Click the last day").size(12.5).color(t.dim));
+                    }
+                    None => {
+                        if ui.button("Add end").clicked() && !dp.buf.trim().is_empty() {
+                            dp.picking_end = true;
+                        }
+                    }
                 });
             }
             ui.horizontal(|ui| {

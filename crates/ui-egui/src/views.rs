@@ -1432,8 +1432,8 @@ fn calendar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[
     });
     ui.add_space(6.0);
     let items: Vec<NodeId> = groups.iter().flat_map(|g| g.items.iter().copied()).collect();
-    let dated: Vec<(Date, NodeId)> = items.iter().filter_map(|i| app.session.graph.item_date(*i, field).map(|d| (d, *i))).collect();
-    let undated = items.len() - dated.len();
+    let dated: Vec<(Date, NodeId)> = items.iter().flat_map(|i| app.session.graph.item_dates(*i, field).into_iter().map(move |d| (d, *i))).collect();
+    let undated = items.iter().filter(|i| app.session.graph.item_date(**i, field).is_none()).count();
     if day_mode || week_mode {
         // Week and day: an all-day strip over an hour grid (spec 04 §10).
         let days: Vec<Date> = if day_mode { vec![anchor] } else { (0..7).map(|k| week_start.add_days(k)).collect() };

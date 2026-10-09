@@ -1519,3 +1519,30 @@ fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
     assert_eq!(g.get(ids[0]).unwrap().description, "");
     h.get_by_label("In this context:");
 }
+
+#[test]
+fn date_picker_add_end_sets_a_span_of_days() {
+    // Spec 03 §8: "Add end" makes a date range.
+    let mut h = harness();
+    let page = page_with(&mut h, &["Holiday"])[0];
+    h.state_mut().exec("field.add", json!({"node": page.0, "field": "Trip", "type": "date"})).unwrap();
+    h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Add date").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    for label in ["2026-10-15", "Add end", "2026-10-17", "OK"] {
+        h.get_by_label(label).click();
+        for _ in 0..3 {
+            h.step();
+        }
+    }
+    let g = &h.state().session.graph;
+    let f = g.find_field("Trip").unwrap();
+    let v = g.get(page).unwrap().field_value(f).cloned();
+    assert_eq!(v.map(|v| tanacraft_core::export::display_value(g, &v)), Some("2026-10-15/2026-10-17".to_string()));
+    h.get_by_label("Thu, 15 Oct - Sat, 17 Oct");
+}

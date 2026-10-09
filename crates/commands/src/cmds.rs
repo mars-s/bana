@@ -566,6 +566,7 @@ pub fn registry() -> Registry {
                     }
                 }
                 "warn_referenced" => set.warn_referenced = flag()?,
+                "url_embeds" => set.url_embeds = flag()?,
                 k if tanacraft_core::Settings::HIDEABLE.iter().any(|h| format!("show_{h}") == k) => {
                     let what = k.trim_start_matches("show_").to_string();
                     let show = flag()?;
@@ -578,7 +579,7 @@ pub fn registry() -> Registry {
             }
             settings_json(s)
         })
-        .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced", "value": "12h|24h" | "monday|sunday" | bool}"#)
+        .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced|url_embeds", "value": "12h|24h" | "monday|sunday" | bool}"#)
         .pure(),
         // What copying nodes puts on the clipboard: HTML plus a Markdown list (spec 02 §12).
         C::new("export.clipboard", "Copy as HTML and text", "Export", |s, v| {

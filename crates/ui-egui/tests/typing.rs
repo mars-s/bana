@@ -1603,3 +1603,15 @@ fn context_fields_show_under_the_reference() {
     }
     h.get_by_label("Role: Lead");
 }
+
+#[test]
+fn url_embeds_show_a_site_card_when_the_setting_is_on() {
+    let mut h = harness();
+    page_with(&mut h, &["https://www.example.org/garden/plan"]);
+    assert!(h.query_by_label("example.org").is_none());
+    h.state_mut().exec("settings.set", json!({"key": "url_embeds", "value": true})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("example.org");
+}

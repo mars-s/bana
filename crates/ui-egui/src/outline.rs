@@ -352,6 +352,10 @@ fn preferences(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     if pref_row(ui, t, "Warn when editing referenced nodes", "Say so on the first edit of a node that appears in other places.", &mut warn) {
         app.acts.push(Act::Run("settings.set".into(), json!({"key": "warn_referenced", "value": warn})));
     }
+    let mut embeds = app.session.graph.settings.url_embeds;
+    if pref_row(ui, t, "URL embeds", "A node that is just a link shows a card with its site.", &mut embeds) {
+        app.acts.push(Act::Run("settings.set".into(), json!({"key": "url_embeds", "value": embeds})));
+    }
     let mut counter = app.ref_counter;
     pref_row(ui, t, "Reference counter", "Show how many places reference a node, next to it.", &mut counter);
     app.ref_counter = counter;
@@ -1971,6 +1975,29 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 if !note.is_empty() || app.desc_edit.as_ref().is_some_and(|d| d.0 == id) {
                     description_line(app, ui, t, id, &note, 13.0);
                 }
+            });
+        }
+    }
+    // URL embeds (a setting): a node that is just a link gets a card with its site under it.
+    if app.session.graph.settings.url_embeds && !focused {
+        let name = app.session.graph.name(target).to_string();
+        if is_link_only(&name) {
+            let url = tanacraft_core::format::spans(name.trim()).first().and_then(|sp| sp.url.clone()).unwrap_or_default();
+            let site = url.split("://").nth(1).unwrap_or(&url).split('/').next().unwrap_or("").trim_start_matches("www.").to_string();
+            ui.horizontal(|ui| {
+                ui.add_space(indent + 26.0);
+                egui::Frame::new()
+                    .fill(t.field_bg)
+                    .stroke(Stroke::new(1.0, t.line))
+                    .corner_radius(8.0)
+                    .inner_margin(egui::Margin::symmetric(12, 8))
+                    .show(ui, |ui| {
+                        ui.set_width(360.0f32.min(ui.available_width()));
+                        ui.label(RichText::new(site).strong().size(14.0));
+                        if ui.add(egui::Label::new(RichText::new(&url).size(12.0).color(t.link)).sense(Sense::click())).clicked() {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(&url));
+                        }
+                    });
             });
         }
     }

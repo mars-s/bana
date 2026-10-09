@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 76 | 14 | 3 | 2 |
+| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 77 | 13 | 3 | 2 |
 | Screenshots (160) | 140 | 14 | 5 | 1 |
 | Beyond the spec | 4 | | | |
 
@@ -146,7 +146,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Publishing and sharing | missing |  |
 | Import / export | done | Markdown, JSON and OPML export (commands, CLI `--format md|json|opml`); Markdown import (nesting, headings, checkboxes, #tags) and OPML import from other outliners (text, notes as descriptions, the same checkbox and #tag rules; `import.opml`, `tanacraft-cli import FILE.opml`); HTML plus text on the clipboard; Markdown bullet paste. Tested. |
 | Developer / power features | done | CLI, MCP server and JSON control channel cover scripting; custom keybindings from `keybindings.json` (shortcut: command id, checked before the defaults); Show edit log; Help page listing every command. |
-| Misc | partial | Progress bar, content width, page icons and banners. URL embeds missing. |
+| Misc | done | Progress bar, content width, page icons and banners, URL embeds (a setting: a link-only node shows a card with its site). Tested. |
 
 ## `09-shortcuts.md`
 

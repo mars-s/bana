@@ -63,6 +63,9 @@ pub struct Settings {
     /// Warn on the first edit of a node that is referenced elsewhere (spec 01 §3).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub warn_referenced: bool,
+    /// A node that is just a link shows a card under it (spec 08: URL embeds).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub url_embeds: bool,
 }
 
 impl Settings {

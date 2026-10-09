@@ -716,6 +716,19 @@ impl TanaApp {
 
     /// Draws the whole window.
     pub fn ui(&mut self, ui: &mut Ui) {
+        self.draw(ui);
+        // Keyboard focus may only point at a widget drawn this frame: a focus request for a widget
+        // that did not get drawn (the page changed in between) would hand screen readers a focus
+        // id with no node, which the accessibility layer treats as a fatal error.
+        let ctx = ui.ctx();
+        if let Some(f) = ctx.memory(|m| m.focused())
+            && !ctx.viewport(|v| v.this_pass.used_ids.contains_key(&f))
+        {
+            ctx.memory_mut(|m| m.surrender_focus(f));
+        }
+    }
+
+    fn draw(&mut self, ui: &mut Ui) {
         let t = self.tokens();
         let screen = ui.ctx().content_rect();
         ui.ctx().layer_painter(egui::LayerId::background()).rect_filled(screen.expand(16.0), 0.0, t.bg);

@@ -338,9 +338,13 @@ fn on_key(app: &mut TanaApp, ctx: &egui::Context, k: String) -> bool {
             return true;
         }
         // Up from the first bullet goes into the page title (spec 02 §5).
-        "Up" if editing && app.session.rows().first().map(|r| r.id) == app.session.focus => {
+        // (Pages whose title is not editable, like days, keep the caret where it is.)
+        "Up" if editing
+            && app.session.rows().first().map(|r| r.id) == app.session.focus
+            && crate::outline::title_editable(&app.session.graph, app.session.zoom) =>
+        {
             app.session.focus = None;
-            ctx.memory_mut(|m| m.request_focus(app.title_id));
+            app.focus_title = true;
             return true;
         }
         "Enter" if editing => {

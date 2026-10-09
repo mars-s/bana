@@ -603,12 +603,21 @@ fn breadcrumbs(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 
 const PRODUCT_NAME_WORKSPACE: &str = "Workspace: open the Library";
 
+/// Whether a page's title is edited in place (built-in and calendar pages are not).
+pub(crate) fn title_editable(g: &Graph, zoom: NodeId) -> bool {
+    !g.is_system(zoom) && !matches!(g.get(zoom).map(|n| &n.kind), Some(Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }))
+}
+
 fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
     let s = &app.session;
     let g = &s.graph;
     let zoom = s.zoom;
     let target = g.resolve(zoom);
-    let editable = !g.is_system(zoom) && !matches!(g.get(zoom).map(|n| &n.kind), Some(Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }));
+    let editable = title_editable(g, zoom);
+    if !editable && !app.drawing_other_panel {
+        // Nothing to focus here: a pending title focus must not land on a widget that is not drawn.
+        app.focus_title = false;
+    }
     let title_font = FontId::proportional(30.0);
     // Per panel, so two panels never share a title editor (stored for the keyboard handler).
     let title_id = egui::Id::new((app.panel_ix, "page-title"));

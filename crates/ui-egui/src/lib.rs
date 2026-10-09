@@ -594,8 +594,11 @@ impl TanaApp {
             return Some(owner);
         }
         let live = |n: &NodeId| g.get(*n).is_some();
-        // An invisible selection only counts while its line is on screen.
-        let ghost = self.ghost_sel.filter(|n| self.session.rows().iter().any(|r| r.id == *n));
+        // An invisible selection only counts while its line is on screen. With none (a new page,
+        // an undo, a click elsewhere), typing goes into the page's first line rather than nowhere.
+        let rows = self.session.rows();
+        let ghost =
+            self.ghost_sel.filter(|n| rows.iter().any(|r| r.id == *n)).or_else(|| rows.first().map(|r| r.id).filter(|_| self.outline_shown()));
         self.session.sel.map(|s| s.1).or(ghost).filter(live)
     }
 
@@ -1305,25 +1308,11 @@ impl TanaApp {
             }
         }
         self.kb_owner = owner;
-        // Something (an undo, a page change, a caret put on the page node itself) left nothing
-        // holding the keyboard: the page takes it, so the next keys are not lost (DIFFS N27).
+        // A caret put on the page node itself has no line to show in: let it go (the page's
+        // first line takes typing then, see `typing_target`).
         let z = self.session.zoom;
         if self.session.focus.is_some_and(|f| f == z) {
             self.session.focus = None;
-        }
-        let text_box = ctx.memory(|m| m.focused()).is_some_and(|id| egui::text_edit::TextEditState::load(&ctx, id).is_some());
-        if owner.is_none()
-            && !text_box
-            && !self.focus_title
-            && self.session.focus.is_none()
-            && self.session.sel.is_none()
-            && self.typing_target().is_none()
-            && !self.recents_page
-            && !self.settings_page
-            && !self.help_page
-            && self.outline_shown()
-        {
-            self.keyboard_home(z);
         }
     }
 

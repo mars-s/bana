@@ -8,10 +8,10 @@ further on openness, local-first storage and agent control. Status by spec secti
 
 | Measure | Value |
 |---|---|
-| Commands (every action; CLI, MCP and control channel can run them) | 153 engine commands, plus 22 window commands |
-| Tests | 118 (core 36, commands 36, UI 44 driving the real UI with keys, pointer drags, clicks and panels, MCP 1, CLI 1) |
-| Spec sections (`docs/parity.md`) | 99 mapped: 63 done, 29 partial, 5 missing, 2 notes |
-| Spec screenshots | 153 mapped: 115 done, 29 partial, 8 missing, 1 not behaviour |
+| Commands (every action; CLI, MCP and control channel can run them) | 158 engine commands, plus 22 window commands |
+| Tests | 133 (core 40, commands 41, UI 50 driving the real UI with keys, pointer drags, clicks and panels, MCP 1, CLI 1) |
+| Spec sections (`docs/parity.md`) | 99 mapped: 72 done, 20 partial, 5 missing, 2 notes |
+| Spec screenshots | 153 mapped: 124 done, 21 partial, 7 missing, 1 not behaviour |
 
 ## Milestones
 
@@ -31,8 +31,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M11 Spec round two | Inline references and links, Recents and Settings pages, Move to, system fields, calendar drag and day view, selection toolbar, copy/paste as references, checklists, column resize, template propagation | done (first versions) |
 | M12 Acceptance round 3 | Every P1, P2 and P3 item of the spec team's DIFFS.md (except AI): caret formatting, `>` field rows, Escape selection, copying selections, quick add focus, nested query groups, configure supertag panel, supertags overview, board and calendar details, context-aware command line, checklist caret, tag page header, shell, link styling, field options outline, inline `#` menu | done |
 | M13 Fields and calendar | Several values per field, pinned and optional fields, title expressions, option sources, invalid-value warnings, date picker with time; calendar time grid with timed dates, drop to time, resize, drag to create | done |
-| M14 Workspaces | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel | done |
-| M15 Next | Native menus, AI features, user fields, per-context notes on references, rich HTML clipboard, import formats | next |
+| M14 Workspaces and shell | Workspaces as graph files (switch, create, rename), capture Inbox, Help page, account menu, content width, panel resize, mini sidebar flyouts, list view in a second panel, page icons and banners, custom keybindings, Markdown import, user fields | done |
+| M15 Next | Native menus, AI features, per-context notes on references, rich HTML clipboard, import from other apps, workspace members | next |
 
 ## Later
 

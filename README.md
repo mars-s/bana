@@ -68,8 +68,8 @@ live. TanaCraft rebuilds that model as open source:
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
 | **Files** | One JSON file per workspace (`~/TanaCraft/graph.json` by default), atomic autosave, Markdown and JSON export |
 
-Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (68 of 99 sections done,
-118 of 153 screenshots). AI features are out of scope for now.
+Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (72 of 99 sections done,
+124 of 153 screenshots). AI features are out of scope for now.
 
 ## Quick start
 
@@ -85,12 +85,13 @@ Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** 
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the control channel. `tanacraft-cli commands` lists all 153 with their parameters.
+server and the control channel. `tanacraft-cli commands` lists all 158 with their parameters.
 
 ```sh
 tanacraft-cli commands                                  # every command, shortcut and params
 tanacraft-cli add "Plant garlic" --today --tag task     # prints the new node id
 tanacraft-cli capture "Call the plumber"                # into the capture Inbox
+tanacraft-cli import notes.md                           # a Markdown outline into the Library
 tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
 tanacraft-cli export today                              # Markdown outline
 tanacraft-cli export 2 --format json                    # JSON tree of the Library
@@ -118,8 +119,8 @@ Nothing below `ui-egui` depends on egui, and the UI only ever calls `Session::ru
 Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel), views, the editing
 rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
 Inbox, and every behaviour difference the spec team reported in its acceptance test. Next: native menus,
-user fields, per-context notes on references, rich HTML on the clipboard, more import formats and,
-later, AI features. Details in [ROADMAP.md](ROADMAP.md).
+per-context notes on references, rich HTML on the clipboard, imports from other apps and, later,
+AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room
 

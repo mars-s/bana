@@ -709,3 +709,30 @@ fn a_template_never_copies_into_its_own_subtree() {
     }
     assert!(g.len() < before + 40, "grew to {} from {before}", g.len());
 }
+
+#[test]
+fn scope_child_sibling_and_command_operators() {
+    // Spec 05 §2 search operators: PARENTS / GRANDPARENTS DESCENDANTS, CHILD OF, SIBLING NAMED,
+    // IS COMMAND.
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let project = g.create(lib, None, "Project").unwrap();
+    let notes = g.create(project, None, "Notes").unwrap();
+    let a = g.create(notes, None, "alpha").unwrap();
+    let b = g.create(notes, None, "beta").unwrap();
+    let outside = g.create(lib, None, "alpha elsewhere").unwrap();
+    let search = g.create_search(notes, None, "s", Query::parse(&g, "alpha AND SCOPE:PARENT").unwrap()).unwrap();
+    assert_eq!(g.query(search).unwrap().run(&g, search), [a]);
+    let up2 = g.create_search(notes, None, "s2", Query::parse(&g, "alpha AND SCOPE:GRANDPARENT").unwrap()).unwrap();
+    assert_eq!(g.query(up2).unwrap().run(&g, up2), [a]);
+    let run = |g: &Graph, q: &str| Query::parse(g, q).unwrap().run(g, NodeId(0));
+    assert!(run(&g, "alpha").contains(&outside));
+    assert_eq!(run(&g, &format!("CHILD:{}", notes.0)), [a, b]);
+    assert_eq!(run(&g, "SIBLING:beta"), [a]);
+    let cmd = g.create_command_node(g.sys.root, "Tidy", &[]).unwrap();
+    assert_eq!(run(&g, "IS:COMMAND"), [cmd]);
+    for q in ["SCOPE:PARENT", "SIBLING:\"two words\"", "IS:COMMAND"] {
+        let parsed = Query::parse(&g, q).unwrap();
+        assert_eq!(Query::parse(&g, &parsed.describe(&g)).unwrap(), parsed, "{q}");
+    }
+}

@@ -168,6 +168,7 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     for (label, clause) in [
                         ("TODO", "TODO"),
                         ("DONE", "DONE"),
+                        ("NOT DONE", "NOT DONE"),
                         ("DONE LAST 7 DAYS", "DONE:7"),
                         ("CREATED LAST 7 DAYS", "CREATED:7"),
                         ("EDITED LAST 7 DAYS", "EDITED:7"),
@@ -177,6 +178,9 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                         ("IS FIELD", "IS:FIELD"),
                         ("IS SEARCH NODE", "IS:SEARCH"),
                         ("IS CALENDAR NODE", "IS:CALENDAR"),
+                        ("IS COMMAND", "IS:COMMAND"),
+                        ("PARENTS DESCENDANTS", "SCOPE:PARENT"),
+                        ("GRANDPARENTS DESCENDANTS", "SCOPE:GRANDPARENT"),
                         ("IN LIBRARY", "IN:LIBRARY"),
                         ("ON DAY NODE", "ON:DAY"),
                         ("FOR DATE today", "DATE:today"),

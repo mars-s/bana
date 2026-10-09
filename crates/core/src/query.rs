@@ -14,6 +14,10 @@
 //! | `Project:PARENT`, `Project:GRANDPARENT` | the value is the search node's parent (grandparent) |
 //! | `Due:today`, `Due:yesterday` | a date field on that (relative) date |
 //! | `WORKSPACE:42` | in workspace 42 (the main one is the root) |
+//! | `SCOPE:PARENT`, `SCOPE:GRANDPARENT` | inside the search node's parent (grandparent) |
+//! | `CHILD:42` | a direct child of node 42 |
+//! | `SIBLING:"Name"` | has a sibling with that text |
+//! | `IS:COMMAND` | command nodes |
 //! | `Effort>2`, `Due<2026-10-20`, `Due<today` | number or date comparison |
 //! | `CREATED:7` | created in the last 7 days |
 //! | `UNDER:42` | inside node 42 |
@@ -125,6 +129,19 @@ pub enum ClauseKind {
     InWorkspace {
         ws: NodeId,
     },
+    /// Inside the search node's parent (`up` = 1) or grandparent (2); bound to `Under` when the
+    /// search runs (PARENTS DESCENDANTS, spec 05 §2).
+    Scope {
+        up: u8,
+    },
+    /// A direct child of the node (CHILD OF).
+    ChildOf {
+        node: NodeId,
+    },
+    /// Has a sibling with this text (SIBLING NAMED).
+    Sibling {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,6 +151,7 @@ pub enum NodeType {
     Field,
     Search,
     Calendar,
+    Command,
 }
 
 impl NodeType {
@@ -143,6 +161,7 @@ impl NodeType {
             NodeType::Field => "FIELD",
             NodeType::Search => "SEARCH",
             NodeType::Calendar => "CALENDAR",
+            NodeType::Command => "COMMAND",
         }
     }
 }
@@ -255,6 +274,9 @@ impl Query {
                         }
                     }
                     ClauseKind::InWorkspace { ws } => format!("WORKSPACE:{ws}"),
+                    ClauseKind::Scope { up } => format!("SCOPE:{}", if *up > 1 { "GRANDPARENT" } else { "PARENT" }),
+                    ClauseKind::ChildOf { node } => format!("CHILD:{node}"),
+                    ClauseKind::Sibling { name } => format!("SIBLING:{}", quote(name)),
                     ClauseKind::CreatedWithin { days } => format!("CREATED:{days}"),
                     ClauseKind::EditedWithin { days } => format!("EDITED:{days}"),
                     ClauseKind::DoneWithin { days } => format!("DONE:{days}"),
@@ -316,6 +338,14 @@ impl Query {
                     *value = up.map(|u| u.0.to_string()).unwrap_or_default();
                 }
                 ClauseKind::Group { query } => *query = query.bind(g, at),
+                ClauseKind::Scope { up } => {
+                    let anc = if *up > 1 { g.parent(at).and_then(|p| g.parent(p)) } else { g.parent(at) };
+                    // No such ancestor: nothing matches (a node cannot be under itself).
+                    c.kind = ClauseKind::ChildOf { node: NodeId(0) };
+                    if let Some(a) = anc {
+                        c.kind = ClauseKind::Under { node: a };
+                    }
+                }
                 _ => {}
             }
         }
@@ -358,6 +388,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             NodeType::Field => matches!(n.kind, Kind::Field(_)),
             NodeType::Search => matches!(n.kind, Kind::Search(_)),
             NodeType::Calendar => matches!(n.kind, Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. }),
+            NodeType::Command => n.kind == Kind::Command,
         },
         ClauseKind::InLibrary => g.is_ancestor_or_self(g.sys.library, id),
         ClauseKind::OnDay => g.ancestors(id).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(Kind::Day { .. }))),
@@ -382,6 +413,12 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         }
         ClauseKind::Under { node } => *node != id && g.is_ancestor_or_self(*node, id),
         ClauseKind::InWorkspace { ws } => g.workspace_of(id) == *ws,
+        // Unbound (outside a running search) a scope has nothing to be inside.
+        ClauseKind::Scope { .. } => false,
+        ClauseKind::ChildOf { node } => g.parent(id) == Some(*node),
+        ClauseKind::Sibling { name } => {
+            g.parent(id).is_some_and(|p| g.children(p).iter().any(|c| *c != id && g.text(*c).trim().eq_ignore_ascii_case(name.trim())))
+        }
         ClauseKind::Field { field, op, value } => {
             let set = || n.field_values(*field).into_iter().any(|v| !display_value(g, v).is_empty());
             match op {
@@ -509,7 +546,8 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
                 "FIELD" => NodeType::Field,
                 "SEARCH" => NodeType::Search,
                 "CALENDAR" => NodeType::Calendar,
-                other => return Err(Error::Invalid(format!("IS:{other}: use IS:TAG, IS:FIELD, IS:SEARCH or IS:CALENDAR"))),
+                "COMMAND" => NodeType::Command,
+                other => return Err(Error::Invalid(format!("IS:{other}: use IS:TAG, IS:FIELD, IS:SEARCH, IS:CALENDAR or IS:COMMAND"))),
             };
             return Ok(ClauseKind::Is { what });
         }
@@ -531,6 +569,19 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
             g.node(node)?;
             return Ok(ClauseKind::LinksTo { node });
         }
+        ("SCOPE", ':') => {
+            return match value.as_str() {
+                "PARENT" => Ok(ClauseKind::Scope { up: 1 }),
+                "GRANDPARENT" => Ok(ClauseKind::Scope { up: 2 }),
+                other => Err(Error::Invalid(format!("SCOPE:{other}: use SCOPE:PARENT or SCOPE:GRANDPARENT"))),
+            };
+        }
+        ("CHILD", ':') => {
+            let node: NodeId = value.parse().map_err(Error::Invalid)?;
+            g.node(node)?;
+            return Ok(ClauseKind::ChildOf { node });
+        }
+        ("SIBLING", ':') if !value.trim().is_empty() => return Ok(ClauseKind::Sibling { name: value }),
         ("WORKSPACE", ':') => {
             let ws: NodeId = value.parse().map_err(Error::Invalid)?;
             if !g.workspaces().contains(&ws) {
@@ -592,6 +643,9 @@ fn clause_words(g: &Graph, c: &Clause) -> String {
             Op::Node => format!("where {} is {}", g.name(*field), value.parse::<u64>().map(|x| g.name(NodeId(x)).to_string()).unwrap_or_default()),
         },
         ClauseKind::InWorkspace { ws } => format!("in workspace {}", g.name(*ws)),
+        ClauseKind::Scope { up } => format!("inside the search's {}", if *up > 1 { "grandparent" } else { "parent" }),
+        ClauseKind::ChildOf { node } => format!("directly under {}", g.name(*node)),
+        ClauseKind::Sibling { name } => format!("next to \"{name}\""),
         ClauseKind::CreatedWithin { days } => format!("created in the last {days} days"),
         ClauseKind::EditedWithin { days } => format!("edited in the last {days} days"),
         ClauseKind::DoneWithin { days } => format!("done in the last {days} days"),

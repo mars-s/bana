@@ -468,6 +468,7 @@ impl TanaApp {
             // An opened search node shows its results; the builder waits for "Open query editor"
             // (spec 05 §1).
             self.query_open = false;
+            self.session.graph.release_held();
             self.recents_page = false;
             self.settings_page = false;
             self.help_page = false;
@@ -554,7 +555,16 @@ impl TanaApp {
                 self.edit.node = None;
             }
             "ui.searchOpen" => self.search_open = Some(Palette { focus_once: true, ..Palette::default() }),
-            "ui.searchOptions" => self.query_open = !self.query_open,
+            // While the builder is open the results wait for Run once or Done (spec 05 §2).
+            "ui.searchOptions" => {
+                self.query_open = !self.query_open;
+                let zoom = self.session.zoom;
+                if self.query_open && self.session.graph.query(self.session.graph.resolve(zoom)).is_some() {
+                    self.session.graph.hold_results(zoom, true);
+                } else {
+                    self.session.graph.release_held();
+                }
+            }
             "ui.recents" => {
                 self.recents_page = true;
                 self.settings_page = false;

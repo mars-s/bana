@@ -1082,3 +1082,21 @@ fn context_fields_live_on_the_reference() {
     assert!(s.graph.get(r).unwrap().fields.is_empty());
     assert!(s.run("node.contextField", &json!({"node": a.0, "field": "Role", "value": "x"})).is_err());
 }
+
+#[test]
+fn held_search_results_wait_for_run_once() {
+    // Spec 05 §2: results do not update while editing until Run once / Done.
+    let mut s = blank();
+    run(&mut s, "node.add", json!({"name": "apple pie"}));
+    let q = id(&run(&mut s, "search.create", json!({"query": "apple"})), "id");
+    run(&mut s, "search.hold", json!({"node": q.0}));
+    run(&mut s, "node.add", json!({"name": "apple tart"}));
+    run(&mut s, "search.addClause", json!({"node": q.0, "clause": "pie"}));
+    assert_eq!(s.graph.view_items(q).len(), 1, "held");
+    run(&mut s, "search.setQuery", json!({"node": q.0, "query": "apple"}));
+    run(&mut s, "search.hold", json!({"node": q.0}));
+    assert_eq!(s.graph.view_items(q).len(), 2, "Run once refreshes");
+    run(&mut s, "search.hold", json!({"on": false}));
+    run(&mut s, "node.add", json!({"name": "apple jam"}));
+    assert_eq!(s.graph.view_items(q).len(), 3, "live again");
+}

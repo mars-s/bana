@@ -1615,3 +1615,43 @@ fn url_embeds_show_a_site_card_when_the_setting_is_on() {
     }
     h.get_by_label("example.org");
 }
+
+#[test]
+fn query_builder_results_wait_for_run_once_and_done() {
+    // Spec 05 §2. Clicks are real pointer presses on the buttons.
+    fn press(h: &mut H<'_>, label: &str) {
+        let at = h.get_by_label(label).rect().center();
+        for e in [
+            Event::PointerMoved(at),
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+            Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE },
+        ] {
+            h.input_mut().events.push(e);
+            h.step();
+        }
+        for _ in 0..3 {
+            h.step();
+        }
+    }
+    let mut h = harness();
+    page_with(&mut h, &["apple pie", "apple tart"]);
+    let q = h.state_mut().exec("search.create", json!({"query": "apple"})).unwrap();
+    let q = tanacraft_core::NodeId(q["id"].as_u64().unwrap());
+    h.state_mut().exec("nav.open", json!({"node": q.0})).unwrap();
+    h.state_mut().exec("ui.searchOptions", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.state_mut().exec("search.addClause", json!({"node": q.0, "clause": "pie"})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.state().session.graph.view_items(q).len(), 2, "still the old results");
+    press(&mut h, "Run once");
+    assert_eq!(h.state().session.graph.view_items(q).len(), 1);
+    press(&mut h, "Done");
+    assert!(!h.state().query_open);
+    let lib = h.state().session.graph.sys.library;
+    h.state_mut().exec("node.add", json!({"parent": lib.0, "name": "apple pie two"})).unwrap();
+    assert_eq!(h.state().session.graph.view_items(q).len(), 2, "live after Done");
+}

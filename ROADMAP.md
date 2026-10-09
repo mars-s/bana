@@ -43,7 +43,6 @@ Sync, workspace members, mobile and web (wasm) builds.
 ## Known simplifications
 
 - Bold is drawn brighter rather than with a bold font (egui's default font has one weight).
-- Search results stay live while the query builder is open; Run once and Done are there but results do not wait for them.
 - A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
 - One local editor: "edited by" is the computer's user.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

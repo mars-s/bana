@@ -242,7 +242,7 @@ impl Graph {
     pub fn view_items(&self, id: NodeId) -> Vec<NodeId> {
         let target = self.resolve(id);
         match self.get(target).map(|n| &n.kind) {
-            Some(Kind::Search(q)) => q.run(self, target),
+            Some(Kind::Search(q)) => self.held_results(target).unwrap_or_else(|| q.run(self, target)),
             Some(Kind::Tag(_)) => self.tagged(target),
             _ => self.children(target).to_vec(),
         }

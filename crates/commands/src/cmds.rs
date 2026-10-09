@@ -199,6 +199,20 @@ pub fn registry() -> Registry {
             .params(r#"{"node"?: id, "index": number, "path"?: [number]}"#),
         C::new("search.toggleNot", "Negate search condition", "Search", search_toggle_not)
             .params(r#"{"node"?: id, "index": number, "path"?: [number]}"#),
+        C::new("search.hold", "Hold search results", "Search", |s, v| {
+            let on = p::bool(v, "on").unwrap_or(true);
+            match p::node(v, "node")? {
+                Some(id) => {
+                    s.graph.node(id)?;
+                    s.graph.hold_results(id, on);
+                }
+                None if !on => s.graph.release_held(),
+                None => return Err(CmdError::Params("`node` is required to hold results".into())),
+            }
+            Ok(json!({"on": on}))
+        })
+        .params(r#"{"node"?: id, "on"?: bool}  (on: results wait for the next hold, Run once; off: they follow edits; off without node: all)"#)
+        .pure(),
         C::new("search.toPlainList", "Convert search node to plain list", "Search", |s, v| {
             let id = search_target(s, v)?;
             let n = s.graph.search_to_plain(id)?;

@@ -201,8 +201,8 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     if small_button(ui, t, "Done", true).clicked() {
                         app.acts.push(Act::Ui("ui.searchOptions"));
                     }
-                    if small_button(ui, t, "Run once", false).on_hover_text("Results are live; this refreshes them").clicked() {
-                        app.acts.push(Act::Run("search.setQuery".into(), json!({"node": node.0, "query": q.describe(&app.session.graph)})));
+                    if small_button(ui, t, "Run once", false).on_hover_text("Show the results for these conditions, keep editing").clicked() {
+                        app.acts.push(Act::Run("search.hold".into(), json!({"node": node.0, "on": true})));
                     }
                 });
             });

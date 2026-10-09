@@ -84,6 +84,9 @@ pub struct Graph {
     pub sys: SystemNodes,
     /// Expanded nodes (view state; saved with the file, not undoable).
     expanded: BTreeSet<NodeId>,
+    /// Search results held while the query builder is open (spec 05 §2: results wait for Run
+    /// once or Done). View state: not saved.
+    held: BTreeMap<NodeId, Vec<NodeId>>,
     pub settings: Settings,
     txn: Option<PreImages>,
     undo: Vec<Step>,
@@ -114,6 +117,7 @@ impl Graph {
             next_id: 7,
             sys: ids,
             expanded: BTreeSet::new(),
+            held: BTreeMap::new(),
             settings: Settings::default(),
             txn: None,
             undo: Vec::new(),
@@ -559,6 +563,34 @@ impl Graph {
             d.hidden = h;
         }
         Ok(())
+    }
+
+    /// Holds a search node's results as they are now (`true`, again to refresh) or lets them
+    /// follow every edit (`false`).
+    pub fn hold_results(&mut self, search: NodeId, on: bool) {
+        let search = self.resolve(search);
+        let fresh = match self.get(search).map(|n| &n.kind) {
+            Some(Kind::Search(q)) if on => Some(q.run(self, search)),
+            _ => None,
+        };
+        match fresh {
+            Some(items) => {
+                self.held.insert(search, items);
+            }
+            None => {
+                self.held.remove(&search);
+            }
+        }
+    }
+
+    /// Lets every held search follow edits again.
+    pub fn release_held(&mut self) {
+        self.held.clear();
+    }
+
+    /// The held results of a search node, if held (gone or trashed nodes left out).
+    pub fn held_results(&self, search: NodeId) -> Option<Vec<NodeId>> {
+        self.held.get(&search).map(|v| v.iter().copied().filter(|n| self.get(*n).is_some() && !self.in_trash(*n)).collect())
     }
 
     /// Changing settings is a change to save (not an undo step).
@@ -1763,6 +1795,7 @@ impl Graph {
             next_id: file.next_id.max(max + 1),
             sys: s,
             expanded: file.expanded.into_iter().collect(),
+            held: BTreeMap::new(),
             settings: file.settings,
             txn: None,
             undo: Vec::new(),

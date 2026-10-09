@@ -669,13 +669,11 @@ impl TanaApp {
         if side_item(ui, &t, Icon::Recent, "Recents", self.recents_page).clicked() {
             acts.push(Act::Ui("ui.recents"));
         }
-        if side_item(ui, &t, Icon::Search, "Search", self.search_open.is_some()).clicked() {
-            acts.push(Act::Ui("ui.searchOpen"));
-        }
         ui.add_space(8.0);
+        // A wide Create new button and a square Search button (spec 00 §3).
         ui.horizontal(|ui| {
             let r = Frame::new().fill(t.hover).corner_radius(CornerRadius::same(6)).inner_margin(Margin::symmetric(8, 5)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
+                ui.set_width(ui.available_width() - 44.0);
                 ui.horizontal(|ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), rect, Icon::Plus, t.text);
@@ -684,6 +682,13 @@ impl TanaApp {
             });
             if r.response.interact(Sense::click()).clicked() {
                 acts.push(Act::Run("node.createNew".into(), json!({})));
+            }
+            let (sq, resp) = ui.allocate_exact_size(vec2(r.response.rect.height(), r.response.rect.height()), Sense::click());
+            ui.painter().rect_filled(sq, 6.0, if resp.hovered() || self.search_open.is_some() { t.line } else { t.hover });
+            icons::paint(ui.painter(), sq.shrink(8.0), Icon::Search, t.text);
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Search"));
+            if resp.on_hover_text("Search").clicked() {
+                acts.push(Act::Ui("ui.searchOpen"));
             }
         });
         ui.add_space(14.0);
@@ -747,7 +752,16 @@ impl TanaApp {
             self.pin_open.insert(p);
         }
         ui.add_space(14.0);
-        section(ui, &t, "Workspace");
+        // The workspace: a small avatar circle with its initial, then its name.
+        ui.horizontal(|ui| {
+            let ws = g.name(g.sys.root).to_string();
+            let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            ui.painter().circle_filled(r.center(), 9.0, t.accent.gamma_multiply(0.7));
+            let initial: String = ws.chars().next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+            ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initial, egui::FontId::proportional(11.0), egui::Color32::WHITE);
+            ui.label(RichText::new(ws).size(13.5).color(t.dim));
+        });
+        ui.add_space(2.0);
         for (icon, label, id) in
             [(Icon::Home, "Library", g.sys.library), (Icon::Calendar, "Daily notes", g.sys.journal), (Icon::Trash, "Trash", g.sys.trash)]
         {
@@ -759,12 +773,13 @@ impl TanaApp {
     }
 }
 
-fn icon_button(ui: &mut Ui, icon: Icon, color: Color32, tip: &str) -> egui::Response {
+pub(crate) fn icon_button(ui: &mut Ui, icon: Icon, color: Color32, tip: &str) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
     if resp.hovered() {
         ui.painter().rect_filled(rect, 5.0, ui.visuals().widgets.hovered.weak_bg_fill);
     }
     icons::paint(ui.painter(), rect.shrink(6.0), icon, color);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tip));
     resp.on_hover_text(tip)
 }
 

@@ -453,14 +453,18 @@ fn header(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
 fn day_nav(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, nav: [(&str, &str, serde_json::Value); 2]) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
-        for (label, id, params) in nav.into_iter().chain(std::iter::once(("Today", "nav.today", json!({})))) {
-            let b = egui::Button::new(RichText::new(label).size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
-            if ui.add(b).clicked() {
+        // Icons: previous, next, Today, and a calendar that opens Go to date (DIFFS P3 #15).
+        let [(_, prev, pp), (_, next, np)] = nav;
+        for (icon, tip, id, params) in [(crate::icons::Icon::Back, "Previous", prev, pp), (crate::icons::Icon::Forward, "Next", next, np)] {
+            if crate::icon_button(ui, icon, t.dim, tip).clicked() {
                 app.acts.push(Act::Run(id.into(), params));
             }
         }
-        let b = egui::Button::new(RichText::new("Go to date").size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
-        let r = ui.add(b);
+        let b = egui::Button::new(RichText::new("Today").size(13.0).color(t.dim)).fill(t.field_bg).corner_radius(5.0);
+        if ui.add(b).clicked() {
+            app.acts.push(Act::Run("nav.today".into(), json!({})));
+        }
+        let r = crate::icon_button(ui, crate::icons::Icon::Calendar, t.dim, "Go to date");
         if r.clicked() {
             app.acts.push(Act::GoToDate(r.rect.left_bottom() + vec2(0.0, 4.0)));
         }

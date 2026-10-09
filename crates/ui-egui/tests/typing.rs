@@ -786,3 +786,25 @@ fn diffs_p3_tag_page_breadcrumb_reads_schema() {
     }
     h.get_by_label("Schema");
 }
+
+#[test]
+fn diffs_p3_square_search_button_and_day_nav_icons() {
+    let mut h = harness();
+    h.state_mut().exec("nav.today", json!({})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    h.get_by_label("Search").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    assert!(h.state().search_open.is_some());
+    h.state_mut().search_open = None;
+    h.step();
+    h.get_by_label("Next").click();
+    for _ in 0..3 {
+        h.step();
+    }
+    let g = &h.state().session.graph;
+    assert_eq!(g.name(h.state().session.zoom), "Sun, 11 Oct");
+}

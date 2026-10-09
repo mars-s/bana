@@ -107,6 +107,7 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
             }
             let is_tag = false;
             let is_search = app.session.graph.query(zoom).is_some();
+            crate::views::track_results(app, ui, zoom);
             fields(app, ui, &t, zoom, 0.0);
             ui.add_space(4.0);
             if is_search && app.query_open {
@@ -1552,6 +1553,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
             });
         }
     }
+    crate::views::flash(app, ui, id, row.response.rect);
     drop_target(app, ui, t, id, center, row.response.rect);
     if selected && app.session.sel == Some((id, id)) {
         selection_toolbar(app, ui, t, id, row.response.rect);

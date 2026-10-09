@@ -240,6 +240,10 @@ pub struct TanaApp {
     pub content_width: u8,
     /// The first panel's share of the width when two panels are open.
     pub panel_split: f32,
+    /// Search results seen last frame, per search node (to spot new ones).
+    pub last_results: std::collections::HashMap<NodeId, std::collections::BTreeSet<NodeId>>,
+    /// New search results glow until this time (seconds of egui time).
+    pub flash_until: std::collections::HashMap<NodeId, f64>,
     /// A table column header being renamed (field, text).
     pub header_edit: Option<(NodeId, String)>,
     /// Settings: show reference counts next to nodes.
@@ -310,6 +314,8 @@ impl TanaApp {
             config_closed: Default::default(),
             ref_counter: false,
             header_edit: None,
+            last_results: Default::default(),
+            flash_until: Default::default(),
             content_width: 0,
             panel_split: 0.5,
             tag_tab: Default::default(),

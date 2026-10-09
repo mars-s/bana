@@ -833,11 +833,37 @@ fn table(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, groups: &[Gro
                 }
             });
             let r = row.response.rect;
+            flash(app, ui, *item, Rect::from_min_max(r.min, pos2(line_end, r.max.y)));
             ui.painter().line_segment([r.left_bottom(), pos2(line_end, r.bottom())], Stroke::new(1.0, t.line));
         }
     }
     ui.add_space(4.0);
     add_button(app, ui, t, node, None);
+}
+
+/// A new search result glows green for a moment (spec 05 §1).
+pub(crate) fn flash(app: &TanaApp, ui: &Ui, item: NodeId, rect: Rect) {
+    let now = ui.input(|i| i.time);
+    if let Some(until) = app.flash_until.get(&app.session.graph.resolve(item)).copied().filter(|u| *u > now) {
+        let a = ((until - now) / 1.2).clamp(0.0, 1.0) as f32;
+        ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(76, 160, 96).gamma_multiply(0.35 * a));
+        ui.ctx().request_repaint();
+    }
+}
+
+/// Notes which results of search `node` are new since the last frame, so they flash.
+pub(crate) fn track_results(app: &mut TanaApp, ui: &Ui, node: NodeId) {
+    if app.session.graph.query(node).is_none() {
+        return;
+    }
+    let now: std::collections::BTreeSet<NodeId> = app.session.graph.view_items(node).into_iter().map(|i| app.session.graph.resolve(i)).collect();
+    let t = ui.input(|i| i.time);
+    if let Some(before) = app.last_results.get(&node) {
+        for n in now.difference(before) {
+            app.flash_until.insert(*n, t + 1.2);
+        }
+    }
+    app.last_results.insert(node, now);
 }
 
 /// A drag handle on the right edge of a table header cell.
@@ -1570,13 +1596,24 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
         }
         // Timed events.
         for (i, d) in days.iter().enumerate() {
-            for (_, item) in dated.iter().filter(|(x, _)| x == d) {
-                let Some((a, b)) = app.session.graph.item_time(*item, field) else { continue };
-                let target = app.session.graph.resolve(*item);
+            let mut timed: Vec<(u16, u16, NodeId)> = dated
+                .iter()
+                .filter(|(x, _)| x == d)
+                .filter_map(|(_, it)| app.session.graph.item_time(*it, field).map(|(a, b)| (a, b, *it)))
+                .collect();
+            timed.sort();
+            let slots = overlap_slots(&timed);
+            for (k, (a, b, item)) in timed.iter().copied().enumerate() {
+                let target = app.session.graph.resolve(item);
+                let item = &item;
                 let b_shown = app.cal_resize.filter(|(n, _)| *n == target).map(|(_, e)| e).unwrap_or(b);
+                // Overlapping events share the column side by side.
+                let (slot, of) = slots.get(k).copied().unwrap_or((0, 1));
+                let slot_w = (col_w - 4.0) / of as f32;
+                let x0 = col_x(i, grid.left()) + 2.0 + slot_w * slot as f32;
                 let r = Rect::from_min_max(
-                    pos2(col_x(i, grid.left()) + 2.0, grid.top() + a as f32 / 60.0 * HOUR_H + 1.0),
-                    pos2(col_x(i, grid.left()) + col_w - 2.0, grid.top() + b_shown as f32 / 60.0 * HOUR_H - 1.0),
+                    pos2(x0, grid.top() + a as f32 / 60.0 * HOUR_H + 1.0),
+                    pos2(x0 + slot_w - 1.0, grid.top() + b_shown as f32 / 60.0 * HOUR_H - 1.0),
                 );
                 let sub = format!("{} - {}", tanacraft_core::fmt_hm(a), tanacraft_core::fmt_hm(b_shown));
                 paint_chip(app, t, &p, r, target, Some(sub));
@@ -1608,6 +1645,40 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
             }
         }
     });
+}
+
+/// Side-by-side places for events sorted by start: (slot, slots in its overlapping cluster).
+fn overlap_slots(events: &[(u16, u16, NodeId)]) -> Vec<(usize, usize)> {
+    let mut out = vec![(0, 1); events.len()];
+    let mut start = 0;
+    while start < events.len() {
+        // A cluster: events that overlap one another, directly or through others.
+        let mut end_time = events[start].1;
+        let mut stop = start + 1;
+        while stop < events.len() && events[stop].0 < end_time {
+            end_time = end_time.max(events[stop].1);
+            stop += 1;
+        }
+        let mut lanes: Vec<u16> = Vec::new();
+        for (k, e) in events.iter().enumerate().take(stop).skip(start) {
+            let slot = match lanes.iter().position(|end| *end <= e.0) {
+                Some(s) => {
+                    lanes[s] = e.1;
+                    s
+                }
+                None => {
+                    lanes.push(e.1);
+                    lanes.len() - 1
+                }
+            };
+            out[k].0 = slot;
+        }
+        for o in out.iter_mut().take(stop).skip(start) {
+            o.1 = lanes.len();
+        }
+        start = stop;
+    }
+    out
 }
 
 /// The "New event" popover under a dragged-out range: a name, the range, Enter creates.
@@ -1669,5 +1740,17 @@ fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, 
         app.cal_new = None;
     } else {
         app.cal_new = Some(ev);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlapping_events_sit_side_by_side() {
+        let n = NodeId(1);
+        let ev = [(600, 660, n), (630, 700, n), (700, 720, n), (800, 860, n)];
+        assert_eq!(overlap_slots(&ev), [(0, 2), (1, 2), (0, 1), (0, 1)]);
     }
 }

@@ -10,7 +10,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (99) | 67 | 25 | 5 | 2 |
+| Spec sections (99) | 68 | 24 | 5 | 2 |
 | Screenshots (153) | 118 | 26 | 8 | 1 |
 
 ## `00-overview.md`
@@ -92,7 +92,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 7. List (navigation view) | done | A narrow list (name, display fields, + Add); clicking an item opens it in the panel to the right (reused on the next click), the list keeps the focus. Tested. |
 | 8. Side menu | done | Compact menu and selected item content. |
 | 9. Tabs | done | Items as tabs, selected item below. |
-| 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Missing: day length setting, overlapping events side by side. |
+| 10. Calendar | partial | Month grid with week numbers, today circle, chips, drag to another day. Week and Day views: day headers, all-day strip, 24-hour grid (scrolled to 08:00), now line; timed dates (`YYYY-MM-DD HH:MM-HH:MM`) as events with their range; drop an item on an hour to time it (keeps its length, else one hour); drag an event's bottom edge to resize; drag on empty grid opens a New event popover (Enter creates, Escape cancels). Date field menu, N nodes with no dates. Overlapping events sit side by side. Missing: day length setting. |
 | 11. Display menu | done | Field checkboxes and system fields (created, edited, done time, owner, tags, references). |
 | 12. Group by | done | Fields, tags, done, owner, created and edited day; every option gets a group; Not defined; group headers collapse. |
 | 13. Sort by | done | Several rules, direction, remove, add, Reapply sort, Reset; empty values first; Sort children commands (`node.sortChildren`). |
@@ -103,7 +103,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | Section | Status | Notes |
 |---|---|---|
-| 1. Search nodes | partial | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it. New-result flash missing. |
+| 1. Search nodes | done | Slash > Search node > supertag makes "List of X"; magnifier bullet; inline results; + adds a node matching the query to the Library and opens it; new results flash green for a moment. Tested. |
 | 2. Query builder | done | Query builder panel: one box per AND / OR / NOT group with its label strip (click to switch AND/OR), condition rows (tag, field, text, operators) with negate and remove, nested groups (+ AND / + OR / + NOT in every group, `search.addGroup` with a path), an Empty line per group, menus for Tag fields (Set / Not set), System fields, Tag types (`TYPE:task`) and Search operators, the query as text, Run once and Done. Results stay live while editing; no workspace scope (one workspace per file). Tested. |
 | 3. Command line (Cmd+K) | done | Enter command...: steps for the focused node first (Add tag >, Remove tag, Set <field> >, Move to >, Move and leave reference to >, View as), then commands with shortcuts; steps marked > open a second picker. No node search. Tested. |
 | 4. Search and open (Cmd+S, sidebar magnifier) | done | Recently viewed, fuzzy search with breadcrumbs and two-line content snippets (description, long text or a child line with the words), new-tab variant (Cmd+T). Tested. |

@@ -1172,3 +1172,19 @@ fn week_page_has_a_schedule() {
     h.get_by_label("Schedule");
     h.get_by_label("Time grid");
 }
+
+#[test]
+fn new_search_results_flash() {
+    let mut h = harness();
+    let lib = h.state().session.graph.sys.library.0;
+    h.state_mut().exec("tag.create", json!({"name": "task"})).unwrap();
+    let q = h.state_mut().exec("search.create", json!({"query": "#task", "parent": lib})).unwrap()["id"].as_u64().unwrap();
+    h.state_mut().exec("nav.open", json!({"node": q})).unwrap();
+    for _ in 0..3 {
+        h.step();
+    }
+    let n = h.state_mut().exec("node.add", json!({"name": "New one", "parent": lib})).unwrap()["id"].as_u64().unwrap();
+    h.state_mut().exec("tag.add", json!({"node": n, "tag": "task"})).unwrap();
+    h.step();
+    assert!(h.state().flash_until.contains_key(&tanacraft_core::NodeId(n)), "the new result is marked to flash");
+}

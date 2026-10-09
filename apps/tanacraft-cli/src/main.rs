@@ -25,6 +25,9 @@ commands:
   commands                          list every command (id, shortcut, params)
   sample [--out FILE]               write the sample graph
   mcp [--connect HOST:PORT]         MCP server on stdio
+  serve [--port PORT] [--sample] [--web DIR] [--today YYYY-MM-DD]
+                                    serve the web UI and its JSON API on 127.0.0.1 (default port 8787);
+                                    --sample without --file keeps the sample in memory only
 
 NODE is a node id; `today` means today's day node.";
 
@@ -84,11 +87,18 @@ fn node_arg(s: &mut Session, arg: Option<&String>) -> Result<NodeId, String> {
     }
 }
 
+/// The built web UI: `web/dist` beside the current folder, else in the source tree.
+fn default_web_dir() -> PathBuf {
+    let here = PathBuf::from("web/dist");
+    if here.join("index.html").exists() { here } else { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../web/dist") }
+}
+
 fn pretty(v: &Value) -> String {
     serde_json::to_string_pretty(v).unwrap_or_default()
 }
 
 fn run(mut args: Vec<String>) -> Result<String, String> {
+    let explicit_file = args.iter().any(|a| a == "--file");
     let file = take_opt(&mut args, "--file").map(PathBuf::from).unwrap_or_else(tanacraft_core::default_graph_path);
     if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
         return Ok(USAGE.to_string());
@@ -224,6 +234,17 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             };
             let stdin = std::io::stdin();
             tanacraft_mcp::Server::new(backend).serve(stdin.lock(), std::io::stdout().lock()).map_err(|e| e.to_string())?;
+            Ok(String::new())
+        }
+        "serve" => {
+            let port = take_opt(&mut args, "--port").map(|p| p.parse::<u16>().map_err(|e| format!("--port: {e}"))).transpose()?.unwrap_or(8787);
+            let web = take_opt(&mut args, "--web").map(PathBuf::from).unwrap_or_else(default_web_dir);
+            let today = take_opt(&mut args, "--today").map(|d| Date::parse(&d).ok_or(format!("--today: bad date `{d}`"))).transpose()?;
+            let sample_mode = take_flag(&mut args, "--sample");
+            let session = tanacraft_server::open_session(explicit_file.then_some(file), sample_mode, today)?;
+            let shared = tanacraft_server::http::Shared::new(tanacraft_server::Host::new(session));
+            eprintln!("{PRODUCT_NAME}: serving http://127.0.0.1:{port}/ (web UI from {})", web.display());
+            tanacraft_server::http::serve(shared, port, web)?;
             Ok(String::new())
         }
         other => Err(format!("unknown command `{other}`\n\n{USAGE}")),

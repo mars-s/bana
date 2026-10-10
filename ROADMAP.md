@@ -50,7 +50,7 @@ Sync, workspace members, mobile and web (wasm) builds.
 
 ## Known simplifications
 
-- Undo history is per session and is cleared when another copy's changes are merged in.
+- Undo history is per session (merging another copy keeps it; it takes back only local edits).
 - The Loro file keeps its whole history; it is not compacted yet.
 - A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
 - One local editor: "edited by" is the computer's user.

@@ -241,3 +241,129 @@ fn undo_after_a_save_and_reload_of_edits_is_kept() {
     assert_eq!(back.name(n), "keep");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn undo_after_a_merge_takes_back_only_this_copys_edits() {
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let n = g.create(lib, None, "garden").unwrap();
+    let other = g.create(lib, None, "shed").unwrap();
+    let (mut a, mut b) = fork(&mut g);
+    // Here: rename one line and add a line (two undo steps).
+    a.begin();
+    a.set_name(n, "big garden").unwrap();
+    a.commit("rename");
+    a.begin();
+    let mine = a.create(lib, None, "mine").unwrap();
+    a.commit("add");
+    // There: rename the other line, add a child under the line this copy made... later.
+    b.set_name(other, "tool shed").unwrap();
+    b.set_description(n, "south side").unwrap();
+    let theirs = b.create(lib, None, "theirs").unwrap();
+    sync(&mut a, &mut b);
+    assert!(a.can_undo(), "undo history survives the merge");
+    assert_eq!(a.undo().as_deref(), Some("add"));
+    assert!(a.get(mine).is_none());
+    assert_eq!(a.undo().as_deref(), Some("rename"));
+    assert_eq!(a.name(n), "garden");
+    // The other copy's edits stay.
+    assert_eq!(a.name(other), "tool shed");
+    assert_eq!(a.get(n).unwrap().description, "south side");
+    assert!(a.children(lib).contains(&theirs));
+    sound(&a);
+    // Redo puts this copy's edits back, still over theirs.
+    a.redo();
+    a.redo();
+    assert_eq!(a.name(n), "big garden");
+    assert!(a.get(mine).is_some() && a.children(lib).contains(&theirs));
+    sound(&a);
+}
+
+#[test]
+fn undo_after_a_merge_respects_their_deletes_and_their_children() {
+    let mut g = Graph::new();
+    let lib = g.sys.library;
+    let n = g.create(lib, None, "draft").unwrap();
+    let (mut a, mut b) = fork(&mut g);
+    a.begin();
+    a.set_name(n, "draft two").unwrap();
+    a.commit("rename");
+    a.begin();
+    let made = a.create(lib, None, "made here").unwrap();
+    a.commit("add");
+    let (va, vb) = (a.version().unwrap(), b.version().unwrap());
+    let to_b = a.updates_since(&vb).unwrap();
+    b.merge(&to_b).unwrap();
+    // The other copy deletes `draft` and hangs a child under the line made here.
+    b.delete_permanently(n).unwrap();
+    b.create(made, None, "their kid").unwrap();
+    a.merge(&b.updates_since(&va).unwrap()).unwrap();
+    // Undo of "add" removes the line made here; their child under it is kept (it moves up).
+    a.undo();
+    assert!(a.get(made).is_none());
+    let kid = find(&a, "their kid");
+    assert_eq!(a.parent(kid), Some(lib));
+    // Undo of the rename does not bring back the deleted line.
+    a.undo();
+    assert!(a.get(n).is_none());
+    sound(&a);
+}
+
+#[test]
+fn undoing_everything_after_random_merges_stays_sound() {
+    for seed0 in 1..20u64 {
+        let mut g = sample::sample(today()).unwrap();
+        let (mut a, mut b) = fork(&mut g);
+        let mut seed = seed0 * 7919;
+        let mut rnd = |n: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % n.max(1) as u64) as usize
+        };
+        for round in 0..5 {
+            for side in [&mut a, &mut b] {
+                for _ in 0..10 {
+                    let ids: Vec<NodeId> = side.iter().map(|n| n.id).filter(|id| !side.is_system(*id)).collect();
+                    let (pick, other) = (ids[rnd(ids.len())], ids[rnd(ids.len())]);
+                    side.begin();
+                    let _ = match rnd(6) {
+                        0 => side.set_name(pick, &format!("{} r{round}", side.name(pick))),
+                        1 => side.create(pick, None, "new").map(drop),
+                        2 => side.move_to(pick, other, None),
+                        3 => side.trash(pick),
+                        4 => side.delete_permanently(pick).map(drop),
+                        _ => side.set_description(pick, "note"),
+                    };
+                    side.commit("step");
+                }
+            }
+            sync(&mut a, &mut b);
+        }
+        loop {
+            let pre: std::collections::BTreeMap<NodeId, (Option<NodeId>, Vec<NodeId>)> =
+                a.iter().map(|n| (n.id, (n.parent, n.children.clone()))).collect();
+            if a.undo().is_none() {
+                break;
+            }
+            for n in a.iter() {
+                if let Some(p) = n.parent
+                    && !a.get(p).is_some_and(|o| o.children.contains(&n.id))
+                {
+                    panic!(
+                        "seed {seed0}: {} (parent {p}) not listed. before: {:?} / {:?}; after: {:?} / {:?}",
+                        n.id,
+                        pre.get(&n.id),
+                        pre.get(&p),
+                        (n.parent, &n.children),
+                        a.get(p).map(|o| (o.parent, &o.children))
+                    );
+                }
+            }
+            sound(&a);
+        }
+        while a.redo().is_some() {
+            sound(&a);
+        }
+    }
+}

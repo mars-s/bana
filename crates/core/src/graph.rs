@@ -718,8 +718,89 @@ impl Graph {
         Some(step.label)
     }
 
-    /// Writes `images` into the graph and returns what was there before.
+    /// Writes `images` into the graph and returns what was there before. Images rebased over a
+    /// merge can disagree about who owns whom; the links are settled afterwards.
     fn apply(&mut self, images: PreImages) -> PreImages {
+        let ids: Vec<NodeId> = images.keys().copied().collect();
+        let prior: BTreeMap<NodeId, Vec<NodeId>> = ids.iter().filter_map(|id| Some((*id, self.nodes.get(id)?.children.clone()))).collect();
+        let before = self.apply_raw(images);
+        let mut ids = ids;
+        // Children of a node that went, which were not taken with it (another copy put them there),
+        // move up to its parent.
+        for (id, old) in &before {
+            let Some(gone) = old.as_ref().filter(|_| !self.nodes.contains_key(id)) else { continue };
+            for c in &gone.children {
+                if let Some(n) = self.nodes.get_mut(c).filter(|n| n.parent == Some(*id)) {
+                    n.parent = gone.parent;
+                    ids.push(*c);
+                }
+            }
+        }
+        // Old owners that still list a node that moved away (or went) let it go.
+        for (id, old) in &before {
+            let Some(op) = old.as_ref().and_then(|n| n.parent) else { continue };
+            if self.nodes.get(id).and_then(|n| n.parent) != Some(op)
+                && let Some(o) = self.nodes.get_mut(&op)
+                && o.children.contains(id)
+            {
+                o.children.retain(|c| c != id);
+                self.changed.insert(op);
+            }
+        }
+        self.settle_links(&ids, &prior);
+        before
+    }
+
+    /// Makes parents and children agree for the nodes `ids` (a node's `parent` decides): children
+    /// owned elsewhere leave the list, owned ones missing from it are added, and nodes whose parent
+    /// is gone or that sit in a loop move to the Library.
+    fn settle_links(&mut self, ids: &[NodeId], prior: &BTreeMap<NodeId, Vec<NodeId>>) {
+        let library = self.sys.library;
+        for id in ids {
+            let Some(n) = self.nodes.get(id) else { continue };
+            let mut kids: Vec<NodeId> = Vec::new();
+            for c in n.children.iter().chain(prior.get(id).into_iter().flatten()) {
+                if !kids.contains(c) && self.nodes.get(c).is_some_and(|x| x.parent == Some(*id)) {
+                    kids.push(*c);
+                }
+            }
+            if kids != n.children {
+                self.changed.insert(*id);
+                if let Some(n) = self.nodes.get_mut(id) {
+                    n.children = kids;
+                }
+            }
+        }
+        for id in ids {
+            let Some(p) = self.nodes.get(id).and_then(|n| n.parent) else { continue };
+            // Up from the parent: reaching this node again (or never the root) is a loop.
+            let mut at = Some(p);
+            let mut steps = 0usize;
+            while let Some(x) = at.filter(|x| *x != *id && steps < 100_000) {
+                at = self.nodes.get(&x).and_then(|n| n.parent);
+                steps += 1;
+            }
+            let looped = at.is_some();
+            let home = if looped || !self.nodes.contains_key(&p) { library } else { p };
+            if home != p {
+                if let Some(old) = self.nodes.get_mut(&p) {
+                    old.children.retain(|c| c != id);
+                }
+                if let Some(n) = self.nodes.get_mut(id) {
+                    n.parent = Some(home);
+                }
+            }
+            if let Some(h) = self.nodes.get_mut(&home)
+                && !h.children.contains(id)
+            {
+                h.children.push(*id);
+                self.changed.insert(home);
+            }
+            self.changed.insert(*id);
+        }
+    }
+
+    fn apply_raw(&mut self, images: PreImages) -> PreImages {
         let mut before = PreImages::new();
         for (id, img) in images {
             self.changed.insert(id);
@@ -2075,16 +2156,48 @@ impl Graph {
         self.store.updates_since(since)
     }
 
-    /// Merges another copy's changes (a snapshot or updates) into this graph. Undo history is
-    /// cleared: it would otherwise undo the other copy's edits too.
+    /// Merges another copy's changes (a snapshot or updates) into this graph. Undo and redo stay:
+    /// each step is rebased so it only takes back this copy's own edits, never the other copy's.
     pub fn merge(&mut self, bytes: &[u8]) -> Result<()> {
+        self.commit("edit");
         self.flush()?;
+        let ids: BTreeSet<NodeId> = self.undo.iter().chain(self.redo.iter()).flat_map(|s| s.nodes.keys().copied()).collect();
+        let before: PreImages = ids.iter().map(|id| (*id, self.nodes.get(id).cloned())).collect();
+        let (undo, redo) = (std::mem::take(&mut self.undo), std::mem::take(&mut self.redo));
         self.store.import(bytes)?;
         self.reload_from_store()?;
-        self.undo.clear();
-        self.redo.clear();
+        let mut steps = [undo, redo];
+        for step in steps.iter_mut().flatten() {
+            self.rebase_step(&mut step.nodes, &before);
+        }
+        let [undo, redo] = steps;
+        self.undo = undo.into_iter().filter(|s| !s.nodes.is_empty()).collect();
+        self.redo = redo.into_iter().filter(|s| !s.nodes.is_empty()).collect();
         self.dirty = true;
         Ok(())
+    }
+
+    /// Rebases one undo step's images over the other copy's changes (`before` the merge vs now).
+    fn rebase_step(&self, images: &mut PreImages, before: &PreImages) {
+        let ids: Vec<NodeId> = images.keys().copied().collect();
+        for id in ids {
+            let b = before.get(&id).cloned().flatten();
+            let a = self.nodes.get(&id);
+            if b.as_ref() == a {
+                continue;
+            }
+            match (images.get_mut(&id), b, a) {
+                // Both sides changed the node: the other copy's changes win where they touched.
+                (Some(Some(old)), Some(b), Some(a)) => *old = rebase3(old, &b, a),
+                // The other copy deleted it: the delete wins (undo does not bring it back).
+                (Some(Some(_)), Some(_), None) => {
+                    images.remove(&id);
+                }
+                // (Undo removing a node made here, which the other copy hung children under: the
+                // children move up when the step is applied, see `apply`.)
+                _ => {}
+            }
+        }
     }
 
     /// Rebuilds the nodes from the document, then repairs them like a loaded file.
@@ -2182,6 +2295,54 @@ fn rebase(old: &mut Node, before: &Node, after: &Node) {
     if before.done.is_none() && old.done.is_none() {
         old.done = after.done;
     }
+}
+
+/// `old` with the changes `b` -> `a` (another copy's edits) laid over it: properties the other
+/// copy changed take its value; children, tags and fields merge item by item.
+// ponytail: a name both copies changed takes the merged text, so undo leaves that line as merged.
+fn rebase3(old: &Node, b: &Node, a: &Node) -> Node {
+    let to_map = |n: &Node| match serde_json::to_value(n) {
+        Ok(serde_json::Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    let (mut o, bm, am) = (to_map(old), to_map(b), to_map(a));
+    let keys: BTreeSet<String> = bm.keys().chain(am.keys()).cloned().collect();
+    for k in keys {
+        if bm.get(&k) != am.get(&k) {
+            match am.get(&k) {
+                Some(v) => o.insert(k, v.clone()),
+                None => o.remove(&k),
+            };
+        }
+    }
+    let Ok(mut n) = serde_json::from_value::<Node>(serde_json::Value::Object(o)) else { return a.clone() };
+    let merge_list = |old: &[NodeId], b: &[NodeId], a: &[NodeId]| -> Vec<NodeId> {
+        let mut out: Vec<NodeId> = old.iter().filter(|x| !b.contains(x) || a.contains(x)).copied().collect();
+        for (i, x) in a.iter().enumerate() {
+            if !b.contains(x) && !out.contains(x) {
+                out.insert(i.min(out.len()), *x);
+            }
+        }
+        out
+    };
+    n.children = merge_list(&old.children, &b.children, &a.children);
+    n.tags = merge_list(&old.tags, &b.tags, &a.tags);
+    let mut fields: Vec<FieldEntry> = Vec::new();
+    for e in &old.fields {
+        let (be, ae) = (b.fields.iter().find(|x| x.field == e.field), a.fields.iter().find(|x| x.field == e.field));
+        match (be, ae) {
+            (Some(_), None) => {}
+            (Some(be), Some(ae)) if be != ae => fields.push(ae.clone()),
+            _ => fields.push(e.clone()),
+        }
+    }
+    for ae in &a.fields {
+        if !b.fields.iter().any(|x| x.field == ae.field) && !fields.iter().any(|x| x.field == ae.field) {
+            fields.push(ae.clone());
+        }
+    }
+    n.fields = fields;
+    n
 }
 
 /// Node names are one line.

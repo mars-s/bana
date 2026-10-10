@@ -7,7 +7,7 @@ import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
-import { getState, openInNewPanel, refresh, setActivePanel, setState, closePanel, useStore } from './store'
+import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
@@ -172,6 +172,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
       setValue(instead)
       return
     }
+    warnIfReferenced(row, panel)
     sendName(v, caret)
   }
 
@@ -518,6 +519,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
       {drop && <span className={`drop-line${drop.nest ? ' nest' : ''}`} style={{ '--d': row.depth } as CSSProperties} />}
       {selected && page.sel[0] === row.id && <SelectionToolbar row={row} panel={panel} />}
       <div className="row-inner">
+        {row.notesHead && <div className="notes-head">{row.notesHead}</div>}
         {row.hasKids && (
           <span
             className="expander"
@@ -570,6 +572,11 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
               {t}
             </span>
           ))}
+          {row.uses != null && (
+            <span className="ref-count" title={`Referenced in ${row.uses} ${row.uses === 1 ? 'place' : 'places'}`}>
+              {row.uses}
+            </span>
+          )}
           {row.tags.map((t) => (
             <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
           ))}
@@ -579,12 +586,45 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             </span>
           )}
         </span>
+        {row.link && !editing && <LinkCard text={row.name} />}
         {(row.description || describing) && (
           <span className="desc">{describing ? <DescEditor row={row} panel={panel} /> : <span onMouseDown={(e) => (e.preventDefault(), setState({ descEdit: { panel, node: row.id } }))}>{row.description}</span>}</span>
         )}
       </div>
     </div>
   )
+}
+
+/** Link previews (Settings > Link previews, on by default): a line that is just a link shows a
+ * card with its site under it (spec 08, URL embeds). */
+function LinkCard({ text }: { text: string }) {
+  const on = useStore((s) => s.sidebar?.urlEmbeds ?? true)
+  const url = /\(([^)\s]+)\)\s*$/.exec(text)?.[1] ?? text.trim()
+  if (!on || !/^https?:\/\//.test(url)) return null
+  const site = url.replace(/^https?:\/\//, '').split('/')[0].replace(/^www\./, '')
+  return (
+    <span className="link-wrap">
+    <a className="link-card" href={url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()}>
+      <span className="link-site">
+        <Icon name="globe" size={12} /> {site}
+      </span>
+      <span className="link-url">{url}</span>
+    </a>
+    </span>
+  )
+}
+
+/** Settings > Warn before editing a referenced node: the first edit of such a node in this window
+ * says where else it shows (spec 01 §3). */
+const warned = new Set<number>()
+function warnIfReferenced(row: NodeRow, panel: string) {
+  if (warned.has(row.target)) return
+  warned.add(row.target)
+  if (!getState().sidebar?.warnReferenced) return
+  void call('usedElsewhere', { panel, nodes: [row.target] }).then((r) => {
+    const n = Number(r?.count ?? 0)
+    if (n > 0) showToast(`This node also appears in ${n} other ${n === 1 ? 'place' : 'places'}; the edit shows everywhere`)
+  })
 }
 
 const FIELD_ICONS: Record<string, IconName> = { date: 'fieldDate', checkbox: 'fieldCheck', url: 'fieldUrl', options: 'fieldOptions', options_from_tag: 'fieldInstance', number: 'fieldNumber', user: 'fieldUser', email: 'fieldEmail', plain: 'fieldText' }

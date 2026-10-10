@@ -142,6 +142,7 @@ export function SettingsPage({ panel }: { panel: string }) {
             {row('Dark theme', 'Switch between the dark and the light look.', <Toggle label="Dark theme" on={theme === 'dark'} onChange={(v) => setState({ theme: v ? 'dark' : 'light' })} />)}
             {row('Warn before editing a referenced node', 'The first edit of a node used in other places asks first.', <Toggle label="Warn" on={!!s.warn_referenced} onChange={(v) => set('warn_referenced', v)} />)}
             {row('Link previews', 'A line that is just a link shows a card under it.', <Toggle label="Link previews" on={!!s.url_embeds} onChange={(v) => set('url_embeds', v)} />)}
+            {row('Reference counter', 'A small number beside lines that are used in other places.', <Toggle label="Reference counter" on={!!s.ref_counter} onChange={(v) => set('ref_counter', v)} />)}
           </>
         )}
         {tab === 1 && (

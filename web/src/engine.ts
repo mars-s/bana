@@ -174,6 +174,10 @@ export interface NodeRow {
   suffix: [string, boolean][]
   notes: boolean
   progress: [number, number] | null
+  /** On the first line of a reference's notes: their heading. */
+  notesHead?: string | null
+  /** Places that point at this node (only with the reference counter on). */
+  uses?: number
   created: number
   edited: number
 }
@@ -259,6 +263,8 @@ export interface Sidebar {
   hidden: string[]
   /** Custom keybindings: shortcut to command id (spec 09). */
   keybindings: Record<string, string>
+  warnReferenced: boolean
+  urlEmbeds: boolean
   recents: { id: number; name: string; kind: string }[]
 }
 

@@ -82,6 +82,12 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
     let suffix: Vec<Value> = g.title_suffix(id).into_iter().map(|(t, ph)| json!([t, ph])).collect();
     let tags: Vec<Value> = n.tags.iter().map(|t| tag_chip(g, *t)).collect();
     let notes = g.context_of(id).is_some_and(|c| !g.children(c).is_empty());
+    // The first line of a reference's notes for this place carries their heading (DIFFS N22, N30).
+    let notes_head = g.parent(id).filter(|h| g.is_context(*h) && g.children(*h).first() == Some(&id)).map(|holder| {
+        let reference = g.parent(holder).unwrap_or(holder);
+        let place = g.parent(reference).map(|p| page_title(s, p)).unwrap_or_default();
+        format!("Notes and fields about {}, stored in {place}", g.name(reference))
+    });
     json!({
         "id": id.0,
         "target": target.0,
@@ -102,6 +108,7 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
         "link": is_link_only(&n.name),
         "suffix": suffix,
         "notes": notes,
+        "notesHead": notes_head,
         "progress": if n.progress { let (d, t) = g.progress(target); json!([d, t]) } else { Value::Null },
         "created": n.created,
         "edited": n.edited.max(n.created),
@@ -207,6 +214,12 @@ fn walk(s: &Session, parent: NodeId, depth: usize, path: &mut Vec<NodeId>, out: 
     let plain_children = g.query(g.resolve(parent)).is_none() && g.get(g.resolve(parent)).is_some_and(|n| n.view.is_none());
     for c in s.row_children(parent) {
         out.push(Item::Node(c, depth));
+        // A reference's own fields and notes are about this place only: always shown under it.
+        if g.resolve(c) != c {
+            for e in g.get(c).map(|r| r.fields.as_slice()).unwrap_or_default() {
+                out.push(Item::Field(c, e.field, depth + 1));
+            }
+        }
         if let Some(notes) = g.context_of(c) {
             walk_plain(s, notes, depth + 1, path, out);
         }
@@ -289,7 +302,17 @@ pub fn page(s: &Session, params: &Value) -> Value {
     let start = tanacraft_commands::p::usize(params, "start").unwrap_or(0).min(total);
     let count = tanacraft_commands::p::usize(params, "count").unwrap_or(DEFAULT_COUNT).min(MAX_COUNT);
     let end = start.saturating_add(count).min(total);
-    let window: Vec<Value> = all.get(start..end).unwrap_or(&[]).iter().map(|it| item_json(s, it, &mut refs)).collect();
+    let mut window: Vec<Value> = all.get(start..end).unwrap_or(&[]).iter().map(|it| item_json(s, it, &mut refs)).collect();
+    // The reference counter (a setting): how many places point at each line's node.
+    if g.settings.ref_counter {
+        let counts = g.reference_counts();
+        for v in &mut window {
+            let n = v["target"].as_u64().and_then(|t| counts.get(&NodeId(t)).copied()).unwrap_or(0);
+            if n > 0 {
+                v["uses"] = json!(n);
+            }
+        }
+    }
     // Where the focused row is, so the front end can scroll it into view (DIFFS N32).
     let focus_index = s.focus.and_then(|f| all.iter().position(|it| matches!(it, Item::Node(id, _) if *id == f)));
     let crumbs: Vec<Value> = s
@@ -380,6 +403,8 @@ pub fn sidebar(s: &Session) -> Value {
         "schema": g.sys.schema.0,
         "hidden": g.settings.hidden,
         "keybindings": g.settings.keybindings,
+        "warnReferenced": g.settings.warn_referenced,
+        "urlEmbeds": g.settings.url_embeds,
         "recents": s.recents.iter().filter(|r| g.get(**r).is_some()).map(|r| json!({"id": r.0, "name": page_title(s, *r), "kind": kind_name(g, *r)})).collect::<Vec<_>>(),
     })
 }

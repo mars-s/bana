@@ -67,6 +67,9 @@ pub struct Settings {
     /// A node that is just a link shows a card under it (spec 08: URL embeds). On by default.
     #[serde(default = "yes")]
     pub url_embeds: bool,
+    /// A small counter beside nodes that are referenced elsewhere (spec 01 §3). Off by default.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ref_counter: bool,
     /// Custom keybindings (spec 09, Customize keybindings): shortcut (`Mod+Shift+H`) to command id,
     /// checked before the defaults.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -85,6 +88,7 @@ impl Default for Settings {
             hidden: Vec::new(),
             warn_referenced: true,
             url_embeds: true,
+            ref_counter: false,
             keybindings: BTreeMap::new(),
         }
     }
@@ -440,6 +444,26 @@ impl Graph {
             .filter(|n| !self.in_trash(n.id))
             .map(|n| n.id)
             .collect()
+    }
+
+    /// How many places point at each node (references, inline links, node field values), outside
+    /// the trash: one pass over the graph (for the reference counter).
+    pub fn reference_counts(&self) -> std::collections::HashMap<NodeId, usize> {
+        let mut out: std::collections::HashMap<NodeId, usize> = std::collections::HashMap::new();
+        for n in self.nodes.values().filter(|n| !self.in_trash(n.id)) {
+            let mut to: BTreeSet<NodeId> = BTreeSet::new();
+            to.extend(n.reference_target());
+            if n.name.contains("[[id:") {
+                to.extend(crate::format::refs(&n.name).into_iter().map(NodeId));
+            }
+            for e in &n.fields {
+                to.extend(e.values().filter_map(|v| if let FieldValue::Node(t) = v { Some(*t) } else { None }));
+            }
+            for t in to {
+                *out.entry(t).or_default() += 1;
+            }
+        }
+        out
     }
 
     /// Nodes carrying `tag` (directly), outside the trash.

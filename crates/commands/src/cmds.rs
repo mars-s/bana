@@ -609,6 +609,7 @@ pub fn registry() -> Registry {
                 }
                 "warn_referenced" => set.warn_referenced = flag()?,
                 "url_embeds" => set.url_embeds = flag()?,
+                "ref_counter" => set.ref_counter = flag()?,
                 k if tanacraft_core::Settings::HIDEABLE.iter().any(|h| format!("show_{h}") == k) => {
                     let what = k.trim_start_matches("show_").to_string();
                     let show = flag()?;
@@ -621,7 +622,7 @@ pub fn registry() -> Registry {
             }
             settings_json(s)
         })
-        .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced|url_embeds", "value": "12h|24h" | "monday|sunday" | bool}"#)
+        .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced|url_embeds|ref_counter", "value": "12h|24h" | "monday|sunday" | bool}"#)
         .pure(),
         // Custom keybindings (spec 09): saved with the graph, checked before the defaults.
         C::new("settings.setKeybinding", "Customize keybinding", "Settings", |s, v| {
@@ -1693,6 +1694,7 @@ fn settings_json(s: &Session) -> CmdResult {
         "week_start": if st.week_starts_sunday { "sunday" } else { "monday" },
         "warn_referenced": st.warn_referenced,
         "url_embeds": st.url_embeds,
+        "ref_counter": st.ref_counter,
         "keybindings": st.keybindings,
     });
     if let Some(o) = v.as_object_mut() {

@@ -2945,3 +2945,60 @@ kbd {
   min-width: 0;
   width: var(--key-capture-w);
 }
+
+/* Reference counter (a setting): how many places point at the node. */
+.ref-count {
+  margin-left: var(--q1-5);
+  padding: 0 var(--q1);
+  border-radius: var(--r-sm);
+  background: var(--c-hover);
+  color: var(--c-faint);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Link previews (URL embeds): a card under a line that is just a link. Flat: tone, no shadow. */
+.link-wrap {
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+}
+
+.link-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q1);
+  width: min(var(--link-card-w), 100%);
+  margin: var(--q1) 0;
+  padding: var(--q2) var(--q3);
+  border-radius: var(--r-lg);
+  background: var(--c-raised);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+  text-decoration: none;
+}
+
+.link-site {
+  display: flex;
+  align-items: center;
+  gap: var(--q1-5);
+  color: var(--c-text);
+  font-size: var(--fs-dense);
+  font-weight: var(--fw-semibold);
+}
+
+.link-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-link);
+  font-size: var(--fs-label);
+}
+
+/* The heading over a reference's notes for this place (DIFFS N22). */
+.notes-head {
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+  color: var(--c-muted);
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+}

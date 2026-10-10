@@ -75,8 +75,8 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | content width, panel split, mini sidebar flyouts | ported (flyouts), works (width, split) | `shell.spec.ts` |
 | ctrl_shift_page_keys_move_the_tab, custom keybindings | ported (keys and drag; bindings saved with the graph, set in Settings) | `shell.spec.ts` |
 | configure supertag panel, field definition page | ported (Configure opens a second panel; node menu too) | `schema.spec.ts` |
-| reference counter, warn on editing a referenced node, url embeds | todo | |
-| context notes and fields on references | todo (engine works) | |
+| reference counter, warn on editing a referenced node, url embeds | ported | `references.spec.ts` |
+| context notes and fields on references | ported (heading, fields under the reference) | `references.spec.ts` |
 
 ## Views
 

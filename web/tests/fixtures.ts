@@ -1,4 +1,4 @@
-// A fresh engine per test: `tanacraft-cli serve` on its own port with the sample graph and a fixed
+// A fresh engine per test: `bana serve` on its own port with the sample graph and a fixed
 // today (Sat, 10 Oct 2026), optionally backed by a file so quitting and reloading can be tested.
 
 import { test as base, expect, type Page } from '@playwright/test'
@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '../..')
-const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug', 'tanacraft-cli')
+const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug', 'bana')
 let nextPort = 9100
 
 export interface Server {
@@ -24,7 +24,7 @@ export interface Server {
   run(command: string, params?: unknown): Promise<any>
 }
 
-/** Whether nothing listens on `port` (another app, or someone else's `tanacraft-cli serve`). */
+/** Whether nothing listens on `port` (another app, or someone else's `bana serve`). */
 function portFree(port: number): Promise<boolean> {
   return new Promise((done) => {
     const probe = createServer()
@@ -34,7 +34,7 @@ function portFree(port: number): Promise<boolean> {
 }
 
 /** The install's local token (local tools send it, UC-10.11). Each test's engine has its own
- * data folder (TANACRAFT_HOME = the graph's folder), so tests never touch ~/TanaCraft. */
+ * data folder (BANA_HOME = the graph's folder), so tests never touch ~/Bana. */
 export function liveToken(file: string): string {
   try {
     return readFileSync(join(dirname(file), 'token'), 'utf8').trim()
@@ -46,7 +46,7 @@ export function liveToken(file: string): string {
 async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
-    env: { ...process.env, TANACRAFT_HOME: dirname(file) },
+    env: { ...process.env, BANA_HOME: dirname(file) },
   })
   for (let i = 0; i < 400; i++) {
     if (proc.exitCode !== null) throw new Error(`server on ${port} exited (port taken?)`)
@@ -68,7 +68,7 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
     nextPort += 1
     // Never talk to a server this test did not start.
     while (!(await portFree(port))) port = nextPort++ + info.workerIndex * 200
-    const file = join(mkdtempSync(join(tmpdir(), 'tanacraft-')), 'graph.tanacraft')
+    const file = join(mkdtempSync(join(tmpdir(), 'bana-')), 'graph.bana')
     let proc = await startServer(file, port, serveArgs)
     const s: Server = {
       url: `http://127.0.0.1:${port}/`,

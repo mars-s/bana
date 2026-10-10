@@ -1,9 +1,9 @@
 {
-  // The TanaCraft sync relay (docs/sync.md): a Worker and one Durable Object per synced workspace
+  // The Bana sync relay (docs/sync.md): a Worker and one Durable Object per synced workspace
   // ("room"). Built for the Workers free plan: SQLite-backed Durable Objects and the WebSocket
   // Hibernation API. It stores and forwards ciphertext only. Nothing here is a secret.
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "tanacraft-sync",
+  "name": "bana-sync",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "workers_dev": true,

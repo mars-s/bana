@@ -235,7 +235,7 @@ export function bufferKey(k: KeyInfo) {
   keepBufferedKeys()
 }
 
-const KEPT = 'tanacraft.keys'
+const KEPT = 'bana.keys'
 
 /** Keys still waiting are written down whenever the buffer changes (in the task of the key press),
  * so a reload or a crash of the page keeps them; the next load types them again. */

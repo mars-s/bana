@@ -1,6 +1,6 @@
-//! TanaCraft's MCP server (Model Context Protocol, JSON-RPC 2.0, one message per line on stdio).
+//! Bana's MCP server (Model Context Protocol, JSON-RPC 2.0, one message per line on stdio).
 //!
-//! Two backends: [`Backend::Live`] drives the running app (desktop or `tanacraft-cli serve`) over
+//! Two backends: [`Backend::Live`] drives the running app (desktop or `bana serve`) over
 //! its localhost HTTP API, with the token from the live file beside the graph, so the open window
 //! shows every change at once; [`Backend::Local`] edits the graph file in-process (saved after
 //! every change), only when no app has it open. [`Backend::open`] picks.
@@ -11,9 +11,9 @@ use std::net::TcpStream;
 use std::path::Path;
 use std::time::Duration;
 
+use bana_commands::Session;
+use bana_core::PRODUCT_NAME;
 use serde_json::{Value, json};
-use tanacraft_commands::Session;
-use tanacraft_core::PRODUCT_NAME;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 const SUPPORTED: &[&str] = &[PROTOCOL_VERSION, "2025-03-26", "2024-11-05"];
@@ -44,7 +44,7 @@ impl Backend {
         if let Some(live) = Backend::find_live(graph) {
             return Ok(live);
         }
-        let g = tanacraft_core::load_or_migrate(graph).map_err(|e| e.to_string())?.unwrap_or_default();
+        let g = bana_core::load_or_migrate(graph).map_err(|e| e.to_string())?.unwrap_or_default();
         if let Some(dir) = graph.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
@@ -55,11 +55,11 @@ impl Backend {
 
     /// The running app announced beside `graph`, if it answers to the install's token.
     pub fn find_live(graph: &Path) -> Option<Backend> {
-        Backend::find_live_with(graph, tanacraft_core::local_token().ok()?)
+        Backend::find_live_with(graph, bana_core::local_token().ok()?)
     }
 
     pub fn find_live_with(graph: &Path, token: String) -> Option<Backend> {
-        let v: Value = serde_json::from_slice(&std::fs::read(tanacraft_core::live_file(graph)).ok()?).ok()?;
+        let v: Value = serde_json::from_slice(&std::fs::read(bana_core::live_file(graph)).ok()?).ok()?;
         let port = u16::try_from(v.get("port")?.as_u64()?).ok()?;
         let mut b = Backend::Live { port, token };
         b.post(&json!({"method": "version"})).ok()?;
@@ -71,7 +71,7 @@ impl Backend {
         let port = addr.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()).ok_or(format!("connect {addr}: no port"))?;
         let token = match token {
             Some(t) => t,
-            None => tanacraft_core::local_token().map_err(|e| format!("no local token: {e}"))?,
+            None => bana_core::local_token().map_err(|e| format!("no local token: {e}"))?,
         };
         let mut b = Backend::Live { port, token };
         b.post(&json!({"method": "version"}))?;
@@ -160,13 +160,13 @@ pub fn tools() -> Value {
     let node = json!({"type": ["integer", "string"], "description": "a node id (from search, inspect or add_node)"});
     let open = "The assistant has a page of its own in the app (separate from the person's windows): open a page there with execute nav.open {node} or nav.today.";
     json!([
-        {"name": "list_commands", "title": "TanaCraft: list commands", "description": "Every TanaCraft command: id, label, shortcut, params, whether it changes the graph. Run one with execute.", "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "execute", "title": "TanaCraft: run a command", "description": format!("Run a TanaCraft command by id with its params (see list_commands). Commands without a node act on the assistant's page. {open}"), "inputSchema": {"type": "object", "properties": {"command": {"type": "string", "description": "a command id, e.g. tag.add"}, "params": {"type": "object"}}, "required": ["command"]}},
-        {"name": "view", "title": "TanaCraft: view the page", "description": format!("The assistant's page in TanaCraft: title and visible bullets with ids (> marks the focused one). {open}"), "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "inspect", "title": "TanaCraft: inspect a node", "description": "A TanaCraft node and its subtree as JSON (ids, tags, fields, children). Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
-        {"name": "search", "title": "TanaCraft: search notes", "description": "TanaCraft nodes whose text contains the query (case-insensitive), with ids.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}, "required": ["query"]}},
-        {"name": "add_node", "title": "TanaCraft: add a node", "description": "Add a TanaCraft node. parent: a node id, or a day in words (\"today\", \"tomorrow\", \"next friday\", \"2026-10-20\"); without it, the assistant's page. tag: an existing supertag (set create_tag to make a new one).", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "parent": {"type": ["integer", "string"], "description": "a node id or a day in words"}, "tag": {"type": "string"}, "create_tag": {"type": "boolean", "description": "make the supertag if there is none by that name"}}, "required": ["name"]}},
-        {"name": "export_markdown", "title": "TanaCraft: read as Markdown", "description": "A TanaCraft node and its subtree as a Markdown outline. Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+        {"name": "list_commands", "title": "Bana: list commands", "description": "Every Bana command: id, label, shortcut, params, whether it changes the graph. Run one with execute.", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "execute", "title": "Bana: run a command", "description": format!("Run a Bana command by id with its params (see list_commands). Commands without a node act on the assistant's page. {open}"), "inputSchema": {"type": "object", "properties": {"command": {"type": "string", "description": "a command id, e.g. tag.add"}, "params": {"type": "object"}}, "required": ["command"]}},
+        {"name": "view", "title": "Bana: view the page", "description": format!("The assistant's page in Bana: title and visible bullets with ids (> marks the focused one). {open}"), "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "inspect", "title": "Bana: inspect a node", "description": "A Bana node and its subtree as JSON (ids, tags, fields, children). Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+        {"name": "search", "title": "Bana: search notes", "description": "Bana nodes whose text contains the query (case-insensitive), with ids.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}, "required": ["query"]}},
+        {"name": "add_node", "title": "Bana: add a node", "description": "Add a Bana node. parent: a node id, or a day in words (\"today\", \"tomorrow\", \"next friday\", \"2026-10-20\"); without it, the assistant's page. tag: an existing supertag (set create_tag to make a new one).", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "parent": {"type": ["integer", "string"], "description": "a node id or a day in words"}, "tag": {"type": "string"}, "create_tag": {"type": "boolean", "description": "make the supertag if there is none by that name"}}, "required": ["name"]}},
+        {"name": "export_markdown", "title": "Bana: read as Markdown", "description": "A Bana node and its subtree as a Markdown outline. Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
     ])
 }
 
@@ -286,14 +286,14 @@ impl Server {
                 }
             }
             "resources/list" => json!({"resources": [
-                {"uri": "tanacraft://commands", "name": "commands", "description": "Every command (id, label, shortcut, params)", "mimeType": "application/json"},
-                {"uri": "tanacraft://page", "name": "page", "description": "The open page as a Markdown outline", "mimeType": "text/markdown"},
+                {"uri": "bana://commands", "name": "commands", "description": "Every command (id, label, shortcut, params)", "mimeType": "application/json"},
+                {"uri": "bana://page", "name": "page", "description": "The open page as a Markdown outline", "mimeType": "text/markdown"},
             ]}),
             "resources/read" => {
                 let uri = params.get("uri").and_then(Value::as_str).unwrap_or_default();
                 let (mime, text) = match uri {
-                    "tanacraft://commands" => ("application/json", self.backend.commands().map(|v| v.to_string())),
-                    "tanacraft://page" => (
+                    "bana://commands" => ("application/json", self.backend.commands().map(|v| v.to_string())),
+                    "bana://page" => (
                         "text/markdown",
                         self.backend.run("export.markdown", json!({})).map(|v| v["markdown"].as_str().unwrap_or_default().to_string()),
                     ),
@@ -318,7 +318,7 @@ fn wrap(v: Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tanacraft_core::{Date, sample};
+    use bana_core::{Date, sample};
 
     fn server() -> Server {
         let today = Date::new(2026, 10, 10).unwrap();
@@ -332,21 +332,21 @@ mod tests {
     #[test]
     fn a_running_engine_is_found_through_its_live_file_and_edited_live() {
         // UC-10.11: the app announces port and token beside the graph; MCP works on it.
-        let dir = std::env::temp_dir().join(format!("tanacraft-live-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("bana-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let file = dir.join("graph.tanacraft");
+        let file = dir.join("graph.bana");
         let today = Date::new(2026, 10, 10).unwrap();
         let mut session = Session::with_today(sample::sample(today).unwrap(), today);
         session.path = Some(file.clone());
-        let shared = tanacraft_server::http::Shared::with_token(tanacraft_server::Host::new(session), "t".repeat(32));
-        let listener = tanacraft_server::http::bind(0).unwrap();
+        let shared = bana_server::http::Shared::with_token(bana_server::Host::new(session), "t".repeat(32));
+        let listener = bana_server::http::bind(0).unwrap();
         let port = listener.local_addr().unwrap().port();
-        tanacraft_server::http::announce(&shared, port, None).unwrap();
+        bana_server::http::announce(&shared, port, None).unwrap();
         let s2 = std::sync::Arc::clone(&shared);
-        std::thread::spawn(move || tanacraft_server::http::serve_on(s2, listener, dir.clone()));
+        std::thread::spawn(move || bana_server::http::serve_on(s2, listener, dir.clone()));
         let mut b = Backend::find_live_with(&file, "t".repeat(32)).unwrap();
         let r = b.run("node.add", json!({"name": "From MCP"})).unwrap();
-        let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+        let id = bana_core::NodeId(r["id"].as_u64().unwrap());
         assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From MCP");
         // A wrong token is refused.
         let mut bad = Backend::Live { port, token: "nope".into() };
@@ -379,7 +379,7 @@ mod tests {
             json!({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": "no.such"}}}),
         );
         assert_eq!(bad["result"]["isError"], true);
-        let page = call(&mut s, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "tanacraft://page"}}));
+        let page = call(&mut s, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "bana://page"}}));
         assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("Community garden"));
         // DIFFS N89: a typo does not make a supertag; "today" is a parent; an empty search and an
         // unknown tool are refused; a failed execute says what the command takes.

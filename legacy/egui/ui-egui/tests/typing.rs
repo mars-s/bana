@@ -3,9 +3,9 @@
 use egui::{Event, Key, Modifiers};
 use egui_kittest::kittest::Queryable;
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_core::{Date, Graph};
-use tanacraft_ui_egui::TanaApp;
+use bana_commands::Session;
+use bana_core::{Date, Graph};
+use bana_ui_egui::TanaApp;
 
 type H<'a> = egui_kittest::Harness<'a, TanaApp>;
 
@@ -104,7 +104,7 @@ fn command_line_runs_commands_and_opens_nodes() {
 #[test]
 fn every_view_renders_on_search_tag_and_plain_pages() {
     let today = Date::new(2026, 10, 10).unwrap();
-    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let s = Session::with_today(bana_core::sample::sample(today).unwrap(), today);
     let mut app = TanaApp::new(s);
     app.mac = true;
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
@@ -154,7 +154,7 @@ fn shift_enter_and_bold_shortcut() {
     // Bold applies to the selection (Cmd+A selects the line's text first).
     key(&mut h, Key::A, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
     key(&mut h, Key::B, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
-    assert_eq!(h.state().session.graph.name(tanacraft_core::NodeId(r["id"].as_u64().unwrap())), "**make bold**");
+    assert_eq!(h.state().session.graph.name(bana_core::NodeId(r["id"].as_u64().unwrap())), "**make bold**");
     key(&mut h, Key::Enter, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(lines(&mut h), ["  - **make bold**", "> - "]);
 }
@@ -212,7 +212,7 @@ fn shift_down_selects_and_tab_indents_the_selection() {
 #[test]
 fn search_and_open_and_slash_search_node() {
     let today = Date::new(2026, 10, 10).unwrap();
-    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let s = Session::with_today(bana_core::sample::sample(today).unwrap(), today);
     let mut app = TanaApp::new(s);
     app.mac = true;
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
@@ -247,7 +247,7 @@ fn search_and_open_and_slash_search_node() {
 #[test]
 fn tabs_and_panels_keep_their_own_pages() {
     let today = Date::new(2026, 10, 10).unwrap();
-    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let s = Session::with_today(bana_core::sample::sample(today).unwrap(), today);
     let mut app = TanaApp::new(s);
     app.mac = true;
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
@@ -305,8 +305,8 @@ fn inline_reference_left_right_and_select_all() {
     text(&mut h, "target");
     key(&mut h, Key::Enter, Modifiers::NONE);
     let g = &h.state().session.graph;
-    let bid = tanacraft_core::NodeId(b["id"].as_u64().unwrap());
-    let aid = tanacraft_core::NodeId(a["id"].as_u64().unwrap());
+    let bid = bana_core::NodeId(b["id"].as_u64().unwrap());
+    let aid = bana_core::NodeId(a["id"].as_u64().unwrap());
     assert_eq!(g.text(bid), "see Target note");
     assert!(g.references_to(aid).contains(&bid));
     // Left at the start goes to the end of the line above.
@@ -360,7 +360,7 @@ fn dragging_a_selected_bullet_moves_the_selection() {
 #[test]
 fn create_new_recents_settings_and_copy_paste_references() {
     let today = Date::new(2026, 10, 10).unwrap();
-    let s = Session::with_today(tanacraft_core::sample::sample(today).unwrap(), today);
+    let s = Session::with_today(bana_core::sample::sample(today).unwrap(), today);
     let mut app = TanaApp::new(s);
     app.mac = true;
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
@@ -396,18 +396,18 @@ fn create_new_recents_settings_and_copy_paste_references() {
     h.state_mut().exec("select.set", json!({"from": ideas})).unwrap();
     h.input_mut().events.push(Event::Copy);
     h.step();
-    let clip = tanacraft_core::export::to_plain(&h.state().session.graph, &[tanacraft_core::NodeId(ideas)]);
+    let clip = bana_core::export::to_plain(&h.state().session.graph, &[bana_core::NodeId(ideas)]);
     h.state_mut().exec("focus.set", json!({"node": reading})).unwrap();
     h.step();
     h.input_mut().events.push(Event::Paste(clip));
     h.step();
     let g = &h.state().session.graph;
-    assert_eq!(g.references_to(tanacraft_core::NodeId(ideas)).len(), 1);
+    assert_eq!(g.references_to(bana_core::NodeId(ideas)).len(), 1);
     // Pasting again next to it skips the duplicate.
-    let again = tanacraft_core::export::to_plain(&h.state().session.graph, &[tanacraft_core::NodeId(ideas)]);
+    let again = bana_core::export::to_plain(&h.state().session.graph, &[bana_core::NodeId(ideas)]);
     h.input_mut().events.push(Event::Paste(again));
     h.step();
-    assert_eq!(h.state().session.graph.references_to(tanacraft_core::NodeId(ideas)).len(), 1, "duplicates are skipped");
+    assert_eq!(h.state().session.graph.references_to(bana_core::NodeId(ideas)).len(), 1, "duplicates are skipped");
 }
 
 #[test]
@@ -438,7 +438,7 @@ fn long_lines_wrap_and_typing_never_adds_line_breaks() {
 fn descriptions_are_edited_in_place() {
     let mut h = harness();
     let r = h.state_mut().exec("node.add", json!({"name": "Plan"})).unwrap();
-    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(r["id"].as_u64().unwrap());
     h.state_mut().exec("focus.set", json!({"node": id.0})).unwrap();
     for _ in 0..3 {
         h.step();
@@ -461,7 +461,7 @@ fn descriptions_are_edited_in_place() {
 fn enter_in_a_field_value_adds_another_and_shift_tab_moves_it_out() {
     let mut h = harness();
     let r = h.state_mut().exec("node.add", json!({"name": "Trip"})).unwrap();
-    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(r["id"].as_u64().unwrap());
     h.state_mut().exec("field.add", json!({"node": id.0, "field": "Who", "type": "plain"})).unwrap();
     h.state_mut().exec("nav.open", json!({"node": id.0})).unwrap();
     for _ in 0..3 {
@@ -479,7 +479,7 @@ fn enter_in_a_field_value_adds_another_and_shift_tab_moves_it_out() {
     key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
     let g = &h.state().session.graph;
     let who = g.find_field("Who").unwrap();
-    let vals: Vec<String> = g.get(id).unwrap().field_values(who).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect();
+    let vals: Vec<String> = g.get(id).unwrap().field_values(who).iter().map(|v| bana_core::export::display_value(g, v)).collect();
     assert_eq!(vals, ["Ada", "Sam"]);
     assert_eq!(g.name(g.children(id)[0]), "a note, not a value");
 }
@@ -488,7 +488,7 @@ fn enter_in_a_field_value_adds_another_and_shift_tab_moves_it_out() {
 fn field_name_tab_goes_to_the_value_and_enter_starts_a_node() {
     let mut h = harness();
     let r = h.state_mut().exec("node.add", json!({"name": "Trip"})).unwrap();
-    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(r["id"].as_u64().unwrap());
     h.state_mut().exec("nav.open", json!({"node": id.0})).unwrap();
     let c = h.state_mut().exec("node.add", json!({"parent": id.0, "name": ""})).unwrap();
     h.state_mut().exec("focus.set", json!({"node": c["id"]})).unwrap();
@@ -503,7 +503,7 @@ fn field_name_tab_goes_to_the_value_and_enter_starts_a_node() {
     key(&mut h, Key::Escape, Modifiers::NONE);
     let g = &h.state().session.graph;
     let budget = g.find_field("Budget").unwrap();
-    assert_eq!(g.get(id).unwrap().field_values(budget).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect::<Vec<_>>(), ["300"]);
+    assert_eq!(g.get(id).unwrap().field_values(budget).iter().map(|v| bana_core::export::display_value(g, v)).collect::<Vec<_>>(), ["300"]);
     // `>` then Enter: the field is added and a fresh node below takes the caret.
     let c = h.state_mut().exec("node.add", json!({"parent": id.0, "name": ""})).unwrap();
     h.state_mut().exec("focus.set", json!({"node": c["id"]})).unwrap();
@@ -523,7 +523,7 @@ fn field_name_tab_goes_to_the_value_and_enter_starts_a_node() {
 fn cmd_enter_in_a_menu_creates_from_the_typed_text() {
     let mut h = harness();
     let r = h.state_mut().exec("node.add", json!({"name": "Gamma"})).unwrap();
-    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(r["id"].as_u64().unwrap());
     h.state_mut().exec("tag.create", json!({"name": "task"})).ok();
     h.state_mut().exec("focus.set", json!({"node": id.0})).unwrap();
     for _ in 0..3 {
@@ -551,22 +551,22 @@ fn bold_with_a_collapsed_caret_carries_on_for_typing() {
     text(&mut h, " ");
     key(&mut h, Key::B, Modifiers { command: true, mac_cmd: true, ..Modifiers::NONE });
     text(&mut h, "loud");
-    let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(r["id"].as_u64().unwrap());
     assert_eq!(h.state().session.graph.name(id), "Note **loud**");
 }
 
 // ---- DIFFS.md round 3, P1 regressions -------------------------------------------------------
 
-fn page_with(h: &mut H<'_>, names: &[&str]) -> Vec<tanacraft_core::NodeId> {
+fn page_with(h: &mut H<'_>, names: &[&str]) -> Vec<bana_core::NodeId> {
     let ids: Vec<_> =
-        names.iter().map(|n| tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"name": n})).unwrap()["id"].as_u64().unwrap())).collect();
+        names.iter().map(|n| bana_core::NodeId(h.state_mut().exec("node.add", json!({"name": n})).unwrap()["id"].as_u64().unwrap())).collect();
     for _ in 0..3 {
         h.step();
     }
     ids
 }
 
-fn focus(h: &mut H<'_>, id: tanacraft_core::NodeId, caret: usize) {
+fn focus(h: &mut H<'_>, id: bana_core::NodeId, caret: usize) {
     h.state_mut().exec("focus.set", json!({"node": id.0, "caret": caret})).unwrap();
     for _ in 0..3 {
         h.step();
@@ -603,7 +603,7 @@ fn diffs_p1_gt_on_an_empty_line_makes_a_field_row() {
     assert_eq!(g.name(ids[0]), "x", "nothing typed into the line above");
     let prio = g.find_field("Prio").expect("field created");
     let owner = g.iter().find(|n| n.fields.iter().any(|e| e.field == prio)).expect("a node has the field");
-    assert_eq!(owner.field_values(prio).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect::<Vec<_>>(), ["High"]);
+    assert_eq!(owner.field_values(prio).iter().map(|v| bana_core::export::display_value(g, v)).collect::<Vec<_>>(), ["High"]);
 }
 
 #[test]
@@ -658,7 +658,7 @@ fn diffs_p1_cmd_e_opens_quick_add_while_editing() {
     assert!(
         g.search("Quick one")
             .iter()
-            .any(|n| g.ancestors(*n).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(tanacraft_core::Kind::Day { .. }))))
+            .any(|n| g.ancestors(*n).iter().any(|a| matches!(g.get(*a).map(|x| &x.kind), Some(bana_core::Kind::Day { .. }))))
     );
 }
 
@@ -688,7 +688,7 @@ fn diffs_p2_hash_then_cmd_enter_creates_and_applies() {
 
 #[test]
 fn diffs_p2_board_ends_with_a_not_set_column_without_counts() {
-    let s = Session::with_today(tanacraft_core::sample::sample(Date::new(2026, 10, 10).unwrap()).unwrap(), Date::new(2026, 10, 10).unwrap());
+    let s = Session::with_today(bana_core::sample::sample(Date::new(2026, 10, 10).unwrap()).unwrap(), Date::new(2026, 10, 10).unwrap());
     let mut app = TanaApp::new(s);
     app.mac = true;
     let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1800.0, 900.0)).build_ui_state(
@@ -724,7 +724,7 @@ fn diffs_p2_command_line_lists_steps_for_the_focused_node_not_nodes() {
     key(&mut h, Key::K, CMD);
     text(&mut h, "add tag");
     key(&mut h, Key::Enter, Modifiers::NONE);
-    assert_eq!(h.state().picker.as_ref().map(|p| p.mode), Some(tanacraft_ui_egui::PickMode::Tag));
+    assert_eq!(h.state().picker.as_ref().map(|p| p.mode), Some(bana_ui_egui::PickMode::Tag));
 }
 
 #[test]
@@ -776,7 +776,7 @@ fn diffs_p2_query_builder_adds_nested_groups() {
         h.step();
     }
     let g = &h.state().session.graph;
-    let desc = g.query(tanacraft_core::NodeId(q)).unwrap().describe(g);
+    let desc = g.query(bana_core::NodeId(q)).unwrap().describe(g);
     assert_eq!(desc, "#task AND ()");
     h.get_by_label("Done");
     h.get_by_label("Run once");
@@ -887,11 +887,11 @@ fn calendar_time_grid_drag_to_create_and_resize() {
     let g = &h.state().session.graph;
     let ev = g.search("Planting day")[0];
     let when = g.find_field("When").unwrap();
-    assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-12:30");
+    assert_eq!(bana_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-12:30");
     // Drag the bottom edge from 12:30 to 13:30.
     drag(&mut h, Pos2::new(x, y(12.5 * 60.0) - 4.0), Pos2::new(x, y(13.5 * 60.0)));
     let g = &h.state().session.graph;
-    assert_eq!(tanacraft_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-13:30");
+    assert_eq!(bana_core::export::display_value(g, g.get(ev).unwrap().field_value(when).unwrap()), "2026-10-07 11:00-13:30");
     // A named event is kept when the name box loses the keyboard without Enter.
     drag(&mut h, Pos2::new(x, y(15.0 * 60.0 + 2.0)), Pos2::new(x, y(16.0 * 60.0)));
     text(&mut h, "Blurred");
@@ -992,7 +992,7 @@ fn options_from_supertag_picker_and_invalid_value_warning() {
     key(&mut h, Key::Enter, Modifiers::NONE);
     let g = &h.state().session.graph;
     let owner = g.find_field("Owner").unwrap();
-    assert_eq!(g.get(tanacraft_core::NodeId(n)).unwrap().field_value(owner), Some(&tanacraft_core::FieldValue::Node(tanacraft_core::NodeId(ada))));
+    assert_eq!(g.get(bana_core::NodeId(n)).unwrap().field_value(owner), Some(&bana_core::FieldValue::Node(bana_core::NodeId(ada))));
 }
 
 #[test]
@@ -1023,8 +1023,8 @@ fn date_picker_takes_a_day_and_a_time_then_ok() {
     }
     let g = &h.state().session.graph;
     let when = g.find_field("When").unwrap();
-    let v = g.get(tanacraft_core::NodeId(n)).unwrap().field_value(when).unwrap();
-    assert_eq!(tanacraft_core::export::display_value(g, v), "2026-10-15 09:30-10:15");
+    let v = g.get(bana_core::NodeId(n)).unwrap().field_value(when).unwrap();
+    assert_eq!(bana_core::export::display_value(g, v), "2026-10-15 09:30-10:15");
 }
 
 #[test]
@@ -1165,7 +1165,7 @@ fn lanes_drag_a_node_into_another_lane() {
     for _ in 0..3 {
         h.step();
     }
-    assert_eq!(h.state().session.graph.parent(tanacraft_core::NodeId(b1)), Some(ids[0]));
+    assert_eq!(h.state().session.graph.parent(bana_core::NodeId(b1)), Some(ids[0]));
 }
 
 #[test]
@@ -1196,7 +1196,7 @@ fn week_page_has_a_schedule() {
     let s = h.state_mut();
     let n = s.exec("node.add", json!({"name": "Dentist"})).unwrap()["id"].as_u64().unwrap();
     s.exec("field.add", json!({"node": n, "field": "When", "type": "date", "value": "2026-10-08 09:00-10:00"})).unwrap();
-    let week = s.session.graph.iter().find(|x| x.kind == tanacraft_core::Kind::Week { year: 2026, week: 41 }).unwrap().id;
+    let week = s.session.graph.iter().find(|x| x.kind == bana_core::Kind::Week { year: 2026, week: 41 }).unwrap().id;
     s.exec("nav.open", json!({"node": week.0})).unwrap();
     for _ in 0..3 {
         h.step();
@@ -1218,7 +1218,7 @@ fn new_search_results_flash() {
     let n = h.state_mut().exec("node.add", json!({"name": "New one", "parent": lib})).unwrap()["id"].as_u64().unwrap();
     h.state_mut().exec("tag.add", json!({"node": n, "tag": "task"})).unwrap();
     h.step();
-    assert!(h.state().flash_until.contains_key(&tanacraft_core::NodeId(n)), "the new result is marked to flash");
+    assert!(h.state().flash_until.contains_key(&bana_core::NodeId(n)), "the new result is marked to flash");
 }
 
 #[test]
@@ -1267,7 +1267,7 @@ fn diffs_n1_enter_in_a_new_field_value_adds_another_value() {
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     text(&mut h, ">");
@@ -1281,7 +1281,7 @@ fn diffs_n1_enter_in_a_new_field_value_adds_another_value() {
     let g = &h.state().session.graph;
     assert_eq!(g.name(x), "x", "nothing typed into the line above");
     let f = g.find_field("Ppl").expect("field created");
-    let vals: Vec<String> = g.get(page).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect();
+    let vals: Vec<String> = g.get(page).unwrap().field_values(f).iter().map(|v| bana_core::export::display_value(g, v)).collect();
     assert_eq!(vals, ["Ann", "Bob"]);
 }
 
@@ -1292,7 +1292,7 @@ fn diffs_n2_gt_field_row_stays_where_it_was_typed() {
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
     let kids: Vec<_> = ["a", "b", "c"]
         .iter()
-        .map(|n| tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": n})).unwrap()["id"].as_u64().unwrap()))
+        .map(|n| bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": n})).unwrap()["id"].as_u64().unwrap()))
         .collect();
     focus(&mut h, kids[2], 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
@@ -1353,12 +1353,12 @@ fn diffs_n12_pasting_copied_nodes_into_an_empty_line_replaces_it() {
     let mut h = harness();
     let ids = page_with(&mut h, &["B", "C"]);
     h.state_mut().exec("node.add", json!({"parent": ids[0].0, "name": "B1"})).unwrap();
-    let empty = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": ids[1].0, "name": ""})).unwrap()["id"].as_u64().unwrap());
+    let empty = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": ids[1].0, "name": ""})).unwrap()["id"].as_u64().unwrap());
     h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
     h.state_mut().exec("select.set", json!({"from": ids[0].0})).unwrap();
     h.input_mut().events.push(Event::Copy);
     h.step();
-    let clip = tanacraft_core::export::to_plain(&h.state().session.graph, &[ids[0]]);
+    let clip = bana_core::export::to_plain(&h.state().session.graph, &[ids[0]]);
     focus(&mut h, empty, 0);
     h.input_mut().events.push(Event::Paste(clip));
     h.step();
@@ -1419,9 +1419,9 @@ fn hidden_fields_fold_to_a_label_when_not_empty_or_always() {
 fn every_menu_bar_entry_runs_a_known_command() {
     // Spec 00 §7: the native menu bar only runs commands.
     let mut h = harness();
-    for (menu, items) in tanacraft_ui_egui::MENU_BAR {
+    for (menu, items) in bana_ui_egui::MENU_BAR {
         for (label, cmd) in *items {
-            let known = h.state().session.registry.get(cmd).is_some() || tanacraft_ui_egui::UI_COMMANDS.iter().any(|(id, _, _)| id == cmd);
+            let known = h.state().session.registry.get(cmd).is_some() || bana_ui_egui::UI_COMMANDS.iter().any(|(id, _, _)| id == cmd);
             assert!(known, "{menu} > {label}: unknown command {cmd}");
         }
     }
@@ -1431,7 +1431,7 @@ fn every_menu_bar_entry_runs_a_known_command() {
     assert_eq!(app.menu_shortcut("edit.redo").as_deref(), Some("Mod+Shift+Z"));
     assert_eq!(app.menu_shortcut("nav.back").as_deref(), Some("Mod+["));
     assert_eq!(app.menu_shortcut("ui.copy").as_deref(), Some("Mod+C"));
-    let edit: Vec<&str> = tanacraft_ui_egui::MENU_BAR.iter().find(|m| m.0 == "Edit").unwrap().1.iter().map(|i| i.0).collect();
+    let edit: Vec<&str> = bana_ui_egui::MENU_BAR.iter().find(|m| m.0 == "Edit").unwrap().1.iter().map(|i| i.0).collect();
     for want in ["Cut", "Copy", "Paste", "Select all"] {
         assert!(edit.contains(&want), "Edit has {want}");
     }
@@ -1560,7 +1560,7 @@ fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
     let mut h = harness();
     let ids = page_with(&mut h, &["Recipe", "Plan"]);
     let r = h.state_mut().exec("node.reference", json!({"target": ids[0].0, "parent": ids[1].0})).unwrap();
-    let r = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let r = bana_core::NodeId(r["id"].as_u64().unwrap());
     h.state_mut().exec("node.expand", json!({"node": ids[1].0})).unwrap();
     focus(&mut h, r, 0);
     key(&mut h, Key::ArrowDown, Modifiers { alt: true, command: true, mac_cmd: true, ..Modifiers::NONE });
@@ -1578,7 +1578,7 @@ fn alt_cmd_down_on_a_reference_writes_a_note_for_this_context() {
     key(&mut h, Key::Tab, Modifiers { shift: true, ..Modifiers::NONE });
     assert_eq!(h.state().session.graph.children(notes).len(), 2);
     // The notes survive a save and load.
-    let back = tanacraft_core::Graph::from_json(&h.state().session.graph.to_json().unwrap()).unwrap();
+    let back = bana_core::Graph::from_json(&h.state().session.graph.to_json().unwrap()).unwrap();
     assert_eq!(back.context_of(r).map(|c| back.children(c).len()), Some(2));
 }
 
@@ -1605,7 +1605,7 @@ fn date_picker_add_end_sets_a_span_of_days() {
     let g = &h.state().session.graph;
     let f = g.find_field("Trip").unwrap();
     let v = g.get(page).unwrap().field_value(f).cloned();
-    assert_eq!(v.map(|v| tanacraft_core::export::display_value(g, &v)), Some("2026-10-15/2026-10-17".to_string()));
+    assert_eq!(v.map(|v| bana_core::export::display_value(g, &v)), Some("2026-10-15/2026-10-17".to_string()));
     h.get_by_label("Thu, 15 Oct - Sat, 17 Oct");
 }
 
@@ -1637,7 +1637,7 @@ fn node_menu_has_filter_sort_group_display_and_copy() {
     for _ in 0..3 {
         h.step();
     }
-    assert_eq!(h.state().session.graph.view_def(p).sort.first().map(|s| s.by), Some(tanacraft_core::SortBy::Edited));
+    assert_eq!(h.state().session.graph.view_def(p).sort.first().map(|s| s.by), Some(bana_core::SortBy::Edited));
 }
 
 #[test]
@@ -1699,7 +1699,7 @@ fn query_builder_results_wait_for_run_once_and_done() {
     let mut h = harness();
     page_with(&mut h, &["apple pie", "apple tart"]);
     let q = h.state_mut().exec("search.create", json!({"query": "apple"})).unwrap();
-    let q = tanacraft_core::NodeId(q["id"].as_u64().unwrap());
+    let q = bana_core::NodeId(q["id"].as_u64().unwrap());
     h.state_mut().exec("nav.open", json!({"node": q.0})).unwrap();
     h.state_mut().exec("ui.searchOptions", json!({})).unwrap();
     for _ in 0..3 {
@@ -1721,10 +1721,10 @@ fn query_builder_results_wait_for_run_once_and_done() {
 
 /// A page with one line "x", caret at its end, then Enter and `>` + `name`: a field row named
 /// `name` with its value editor open (Tab).
-fn field_after_x(h: &mut H<'_>, name: &str) -> (tanacraft_core::NodeId, tanacraft_core::NodeId) {
+fn field_after_x(h: &mut H<'_>, name: &str) -> (bana_core::NodeId, bana_core::NodeId) {
     let page = page_with(h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(h, x, 1);
     key(h, Key::Enter, Modifiers::NONE);
     text(h, ">");
@@ -1733,10 +1733,10 @@ fn field_after_x(h: &mut H<'_>, name: &str) -> (tanacraft_core::NodeId, tanacraf
     (page, x)
 }
 
-fn values_of(h: &H<'_>, node: tanacraft_core::NodeId, field: &str) -> Vec<String> {
+fn values_of(h: &H<'_>, node: bana_core::NodeId, field: &str) -> Vec<String> {
     let g = &h.state().session.graph;
     let f = g.find_field(field).expect("field exists");
-    g.get(node).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect()
+    g.get(node).unwrap().field_values(f).iter().map(|v| bana_core::export::display_value(g, v)).collect()
 }
 
 #[test]
@@ -1775,7 +1775,7 @@ fn diffs_n15_field_values_are_saved_as_typed() {
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     text(&mut h, ">");
@@ -1851,7 +1851,7 @@ fn keys_and_menus_hand_the_keyboard_back() {
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let a = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
+    let a = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, a, 0);
     key(&mut h, Key::ArrowUp, Modifiers::NONE);
     text(&mut h, "Z");
@@ -1953,7 +1953,7 @@ fn type_chars(h: &mut H<'_>, s: &str) {
 /// Quits the app the way Cmd+Q does (commands, then the app's exit hook), and reads the saved
 /// file back.
 fn quit_and_reload(h: &mut H<'_>, name: &str) -> Graph {
-    let dir = std::env::temp_dir().join(format!("tanacraft-quit-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-quit-{}-{name}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("graph.json");
     h.state_mut().session.path = Some(path.clone());
@@ -1969,9 +1969,9 @@ fn has_name(g: &Graph, name: &str) -> bool {
     g.iter().any(|n| n.name == name && !g.in_trash(n.id))
 }
 
-fn field_texts(g: &Graph, node: tanacraft_core::NodeId, field: &str) -> Vec<String> {
+fn field_texts(g: &Graph, node: bana_core::NodeId, field: &str) -> Vec<String> {
     let f = g.find_field(field).expect("field exists");
-    g.get(node).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(g, v)).collect()
+    g.get(node).unwrap().field_values(f).iter().map(|v| bana_core::export::display_value(g, v)).collect()
 }
 
 #[test]
@@ -1993,7 +1993,7 @@ fn diffs_n26_quitting_mid_edit_keeps_every_editor() {
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     type_chars(&mut h, ">Qq7");
@@ -2020,7 +2020,7 @@ fn diffs_n26_quitting_mid_edit_keeps_every_editor() {
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let a = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
+    let a = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "a"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, a, 0);
     key(&mut h, Key::ArrowUp, Modifiers::NONE);
     type_chars(&mut h, " two");
@@ -2157,7 +2157,7 @@ fn diffs_n28_escape_in_a_new_field_name_selects_the_row_and_tab_edits_the_value(
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     type_chars(&mut h, ">Ppl");
@@ -2189,7 +2189,7 @@ fn diffs_n31_space_after_a_checkbox_field_name_does_nothing() {
     h.state_mut().exec("field.create", json!({"name": "Outdoors", "type": "checkbox"})).unwrap();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     type_chars(&mut h, ">Outdoors");
@@ -2212,7 +2212,7 @@ fn diffs_n32_a_field_value_typed_below_the_first_screen_is_kept_and_scrolled_to(
     let ids: Vec<_> = (1..=60)
         .map(|i| {
             let r = h.state_mut().exec("node.add", json!({"parent": page.0, "name": format!("line {i}")})).unwrap();
-            tanacraft_core::NodeId(r["id"].as_u64().unwrap())
+            bana_core::NodeId(r["id"].as_u64().unwrap())
         })
         .collect();
     h.step();
@@ -2245,14 +2245,14 @@ fn kill_after_a_second(h: &mut H<'_>) -> Graph {
 
 #[test]
 fn diffs_n26_a_field_name_survives_a_force_kill() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-kill-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-kill-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let mut h = harness();
     h.state_mut().session.path = Some(dir.join("graph.json"));
     h.state_mut().autosave = true;
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     type_chars(&mut h, ">Fresh9");
@@ -2268,7 +2268,7 @@ fn diffs_n26_a_field_name_survives_a_force_kill() {
     type_chars(&mut h, "val");
     let g = kill_after_a_second(&mut h);
     let f = g.find_field("Fresh9x").expect("the longer name");
-    assert_eq!(g.get(page).unwrap().field_values(f).iter().map(|v| tanacraft_core::export::display_value(&g, v)).collect::<Vec<_>>(), ["val"]);
+    assert_eq!(g.get(page).unwrap().field_values(f).iter().map(|v| bana_core::export::display_value(&g, v)).collect::<Vec<_>>(), ["val"]);
     // Abandoned: the name is typed away and Escape closes the menu; the file loses the draft.
     let mut h2 = harness();
     h2.state_mut().session.path = Some(dir.join("graph2.json"));
@@ -2291,8 +2291,8 @@ fn diffs_n33_enter_on_a_selected_field_row_adds_a_line_below_and_letters_extend_
     let mut h = harness();
     let page = page_with(&mut h, &["Page"])[0];
     h.state_mut().exec("nav.open", json!({"node": page.0})).unwrap();
-    let x = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
-    let y = tanacraft_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "y"})).unwrap()["id"].as_u64().unwrap());
+    let x = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "x"})).unwrap()["id"].as_u64().unwrap());
+    let y = bana_core::NodeId(h.state_mut().exec("node.add", json!({"parent": page.0, "name": "y"})).unwrap()["id"].as_u64().unwrap());
     focus(&mut h, x, 1);
     key(&mut h, Key::Enter, Modifiers::NONE);
     type_chars(&mut h, ">Qq");

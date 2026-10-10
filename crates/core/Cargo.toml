@@ -1,9 +1,9 @@
 [package]
-name = "tanacraft-core"
+name = "bana-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "TanaCraft node graph: nodes, supertags, fields, references, daily notes, trash, undo, persistence"
+description = "Bana node graph: nodes, supertags, fields, references, daily notes, trash, undo, persistence"
 
 [lints]
 workspace = true

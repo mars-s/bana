@@ -4,54 +4,54 @@ Scenarios: `web/tests/use-cases/10-integrations-api.spec.ts`.
 
 ### UC-10.01 An AI assistant writes through MCP: WORKS
 - **Story:** Claude, Cursor or Codex adds tasks and reads pages in my graph.
-- **Steps:** Point the client at `tanacraft-cli --file graph.tanacraft mcp`; call `add_node`, `execute`, `export_markdown`.
+- **Steps:** Point the client at `bana --file graph.bana mcp`; call `add_node`, `execute`, `export_markdown`.
 - **Expected:** The node appears in the app.
 - **Source:** https://outliner.tana.inc/learn/features/local-api-mcp
-- **TanaCraft:** WORKS. MCP works on the running app (UC-10.11); the node shows in the open window at once.
+- **Bana:** WORKS. MCP works on the running app (UC-10.11); the node shows in the open window at once.
 
 ### UC-10.02 An AI assistant reads a page: WORKS
 - **Steps:** `export_markdown` on a node.
 - **Expected:** The subtree as Markdown.
 - **Source:** https://outliner.tana.inc/learn/features/local-api-mcp (Read operations)
-- **TanaCraft:** WORKS.
+- **Bana:** WORKS.
 
 ### UC-10.03 A script posts to a local API: WORKS
 - **Story:** A cron job adds a node with a field, and I see it appear while the app is open.
 - **Steps:** `POST /rpc` with `{"method":"run","params":{"command":"node.add",...}}`.
 - **Expected:** The node shows at once.
 - **Source:** https://outliner.tana.inc/learn/features/input-api
-- **TanaCraft:** WORKS for the browser UI served by `tanacraft-cli serve`.
+- **Bana:** WORKS for the browser UI served by `bana serve`.
 
 ### UC-10.04 Access control for the API: PARTIAL
 - **Story:** Only tools I allow can write to my graph.
 - **Source:** https://outliner.tana.inc/learn/features/input-api (API tokens)
-- **TanaCraft:** PARTIAL. The API listens on 127.0.0.1 only; requests from outside the app's own pages must send the install's local token (`~/TanaCraft/token`, this user only). No tokens per workspace to create and revoke (UC-10.09).
+- **Bana:** PARTIAL. The API listens on 127.0.0.1 only; requests from outside the app's own pages must send the install's local token (`~/Bana/token`, this user only). No tokens per workspace to create and revoke (UC-10.09).
 
 ### UC-10.05 Remote MCP for cloud assistants: PARTIAL
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 23-30: Remote MCP)
-- **TanaCraft:** PARTIAL. `cloudflare/` is a remote connector for claude.ai and ChatGPT: a Worker that signs you in with GitHub (one account) and passes MCP to the app on your Mac through a Cloudflare Tunnel. Tested end to end locally (`cloudflare/test.mjs`); you deploy it with `cloudflare/wizard.sh` (docs/mcp.md). It works only while the Mac is awake and the app open: no notes in the cloud.
+- **Bana:** PARTIAL. `cloudflare/` is a remote connector for claude.ai and ChatGPT: a Worker that signs you in with GitHub (one account) and passes MCP to the app on your Mac through a Cloudflare Tunnel. Tested end to end locally (`cloudflare/test.mjs`); you deploy it with `cloudflare/wizard.sh` (docs/mcp.md). It works only while the Mac is awake and the app open: no notes in the cloud.
 
 ### UC-10.06 Calendar sync: OUT OF SCOPE candidate (cloud)
 - **Source:** https://outliner.tana.inc/learn/features/calendar-integration
-- **TanaCraft:** not built.
+- **Bana:** not built.
 
 ### UC-10.07 Readwise: MISSING
 - **Source:** https://outliner.tana.inc/learn/features/readwise-integration
-- **TanaCraft:** MISSING.
+- **Bana:** MISSING.
 
 ### UC-10.08 Call a web API from a command: MISSING
 - **Source:** https://outliner.tana.inc/learn/features/ai-command-nodes (Make API request)
-- **TanaCraft:** MISSING.
+- **Bana:** MISSING.
 
 ### UC-10.09 API tokens: MISSING
 - **Source:** https://outliner.tana.inc/learn/features/account-settings (API keys)
-- **TanaCraft:** MISSING.
+- **Bana:** MISSING.
 
 ### UC-10.10 GitHub, Linear, Jira, Slack, HubSpot, Pipedrive: OUT OF SCOPE candidate (new Tana, cloud)
 - **Source:** https://tana.inc/integrations
-- **TanaCraft:** not built.
+- **Bana:** not built.
 
 ### UC-10.11 MCP on the running app: WORKS
 - **Story:** My assistant adds a task and I watch it appear in the open app.
 - **Source:** https://outliner.tana.inc/learn/features/local-api-mcp (the desktop app hosts the local server)
-- **TanaCraft:** WORKS. The desktop app and `tanacraft-cli serve` serve their engine on 127.0.0.1 and write a live file beside the graph (port, token). `tanacraft-mcp` and `tanacraft-cli mcp` find it and drive the running engine in a window of their own (the person's page and caret stay put); with no app running they work on the file. `--connect HOST:PORT --token T` names one directly.
+- **Bana:** WORKS. The desktop app and `bana serve` serve their engine on 127.0.0.1 and write a live file beside the graph (port, token). `bana-mcp` and `bana mcp` find it and drive the running engine in a window of their own (the person's page and caret stay put); with no app running they work on the file. `--connect HOST:PORT --token T` names one directly.

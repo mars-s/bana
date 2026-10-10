@@ -3,7 +3,7 @@
 
 use egui::{Event, Key, Modifiers};
 use serde_json::json;
-use tanacraft_core::NodeId;
+use bana_core::NodeId;
 
 use crate::TanaApp;
 
@@ -71,9 +71,9 @@ pub fn handle(app: &mut TanaApp, ctx: &egui::Context) {
         // inserts references to the same nodes.
         if matches!(ev, Event::Copy) && app.session.sel.is_some() && (app.session.focus.is_none() || app.edit.selection_empty) {
             let ids = app.session.selected();
-            let text = tanacraft_core::export::to_plain(&app.session.graph, &ids);
+            let text = bana_core::export::to_plain(&app.session.graph, &ids);
             // Formatted HTML too, where the platform clipboard takes one (spec 02 §12, DIFFS N21).
-            let html = tanacraft_core::export::to_html(&app.session.graph, &ids);
+            let html = bana_core::export::to_html(&app.session.graph, &ids);
             match app.rich_clipboard.as_mut() {
                 Some(put) => put(&html, &text),
                 None => ctx.copy_text(text.clone()),

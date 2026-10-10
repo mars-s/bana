@@ -186,26 +186,26 @@ finish() {
 
 TOTAL_STAGES=9
 
-# Run from anywhere: everything happens in tanacraft/cloudflare. Values that are not secret are
+# Run from anywhere: everything happens in bana/cloudflare. Values that are not secret are
 # kept in .wizard.env (git-ignored) so a re-run offers them again; secrets go straight to
 # Cloudflare and are never written to disk by this script.
 cd "$(dirname "$0")"
 ENV_FILE=".wizard.env"
 DEPLOY_CONFIG="wrangler.deploy.jsonc"
-TANACRAFT_HOME_DIR="${TANACRAFT_HOME:-$HOME/TanaCraft}"
-LOCAL_PORT="${TANACRAFT_PORT:-8787}"
+BANA_HOME_DIR="${BANA_HOME:-$HOME/Bana}"
+LOCAL_PORT="${BANA_PORT:-8787}"
 
-banner "TanaCraft remote MCP connector (claude.ai and ChatGPT)"
+banner "Bana remote MCP connector (claude.ai and ChatGPT)"
 
 # ── 1 ─────────────────────────────────────────────────────────────────────
 stage "Before you start"
-say "This connects claude.ai and ChatGPT to the TanaCraft app on this Mac:"
+say "This connects claude.ai and ChatGPT to the Bana app on this Mac:"
 note "  assistant → Cloudflare Worker (sign-in with GitHub, only you) → Cloudflare Tunnel → this Mac"
-warn "Your notes stay on this Mac. When the Mac sleeps or TanaCraft is closed, the connector"
+warn "Your notes stay on this Mac. When the Mac sleeps or Bana is closed, the connector"
 warn "answers that it is unreachable. A cloud copy of the notes is a separate decision."
 say ""
 say "You need: a Cloudflare account with a domain (zone) on it for the tunnel's address,"
-say "a GitHub account, and the TanaCraft desktop app (or tanacraft-cli serve) running."
+say "a GitHub account, and the Bana desktop app (or bana serve) running."
 step "Installing the Worker's tools (npm) if needed…"
 [[ -d node_modules ]] || npm install --no-audit --no-fund
 if ! command -v cloudflared >/dev/null 2>&1; then
@@ -213,13 +213,13 @@ if ! command -v cloudflared >/dev/null 2>&1; then
   step "Install it (macOS): brew install cloudflared — then re-run this wizard."
   exit 1
 fi
-if [[ ! -s "$TANACRAFT_HOME_DIR/token" ]]; then
-  warn "No local token at $TANACRAFT_HOME_DIR/token yet."
-  step "Open the TanaCraft app once (it makes the token), then re-run this wizard."
+if [[ ! -s "$BANA_HOME_DIR/token" ]]; then
+  warn "No local token at $BANA_HOME_DIR/token yet."
+  step "Open the Bana app once (it makes the token), then re-run this wizard."
   exit 1
 fi
 note "cloudflared: $(cloudflared --version 2>/dev/null | head -n1)"
-note "local token: found in $TANACRAFT_HOME_DIR (it is never printed)"
+note "local token: found in $BANA_HOME_DIR (it is never printed)"
 pause "Press Enter to continue"
 
 # ── 2 ─────────────────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ step "Find your workers.dev subdomain: Cloudflare dashboard → Workers & Pages 
 step "the 'Subdomain' shown on the overview (the part before .workers.dev)."
 open_url "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
 ask WORKERS_SUBDOMAIN "Your workers.dev subdomain (e.g. avi):"
-PUBLIC_ORIGIN="https://tanacraft-mcp.${WORKERS_SUBDOMAIN}.workers.dev"
+PUBLIC_ORIGIN="https://bana-mcp.${WORKERS_SUBDOMAIN}.workers.dev"
 write_env WORKERS_SUBDOMAIN "$WORKERS_SUBDOMAIN"
 write_env PUBLIC_ORIGIN "$PUBLIC_ORIGIN"
 note "The connector will live at $PUBLIC_ORIGIN/mcp"
@@ -242,8 +242,8 @@ pause "Press Enter to continue"
 stage "Cloudflare — the KV namespace for sign-ins"
 say "The Worker keeps OAuth clients, grants and tokens in a KV namespace (free tier)."
 OAUTH_KV_ID="$(_existing OAUTH_KV_ID || true)"
-if [[ -z "$OAUTH_KV_ID" ]] && confirm "Create the KV namespace tanacraft-mcp-oauth now?"; then
-  npx wrangler kv namespace create tanacraft-mcp-oauth
+if [[ -z "$OAUTH_KV_ID" ]] && confirm "Create the KV namespace bana-mcp-oauth now?"; then
+  npx wrangler kv namespace create bana-mcp-oauth
   step "Copy the \"id\" printed above."
 fi
 ask OAUTH_KV_ID "KV namespace id:"
@@ -267,7 +267,7 @@ pause "Press Enter to continue"
 # ── 5 ─────────────────────────────────────────────────────────────────────
 stage "GitHub — an OAuth app for the sign-in"
 open_url "https://github.com/settings/applications/new"
-step "Application name: TanaCraft connector"
+step "Application name: Bana connector"
 step "Homepage URL: $PUBLIC_ORIGIN"
 step "Authorization callback URL: $PUBLIC_ORIGIN/callback"
 step "Leave 'Enable Device Flow' off. Click 'Register application'."
@@ -280,20 +280,20 @@ pause "Press Enter to continue"
 
 # ── 6 ─────────────────────────────────────────────────────────────────────
 stage "Cloudflare Tunnel — an address for this Mac"
-say "The tunnel gives TanaCraft on this Mac (http://localhost:$LOCAL_PORT) a public https"
+say "The tunnel gives Bana on this Mac (http://localhost:$LOCAL_PORT) a public https"
 say "address. Only requests with the app's local token get in; the Worker adds it."
-ask TUNNEL_HOSTNAME "Hostname on your Cloudflare domain (e.g. tanacraft.example.com):"
+ask TUNNEL_HOSTNAME "Hostname on your Cloudflare domain (e.g. bana.example.com):"
 write_env TUNNEL_HOSTNAME "$TUNNEL_HOSTNAME"
 if [[ ! -f "$HOME/.cloudflared/cert.pem" ]]; then
   step "cloudflared opens your browser: pick the domain $TUNNEL_HOSTNAME belongs to."
   cloudflared tunnel login
 fi
-if ! cloudflared tunnel info tanacraft >/dev/null 2>&1; then
-  confirm "Create the tunnel 'tanacraft' and point $TUNNEL_HOSTNAME at it?" || { warn "Stopped before creating the tunnel."; exit 1; }
-  cloudflared tunnel create tanacraft
+if ! cloudflared tunnel info bana >/dev/null 2>&1; then
+  confirm "Create the tunnel 'bana' and point $TUNNEL_HOSTNAME at it?" || { warn "Stopped before creating the tunnel."; exit 1; }
+  cloudflared tunnel create bana
 fi
-cloudflared tunnel route dns tanacraft "$TUNNEL_HOSTNAME" || warn "The DNS route may already exist; check the domain's DNS records."
-TUNNEL_ID="$(cloudflared tunnel info tanacraft 2>/dev/null | sed -n 's/^ID: *//p' | head -n1 || true)"
+cloudflared tunnel route dns bana "$TUNNEL_HOSTNAME" || warn "The DNS route may already exist; check the domain's DNS records."
+TUNNEL_ID="$(cloudflared tunnel info bana 2>/dev/null | sed -n 's/^ID: *//p' | head -n1 || true)"
 [[ -n "$TUNNEL_ID" ]] || ask TUNNEL_ID "Tunnel id (from 'cloudflared tunnel list'):"
 write_env TUNNEL_ID "$TUNNEL_ID"
 cat > tunnel.yml <<YML
@@ -311,27 +311,27 @@ pause "Press Enter to continue"
 # ── 7 ─────────────────────────────────────────────────────────────────────
 stage "Run the tunnel"
 say "Start the tunnel in another Terminal window and leave it running:"
-step "cloudflared tunnel --config \"$PWD/tunnel.yml\" run tanacraft"
+step "cloudflared tunnel --config \"$PWD/tunnel.yml\" run bana"
 note "To start it with the Mac instead: sudo cloudflared --config \"$PWD/tunnel.yml\" service install"
 pause "Press Enter once it says 'Registered tunnel connection'"
-say "Checking the tunnel reaches TanaCraft (with the local token, not printed)…"
+say "Checking the tunnel reaches Bana (with the local token, not printed)…"
 CHECK=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "https://$TUNNEL_HOSTNAME/mcp" \
-  -H "Authorization: Bearer $(cat "$TANACRAFT_HOME_DIR/token")" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $(cat "$BANA_HOME_DIR/token")" -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"ping"}' || true)
-if [[ "$CHECK" == "200" ]]; then note "✓ the tunnel answers"; else warn "The tunnel answered '$CHECK' (want 200). Is TanaCraft open on port $LOCAL_PORT and the tunnel running?"; pause "Press Enter to go on anyway"; fi
+if [[ "$CHECK" == "200" ]]; then note "✓ the tunnel answers"; else warn "The tunnel answered '$CHECK' (want 200). Is Bana open on port $LOCAL_PORT and the tunnel running?"; pause "Press Enter to go on anyway"; fi
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
 stage "Cloudflare — deploy the Worker and its secrets"
-sed -e "s#https://tanacraft-mcp.YOUR-SUBDOMAIN.workers.dev#$PUBLIC_ORIGIN#" \
-    -e "s#https://tanacraft.YOUR-DOMAIN/mcp#https://$TUNNEL_HOSTNAME/mcp#" \
+sed -e "s#https://bana-mcp.YOUR-SUBDOMAIN.workers.dev#$PUBLIC_ORIGIN#" \
+    -e "s#https://bana.YOUR-DOMAIN/mcp#https://$TUNNEL_HOSTNAME/mcp#" \
     -e "s#\"ALLOWED_GITHUB_ID\": \"0\"#\"ALLOWED_GITHUB_ID\": \"$GITHUB_ID\"#" \
     -e "s#REPLACE_WITH_KV_NAMESPACE_ID#$OAUTH_KV_ID#" wrangler.jsonc > "$DEPLOY_CONFIG"
 note "Wrote $DEPLOY_CONFIG (git-ignored) with your addresses."
-confirm "Deploy the Worker tanacraft-mcp to your Cloudflare account now?" || { warn "Stopped before deploying."; exit 1; }
+confirm "Deploy the Worker bana-mcp to your Cloudflare account now?" || { warn "Stopped before deploying."; exit 1; }
 npx wrangler deploy --config "$DEPLOY_CONFIG"
 printf '%s' "$GITHUB_CLIENT_ID" | npx wrangler secret put GITHUB_CLIENT_ID --config "$DEPLOY_CONFIG"
 printf '%s' "$GITHUB_CLIENT_SECRET" | npx wrangler secret put GITHUB_CLIENT_SECRET --config "$DEPLOY_CONFIG"
-tr -d '\n' < "$TANACRAFT_HOME_DIR/token" | npx wrangler secret put MAC_TOKEN --config "$DEPLOY_CONFIG"
+tr -d '\n' < "$BANA_HOME_DIR/token" | npx wrangler secret put MAC_TOKEN --config "$DEPLOY_CONFIG"
 unset GITHUB_CLIENT_SECRET
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' "$PUBLIC_ORIGIN/.well-known/oauth-authorization-server" || true)
 if [[ "$CODE" == "200" ]]; then note "✓ the Worker is up"; else warn "Discovery answered '$CODE' (want 200); give it a minute and open $PUBLIC_ORIGIN/health"; fi
@@ -343,18 +343,18 @@ say "Connector URL: $PUBLIC_ORIGIN/mcp"
 say ""
 say "claude.ai:"
 open_url "https://claude.ai/settings/connectors"
-step "Add custom connector → name TanaCraft → URL above → Add, then Connect."
-step "A TanaCraft page asks to allow access: click 'Sign in with GitHub and allow'."
-pause "Press Enter when claude.ai shows TanaCraft as connected"
+step "Add custom connector → name Bana → URL above → Add, then Connect."
+step "A Bana page asks to allow access: click 'Sign in with GitHub and allow'."
+pause "Press Enter when claude.ai shows Bana as connected"
 say ""
 say "ChatGPT (needs a plan with custom connectors / developer mode):"
 open_url "https://chatgpt.com/#settings/Connectors"
 step "Settings → Apps & Connectors → Advanced settings → turn on Developer mode,"
-step "then Create → name TanaCraft → MCP server URL above → OAuth → Create, and sign in."
+step "then Create → name Bana → MCP server URL above → OAuth → Create, and sign in."
 note "If the menus are named differently, ChatGPT's help on custom MCP connectors has the path."
 pause "Press Enter when done"
 
 finish
 note "Connector: $PUBLIC_ORIGIN/mcp (only $GITHUB_LOGIN can sign in)"
-note "Keep the tunnel running (or install it as a service) and TanaCraft open."
+note "Keep the tunnel running (or install it as a service) and Bana open."
 note "New local token? Re-run stage 8's last step: wrangler secret put MAC_TOKEN --config $DEPLOY_CONFIG"

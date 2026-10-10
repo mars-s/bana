@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bana",
+  "version": "0.1.0",
+  "identifier": "org.bana.app",
+  "build": {
+    "frontendDist": "../../web/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": { "script": "pnpm dev", "cwd": "../../web", "wait": false },
+    "beforeBuildCommand": { "script": "pnpm build", "cwd": "../../web" }
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Bana",
+        "width": 1512,
+        "height": 949,
+        "minWidth": 640,
+        "minHeight": 400,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 20, "y": 22 }
+      }
+    ],
+    "security": { "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: https:; connect-src 'self' ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "Productivity",
+    "shortDescription": "A keyboard-first outliner"
+  }
+}

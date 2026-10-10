@@ -5,10 +5,10 @@ use serde_json::Value;
 use super::*;
 
 fn tmp(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("tanacraft-ffi-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-ffi-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::create_dir_all(&dir);
-    dir.join("graph.tanacraft")
+    dir.join("graph.bana")
 }
 
 fn j(s: &str) -> Value {
@@ -43,9 +43,9 @@ fn file_is_the_desktop_format() {
     let path = tmp("format");
     let e = Engine::open(path.display().to_string(), true, Some("2026-10-10".into())).unwrap();
     e.save().unwrap();
-    let g = tanacraft_core::Graph::load(&path).unwrap();
+    let g = bana_core::Graph::load(&path).unwrap();
     assert!(g.iter().count() > 10);
-    assert!(tanacraft_core::store::Store::is_ours(&std::fs::read(&path).unwrap()));
+    assert!(bana_core::store::Store::is_ours(&std::fs::read(&path).unwrap()));
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn autosave_writes_without_an_explicit_save() {
     let _ = e.run("node.quickAdd".into(), r#"{"name": "Written by itself"}"#.into());
     let written = (0..40).any(|_| {
         std::thread::sleep(Duration::from_millis(100));
-        path.exists() && tanacraft_core::Graph::load(&path).is_ok_and(|g| g.iter().any(|n| n.name == "Written by itself"))
+        path.exists() && bana_core::Graph::load(&path).is_ok_and(|g| g.iter().any(|n| n.name == "Written by itself"))
     });
     assert!(written, "autosave did not write the change within 4 s");
 }
@@ -106,7 +106,7 @@ fn autosave_writes_without_an_explicit_save() {
 #[test]
 fn keystroke_cost_on_a_big_graph() {
     let path = tmp("big");
-    let mut g = tanacraft_core::sample::large(20_000).unwrap();
+    let mut g = bana_core::sample::large(20_000).unwrap();
     g.save(&path).unwrap();
     let e = Engine::open(path.display().to_string(), false, Some("2026-10-10".into())).unwrap();
     let _ = e.run("nav.home".into(), String::new());

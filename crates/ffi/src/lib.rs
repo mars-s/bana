@@ -1,6 +1,6 @@
-//! TanaCraft engine for Swift (and any other UniFFI language).
+//! Bana engine for Swift (and any other UniFFI language).
 //!
-//! An [`Engine`] is the same [`Host`] the desktop app and `tanacraft-cli serve` run: the session
+//! An [`Engine`] is the same [`Host`] the desktop app and `bana serve` run: the session
 //! (the only copy of the data) plus per-panel navigation. The phone app talks to it with the same
 //! surface as the web UI: [`Engine::rpc`] takes a method (`run`, `page`, `sidebar`, `find`, ...) and
 //! JSON params and answers JSON, so snapshots have exactly the shapes `crates/server` documents.
@@ -14,9 +14,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
+use bana_server::Host;
+use bana_server::http::Shared;
 use serde_json::{Value, json};
-use tanacraft_server::Host;
-use tanacraft_server::http::Shared;
 
 uniffi::setup_scaffolding!();
 
@@ -53,10 +53,10 @@ impl Engine {
     #[uniffi::constructor]
     pub fn open(path: String, sample: bool, today: Option<String>) -> Result<Arc<Engine>, EngineError> {
         let today = match today.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
-            Some(t) => Some(tanacraft_core::Date::parse(t).ok_or_else(|| EngineError::Open { msg: format!("bad date `{t}`") })?),
+            Some(t) => Some(bana_core::Date::parse(t).ok_or_else(|| EngineError::Open { msg: format!("bad date `{t}`") })?),
             None => None,
         };
-        let session = tanacraft_server::open_session(Some(PathBuf::from(path)), sample, today).map_err(|msg| EngineError::Open { msg })?;
+        let session = bana_server::open_session(Some(PathBuf::from(path)), sample, today).map_err(|msg| EngineError::Open { msg })?;
         let engine = Arc::new(Engine { shared: Shared::new(Host::new(session)), listeners: Mutex::new(Vec::new()) });
         spawn_autosave(Arc::downgrade(&engine.shared));
         Ok(engine)

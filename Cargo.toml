@@ -2,8 +2,8 @@
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
 # legacy: the old egui front end, kept as a porting reference, not built (see legacy/egui/README.md).
-# apps/tanacraft-ios: the SwiftUI iPhone app (Xcode, not cargo); its engine is crates/ffi.
-exclude = ["legacy", "apps/tanacraft-ios"]
+# apps/bana-ios: the SwiftUI iPhone app (Xcode, not cargo); its engine is crates/ffi.
+exclude = ["legacy", "apps/bana-ios"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,11 +13,11 @@ rust-version = "1.90"
 
 [workspace.dependencies]
 # internal
-tanacraft-core = { path = "crates/core" }
-tanacraft-commands = { path = "crates/commands" }
-tanacraft-mcp = { path = "crates/mcp" }
-tanacraft-server = { path = "crates/server" }
-tanacraft-sync = { path = "crates/sync" }
+bana-core = { path = "crates/core" }
+bana-commands = { path = "crates/commands" }
+bana-mcp = { path = "crates/mcp" }
+bana-server = { path = "crates/server" }
+bana-sync = { path = "crates/sync" }
 
 # foundation
 serde = { version = "1", features = ["derive"] }

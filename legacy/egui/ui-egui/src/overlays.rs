@@ -3,7 +3,7 @@
 
 use egui::{Align2, FontId, Order, RichText, Sense, Ui, vec2};
 use serde_json::json;
-use tanacraft_core::{NodeId, export};
+use bana_core::{NodeId, export};
 
 use crate::{Act, PickMode, TanaApp, theme};
 
@@ -38,8 +38,8 @@ fn context_steps(app: &TanaApp, node: NodeId) -> Vec<Item> {
         for e in &n.fields {
             let Some(def) = g.field_def(e.field) else { continue };
             let act = match def.field_type {
-                tanacraft_core::FieldType::Options => Act::PickChoice(target, e.field, 0, STEP_AT),
-                tanacraft_core::FieldType::Date => Act::PickDate(target, e.field, 0, STEP_AT),
+                bana_core::FieldType::Options => Act::PickChoice(target, e.field, 0, STEP_AT),
+                bana_core::FieldType::Date => Act::PickDate(target, e.field, 0, STEP_AT),
                 _ => Act::EditField(target, e.field, 0, String::new()),
             };
             out.push(step(format!("Set {}", g.name(e.field)), act));
@@ -47,7 +47,7 @@ fn context_steps(app: &TanaApp, node: NodeId) -> Vec<Item> {
     }
     out.push(step("Move to".into(), Act::Pick(PickMode::MoveTo, node, STEP_AT)));
     out.push(step("Move and leave reference to".into(), Act::Pick(PickMode::MoveLeaveRef, node, STEP_AT)));
-    for k in tanacraft_core::ViewKind::ALL {
+    for k in bana_core::ViewKind::ALL {
         out.push(step(format!("View as {}", k.name()), Act::Run("view.set".into(), json!({"node": target.0, "kind": k.name()}))));
     }
     // Command nodes run on the focused node (spec 01 §10).
@@ -255,8 +255,8 @@ pub fn picker_items(app: &TanaApp) -> Vec<Choice> {
                 .unwrap_or_default();
             // Options from a supertag: every node with that tag (spec 03 §8).
             let source =
-                p.field.and_then(|f| g.field_def(f)).filter(|d| d.field_type == tanacraft_core::FieldType::OptionsFromTag).and_then(|d| d.source_tag);
-            let is_user = p.field.and_then(|f| g.field_def(f)).is_some_and(|d| d.field_type == tanacraft_core::FieldType::User);
+                p.field.and_then(|f| g.field_def(f)).filter(|d| d.field_type == bana_core::FieldType::OptionsFromTag).and_then(|d| d.source_tag);
+            let is_user = p.field.and_then(|f| g.field_def(f)).is_some_and(|d| d.field_type == bana_core::FieldType::User);
             match (source, p.field) {
                 (_, Some(_)) if is_user => g
                     .user_names()
@@ -425,7 +425,7 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
                     let name = app.session.graph.name(node).to_string();
                     let at = p.caret.unwrap_or(name.chars().count()).min(name.chars().count());
                     let byte = name.char_indices().nth(at).map(|(b, _)| b).unwrap_or(name.len());
-                    let token = tanacraft_core::format::ref_token(n.0);
+                    let token = bana_core::format::ref_token(n.0);
                     let new = format!("{}{}{}", &name[..byte], token, &name[byte..]);
                     let caret = at + token.chars().count();
                     app.exec("node.setName", json!({"node": node.0, "name": new, "caret": caret}))
@@ -459,12 +459,12 @@ fn apply_choice(app: &mut TanaApp, choice: Choice) {
 /// The source supertag of the field an options picker sets, if it takes options from one.
 fn tag_source(app: &TanaApp, p: &crate::Picker) -> Option<NodeId> {
     let d = app.session.graph.field_def(p.field?)?;
-    (d.field_type == tanacraft_core::FieldType::OptionsFromTag).then_some(d.source_tag).flatten()
+    (d.field_type == bana_core::FieldType::OptionsFromTag).then_some(d.source_tag).flatten()
 }
 
 fn next_color(app: &TanaApp) -> &'static str {
     let n = app.session.graph.tags().len();
-    tanacraft_core::TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey")
+    bana_core::TAG_COLORS.get(2 + n % 12).copied().unwrap_or("grey")
 }
 
 /// The field name typed after `>` becomes a field row in place of the line `>` was typed on, and
@@ -791,7 +791,7 @@ pub fn date_picker(app: &mut TanaApp, ctx: &egui::Context) {
                     dp.month = if m == 12 { (y + 1, 1) } else { (y, m + 1) };
                 }
             });
-            let Some(first) = tanacraft_core::Date::new(dp.month.0, dp.month.1, 1) else { return };
+            let Some(first) = bana_core::Date::new(dp.month.0, dp.month.1, 1) else { return };
             let start = first.add_days(-(first.weekday() as i64));
             let cell = 36.0;
             ui.horizontal(|ui| {

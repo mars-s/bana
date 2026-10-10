@@ -1,15 +1,15 @@
 [package]
-name = "tanacraft-server"
+name = "bana-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "TanaCraft host for web front ends: view snapshots, a JSON RPC surface and a small HTTP server"
+description = "Bana host for web front ends: view snapshots, a JSON RPC surface and a small HTTP server"
 
 [lints]
 workspace = true
 
 [dependencies]
-tanacraft-core = { workspace = true }
-tanacraft-commands = { workspace = true }
-tanacraft-mcp = { workspace = true }
+bana-core = { workspace = true }
+bana-commands = { workspace = true }
+bana-mcp = { workspace = true }
 serde_json = { workspace = true }

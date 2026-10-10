@@ -2,7 +2,7 @@
 // order, and what is drawn is a snapshot read back from the engine.
 //
 // Two transports, one surface: Tauri `invoke` inside the desktop app, HTTP (`POST /rpc`,
-// `GET /events`) to `tanacraft-cli serve` in a normal browser.
+// `GET /events`) to `bana serve` in a normal browser.
 
 export type Json = any // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -124,7 +124,7 @@ function rev() {
 // press), numbered per page load, and leaves the log only once the engine has answered. A reload
 // (or a crash of the page) replays what is left; the engine runs each (client, seq) once, so an
 // edit that did arrive is skipped. Reads are not logged.
-const WAL = 'tanacraft.wal'
+const WAL = 'bana.wal'
 const EDITS = new Set(['run', 'fieldDraft', 'panel.open', 'panel.close'])
 const client = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 let walSeq = 0
@@ -187,8 +187,8 @@ export function call(method: string, params: Json = {}): Promise<Json> {
  * two windows never share a page or a caret (DIFFS N60). */
 const WINDOW = (() => {
   try {
-    const w = sessionStorage.getItem('tanacraft.window') ?? `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
-    sessionStorage.setItem('tanacraft.window', w)
+    const w = sessionStorage.getItem('bana.window') ?? `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+    sessionStorage.setItem('bana.window', w)
     return w
   } catch {
     return client

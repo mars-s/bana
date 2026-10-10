@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree, idOf, library, palette } from './helpers'
 import { pageWith, focus, nameOf } from '../fixtures'
 
-const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'tanacraft-cli')
+const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'bana')
 
 test('UC-08.01 capture to an Inbox from outside the app and find it there', works('UC-08.01'), async ({ app, server }) => {
   const r = await server.run('node.capture', { name: 'Idea from the bus: seed bombs' })
@@ -78,7 +78,7 @@ test('UC-08.06 everything stays on your computer and survives a crash', works('U
 })
 
 test('UC-08.07 add notes from a script or the terminal (CLI)', works('UC-08.07'), async () => {
-  const file = join(mkdtempSync(join(tmpdir(), 'uc-')), 'g.tanacraft')
+  const file = join(mkdtempSync(join(tmpdir(), 'uc-')), 'g.bana')
   execFileSync(bin, ['sample', '--out', file])
   const id = execFileSync(bin, ['--file', file, 'add', 'Order manure', '--today', '--tag', 'task']).toString().trim()
   expect(Number(id)).toBeGreaterThan(0)
@@ -162,7 +162,7 @@ test('UC-08.13 export a whole workspace as a ZIP of Markdown files (by page, by 
   expect(text).toContain('[[Robin Ash]]')
 })
 // UC-08.14: Cmd+Shift+E in any app shows the desktop app's capture window, which loads this page
-// at #capture (the shortcut and window are checked by Rust tests in apps/tanacraft-desktop). Here:
+// at #capture (the shortcut and window are checked by Rust tests in apps/bana-desktop). Here:
 // that page is Quick add alone, saves each line to today and closes on Escape.
 test('UC-08.14 capture from any app: a small window of its own saves lines to today and closes', works('UC-08.14'), async ({ app, server }) => {
   const w = await app.context().newPage()

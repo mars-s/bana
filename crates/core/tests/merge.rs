@@ -1,7 +1,7 @@
 //! Two copies of a graph edited apart (offline), then merged both ways, end up the same, keep both
 //! sides' work where both can stay, and stay sound. The file is a Loro document (crates/core/src/store.rs).
 
-use tanacraft_core::{Date, FieldType, Graph, NodeId, sample};
+use bana_core::{Date, FieldType, Graph, NodeId, sample};
 
 fn sound(g: &Graph) {
     for n in g.iter() {
@@ -205,7 +205,7 @@ fn many_random_edits_on_both_sides_converge() {
 
 #[test]
 fn an_old_json_file_loads_once_and_saves_as_a_document() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-merge-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-merge-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("graph.json");
     let g = sample::sample(today()).unwrap();
@@ -223,9 +223,9 @@ fn an_old_json_file_loads_once_and_saves_as_a_document() {
 
 #[test]
 fn undo_after_a_save_and_reload_of_edits_is_kept() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-undo-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-undo-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("g.tanacraft");
+    let path = dir.join("g.bana");
     let mut g = Graph::new();
     let lib = g.sys.library;
     g.begin();
@@ -373,9 +373,9 @@ fn a_copy_offline_for_sixty_days_still_merges() {
     // A phone takes a copy of the file and goes offline for 60 days of edits on both sides; the
     // desktop compacts, saves, quits and opens the file again every day. Nothing the phone has not
     // acknowledged is cut, so the two still merge, both ways, with everything from both.
-    let dir = std::env::temp_dir().join(format!("tanacraft-offline-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-offline-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("g.tanacraft");
+    let path = dir.join("g.bana");
     let mut home = sample::sample(today()).unwrap();
     home.save(&path).unwrap();
     let mut phone = Graph::load(&path).unwrap();
@@ -460,13 +460,13 @@ fn the_same_day_made_on_two_copies_apart_is_one_day_after_merging() {
     assert_ne!(da, db);
     sync(&mut a, &mut b);
     let d = a.find_day(day).unwrap();
-    let days: Vec<NodeId> = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Day { date } if date == day)).map(|n| n.id).collect();
+    let days: Vec<NodeId> = a.iter().filter(|n| matches!(n.kind, bana_core::Kind::Day { date } if date == day)).map(|n| n.id).collect();
     assert_eq!(days, [d], "one day node");
     let names: Vec<&str> = a.children(d).iter().map(|c| a.name(*c)).collect();
     assert!(names.contains(&"from a") && names.contains(&"from b"), "{names:?}");
     // The year and week are not doubled either.
-    let weeks = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Week { .. })).count();
-    let years = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Year { .. })).count();
+    let weeks = a.iter().filter(|n| matches!(n.kind, bana_core::Kind::Week { .. })).count();
+    let years = a.iter().filter(|n| matches!(n.kind, bana_core::Kind::Year { .. })).count();
     assert_eq!((weeks, years), (1, 1));
     // And it stays merged on the next round.
     a.create(d, None, "later").unwrap();

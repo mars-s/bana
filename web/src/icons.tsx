@@ -1,4 +1,4 @@
-// TanaCraft's own icon set: simple stroked glyphs on a 16x16 grid, drawn for this project
+// Bana's own icon set: simple stroked glyphs on a 16x16 grid, drawn for this project
 // (no third-party or Tana art). They take the text colour, so they follow the theme.
 
 import type { CSSProperties } from 'react'

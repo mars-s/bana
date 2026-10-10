@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test'
 
 export { test, expect }
 
-/** A use case that TanaCraft does not have yet: listed, skipped. `ai` marks it out of scope until
+/** A use case that Bana does not have yet: listed, skipped. `ai` marks it out of scope until
  * the AI decision is made. */
 export function missing(id: string, title: string, status: 'missing' | 'out-of-scope' | 'ai' = 'missing') {
   const tags = status === 'ai' ? ['@out-of-scope', '@ai'] : [`@${status}`]

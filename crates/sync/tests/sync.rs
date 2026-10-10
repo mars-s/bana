@@ -5,10 +5,10 @@
 
 mod relay;
 
+use bana_core::{Date, Graph, NodeId, sample};
+use bana_sync::client::{Client, State};
+use bana_sync::{Code, Config};
 use relay::Relay;
-use tanacraft_core::{Date, Graph, NodeId, sample};
-use tanacraft_sync::client::{Client, State};
-use tanacraft_sync::{Code, Config};
 
 const DAY: u64 = 24 * 3600 * 1000;
 
@@ -364,7 +364,7 @@ fn a_device_with_the_wrong_key_reads_nothing_and_writes_nothing() {
     relay.recv(mac.conn.unwrap(), &frame);
     // The right room and invite, another key (a damaged or forged code).
     let mut cfg = Config::join(&code, "Intruder").unwrap();
-    cfg.key = tanacraft_sync::crypto::WorkspaceKey::generate().unwrap().to_b64();
+    cfg.key = bana_sync::crypto::WorkspaceKey::generate().unwrap().to_b64();
     let mut bad = Peer { name: "Intruder", g: Graph::new(), c: Client::new(cfg).unwrap(), conn: None, online: true };
     pump(&mut relay, &mut [&mut mac, &mut phone, &mut bad]);
     assert_eq!(bad.c.state, State::Error);

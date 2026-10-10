@@ -1,4 +1,4 @@
-//! TanaCraft host for web front ends.
+//! Bana host for web front ends.
 //!
 //! A [`Host`] owns the [`Session`] (the only copy of the data) plus one navigation state per open
 //! panel. Front ends talk to it with [`Host::handle`]: a method name and JSON params in, JSON out.
@@ -16,9 +16,9 @@ pub mod snapshot;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use bana_commands::{NavState, Session};
+use bana_core::NodeId;
 use serde_json::{Value, json};
-use tanacraft_commands::{NavState, Session};
-use tanacraft_core::NodeId;
 
 /// Panels are named by the front end (`"t1p0"`); this one exists from the start.
 pub const MAIN_PANEL: &str = "main";
@@ -126,7 +126,7 @@ impl Host {
                     rebase_name(&self.session, &mut p);
                 }
                 let split_from = (id == "node.enter")
-                    .then(|| tanacraft_commands::p::node(&p, "node").ok().flatten().or(self.session.focus))
+                    .then(|| bana_commands::p::node(&p, "node").ok().flatten().or(self.session.focus))
                     .flatten()
                     .map(|n| (n, self.session.graph.name(n).to_string()));
                 // (Per window: two windows' clocks and queues are independent.)
@@ -181,7 +181,7 @@ impl Host {
             "commands" => self.session.registry.describe(),
             "panel.open" => {
                 // A new panel showing `node` (or a copy of the active panel's page).
-                let node = tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| self.session.graph.get(*n).is_some());
+                let node = bana_commands::p::node(params, "node").ok().flatten().filter(|n| self.session.graph.get(*n).is_some());
                 let name = params.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
                 if name.is_empty() || name == self.active {
                     return json!({"error": "panel.open needs a new `name`"});
@@ -209,7 +209,7 @@ impl Host {
                     return json!({"ok": true});
                 }
                 let Some((owner, line, name)) = self.draft.take() else { return json!({"ok": true}) };
-                if self.session.graph.get(tanacraft_core::NodeId(line)).is_none() {
+                if self.session.graph.get(bana_core::NodeId(line)).is_none() {
                     return json!({"ok": true});
                 }
                 let r = self.draft_to_field(owner, line, &name);
@@ -299,8 +299,8 @@ impl Host {
 
     /// The line a field name is being typed in becomes that field, in the line's place among the
     /// owner's children (after the line above it; DIFFS N76).
-    fn draft_to_field(&mut self, owner: u64, line: u64, name: &str) -> Result<Value, tanacraft_commands::CmdError> {
-        let kids = self.session.graph.children(tanacraft_core::NodeId(owner));
+    fn draft_to_field(&mut self, owner: u64, line: u64, name: &str) -> Result<Value, bana_commands::CmdError> {
+        let kids = self.session.graph.children(bana_core::NodeId(owner));
         let above = kids.iter().position(|c| c.0 == line).and_then(|i| i.checked_sub(1)).and_then(|i| kids.get(i)).map(|c| c.0);
         let mut add = json!({"node": owner, "field": name});
         if let Some(a) = above {
@@ -310,7 +310,7 @@ impl Host {
         self.session.run("node.delete", &json!({"node": line, "force": true}))
     }
 
-    /// Appends the latest edits to the file's edit log (see [`tanacraft_core::Graph::append_log`]).
+    /// Appends the latest edits to the file's edit log (see [`bana_core::Graph::append_log`]).
     fn journal(&mut self) {
         let Some(path) = self.session.path.clone() else { return };
         // A graph never written yet is saved whole the first time.
@@ -359,16 +359,22 @@ impl Host {
 /// Opens a graph the way the desktop app does: `file` when it exists, else the sample (`sample`)
 /// or an empty graph, saved to `file` (or the default path when not a sample). `today` fixes the
 /// date (tests and screenshots).
-pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Option<tanacraft_core::Date>) -> Result<Session, String> {
-    use tanacraft_core::{Date, Graph};
+pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Option<bana_core::Date>) -> Result<Session, String> {
+    use bana_core::{Date, Graph};
     let today = today.unwrap_or_else(Date::today);
+    // Notes from before the rename are copied over first (bana_core::rename).
+    match &file {
+        Some(f) => bana_core::rename::migrate_file(f),
+        None => bana_core::rename::migrate_home(),
+    }
+    .map_err(|e| e.to_string())?;
     let (graph, path) = match (&file, sample) {
         (Some(f), _) if f.exists() => (Graph::load(f).map_err(|e| e.to_string())?, Some(f.clone())),
-        (f, true) => (tanacraft_core::sample::sample(today).map_err(|e| e.to_string())?, f.clone()),
+        (f, true) => (bana_core::sample::sample(today).map_err(|e| e.to_string())?, f.clone()),
         (Some(f), false) => (Graph::new(), Some(f.clone())),
         (None, false) => {
-            let p = tanacraft_core::default_graph_path();
-            (tanacraft_core::load_or_migrate(&p).map_err(|e| e.to_string())?.unwrap_or_default(), Some(p))
+            let p = bana_core::default_graph_path();
+            (bana_core::load_or_migrate(&p).map_err(|e| e.to_string())?.unwrap_or_default(), Some(p))
         }
     };
     // A new file is written at once: the edit log (N77) needs a file to follow.
@@ -393,7 +399,7 @@ mod tests;
 /// only text past the split point, goes to the second half (DIFFS N74).
 fn follow_split(s: &Session, splits: &[(NodeId, NodeId, String, usize)], p: &mut Value) {
     let (Some(base), Some(mine)) = (p.get("base").and_then(Value::as_str), p.get("name").and_then(Value::as_str)) else { return };
-    let Some(node) = tanacraft_commands::p::node(p, "node").ok().flatten() else { return };
+    let Some(node) = bana_commands::p::node(p, "node").ok().flatten() else { return };
     let Some((_, new, _, at)) = splits.iter().rev().find(|(line, new, before, _)| *line == node && before == base && s.graph.get(*new).is_some())
     else {
         return;
@@ -413,7 +419,7 @@ fn follow_split(s: &Session, splits: &[(NodeId, NodeId, String, usize)], p: &mut
 
 fn rebase_name(s: &Session, p: &mut Value) {
     let (Some(base), Some(mine)) = (p.get("base").and_then(Value::as_str), p.get("name").and_then(Value::as_str)) else { return };
-    let Some(node) = tanacraft_commands::p::node(p, "node").ok().flatten() else { return };
+    let Some(node) = bana_commands::p::node(p, "node").ok().flatten() else { return };
     let current = s.graph.name(s.graph.resolve(node));
     if current == base || current == mine {
         return;

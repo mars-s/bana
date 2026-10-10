@@ -1,5 +1,5 @@
 ---
-name: TanaCraft (Tana Outliner look, observed)
+name: Bana (Tana Outliner look, observed)
 description: Dense, quiet outliner chrome where colour belongs to tags; measured from Tana Outliner 1.531.0, dark and light.
 colors:
   dark-chrome: "#232526"
@@ -311,7 +311,7 @@ components:
     padding: "3.6px 4.8px"
 ---
 
-# Design System: TanaCraft (Tana Outliner look, observed)
+# Design System: Bana (Tana Outliner look, observed)
 
 All values were measured in the running Tana Outliner desktop app at 1x points, dark and light theme. Component tokens in the frontmatter are written with the dark-theme colours; the light equivalent of every `dark-*` colour is the matching `light-*` token. Full tables: `10-visual-design.md`; states: `11-visual-states.md`; motion: `14-motion.md`; icons and pictures: `15-asset-inventory.md`.
 

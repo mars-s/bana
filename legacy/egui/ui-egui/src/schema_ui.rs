@@ -4,7 +4,7 @@
 
 use egui::{Color32, Rect, RichText, Sense, Stroke, Ui, vec2};
 use serde_json::json;
-use tanacraft_core::{AutoInit, BASE_TYPES, FieldType, HideMode, NodeId, TAG_COLORS, ViewKind};
+use bana_core::{AutoInit, BASE_TYPES, FieldType, HideMode, NodeId, TAG_COLORS, ViewKind};
 
 use crate::outline::{field_frame, field_label, type_label};
 use crate::theme::{self, Tokens};
@@ -179,7 +179,7 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
             }
         }
         // Custom colour: any RGB.
-        let custom = tanacraft_core::is_custom_color(&def.color);
+        let custom = bana_core::is_custom_color(&def.color);
         let mut rgb = theme::tag_color(&def.color, app.dark).0.to_array();
         let r = ui.color_edit_button_srgb((&mut rgb[..3]).try_into().unwrap_or(&mut [128, 128, 128])).on_hover_text("Custom colour");
         if custom {
@@ -233,7 +233,7 @@ fn configure(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, tag: NodeId) {
                     if ui.interact(r.rect, egui::Id::new(("cfg-field", f.0)), Sense::click()).on_hover_text("Open field").clicked() {
                         acts.push(Act::Run("nav.open".into(), json!({"node": f.0})));
                     }
-                    let default = fd.default.as_ref().map(|v| tanacraft_core::export::display_value(g, v)).unwrap_or_else(|| "Default value".into());
+                    let default = fd.default.as_ref().map(|v| bana_core::export::display_value(g, v)).unwrap_or_else(|| "Default value".into());
                     ui.label(RichText::new(default).size(13.5).color(if fd.default.is_some() { t.text } else { t.faint }));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let mut pinned = def.pinned_fields.contains(&f);

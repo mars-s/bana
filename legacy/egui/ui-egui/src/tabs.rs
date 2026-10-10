@@ -2,8 +2,8 @@
 //! the others are kept here and swapped in while they are drawn.
 
 use egui::{CornerRadius, Frame, Margin, RichText, Sense, Ui, vec2};
-use tanacraft_commands::NavState;
-use tanacraft_core::NodeId;
+use bana_commands::NavState;
+use bana_core::NodeId;
 
 use crate::{TanaApp, outline};
 

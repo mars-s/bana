@@ -1,0 +1,31 @@
+[package]
+name = "bana-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Bana desktop app: Tauri around the engine, with the web UI"
+
+[[bin]]
+name = "bana-desktop"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+bana-core = { workspace = true }
+bana-commands = { workspace = true }
+bana-server = { workspace = true }
+serde_json = { workspace = true }
+tauri = { version = "2", features = [] }
+# Capture from any app (UC-08.14).
+tauri-plugin-global-shortcut = "2"
+
+[features]
+# Serve the embedded web UI. `tauri dev` turns default features off and uses the Vite dev server.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

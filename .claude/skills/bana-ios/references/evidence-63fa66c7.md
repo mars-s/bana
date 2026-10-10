@@ -1,0 +1,6 @@
+User request: emphasize iOS 26 Liquid Glass on the navigation chrome: nav bar, bottom toolbar/tab bar, the keyboard accessory bar (indent/outdent etc.), floating buttons (quick capture), search field and sheets. Use the system Liquid Glass APIs (standard NavigationStack/toolbar/TabView pick it up on iOS 26 when built with Xcode 26; plus `.glassEffect()`, `GlassEffectContainer` with `glassEffectID` for morphing between grouped controls, `.buttonStyle(.glass)` / `.glassProminent`). Content (outline rows) stays flat and quiet per DESIGN.md; glass is for chrome that floats over content, so let the outline scroll under the bars. Raise the deployment target to iOS 26 so no fallback path is needed.
+
+// The iPhone app's tokens are generated from web/src/tokens.css: they must not drift.
+... "apps/bana-ios/Bana/Tokens.swift is out of date: run python3 scripts/gen-ios-tokens.py"
+
+SourceKit: "No such module 'UIKit'" on Fonts.swift, LineEditor.swift; "Cannot find type 'Engine' in scope" on Store.swift.

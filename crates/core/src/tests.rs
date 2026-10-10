@@ -277,7 +277,7 @@ fn json_round_trip_and_repair() {
 
 #[test]
 fn save_and_load_file() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-core-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-core-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("graph.json");
     let mut g = sample::sample(Date::new(2026, 1, 1).unwrap()).unwrap();

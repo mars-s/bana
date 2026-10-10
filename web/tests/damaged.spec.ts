@@ -8,7 +8,7 @@ import { test, expect } from './fixtures'
 function damagedGraph() {
   const node = (id: number, name: string, parent: number | null, extra: Record<string, unknown> = {}) => ({ id, name, parent, created: 1790000000, ...extra })
   return {
-    format: 'tanacraft-graph',
+    format: 'bana-graph',
     version: 1,
     next_id: 100,
     system: { root: 1, library: 2, journal: 3, schema: 4, trash: 5, day_tag: 6 },

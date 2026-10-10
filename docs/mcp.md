@@ -1,11 +1,11 @@
 # MCP: assistants working on your notes
 
-TanaCraft speaks the Model Context Protocol, so an assistant (Claude, ChatGPT, Cursor, Codex) can
+Bana speaks the Model Context Protocol, so an assistant (Claude, ChatGPT, Cursor, Codex) can
 read and change your notes with the same commands the keyboard runs. There are three ways in.
 
 | Where the assistant runs | How it connects | Setup |
 |---|---|---|
-| On this Mac (Claude Code, Claude Desktop, Cursor) | `tanacraft-mcp` on stdio | one line of config |
+| On this Mac (Claude Code, Claude Desktop, Cursor) | `bana-mcp` on stdio | one line of config |
 | A script or tool on this Mac | `POST /mcp` on 127.0.0.1 (streamable HTTP) with the local token | none |
 | In the cloud (claude.ai, ChatGPT) | the remote connector: a Cloudflare Worker and a Cloudflare Tunnel | `cloudflare/wizard.sh` |
 
@@ -14,31 +14,31 @@ once, in its own window of the engine, so your page and caret stay where they ar
 
 ## The tools
 
-`list_commands`, `execute` (any command by id, see `tanacraft-cli commands`), `view`, `inspect`,
-`search`, `add_node`, `export_markdown`; resources `tanacraft://commands` and `tanacraft://page`.
-Each tool has a title starting "TanaCraft:" so a client with several servers tells them apart.
+`list_commands`, `execute` (any command by id, see `bana commands`), `view`, `inspect`,
+`search`, `add_node`, `export_markdown`; resources `bana://commands` and `bana://page`.
+Each tool has a title starting "Bana:" so a client with several servers tells them apart.
 The assistant has a page of its own (not what your windows show); `view`, and tools without a
 node, use it. `add_node` takes a node id or a day in words as `parent` ("today", "next friday"),
 and only an existing supertag unless `create_tag` is set, so a typo makes no tag. A failed
-`execute` says what the command takes. `tanacraft-mcp --help` lists the flags; it refuses unknown
+`execute` says what the command takes. `bana-mcp --help` lists the flags; it refuses unknown
 ones and says on stderr which graph or app it works on.
 Tana Paste (`execute import.tanaPaste`) is the quickest way for an assistant to write structure.
 
 ## On this Mac: stdio
 
 ```json
-{ "mcpServers": { "tanacraft": { "command": "/path/to/tanacraft-mcp" } } }
+{ "mcpServers": { "bana": { "command": "/path/to/bana-mcp" } } }
 ```
 
-`tanacraft-mcp` (or `tanacraft-cli mcp`) looks for the running app that has the graph open: the
-desktop app and `tanacraft-cli serve` write `graph.tanacraft.live` beside the graph (port and pid)
+`bana-mcp` (or `bana mcp`) looks for the running app that has the graph open: the
+desktop app and `bana serve` write `graph.bana.live` beside the graph (port and pid)
 and the client authenticates with the install's local token. When no app is running it opens the
 file itself. `--file FILE` picks another graph; `--connect 127.0.0.1:PORT --token T` names an app
 directly.
 
 ## The local token
 
-One per install, in the data folder: `~/TanaCraft/token` (or `$TANACRAFT_HOME/token`), readable by
+One per install, in the data folder: `~/Bana/token` (or `$BANA_HOME/token`), readable by
 you only, made the first time the app starts. Requests to `POST /rpc` and `POST /mcp` that do not
 come from the app's own pages must send `Authorization: Bearer <token>`. The API listens on
 127.0.0.1 only. To change the token, delete the file and restart the app (then set it again in the
@@ -53,14 +53,14 @@ no server-sent stream (`GET` is 405) and no sessions. Pages on other origins are
 token, not the Host header, is the authority here, so the endpoint also answers through a tunnel.
 
 ```sh
-curl -s http://127.0.0.1:8787/mcp -H "Authorization: Bearer $(cat ~/TanaCraft/token)" \
+curl -s http://127.0.0.1:8787/mcp -H "Authorization: Bearer $(cat ~/Bana/token)" \
   -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 ## The remote connector (claude.ai, ChatGPT)
 
 ```
-claude.ai / ChatGPT ──OAuth 2.1──▶ Cloudflare Worker ──Cloudflare Tunnel──▶ TanaCraft on your Mac
+claude.ai / ChatGPT ──OAuth 2.1──▶ Cloudflare Worker ──Cloudflare Tunnel──▶ Bana on your Mac
                                     (cloudflare/worker.ts)                   POST /mcp + local token
 ```
 
@@ -74,8 +74,8 @@ claude.ai / ChatGPT ──OAuth 2.1──▶ Cloudflare Worker ──Cloudflare 
   `CF_ACCESS_CLIENT_SECRET` add a Cloudflare Access service token when the tunnel's hostname is
   behind Access too.
 - The tunnel config the wizard writes passes only `/mcp` to the app; everything else is 404.
-- **The Mac must be awake and TanaCraft open.** Otherwise each request gets a JSON-RPC error
-  "TanaCraft on the Mac is not reachable". No notes are stored in the cloud; keeping a cloud copy
+- **The Mac must be awake and Bana open.** Otherwise each request gets a JSON-RPC error
+  "Bana on the Mac is not reachable". No notes are stored in the cloud; keeping a cloud copy
   is a separate decision.
 - The Worker stays closed (503) until every setting is in place.
 
@@ -85,24 +85,24 @@ Nothing is created for you: the cloud accounts, the GitHub OAuth app, the tunnel
 yours. The wizard walks you through each step and checks the result:
 
 ```sh
-tanacraft/cloudflare/wizard.sh
+bana/cloudflare/wizard.sh
 ```
 
 It signs Wrangler in, creates the KV namespace, looks up your GitHub id, has you register the
-GitHub OAuth app (callback `https://tanacraft-mcp.<subdomain>.workers.dev/callback`), creates and
-routes the tunnel (`tanacraft.<your domain>`), deploys the Worker with its secrets, and shows where
+GitHub OAuth app (callback `https://bana-mcp.<subdomain>.workers.dev/callback`), creates and
+routes the tunnel (`bana.<your domain>`), deploys the Worker with its secrets, and shows where
 to add the connector URL in claude.ai and ChatGPT.
 
 ### Tests
 
 ```sh
-cargo build -p tanacraft-cli
+cargo build -p bana-cli
 cd cloudflare && npm install && npm test && npm run typecheck
 ```
 
 `test.mjs` runs the Worker on local workerd (Miniflare) with a stand-in GitHub, and end to end: the
 official MCP SDK client registers, signs in, and its tool calls pass through the Worker to a real
-`tanacraft-cli serve` on this machine. It also checks the other GitHub account and scoped GitHub
+`bana serve` on this machine. It also checks the other GitHub account and scoped GitHub
 grants are refused, consent escaping and origin checks, refresh and revocation, the "not
 reachable" answer when the Mac is down, and that the tunnel endpoint refuses requests without the
 local token. Rust tests cover `/mcp` (token, batch, 202, a tunnel's Host, other origins) and live

@@ -1,4 +1,4 @@
-// TanaCraft remote MCP connector: claude.ai and ChatGPT reach the TanaCraft app on your Mac.
+// Bana remote MCP connector: claude.ai and ChatGPT reach the Bana app on your Mac.
 //
 // The Worker is an OAuth 2.1 provider for MCP clients (dynamic client registration, PKCE), signs
 // you in with GitHub and lets exactly one GitHub account in. Authorized MCP requests are passed to
@@ -8,12 +8,12 @@
 //
 // Bindings (wrangler.jsonc, `wrangler secret put`):
 //   OAUTH_KV              KV namespace for the OAuth provider (clients, grants, tokens)
-//   PUBLIC_ORIGIN         this Worker's origin, e.g. https://tanacraft-mcp.example.workers.dev
+//   PUBLIC_ORIGIN         this Worker's origin, e.g. https://bana-mcp.example.workers.dev
 //   MAC_MCP_URL           the tunnel's address of the app's endpoint, e.g. https://mac.example.org/mcp
 //   ALLOWED_GITHUB_ID     the one GitHub account (numeric id) that may connect
 //   GITHUB_CLIENT_ID      secret: the GitHub OAuth app
 //   GITHUB_CLIENT_SECRET  secret
-//   MAC_TOKEN             secret: the app's local token (~/TanaCraft/token on the Mac)
+//   MAC_TOKEN             secret: the app's local token (~/Bana/token on the Mac)
 //   CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET  optional secrets: a Cloudflare Access service
 //                         token, when the tunnel's hostname is behind Access as well
 
@@ -67,9 +67,9 @@ async function signIn(request: Request, env: Env): Promise<Response> {
       headers.set('Content-Type', 'text/html; charset=utf-8')
       // The form posts here, then redirects to GitHub (or back to the client on Deny).
       headers.set('Content-Security-Policy', `default-src 'none'; form-action 'self' https://github.com ${new URL(req.redirectUri).origin}; base-uri 'none'; frame-ancestors 'none'`)
-      const page = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TanaCraft access</title>
-<h1>Let ${escape(facts.clientName)} use your TanaCraft notes?</h1>
-<p>It can read and change the notes in the TanaCraft app on your Mac while the Mac is awake and the app is open.</p>
+      const page = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Bana access</title>
+<h1>Let ${escape(facts.clientName)} use your Bana notes?</h1>
+<p>It can read and change the notes in the Bana app on your Mac while the Mac is awake and the app is open.</p>
 <p>Access is sent back to ${escape(facts.redirectHost)}.${facts.redirectIsLoopback ? ' This is an app on this computer: check that you started it.' : ''}</p>
 <form method="post" action="/authorize"><input type="hidden" name="handle" value="${escape(consent.handle)}">
 <button name="decision" value="allow">Sign in with GitHub and allow</button> <button name="decision" value="deny">Deny</button></form></html>`
@@ -123,7 +123,7 @@ async function signIn(request: Request, env: Env): Promise<Response> {
       const who = await fetch('https://api.github.com/user', {
         redirect: 'manual',
         signal: AbortSignal.timeout(15000),
-        headers: { Authorization: 'Bearer ' + got.access_token, Accept: 'application/vnd.github+json', 'User-Agent': 'TanaCraftConnector/0.1' },
+        headers: { Authorization: 'Bearer ' + got.access_token, Accept: 'application/vnd.github+json', 'User-Agent': 'BanaConnector/0.1' },
       })
       if (!who.ok) return deny()
       const user = (await who.json()) as { id?: number }
@@ -139,7 +139,7 @@ async function signIn(request: Request, env: Env): Promise<Response> {
       resumed.headers.set('Location', done.redirectTo)
       return new Response(null, { status: 302, headers: resumed.headers })
     }
-    if (url.pathname === '/' || url.pathname === '/health') return json({ ok: true, service: 'TanaCraft remote MCP connector' }, 200)
+    if (url.pathname === '/' || url.pathname === '/health') return json({ ok: true, service: 'Bana remote MCP connector' }, 200)
     return json({ error: 'Not found.' }, 404)
   } catch {
     // Never echo library errors, cookies, codes or URLs.
@@ -178,7 +178,7 @@ async function toMac(request: Request, env: Env, ctx: ExecutionContext): Promise
 
 /** A JSON-RPC error for each request when the Mac cannot be reached. */
 function unreachable(body: ArrayBuffer): Response {
-  const error = { code: -32001, message: 'TanaCraft on the Mac is not reachable: the Mac is asleep or offline, or the app is closed.' }
+  const error = { code: -32001, message: 'Bana on the Mac is not reachable: the Mac is asleep or offline, or the app is closed.' }
   let msg: unknown = null
   try {
     msg = JSON.parse(new TextDecoder().decode(body))
@@ -203,7 +203,7 @@ function oauthFor(origin: string): OAuthProvider<Env> {
   clientRegistrationEndpoint: '/oauth/register',
   clientIdMetadataDocumentEnabled: false,
   scopesSupported: [SCOPE, 'offline_access'],
-  resourceMetadata: { resource: origin + '/mcp', authorization_servers: [origin], resource_name: 'TanaCraft notes on your Mac' },
+  resourceMetadata: { resource: origin + '/mcp', authorization_servers: [origin], resource_name: 'Bana notes on your Mac' },
   requiredScopes: [SCOPE],
   accessTokenTTL: 3600,
   refreshTokenTTL: 30 * 86400,

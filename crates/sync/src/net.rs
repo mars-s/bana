@@ -93,7 +93,7 @@ impl Service {
         };
         self.inner.cv.notify_all();
         let inner = Arc::clone(&self.inner);
-        std::thread::Builder::new().name("tanacraft-sync".into()).spawn(move || worker(inner, generation)).map_err(net)?;
+        std::thread::Builder::new().name("bana-sync".into()).spawn(move || worker(inner, generation)).map_err(net)?;
         Ok(())
     }
 

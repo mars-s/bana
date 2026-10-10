@@ -1,7 +1,7 @@
-# Tana use cases, checked against TanaCraft
+# Tana use cases, checked against Bana
 
-Tana's public feature set turned into user stories, each tried in the running TanaCraft web UI
-(`tanacraft-cli serve --sample`) and written down as a Playwright scenario in
+Tana's public feature set turned into user stories, each tried in the running Bana web UI
+(`bana serve --sample`) and written down as a Playwright scenario in
 `web/tests/use-cases/`. Checked on 10 Oct 2026.
 
 ## Sources
@@ -115,7 +115,7 @@ them, so an outside assistant can read and write the graph today (UC-10.01, UC-1
 
 ```sh
 pnpm --dir web build
-cargo build -p tanacraft-cli
+cargo build -p bana-cli
 cd web && pnpm exec playwright test tests/use-cases --project=tests
 pnpm exec playwright test tests/use-cases --project=tests --grep @partial   # one status
 pnpm exec playwright test tests/use-cases --project=tests --grep @UC-02.09  # one use case

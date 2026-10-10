@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result, b64};
 
-const PREFIX: &str = "tanacraft-sync:";
+const PREFIX: &str = "bana-sync:";
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Code {
@@ -35,7 +35,7 @@ impl Code {
 
     /// Reads a code as pasted (spaces and line breaks from copying are ignored).
     pub fn decode(text: &str) -> Result<Code> {
-        let bad = || Error::Config("this is not a TanaCraft sync code".into());
+        let bad = || Error::Config("this is not a Bana sync code".into());
         let t: String = text.chars().filter(|c| !c.is_whitespace()).collect();
         let body = t.strip_prefix(PREFIX).ok_or_else(bad)?;
         let json = b64::decode(body).ok_or_else(bad)?;
@@ -84,7 +84,7 @@ mod tests {
         let wrapped: String = text.chars().enumerate().flat_map(|(i, ch)| if i % 40 == 39 { vec![ch, '\n', ' '] } else { vec![ch] }).collect();
         assert_eq!(Code::decode(&wrapped).unwrap(), c);
         assert!(Code::decode("hello").is_err());
-        assert!(Code::decode("tanacraft-sync:!!!").is_err());
+        assert!(Code::decode("bana-sync:!!!").is_err());
         assert!(c.qr_svg().unwrap().starts_with("<?xml"));
         assert!(!format!("{c:?}").contains(&c.key));
     }

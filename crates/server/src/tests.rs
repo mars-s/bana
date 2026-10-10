@@ -1,6 +1,6 @@
+use bana_commands::Session;
+use bana_core::{Date, sample};
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_core::{Date, sample};
 
 use super::*;
 
@@ -21,7 +21,7 @@ fn page_lists_rows_and_typing_reaches_the_graph() {
     let first = rows.iter().find(|r| r["k"] == "node").unwrap()["id"].as_u64().unwrap();
     let r = h.handle("run", &json!({"command": "node.setName", "params": {"node": first, "name": "typed", "caret": 5}}));
     assert!(r.get("error").is_none(), "{r}");
-    assert_eq!(h.session.graph.name(tanacraft_core::NodeId(first)), "typed");
+    assert_eq!(h.session.graph.name(bana_core::NodeId(first)), "typed");
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn a_logged_edit_sent_twice_runs_once() {
     let mut h = host();
     let parent = h.session.zoom.0;
     let add = |seq: u64, client: &str| json!({"command": "node.add", "params": {"parent": parent, "name": "once"}, "wal": [client, seq]});
-    let count = |h: &Host| h.session.graph.children(tanacraft_core::NodeId(parent)).iter().filter(|c| h.session.graph.name(**c) == "once").count();
+    let count = |h: &Host| h.session.graph.children(bana_core::NodeId(parent)).iter().filter(|c| h.session.graph.name(**c) == "once").count();
     assert!(h.handle("run", &add(1, "a")).get("dup").is_none());
     assert_eq!(h.handle("run", &add(1, "a"))["dup"], json!(true));
     h.handle("run", &add(2, "a"));
@@ -106,7 +106,7 @@ fn each_window_has_its_own_page_and_caret() {
     let rows = h.handle("page", &json!({"window": "A"}))["rows"]["items"].clone();
     let ids: Vec<u64> = rows.as_array().unwrap().iter().filter(|r| r["k"] == "node").map(|r| r["id"].as_u64().unwrap()).collect();
     let (one, two) = (ids[0], ids[1]);
-    let name = |h: &Host, n: u64| h.session.graph.name(tanacraft_core::NodeId(n)).to_string();
+    let name = |h: &Host, n: u64| h.session.graph.name(bana_core::NodeId(n)).to_string();
     let (n1, n2) = (name(&h, one), name(&h, two));
     h.handle("run", &json!({"window": "A", "command": "focus.set", "params": {"node": one, "caret": 0}}));
     h.handle("run", &json!({"window": "B", "command": "focus.set", "params": {"node": two, "caret": 0}}));
@@ -162,9 +162,9 @@ fn a_field_name_typed_after_a_line_stays_below_it_when_committed() {
     assert_eq!(h.handle("fieldDraft", &json!({"commit": true}))["ok"], json!(true));
     let g = &h.session.graph;
     let f = g.find_field("Fresh9").unwrap();
-    let entry = g.get(tanacraft_core::NodeId(page)).unwrap().fields.iter().find(|e| e.field == f).unwrap();
-    assert_eq!(entry.after, Some(tanacraft_core::NodeId(x)));
-    assert!(!g.children(tanacraft_core::NodeId(page)).contains(&tanacraft_core::NodeId(line)));
+    let entry = g.get(bana_core::NodeId(page)).unwrap().fields.iter().find(|e| e.field == f).unwrap();
+    assert_eq!(entry.after, Some(bana_core::NodeId(x)));
+    assert!(!g.children(bana_core::NodeId(page)).contains(&bana_core::NodeId(line)));
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn keys_typed_at_the_end_of_a_line_another_window_splits_follow_the_end() {
     let line = h.handle("run", &json!({"window": "A", "command": "node.add", "params": {"name": "Pick a date", "parent": page}}))["result"]["id"]
         .as_u64()
         .unwrap();
-    let name = |h: &Host, n: u64| h.session.graph.name(tanacraft_core::NodeId(n)).to_string();
+    let name = |h: &Host, n: u64| h.session.graph.name(bana_core::NodeId(n)).to_string();
     h.handle("run", &json!({"window": "B", "command": "focus.set", "params": {"node": line, "caret": 11}}));
     h.handle("run", &json!({"window": "A", "command": "node.enter", "params": {"node": line, "caret": 4}}));
     let second = h.handle("page", &json!({"window": "A"}))["focus"].as_u64().unwrap();
@@ -227,18 +227,18 @@ fn mcp_over_streamable_http_needs_the_token_and_runs_the_tools() {
     assert!(http(port, "POST", "/mcp", "Authorization: Bearer nope\r\n", init).0.contains("401"));
     let (status, body) = http(port, "POST", "/mcp", &auth, init);
     assert!(status.contains("200"), "{status}");
-    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["result"]["serverInfo"]["name"], "tanacraft");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["result"]["serverInfo"]["name"], "bana");
     let (status, _) = http(port, "POST", "/mcp", &auth, r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#);
     assert!(status.contains("202"), "{status}");
     // Through a tunnel the Host is a public name: the token still lets it in.
-    let tunnel = format!("Host: tanacraft.example.org\r\n{auth}");
+    let tunnel = format!("Host: bana.example.org\r\n{auth}");
     let call = r#"[{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_node","arguments":{"name":"From the cloud"}}},{"jsonrpc":"2.0","id":3,"method":"tools/list"}]"#;
     let (status, body) = http(port, "POST", "/mcp", &tunnel, call);
     assert!(status.contains("200"), "{status}");
     let v: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(v[0]["result"]["isError"], false, "{v}");
     assert!(v[1]["result"]["tools"].as_array().unwrap().len() >= 6);
-    let id = tanacraft_core::NodeId(v[0]["result"]["structuredContent"]["id"].as_u64().unwrap());
+    let id = bana_core::NodeId(v[0]["result"]["structuredContent"]["id"].as_u64().unwrap());
     assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From the cloud");
     // A page on another origin is refused; GET has no stream.
     assert!(http(port, "POST", "/mcp", &format!("Origin: https://evil.example\r\n{auth}"), init).0.contains("403"));
@@ -249,13 +249,13 @@ fn mcp_over_streamable_http_needs_the_token_and_runs_the_tools() {
 
 #[test]
 fn a_sample_for_a_new_file_is_written_at_once() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-sample-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-sample-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let file = dir.join("graph.tanacraft");
+    let file = dir.join("graph.bana");
     let _ = std::fs::remove_file(&file);
     open_session(Some(file.clone()), true, Date::new(2026, 10, 10)).unwrap();
     assert!(file.exists(), "the sample is on disk before any edit");
-    let g = tanacraft_core::Graph::load(&file).unwrap();
+    let g = bana_core::Graph::load(&file).unwrap();
     assert!(g.find_tag("task").is_some());
 }
 
@@ -263,9 +263,9 @@ fn a_sample_for_a_new_file_is_written_at_once() {
 fn an_answered_edit_survives_a_crash_before_the_next_save() {
     // DIFFS N77: the page drops an edit from its log when the engine answers, so the answer must
     // mean "on disk". Here the process "dies" (the host is dropped, no save) right after answers.
-    let dir = std::env::temp_dir().join(format!("tanacraft-n77-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-n77-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("graph.tanacraft");
+    let path = dir.join("graph.bana");
     let today = Date::new(2026, 10, 10).unwrap();
     let mut s = Session::with_today(sample::sample(today).unwrap(), today);
     s.graph.save(&path).unwrap();
@@ -279,8 +279,8 @@ fn an_answered_edit_survives_a_crash_before_the_next_save() {
         assert!(r.get("error").is_none(), "{r}");
     }
     drop(h);
-    let g = tanacraft_core::Graph::load(&path).unwrap();
-    assert_eq!(g.name(tanacraft_core::NodeId(id)), "kill line three A");
+    let g = bana_core::Graph::load(&path).unwrap();
+    assert_eq!(g.name(bana_core::NodeId(id)), "kill line three A");
     // The answer to the last edit was lost with the process; the page sends it again to the
     // restarted engine, which knows it already ran.
     let mut again = Host::new(Session::with_today(g.clone(), today));
@@ -289,18 +289,18 @@ fn an_answered_edit_survives_a_crash_before_the_next_save() {
     // A full save takes the log in; loading again gives the same graph.
     let mut g2 = g.clone();
     g2.save(&path).unwrap();
-    assert!(!tanacraft_core::graph::log_path(&path).exists());
-    assert_eq!(tanacraft_core::Graph::load(&path).unwrap().name(tanacraft_core::NodeId(id)), "kill line three A");
+    assert!(!bana_core::graph::log_path(&path).exists());
+    assert_eq!(bana_core::Graph::load(&path).unwrap().name(bana_core::NodeId(id)), "kill line three A");
     // A frame cut short by a crash mid-write is ignored, the frames before it kept.
-    let mut s = Session::with_today(tanacraft_core::Graph::load(&path).unwrap(), today);
+    let mut s = Session::with_today(bana_core::Graph::load(&path).unwrap(), today);
     s.path = Some(path.clone());
     let mut h = Host::new(s);
     h.handle("run", &json!({"command": "node.setName", "params": {"node": id, "name": "after save"}}));
     drop(h);
-    let log = tanacraft_core::graph::log_path(&path);
+    let log = bana_core::graph::log_path(&path);
     let mut bytes = std::fs::read(&log).unwrap();
     bytes.extend_from_slice(&[200, 0, 0, 0, 1, 2]);
     std::fs::write(&log, bytes).unwrap();
-    assert_eq!(tanacraft_core::Graph::load(&path).unwrap().name(tanacraft_core::NodeId(id)), "after save");
+    assert_eq!(bana_core::Graph::load(&path).unwrap().name(bana_core::NodeId(id)), "after save");
     let _ = std::fs::remove_dir_all(&dir);
 }

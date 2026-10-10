@@ -1,7 +1,7 @@
 // The connector Worker on local workerd (Miniflare) with a stand-in GitHub, and end to end: the
 // official MCP SDK client signs in, then its requests pass through the Worker to a real
-// `tanacraft-cli serve` on this machine (the tunnel is replaced by a forward to 127.0.0.1).
-// Run: npm test (after `cargo build -p tanacraft-cli`).
+// `bana serve` on this machine (the tunnel is replaced by a forward to 127.0.0.1).
+// Run: npm test (after `cargo build -p bana-cli`).
 
 import { build } from 'esbuild'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
@@ -16,22 +16,22 @@ import { createServer } from 'node:net'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
-const ORIGIN = 'https://tanacraft-mcp.example.workers.dev'
+const ORIGIN = 'https://bana-mcp.example.workers.dev'
 const RESOURCE = ORIGIN + '/mcp'
 const MAC = 'https://mac.example.org/mcp'
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback'
 
 // ---- a real engine on this machine ----
 const root = resolve(import.meta.dirname, '..')
-const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug', 'tanacraft-cli')
-const home = await mkdtemp(join(tmpdir(), 'tanacraft-connector-'))
+const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug', 'bana')
+const home = await mkdtemp(join(tmpdir(), 'bana-connector-'))
 const port = await new Promise((done) => {
   const s = createServer().listen(0, '127.0.0.1', () => {
     const p = s.address().port
     s.close(() => done(p))
   })
 })
-let engine = spawn(bin, ['--file', join(home, 'graph.tanacraft'), 'serve', '--sample', '--today', '2026-10-10', '--port', String(port)], { stdio: 'ignore', env: { ...process.env, TANACRAFT_HOME: home } })
+let engine = spawn(bin, ['--file', join(home, 'graph.bana'), 'serve', '--sample', '--today', '2026-10-10', '--port', String(port)], { stdio: 'ignore', env: { ...process.env, BANA_HOME: home } })
 let macToken = ''
 for (let i = 0; i < 200 && !macToken; i++) {
   await new Promise((r) => setTimeout(r, 50))

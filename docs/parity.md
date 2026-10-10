@@ -1,4 +1,4 @@
-# TanaCraft parity with the behaviour spec
+# Bana parity with the behaviour spec
 
 Maps every `##` section of the clean-room spec (`../tanacraft-spec/*.md`, including the visual files
 10 to 15 and `DESIGN.md`) and every screenshot (`screens/` and `screens/visual/`) to its status in
@@ -161,7 +161,7 @@ N69, N59.9, 18, 21, 28, 32). Items kept as they are, with the reason:
 | AI | missing | Out of scope so far. |
 | Voice / meetings | missing |  |
 | Publishing and sharing | missing |  |
-| Import / export | done | Markdown, JSON and OPML export (commands, CLI `--format md|json|opml`); Markdown import (nesting, headings, checkboxes, #tags) and OPML import from other outliners (text, notes as descriptions, the same checkbox and #tag rules; `import.opml`, `tanacraft-cli import FILE.opml`); HTML plus text on the clipboard; Markdown bullet paste. Tested. OPML export writes field values as `Field:: value` outlines; Round 7: Markdown export includes descriptions (a plain line under the node) and writes field rows where they sit in the outline; Markdown import reads both back. Markdown and OPML import read them back and turn `[[Name]]` into references (whole line) or inline references. |
+| Import / export | done | Markdown, JSON and OPML export (commands, CLI `--format md|json|opml`); Markdown import (nesting, headings, checkboxes, #tags) and OPML import from other outliners (text, notes as descriptions, the same checkbox and #tag rules; `import.opml`, `bana import FILE.opml`); HTML plus text on the clipboard; Markdown bullet paste. Tested. OPML export writes field values as `Field:: value` outlines; Round 7: Markdown export includes descriptions (a plain line under the node) and writes field rows where they sit in the outline; Markdown import reads both back. Markdown and OPML import read them back and turn `[[Name]]` into references (whole line) or inline references. |
 | Developer / power features | done | CLI, MCP server and JSON control channel cover scripting; custom keybindings from `keybindings.json` (shortcut: command id, checked before the defaults); Show edit log; Help page listing every command. |
 | Misc | done | Progress bar, content width, page icons and banners, URL embeds (a setting: a link-only node shows a card with its site). Tested. |
 
@@ -462,9 +462,9 @@ N69, N59.9, 18, 21, 28, 32). Items kept as they are, with the reason:
 | Area | Status | Notes |
 |---|---|---|
 | Local file | done | One JSON graph file, atomic saves, autosave, repair of dangling links on load. |
-| CLI | done | `tanacraft-cli` inspect, view, add, export (Markdown, JSON), search, tags, run, sample, mcp. |
-| MCP | done | `tanacraft-mcp`: headless on a file, or `--connect` to a running app. |
-| Control channel | done | `tanacraft --control PORT`: JSON lines on 127.0.0.1. |
+| CLI | done | `bana` inspect, view, add, export (Markdown, JSON), search, tags, run, sample, mcp. |
+| MCP | done | `bana-mcp`: headless on a file, or `--connect` to a running app. |
+| Control channel | done | `bana --control PORT`: JSON lines on 127.0.0.1. |
 
 ## Visual screenshots (`screens/visual/`)
 

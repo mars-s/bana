@@ -1,5 +1,5 @@
+use bana_core::{Date, Graph, NodeId, sample};
 use serde_json::{Value, json};
-use tanacraft_core::{Date, Graph, NodeId, sample};
 
 use crate::Session;
 
@@ -281,7 +281,7 @@ fn duplicate_reference_replace_and_create_new() {
 
 #[test]
 fn file_save_and_open() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-cmd-test-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-cmd-test-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("g.json");
     let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
@@ -356,7 +356,7 @@ fn search_nodes_and_views_by_command() {
     run(&mut s, "view.set", json!({"kind": "board"}));
     assert_eq!(
         s.graph.view_def(search).group,
-        Some(tanacraft_core::GroupBy::Field(s.graph.find_field("Status").unwrap())),
+        Some(bana_core::GroupBy::Field(s.graph.find_field("Status").unwrap())),
         "board picks an options field for lanes"
     );
     run(&mut s, "view.sort", json!({"by": "Due", "desc": true}));
@@ -420,7 +420,7 @@ fn insert_quick_add_and_formatting() {
     run(&mut s, "format.strikethrough", json!({"node": a.0, "start": 0, "end": 9}));
     assert_eq!(s.graph.name(a), "~~==Hello==~~ world");
     assert_eq!(s.graph.text(a), "Hello world");
-    let sp = tanacraft_core::format::spans(s.graph.name(a));
+    let sp = bana_core::format::spans(s.graph.name(a));
     assert!(sp[0].strike && sp[0].highlight && !sp[1].strike);
 }
 
@@ -518,11 +518,11 @@ fn configuration_commands() {
     run(&mut s, "tag.add", json!({"node": b.0, "tag": "book"}));
     let n = s.graph.get(b).unwrap().clone();
     let rating = s.graph.find_field("Rating").unwrap();
-    assert_eq!(n.field_value(rating), Some(&tanacraft_core::FieldValue::Number(3.0)));
+    assert_eq!(n.field_value(rating), Some(&bana_core::FieldValue::Number(3.0)));
     assert_eq!(s.graph.name(s.graph.children(b)[0]), "Quotes");
     // Out of range is kept and flagged (UC-06.25); back in range for the export below.
     assert!(s.run("field.set", &json!({"node": b.0, "field": "Rating", "value": "9"})).is_ok());
-    assert!(s.graph.out_of_range(rating, &tanacraft_core::FieldValue::Number(9.0)));
+    assert!(s.graph.out_of_range(rating, &bana_core::FieldValue::Number(9.0)));
     run(&mut s, "field.set", json!({"node": b.0, "field": "Rating", "value": "3"}));
     run(&mut s, "node.toggleDone", json!({"node": b.0}));
     assert_eq!(export_md(&mut s, b), "- [x] Dune #book\n  - Rating:: 3\n  - Shelf:: Read\n  - Quotes\n");
@@ -908,30 +908,30 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 #[test]
 fn files_attach_beside_the_graph_and_read_back() {
     // UC-05.08.
-    let dir = std::env::temp_dir().join(format!("tanacraft-files-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-files-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let mut s = blank();
-    s.path = Some(dir.join("graph.tanacraft"));
+    s.path = Some(dir.join("graph.bana"));
     let line = id(&run(&mut s, "node.add", json!({"name": "Soil paper"})), "id");
     let bytes: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
-    let data = tanacraft_core::base64::encode(&bytes);
+    let data = bana_core::base64::encode(&bytes);
     let r = run(&mut s, "file.attach", json!({"name": "../../evil/paper.pdf", "data": data, "after": line.0}));
-    let fid = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    let fid = bana_core::NodeId(r["id"].as_u64().unwrap());
     assert_eq!(s.graph.name(fid), "paper.pdf", "only the file name is kept");
     assert_eq!(s.graph.index_in_parent(fid), s.graph.index_in_parent(line).map(|i| i + 1));
     let stored = r["file"].as_str().unwrap();
-    assert!(dir.join("graph.tanacraft.files").join(stored).exists());
+    assert!(dir.join("graph.bana.files").join(stored).exists());
     let back = run(&mut s, "file.read", json!({"node": fid.0}));
     assert_eq!(back["mime"], "application/pdf");
-    assert_eq!(tanacraft_core::base64::decode(back["data"].as_str().unwrap()).unwrap(), bytes);
+    assert_eq!(bana_core::base64::decode(back["data"].as_str().unwrap()).unwrap(), bytes);
     assert!(s.run("file.attach", &json!({"name": "x.png", "data": "not base64!"})).is_err());
     // base64 round trips at every length.
     for n in 0..8 {
         let b: Vec<u8> = (0..n as u8).collect();
-        assert_eq!(tanacraft_core::base64::decode(&tanacraft_core::base64::encode(&b)).unwrap(), b);
+        assert_eq!(bana_core::base64::decode(&bana_core::base64::encode(&b)).unwrap(), b);
     }
-    assert_eq!(tanacraft_core::base64::encode(b"Man"), "TWFu");
-    assert_eq!(tanacraft_core::base64::encode(b"Ma"), "TWE=");
+    assert_eq!(bana_core::base64::encode(b"Man"), "TWFu");
+    assert_eq!(bana_core::base64::encode(b"Ma"), "TWE=");
 }
 
 #[test]
@@ -1005,7 +1005,7 @@ fn inline_references_take_an_alias_or_turn_into_text() {
     run(&mut s, "node.refAlias", json!({"node": line.0, "ref": robin.0, "index": 1, "alias": "her"}));
     assert_eq!(s.graph.name(line), format!("Ask [[id:{0}]] and [[id:{0}|her]]", robin.0));
     assert_eq!(s.graph.text(line), "Ask Robin Ash and her");
-    assert_eq!(tanacraft_core::format::refs(s.graph.name(line)), [robin.0, robin.0], "still a reference");
+    assert_eq!(bana_core::format::refs(s.graph.name(line)), [robin.0, robin.0], "still a reference");
     // Turned into text: the alias, or the name.
     run(&mut s, "node.unlinkRef", json!({"node": line.0, "ref": robin.0, "index": 1}));
     run(&mut s, "node.unlinkRef", json!({"node": line.0, "ref": robin.0}));
@@ -1022,23 +1022,23 @@ fn inline_references_take_an_alias_or_turn_into_text() {
 fn the_whole_workspace_exports_as_markdown_files() {
     // UC-08.13, on the sample graph.
     let mut s = Session::with_today(
-        tanacraft_core::sample::sample(tanacraft_core::Date::new(2026, 10, 10).unwrap()).unwrap(),
-        tanacraft_core::Date::new(2026, 10, 10).unwrap(),
+        bana_core::sample::sample(bana_core::Date::new(2026, 10, 10).unwrap()).unwrap(),
+        bana_core::Date::new(2026, 10, 10).unwrap(),
     );
     let ws = s.graph.sys.root;
-    let files = tanacraft_core::export::markdown_files(&s.graph, ws, "outline");
+    let files = bana_core::export::markdown_files(&s.graph, ws, "outline");
     let names: Vec<&str> = files.iter().map(|(p, _)| p.as_str()).collect();
     assert!(names.iter().any(|p| p.starts_with("Library/") && p.ends_with(".md")), "{names:?}");
     assert!(names.contains(&"Daily notes/2026-10-10.md"), "{names:?}");
     let day = &files.iter().find(|(p, _)| p == "Daily notes/2026-10-10.md").unwrap().1;
     assert!(day.contains("[[Robin Ash]]"), "references are links: {day}");
-    let tags = tanacraft_core::export::markdown_files(&s.graph, ws, "tags");
+    let tags = bana_core::export::markdown_files(&s.graph, ws, "tags");
     assert!(tags.iter().any(|(p, _)| p == "#task/Build four beds.md"), "{:?}", tags.iter().map(|f| &f.0).collect::<Vec<_>>());
-    let vault = tanacraft_core::export::markdown_files(&s.graph, ws, "vault");
+    let vault = bana_core::export::markdown_files(&s.graph, ws, "vault");
     assert!(vault.iter().any(|(_, t)| t.starts_with("---\ntags: [")), "front matter");
     // The command wraps them in a ZIP: local headers, then the directory at the end.
     let r = run(&mut s, "export.zip", json!({"shape": "outline"}));
-    let zip = tanacraft_core::base64::decode(r["data"].as_str().unwrap()).unwrap();
+    let zip = bana_core::base64::decode(r["data"].as_str().unwrap()).unwrap();
     assert_eq!(&zip[..4], b"PK\x03\x04");
     assert_eq!(&zip[zip.len() - 22..zip.len() - 18], b"PK\x05\x06");
     assert_eq!(r["files"].as_u64(), Some(files.len() as u64));
@@ -1123,7 +1123,7 @@ fn a_field_can_start_with_a_random_node_of_a_supertag() {
         let e = id(&run(&mut s, "node.add", json!({"name": "entry"})), "id");
         run(&mut s, "tag.add", json!({"node": e.0, "tag": "journal"}));
         match s.graph.get(e).unwrap().field_value(field) {
-            Some(tanacraft_core::FieldValue::Node(p)) => assert!(prompts.contains(p)),
+            Some(bana_core::FieldValue::Node(p)) => assert!(prompts.contains(p)),
             other => panic!("no prompt: {other:?}"),
         }
     }
@@ -1185,7 +1185,7 @@ fn roam_json_and_notion_or_logseq_folders_import_as_pages() {
     assert_eq!(s.graph.checkbox(todo), Some(false));
     assert!(s.graph.name(todo).contains("[[id:"), "{}", s.graph.name(todo));
     assert_eq!(s.graph.get(todo).unwrap().field_values(s.graph.find_field("Where").unwrap()).len(), 1);
-    let dir = std::env::temp_dir().join(format!("tanacraft-notion-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-notion-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("Projects 0123456789abcdef0123456789abcdef")).unwrap();
     std::fs::write(
         dir.join("Projects 0123456789abcdef0123456789abcdef/Shed 0123456789abcdef0123456789abcdef.md"),
@@ -1286,11 +1286,11 @@ fn unlinked_mentions_are_found_and_linked() {
 fn add_to_day_puts_a_reference_on_that_day() {
     // UC-01.12.
     let mut s = blank();
-    s.today = tanacraft_core::Date::new(2026, 10, 10).unwrap();
+    s.today = bana_core::Date::new(2026, 10, 10).unwrap();
     let n = id(&run(&mut s, "node.add", json!({"name": "Read the soil article"})), "id");
     let r = run(&mut s, "node.addToDay", json!({"node": n.0, "date": "next tuesday"}));
     assert_eq!(r["date"], "2026-10-13");
-    let day = s.graph.day(tanacraft_core::Date::new(2026, 10, 13).unwrap()).unwrap();
+    let day = s.graph.day(bana_core::Date::new(2026, 10, 13).unwrap()).unwrap();
     let kids = s.graph.children(day);
     assert_eq!(kids.len(), 1);
     assert_eq!(s.graph.get(kids[0]).unwrap().reference_target(), Some(n));
@@ -1560,7 +1560,7 @@ fn held_search_results_wait_for_run_once() {
 
 #[test]
 fn import_file_reads_markdown_and_opml() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-import-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-import-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let md = dir.join("notes.md");
     std::fs::write(&md, "- Trip\n  - [ ] Pack #task\n").unwrap();
@@ -1712,10 +1712,10 @@ fn markdown_export_then_import_keeps_descriptions_and_field_places() {
 
 #[test]
 fn banners_take_a_colour_or_a_shipped_picture() {
-    let mut s = Session::new(tanacraft_core::Graph::new());
+    let mut s = Session::new(bana_core::Graph::new());
     let n = s.run("node.add", &json!({"name": "Welcome"})).unwrap()["id"].clone();
     assert!(s.run("node.setBanner", &json!({"node": n, "color": "picture:orbit"})).is_ok());
-    assert_eq!(s.graph.get(tanacraft_core::NodeId(n.as_u64().unwrap())).unwrap().banner.as_deref(), Some("picture:orbit"));
+    assert_eq!(s.graph.get(bana_core::NodeId(n.as_u64().unwrap())).unwrap().banner.as_deref(), Some("picture:orbit"));
     assert!(s.run("node.setBanner", &json!({"node": n, "color": "picture:../../etc"})).is_err());
     assert!(s.run("node.setBanner", &json!({"node": n, "color": "blue"})).is_ok());
 }
@@ -1726,10 +1726,10 @@ fn sorting_a_tag_page_keeps_its_table() {
     let mut s = blank();
     run(&mut s, "tag.create", json!({"name": "book"}));
     let tag = s.graph.find_tag("book").unwrap();
-    assert_eq!(s.graph.view_def(tag).kind, tanacraft_core::ViewKind::Table);
+    assert_eq!(s.graph.view_def(tag).kind, bana_core::ViewKind::Table);
     run(&mut s, "view.sort", json!({"node": tag.0, "by": "name"}));
     run(&mut s, "view.filter", json!({"node": tag.0, "query": "NOT DONE"}));
-    assert_eq!(s.graph.view_def(tag).kind, tanacraft_core::ViewKind::Table);
+    assert_eq!(s.graph.view_def(tag).kind, bana_core::ViewKind::Table);
 }
 
 #[test]

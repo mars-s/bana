@@ -85,16 +85,16 @@ impl WorkspaceKey {
 
     /// The room on the relay: 128 bits of a hash of the key, as hex.
     pub fn room(&self) -> String {
-        hex(&sha256(&[b"tanacraft-sync/room/v1\0", &self.0])[..16])
+        hex(&sha256(&[b"bana-sync/room/v1\0", &self.0])[..16])
     }
 
     fn cipher(&self) -> XChaCha20Poly1305 {
-        let k = sha256(&[b"tanacraft-sync/data/v1\0", &self.0]);
+        let k = sha256(&[b"bana-sync/data/v1\0", &self.0]);
         XChaCha20Poly1305::new(&k.into())
     }
 
     fn aad(room: &str, kind: Kind, sender: &str) -> Vec<u8> {
-        let mut a = b"tanacraft-sync/v1\0".to_vec();
+        let mut a = b"bana-sync/v1\0".to_vec();
         a.extend_from_slice(room.as_bytes());
         a.push(0);
         a.push(kind.tag());
@@ -168,7 +168,7 @@ impl DeviceKey {
 
 /// What a device signs to sign in: the room and the relay's one-time challenge.
 pub fn hello_message(room: &str, nonce: &str) -> String {
-    format!("tanacraft-sync/hello/v1:{room}:{nonce}")
+    format!("bana-sync/hello/v1:{room}:{nonce}")
 }
 
 /// Checks a hello signature (the relay does the same in JavaScript; the fake relay in tests uses this).

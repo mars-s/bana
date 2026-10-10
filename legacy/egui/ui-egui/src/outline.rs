@@ -3,8 +3,8 @@
 use egui::text::{CCursor, CCursorRange};
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_core::{FieldType, FieldValue, Graph, Kind, NodeId, export};
+use bana_commands::Session;
+use bana_core::{FieldType, FieldValue, Graph, Kind, NodeId, export};
 
 use crate::theme::{self, INDENT, ROW_H, Tokens};
 use crate::{Act, PickMode, TanaApp};
@@ -47,7 +47,7 @@ pub fn panel(app: &mut TanaApp, ui: &mut Ui) {
     let g = &app.session.graph;
     let shown = if g.tag_def(zoom).is_some() { app.tag_tab.get(&zoom).copied().unwrap_or(zoom) } else { zoom };
     let full = !app.session.config_view
-        && matches!(g.view_def(shown).kind, tanacraft_core::ViewKind::Table | tanacraft_core::ViewKind::Cards | tanacraft_core::ViewKind::Calendar)
+        && matches!(g.view_def(shown).kind, bana_core::ViewKind::Table | bana_core::ViewKind::Cards | bana_core::ViewKind::Calendar)
         && (g.query(shown).is_some() || g.get(shown).is_some_and(|n| n.view.is_some()) || g.tag_def(zoom).is_some());
     let max_w = match app.content_width {
         _ if full => f32::INFINITY,
@@ -229,7 +229,7 @@ pub(crate) fn help_page(app: &mut TanaApp, ui: &mut Ui, t: &Tokens) {
             ui.label(
                 RichText::new(format!(
                     "Every action in {} is a command. The same commands run from the keyboard, the command line (Cmd+K), the CLI and the MCP server.",
-                    tanacraft_core::PRODUCT_NAME
+                    bana_core::PRODUCT_NAME
                 ))
                 .color(t.dim),
             );
@@ -821,7 +821,7 @@ fn decorations(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, page: NodeId) {
         egui::Popup::menu(&bb).show(|ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.set_max_width(220.0);
-                for c in tanacraft_core::TAG_COLORS.iter().skip(2) {
+                for c in bana_core::TAG_COLORS.iter().skip(2) {
                     let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
                     ui.painter().circle_filled(r.center(), 9.0, theme::tag_color(c, app.dark).0);
                     if resp.on_hover_text(*c).clicked() {
@@ -1000,11 +1000,11 @@ pub(crate) fn fields_at(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId
         let empty = value_text.as_deref().is_none_or(str::is_empty);
         let is_default = def.default.is_some() && e.value == def.default;
         let hidden = match def.hide {
-            tanacraft_core::HideMode::Never => false,
-            tanacraft_core::HideMode::WhenEmpty => empty && !zoomed,
-            tanacraft_core::HideMode::WhenNotEmpty => !empty,
-            tanacraft_core::HideMode::WhenDefault => is_default,
-            tanacraft_core::HideMode::Always => true,
+            bana_core::HideMode::Never => false,
+            bana_core::HideMode::WhenEmpty => empty && !zoomed,
+            bana_core::HideMode::WhenNotEmpty => !empty,
+            bana_core::HideMode::WhenDefault => is_default,
+            bana_core::HideMode::Always => true,
         };
         // A hidden field folds to a compact "+ Field" label; clicking it opens the row again
         // (spec 03 §6, `164`, `165`).
@@ -1119,7 +1119,7 @@ pub(crate) fn field_values(
     t: &Tokens,
     node: NodeId,
     field: NodeId,
-    def: &tanacraft_core::FieldDef,
+    def: &bana_core::FieldDef,
     values: &[FieldValue],
     edit_ix: Option<usize>,
 ) {
@@ -1169,7 +1169,7 @@ pub(crate) fn field_value(
     node: NodeId,
     field: NodeId,
     index: usize,
-    def: &tanacraft_core::FieldDef,
+    def: &bana_core::FieldDef,
     value: Option<&FieldValue>,
     text: Option<String>,
     editing: bool,
@@ -1317,7 +1317,7 @@ pub(crate) fn rich_job_links(
 ) -> (egui::text::LayoutJob, Vec<Option<LinkTarget>>) {
     let mut job = egui::text::LayoutJob::default();
     let mut targets = Vec::new();
-    let spans = tanacraft_core::format::spans(text);
+    let spans = bana_core::format::spans(text);
     // A link inside text gets a small arrow before it; a link-only node shows it as its bullet.
     let link_only = spans.iter().filter(|s| !s.text.trim().is_empty()).count() == 1;
     for sp in spans {
@@ -1364,7 +1364,7 @@ pub(crate) fn rich_job_links(
 }
 
 /// The look of one styled span.
-fn span_format(t: &Tokens, sp: &tanacraft_core::format::Span, color: Color32, size: f32) -> egui::TextFormat {
+fn span_format(t: &Tokens, sp: &bana_core::format::Span, color: Color32, size: f32) -> egui::TextFormat {
     let mut f = egui::TextFormat { font_id: FontId::proportional(size), color, italics: sp.italic, ..Default::default() };
     if sp.bold {
         f.color = if color == t.text { t.text.linear_multiply(1.15) } else { color };
@@ -1390,7 +1390,7 @@ fn span_format(t: &Tokens, sp: &tanacraft_core::format::Span, color: Color32, si
 /// The raw text being edited, styled: marks shown faint, the text between them formatted.
 fn edit_job(t: &Tokens, text: &str, size: f32) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
-    for (sp, marker) in tanacraft_core::format::raw_spans(text) {
+    for (sp, marker) in bana_core::format::raw_spans(text) {
         let f = if marker {
             egui::TextFormat { font_id: FontId::proportional(size), color: t.faint, ..Default::default() }
         } else {
@@ -1464,13 +1464,13 @@ pub(crate) fn rich_label(ui: &mut Ui, app_acts: &mut Vec<Act>, g: &Graph, t: &To
 
 /// The whole text is one link.
 fn is_link_only(name: &str) -> bool {
-    let sp = tanacraft_core::format::spans(name.trim());
+    let sp = bana_core::format::spans(name.trim());
     sp.len() == 1 && sp.first().is_some_and(|x| x.url.is_some())
 }
 
 /// "3 minutes ago"-style time.
 pub(crate) fn ago(secs: u64) -> String {
-    let now = tanacraft_core::now_secs();
+    let now = bana_core::now_secs();
     let d = now.saturating_sub(secs);
     match d {
         0..=59 => "just now".into(),
@@ -1505,7 +1505,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     item(ui, if pinned { "Unpin from sidebar" } else { "Pin to sidebar" }, run("node.togglePin"));
     ui.separator();
     ui.menu_button("View as", |ui| {
-        for k in tanacraft_core::ViewKind::ALL {
+        for k in bana_core::ViewKind::ALL {
             if ui.button(k.name()).clicked() {
                 acts.push(Act::Run("view.set".into(), json!({"node": id.0, "kind": k.name()})));
                 ui.close();
@@ -1569,7 +1569,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     };
     // Copy: the node and its subtree as a Markdown list.
     if ui.button("Copy").clicked() {
-        ui.ctx().copy_text(tanacraft_core::export::to_markdown(g, id, false));
+        ui.ctx().copy_text(bana_core::export::to_markdown(g, id, false));
         ui.close();
     }
     item(ui, "Duplicate", run("node.duplicate"));
@@ -1583,7 +1583,7 @@ pub(crate) fn node_menu(ui: &mut Ui, g: &Graph, id: NodeId, acts: &mut Vec<Act>)
     item(ui, "Move to move target", run("node.moveToTarget"));
     // The link is an inline reference token: pasting it into a line links back here.
     if ui.button("Copy node link").clicked() {
-        ui.ctx().copy_text(tanacraft_core::format::ref_token(g.resolve(id).0));
+        ui.ctx().copy_text(bana_core::format::ref_token(g.resolve(id).0));
         ui.close();
     }
     item(ui, "Move up", run("node.moveUp"));
@@ -1972,7 +1972,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
                 } else {
                     app.acts.push(Act::Run("select.clear".into(), json!({})));
                     // The caret goes where the text was clicked (spec 02 §1).
-                    let caret = at.and_then(|c| tanacraft_core::format::shown_to_raw(&name, c)).unwrap_or(usize::MAX);
+                    let caret = at.and_then(|c| bana_core::format::shown_to_raw(&name, c)).unwrap_or(usize::MAX);
                     app.acts.push(Act::Run("focus.set".into(), json!({"node": id.0, "caret": caret})));
                 }
             }
@@ -2051,7 +2051,7 @@ fn row_ui(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, depth: usize, 
     if app.session.graph.settings.url_embeds && !focused {
         let name = app.session.graph.name(target).to_string();
         if is_link_only(&name) {
-            let url = tanacraft_core::format::spans(name.trim()).first().and_then(|sp| sp.url.clone()).unwrap_or_default();
+            let url = bana_core::format::spans(name.trim()).first().and_then(|sp| sp.url.clone()).unwrap_or_default();
             let site = url.split("://").nth(1).unwrap_or(&url).split('/').next().unwrap_or("").trim_start_matches("www.").to_string();
             ui.horizontal(|ui| {
                 ui.add_space(indent + 26.0);
@@ -2238,7 +2238,7 @@ fn selection_toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, id: NodeId, row
                 }
                 sep(ui);
                 if button(ui, "Link", "Copy node link").clicked() {
-                    ui.ctx().copy_text(tanacraft_core::format::ref_token(g.resolve(id).0));
+                    ui.ctx().copy_text(bana_core::format::ref_token(g.resolve(id).0));
                     app_toast = Some("Node link copied");
                 }
                 if button(ui, "Panel", "Open in new panel").clicked() {

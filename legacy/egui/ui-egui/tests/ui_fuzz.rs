@@ -2,14 +2,14 @@
 //! UI must never panic (egui code runs outside the command guard) and the graph must stay sound.
 //! While typing, the keyboard must never go nowhere: after each key an editor or a menu still has
 //! it, or a line is selected, and typed text shows up somewhere (DIFFS N16).
-//! Longer runs: `UI_FUZZ_SEEDS=200 cargo test -p tanacraft-ui-egui --test ui_fuzz --release`.
+//! Longer runs: `UI_FUZZ_SEEDS=200 cargo test -p bana-ui-egui --test ui_fuzz --release`.
 
 use egui::{Event, Key, Modifiers};
 use egui_kittest::kittest::Queryable;
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_core::{Date, Graph, NodeId, sample};
-use tanacraft_ui_egui::TanaApp;
+use bana_commands::Session;
+use bana_core::{Date, Graph, NodeId, sample};
+use bana_ui_egui::TanaApp;
 
 struct Rng(u64);
 
@@ -276,7 +276,7 @@ fn random_keys_never_crash_the_ui() {
 }
 
 /// The same on long pages: keys typed below the first screen (field names, values, lines) land.
-/// Longer runs: `UI_FUZZ_SEEDS=500 cargo test -p tanacraft-ui-egui --test ui_fuzz --release long`.
+/// Longer runs: `UI_FUZZ_SEEDS=500 cargo test -p bana-ui-egui --test ui_fuzz --release long`.
 #[test]
 fn random_keys_on_long_pages_never_lose_text() {
     let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
@@ -292,7 +292,7 @@ fn random_keys_on_long_pages_never_lose_text() {
 #[test]
 fn quitting_at_a_random_point_keeps_typed_text() {
     let seeds: u64 = std::env::var("UI_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
-    let dir = std::env::temp_dir().join(format!("tanacraft-quit-fuzz-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("bana-quit-fuzz-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
     let first: u64 = std::env::var("UI_FUZZ_FIRST").ok().and_then(|v| v.parse().ok()).unwrap_or(1);
     for seed in first..=seeds.max(first) {
@@ -316,7 +316,7 @@ fn quitting_at_a_random_point_keeps_typed_text() {
         };
         let g = Graph::load(&path).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
         // (Empty format marks are never saved, DIFFS N19.)
-        let clean = |s: &str| tanacraft_core::format::strip_empty(s, 0).0;
+        let clean = |s: &str| bana_core::format::strip_empty(s, 0).0;
         for n in before.iter() {
             assert_eq!(g.get(n.id).map(|m| clean(&m.name)), Some(clean(&n.name)), "seed {seed}: node {} lost its text", n.id);
         }

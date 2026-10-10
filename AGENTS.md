@@ -1,6 +1,6 @@
-# TanaCraft: instructions for agents
+# Bana: instructions for agents
 
-TanaCraft (working name; the product name lives in one constant, `tanacraft_core::PRODUCT_NAME`) is a
+Bana (working name; the product name lives in one constant, `bana_core::PRODUCT_NAME`) is a
 clean-room, open-source, Rust-native outliner that targets the behaviour of the Tana outliner: nodes,
 supertags with fields, references, daily notes, and a keyboard-first outline editor. It follows the
 conventions of the storytold "craft" apps (wordcraft, deckcraft): every action is a command with an id,
@@ -31,15 +31,15 @@ the CLI and MCP is hostile: validate ids, clamp indexes, bound recursion.
 
 | Crate | Job |
 |---|---|
-| `crates/core` (`tanacraft-core`) | Node graph model, supertags, fields, references, daily notes, trash, undo/redo, JSON persistence, Markdown/JSON export |
-| `crates/commands` (`tanacraft-commands`) | `Session` (graph + focus/zoom/selection), `CommandSpec` registry: ids, labels, shortcuts, params, `run` |
-| `crates/mcp` (`tanacraft-mcp`) | MCP server (JSON-RPC 2.0 over stdio) exposing the commands; `tanacraft-mcp` binary |
-| `crates/server` (`tanacraft-server`) | `Host`: the Session plus one navigation state per panel; view snapshots as JSON; a std-only localhost HTTP server (`POST /rpc`, `GET /events`, static web UI) |
-| `crates/ffi` (`tanacraft-ffi`) | UniFFI binding of the `Host` for Swift: `Engine.open`, `rpc`/`run` with JSON, `save`, change listeners, autosave thread. `scripts/build-ios-core.sh` builds the XCFramework |
-| `apps/tanacraft-ios` | **The iPhone app**: SwiftUI, xcodegen `project.yml`, draws the same snapshots; tokens generated from `web/src/tokens.css` (`scripts/gen-ios-tokens.py`); UI tests `scripts/ios-test.sh`. See its README |
-| `apps/tanacraft-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
-| `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `tanacraft-cli serve` |
-| `apps/tanacraft-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |
+| `crates/core` (`bana-core`) | Node graph model, supertags, fields, references, daily notes, trash, undo/redo, JSON persistence, Markdown/JSON export |
+| `crates/commands` (`bana-commands`) | `Session` (graph + focus/zoom/selection), `CommandSpec` registry: ids, labels, shortcuts, params, `run` |
+| `crates/mcp` (`bana-mcp`) | MCP server (JSON-RPC 2.0 over stdio) exposing the commands; `bana-mcp` binary |
+| `crates/server` (`bana-server`) | `Host`: the Session plus one navigation state per panel; view snapshots as JSON; a std-only localhost HTTP server (`POST /rpc`, `GET /events`, static web UI) |
+| `crates/ffi` (`bana-ffi`) | UniFFI binding of the `Host` for Swift: `Engine.open`, `rpc`/`run` with JSON, `save`, change listeners, autosave thread. `scripts/build-ios-core.sh` builds the XCFramework |
+| `apps/bana-ios` | **The iPhone app**: SwiftUI, xcodegen `project.yml`, draws the same snapshots; tokens generated from `web/src/tokens.css` (`scripts/gen-ios-tokens.py`); UI tests `scripts/ios-test.sh`. See its README |
+| `apps/bana-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
+| `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `bana serve` |
+| `apps/bana-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |
 | `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots`, `cargo xtask connector` |
 | `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT: Worker, tests, setup wizard (docs/mcp.md) |
 | `legacy/egui` | The old egui front end: **reference only, not built**. Its tests are the porting checklist (`legacy/egui/README.md`); last working version is tag `egui-final` |
@@ -56,12 +56,12 @@ Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and
 
 ## Looking at the app
 
-- Desktop app: `pnpm --dir web build && cargo run -p tanacraft-desktop -- --sample`.
-- Browser: `pnpm --dir web build && cargo run -p tanacraft-cli -- serve --sample` then open
+- Desktop app: `pnpm --dir web build && cargo run -p bana-desktop -- --sample`.
+- Browser: `pnpm --dir web build && cargo run -p bana-cli -- serve --sample` then open
   http://127.0.0.1:8787/ (or `pnpm --dir web dev` on :5173, which proxies to the server).
 - `cargo xtask shots` writes Playwright screenshots to `docs/images/web/`. For UI work, **look at the
-  PNG** next to the spec screenshot before committing (see `.claude/skills/tanacraft-ui`).
-- `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.tanacraft`
+  PNG** next to the spec screenshot before committing (see `.claude/skills/bana-ui`).
+- `cargo run -p bana-cli -- --help`; MCP: `cargo run -p bana-mcp -- --file graph.bana`
   (works on the running app when one has the file open). Remote connector: `docs/mcp.md`; never
   deploy it or create cloud resources yourself, the user runs `cloudflare/wizard.sh`.
 - Parallel agents: use a separate `CARGO_TARGET_DIR`; keep builds to a few jobs (`.cargo/config.toml`).

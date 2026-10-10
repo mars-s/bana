@@ -1,4 +1,4 @@
-//! TanaCraft's egui front end. Thin: it reads the [`Session`] and runs commands by id.
+//! Bana's egui front end. Thin: it reads the [`Session`] and runs commands by id.
 //!
 //! Layout: a top bar (sidebar toggle, back/forward, the open page), a sidebar (Today, Supertags,
 //! Home, Daily notes, Trash, the supertag list, recents), the outline panel (breadcrumbs, title, tag
@@ -18,8 +18,8 @@ mod views;
 
 use egui::{Color32, CornerRadius, Frame, Margin, RichText, Sense, Ui, vec2};
 use serde_json::{Value, json};
-use tanacraft_commands::Session;
-use tanacraft_core::{NodeId, PRODUCT_NAME};
+use bana_commands::Session;
+use bana_core::{NodeId, PRODUCT_NAME};
 
 use crate::icons::Icon;
 use crate::theme::Tokens;
@@ -77,7 +77,7 @@ const MENU_KEYS: &[(&str, &str)] = &[
 /// Items show their keys; when the menu takes a key press itself, `TanaApp::menu_item` replays it
 /// as that key, so the outline handles it the same either way.
 pub const MENU_BAR: &[(&str, &[(&str, &str)])] = &[
-    ("App", &[("About TanaCraft", "ui.help"), ("Settings...", "ui.settings"), ("Quit", "ui.quit")]),
+    ("App", &[("About Bana", "ui.help"), ("Settings...", "ui.settings"), ("Quit", "ui.quit")]),
     (
         "Edit",
         &[
@@ -222,7 +222,7 @@ pub(crate) struct FieldEdit {
 }
 
 pub(crate) fn is_checkbox_field(app: &TanaApp, field: NodeId) -> bool {
-    app.session.graph.field_def(field).is_some_and(|d| d.field_type == tanacraft_core::FieldType::Checkbox)
+    app.session.graph.field_def(field).is_some_and(|d| d.field_type == bana_core::FieldType::Checkbox)
 }
 
 /// Deferred UI actions (collected while drawing, applied after).
@@ -272,7 +272,7 @@ pub struct DatePick {
     pub picking_end: bool,
 }
 
-/// A request from the JSON control channel (`tanacraft --control PORT`), answered on `reply`.
+/// A request from the JSON control channel (`bana --control PORT`), answered on `reply`.
 pub struct ControlRequest {
     pub method: String,
     pub params: Value,
@@ -403,7 +403,7 @@ pub struct TanaApp {
     quick_filter_open: Option<NodeId>,
     quick_filter_focus: bool,
     /// Week shown by a calendar in week mode (None: this week).
-    calendar_week_anchor: Option<tanacraft_core::Date>,
+    calendar_week_anchor: Option<bana_core::Date>,
     /// Calendars whose "nodes with no dates" list is open.
     show_undated: std::collections::HashSet<NodeId>,
     /// Calendar time grid: a "New event" being dragged out or named.
@@ -534,7 +534,7 @@ impl TanaApp {
         let g = &self.session.graph;
         let stored = g
             .get(g.resolve(fe.node))
-            .and_then(|n| n.field_values(fe.field).get(fe.index).map(|v| tanacraft_core::export::display_value(g, v)))
+            .and_then(|n| n.field_values(fe.field).get(fe.index).map(|v| bana_core::export::display_value(g, v)))
             .unwrap_or_default();
         if stored != fe.buf.trim()
             && let Err(e) = self.exec("field.set", json!({"node": fe.node.0, "field": fe.field.0, "index": fe.index, "value": fe.buf, "keep": true}))
@@ -656,7 +656,7 @@ impl TanaApp {
         let g = &self.session.graph;
         let stored = g
             .get(g.resolve(owner))
-            .and_then(|n| n.field_values(field).first().map(|v| tanacraft_core::export::display_value(g, v)))
+            .and_then(|n| n.field_values(field).first().map(|v| bana_core::export::display_value(g, v)))
             .unwrap_or_default();
         let fe = FieldEdit { node: owner, field, index: 0, buf: format!("{stored}{append}"), focus_once: true };
         if !append.is_empty() {
@@ -718,7 +718,7 @@ impl TanaApp {
 
     /// Where the row of `field` on `owner` sits among the visible rows: the index of the first row
     /// below it.
-    fn field_row_pos(&self, owner: NodeId, field: NodeId) -> (Vec<tanacraft_commands::Row>, usize) {
+    fn field_row_pos(&self, owner: NodeId, field: NodeId) -> (Vec<bana_commands::Row>, usize) {
         let rows = self.session.rows();
         let g = &self.session.graph;
         let after = g.get(owner).and_then(|n| n.fields.iter().find(|e| e.field == field)).and_then(|e| e.after);
@@ -749,7 +749,7 @@ impl TanaApp {
                 .session
                 .graph
                 .get(owner)
-                .and_then(|n| n.field_values(fe.field).get(index).map(|v| tanacraft_core::export::display_value(&self.session.graph, v)))
+                .and_then(|n| n.field_values(fe.field).get(index).map(|v| bana_core::export::display_value(&self.session.graph, v)))
                 .unwrap_or_default();
             self.start_field_edit(FieldEdit { index, buf, focus_once: true, ..fe });
             return;
@@ -1519,9 +1519,9 @@ impl TanaApp {
                 }
                 Act::PickDate(node, field, index, anchor) => {
                     let value = self.session.graph.get(node).and_then(|n| n.field_values(field).get(index).copied()).cloned();
-                    let current = value.as_ref().and_then(tanacraft_core::FieldValue::date);
+                    let current = value.as_ref().and_then(bana_core::FieldValue::date);
                     let time = match value {
-                        Some(tanacraft_core::FieldValue::Timed { start, end, .. }) => (tanacraft_core::fmt_hm(start), tanacraft_core::fmt_hm(end)),
+                        Some(bana_core::FieldValue::Timed { start, end, .. }) => (bana_core::fmt_hm(start), bana_core::fmt_hm(end)),
                         _ => Default::default(),
                     };
                     let d = current.unwrap_or(self.session.today);
@@ -1536,7 +1536,7 @@ impl TanaApp {
                         time,
                         drawn: false,
                         end: match &value {
-                            Some(tanacraft_core::FieldValue::Span { end, .. }) => Some(end.to_string()),
+                            Some(bana_core::FieldValue::Span { end, .. }) => Some(end.to_string()),
                             _ => None,
                         },
                         picking_end: false,
@@ -1667,7 +1667,7 @@ impl TanaApp {
         let t = self.tokens();
         let g = &self.session.graph;
         let zoom = self.session.zoom;
-        let today_open = g.get(zoom).is_some_and(|n| n.kind == tanacraft_core::Kind::Day { date: self.session.today });
+        let today_open = g.get(zoom).is_some_and(|n| n.kind == bana_core::Kind::Day { date: self.session.today });
         ui.add_space(4.0);
         let mut acts = Vec::new();
         if side_item(ui, &t, Icon::Today, "Today", today_open).clicked() {

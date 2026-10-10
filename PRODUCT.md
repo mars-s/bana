@@ -1,4 +1,4 @@
-# TanaCraft: product brief
+# Bana: product brief
 
 ## What it is
 
@@ -34,7 +34,7 @@ Non-negotiables, in order:
 
 ## Out of scope for now
 
-AI features, sync over the network (merging works offline; transport comes later), Android. The iPhone app (`apps/tanacraft-ios`) is a first version on the same engine.
+AI features, sync over the network (merging works offline; transport comes later), Android. The iPhone app (`apps/bana-ios`) is a first version on the same engine.
 
 ## Where things are
 

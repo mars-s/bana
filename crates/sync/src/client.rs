@@ -11,8 +11,8 @@
 
 use std::collections::BTreeMap;
 
+use bana_core::{Graph, VersionVector};
 use serde::Serialize;
-use tanacraft_core::{Graph, VersionVector};
 
 use crate::config::Config;
 use crate::crypto::{DeviceKey, Kind, WorkspaceKey, invite_hash, random};
@@ -32,7 +32,7 @@ pub trait Replica {
     fn compact(&mut self, acked: &[VersionVector]) -> Result<bool>;
 }
 
-fn core(e: tanacraft_core::Error) -> Error {
+fn core(e: bana_core::Error) -> Error {
     Error::Graph(e.to_string())
 }
 

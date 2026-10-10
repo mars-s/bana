@@ -4,9 +4,9 @@
 
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use serde_json::json;
-use tanacraft_core::query::{Clause, ClauseKind, Query};
-use tanacraft_core::view::{Group, NO_VALUE};
-use tanacraft_core::{Date, FieldType, GroupBy, NodeId, SortBy, ViewKind};
+use bana_core::query::{Clause, ClauseKind, Query};
+use bana_core::view::{Group, NO_VALUE};
+use bana_core::{Date, FieldType, GroupBy, NodeId, SortBy, ViewKind};
 
 use crate::icons::Icon;
 use crate::outline::{checkbox, chip, field_values, rich_label};
@@ -47,7 +47,7 @@ fn small_button(ui: &mut Ui, t: &Tokens, label: &str, active: bool) -> egui::Res
     ui.add(b)
 }
 
-fn clause_text(g: &tanacraft_core::Graph, c: &Clause) -> String {
+fn clause_text(g: &bana_core::Graph, c: &Clause) -> String {
     let one = Query { any: false, clauses: vec![Clause { not: false, kind: c.kind.clone() }] };
     one.describe(g)
 }
@@ -105,7 +105,7 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                 // Field values: a field's value relative to where the search sits, or its state
                 // (spec 05 §2). Fields of the query's supertags, else every field.
                 let value_fields: Vec<String> = if fields.is_empty() {
-                    g.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Field(_))).map(|n| n.name.clone()).take(40).collect()
+                    g.iter().filter(|n| matches!(n.kind, bana_core::Kind::Field(_))).map(|n| n.name.clone()).take(40).collect()
                 } else {
                     fields.iter().map(|(_, n)| n.clone()).collect()
                 };
@@ -157,7 +157,7 @@ pub fn query_builder(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
                     }
                 });
                 ui.menu_button(RichText::new("Tag types").size(13.0).color(t.dim), |ui| {
-                    for b in tanacraft_core::BASE_TYPES {
+                    for b in bana_core::BASE_TYPES {
                         if ui.button(format!("{b} (base type)")).clicked() {
                             app.acts.push(Act::Run("search.addClause".into(), json!({"node": node.0, "clause": format!("TYPE:{b}")})));
                             ui.close();
@@ -267,7 +267,7 @@ fn group_box(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, q: &Query
                                 let (r, _) = ui.allocate_exact_size(vec2(14.0, 18.0), Sense::hover());
                                 crate::outline::paint_field_icon(ui.painter(), Rect::from_center_size(r.center(), vec2(11.0, 11.0)), ty, t.dim);
                                 ui.label(RichText::new(g.name(*field)).size(13.5).color(t.dim));
-                                use tanacraft_core::query::Op;
+                                use bana_core::query::Op;
                                 let (op_text, shown) = match op {
                                     Op::Set => ("", "Set".to_string()),
                                     Op::Eq => ("", value.clone()),
@@ -426,7 +426,7 @@ pub fn toolbar(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId) {
             }
             ui.separator();
             ui.label(RichText::new("System fields").size(12.0).color(t.faint));
-            for sf in tanacraft_core::SystemField::ALL {
+            for sf in bana_core::SystemField::ALL {
                 let mut on = def.system.contains(&sf);
                 if ui.checkbox(&mut on, sf.label()).changed() {
                     acts.push(Act::Run("view.toggleSystemField".into(), json!({"node": node.0, "field": sf.label()})));
@@ -1609,7 +1609,7 @@ fn snap(min: f32) -> u16 {
 }
 
 fn range_text(day: Date, a: u16, b: u16) -> String {
-    format!("{day} {}-{}", tanacraft_core::fmt_hm(a), tanacraft_core::fmt_hm(b))
+    format!("{day} {}-{}", bana_core::fmt_hm(a), bana_core::fmt_hm(b))
 }
 
 /// The colours of an item's chip: (bar, fill).
@@ -1758,7 +1758,7 @@ fn time_grid(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, node: NodeId, field: Op
         };
         // Now: a thin red-orange line in today's column.
         if let Some(i) = days.iter().position(|d| *d == today) {
-            let y = grid.top() + tanacraft_core::Date::now_minutes() as f32 / 60.0 * HOUR_H;
+            let y = grid.top() + bana_core::Date::now_minutes() as f32 / 60.0 * HOUR_H;
             let x0 = col_x(i, grid.left());
             let red = Color32::from_rgb(226, 92, 64);
             p.line_segment([pos2(x0, y), pos2(x0 + col_w, y)], Stroke::new(1.5, red));
@@ -1933,7 +1933,7 @@ fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, 
                     ev.focus_once = false;
                 }
                 let g = &app.session.graph;
-                let shown = tanacraft_core::export::shown_value(g, &tanacraft_core::FieldValue::Timed { date: ev.day, start: ev.start, end: ev.end });
+                let shown = bana_core::export::shown_value(g, &bana_core::FieldValue::Timed { date: ev.day, start: ev.start, end: ev.end });
                 ui.label(RichText::new(format!("{}: {shown}", g.name(field))).size(12.5).color(t.dim));
                 // Enter creates; leaving a typed name (a click elsewhere) keeps it too. Escape cancels.
                 let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
@@ -1948,7 +1948,7 @@ fn new_event_popover(app: &mut TanaApp, ui: &mut Ui, t: &Tokens, field: NodeId, 
     }
     if create {
         let name = if ev.name.trim().is_empty() { "New event".to_string() } else { ev.name.clone() };
-        let on_week = matches!(app.session.graph.get(ev.view).map(|n| &n.kind), Some(tanacraft_core::Kind::Week { .. }));
+        let on_week = matches!(app.session.graph.get(ev.view).map(|n| &n.kind), Some(bana_core::Kind::Week { .. }));
         let r = if on_week {
             // A week's Schedule: the event goes on its day.
             app.exec("nav.day", json!({"date": ev.day.to_string()}))

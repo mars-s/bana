@@ -3,9 +3,9 @@
 
 use std::collections::BTreeMap;
 
+use bana_commands::Session;
+use bana_core::{FieldType, FieldValue, Graph, HideMode, Kind, NodeId, export, format};
 use serde_json::{Value, json};
-use tanacraft_commands::Session;
-use tanacraft_core::{FieldType, FieldValue, Graph, HideMode, Kind, NodeId, export, format};
 
 /// Rows sent per page request when the front end does not say (it asks for the window it shows).
 const DEFAULT_COUNT: usize = 400;
@@ -143,7 +143,7 @@ fn field_type_name(t: FieldType) -> &'static str {
 }
 
 /// One field row: name, type and values as shown.
-fn field_row(g: &Graph, owner: NodeId, e: &tanacraft_core::FieldEntry, depth: usize) -> Value {
+fn field_row(g: &Graph, owner: NodeId, e: &bana_core::FieldEntry, depth: usize) -> Value {
     let def = g.field_def(e.field).cloned().unwrap_or_default();
     let values: Vec<&FieldValue> = e.values().collect();
     let shown: Vec<Value> = values
@@ -331,8 +331,8 @@ pub fn page(s: &Session, params: &Value) -> Value {
     let mut refs: BTreeMap<u64, String> = format::refs(g.name(zoom)).into_iter().map(|r| (r, g.text(NodeId(r)))).collect();
     let all = items(s);
     let total = all.len();
-    let start = tanacraft_commands::p::usize(params, "start").unwrap_or(0).min(total);
-    let count = tanacraft_commands::p::usize(params, "count").unwrap_or(DEFAULT_COUNT).min(MAX_COUNT);
+    let start = bana_commands::p::usize(params, "start").unwrap_or(0).min(total);
+    let count = bana_commands::p::usize(params, "count").unwrap_or(DEFAULT_COUNT).min(MAX_COUNT);
     let end = start.saturating_add(count).min(total);
     let mut window: Vec<Value> = all.get(start..end).unwrap_or(&[]).iter().map(|it| item_json(s, it, &mut refs)).collect();
     // The reference counter (a setting): how many places point at each line's node.
@@ -476,14 +476,12 @@ pub fn sidebar(s: &Session) -> Value {
 pub fn find(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
     let q = params.get("query").and_then(Value::as_str).unwrap_or_default();
-    let limit = tanacraft_commands::p::usize(params, "limit").unwrap_or(12).min(100);
+    let limit = bana_commands::p::usize(params, "limit").unwrap_or(12).min(100);
     // `under`: only what is inside that node (Tab on a result, UC-06.42).
-    let under = tanacraft_commands::p::node(params, "under").ok().flatten().filter(|n| g.get(*n).is_some());
+    let under = bana_commands::p::node(params, "under").ok().flatten().filter(|n| g.get(*n).is_some());
     let ids: Vec<NodeId> = match under {
         Some(u) if q.trim().is_empty() => g.children(u).iter().copied().take(limit).collect(),
-        Some(u) => {
-            g.fuzzy(q, tanacraft_core::query::MAX_RESULTS).into_iter().filter(|n| *n != u && g.is_ancestor_or_self(u, *n)).take(limit).collect()
-        }
+        Some(u) => g.fuzzy(q, bana_core::query::MAX_RESULTS).into_iter().filter(|n| *n != u && g.is_ancestor_or_self(u, *n)).take(limit).collect(),
         None if q.trim().is_empty() => s.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(limit).collect(),
         None => g.fuzzy(q, limit),
     };
@@ -507,7 +505,7 @@ pub fn find(s: &Session, params: &Value) -> Value {
 pub fn choices(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
     let mode = params.get("mode").and_then(Value::as_str).unwrap_or_default();
-    let node = tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
+    let node = bana_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
     let raw = params.get("query").and_then(Value::as_str).unwrap_or_default();
     let q = raw.trim().trim_start_matches('#').to_lowercase();
     let item = |id: NodeId, label: String| json!({"id": id.0, "label": label});
@@ -536,7 +534,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             })
             .collect(),
         "choice" => {
-            let field = tanacraft_commands::p::node(params, "field").ok().flatten();
+            let field = bana_commands::p::node(params, "field").ok().flatten();
             let current: Vec<String> = field
                 .and_then(|f| Some(g.get(g.resolve(node))?.field_values(f).into_iter().map(|v| export::display_value(g, v)).collect()))
                 .unwrap_or_default();
@@ -572,7 +570,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         // Add to day (DIFFS N82): the usual days, and any date typed in words (first).
         "addToDay" => {
             let mut v: Vec<Value> = Vec::new();
-            if let Some((d, _)) = tanacraft_core::Date::from_words(raw, s.today).filter(|_| !q.is_empty()) {
+            if let Some((d, _)) = bana_core::Date::from_words(raw, s.today).filter(|_| !q.is_empty()) {
                 v.push(json!({"date": raw.trim(), "label": d.day_title()}));
             }
             for (words, label) in [
@@ -583,7 +581,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
                 ("next month", "Next month"),
             ] {
                 if label.to_lowercase().contains(&q)
-                    && let Some((d, _)) = tanacraft_core::Date::from_words(words, s.today)
+                    && let Some((d, _)) = bana_core::Date::from_words(words, s.today)
                 {
                     v.push(json!({"date": words, "label": format!("{label}  {}", d.day_title())}));
                 }
@@ -637,7 +635,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
     out.truncate(10);
     // "@" with a date in words offers that date first (UC-01.08): "@next friday", "@Nov 21 to 30".
     if matches!(mode, "reference" | "inlineRef")
-        && let Some((d, end)) = tanacraft_core::Date::from_words(raw, s.today)
+        && let Some((d, end)) = bana_core::Date::from_words(raw, s.today)
     {
         let label = match end {
             Some(e) => format!("{} to {}", d.day_title(), e.day_title()),
@@ -660,7 +658,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.
-    let next = tanacraft_core::TAG_COLORS.get(2 + g.tags().len() % 12).copied().unwrap_or("grey");
+    let next = bana_core::TAG_COLORS.get(2 + g.tags().len() % 12).copied().unwrap_or("grey");
     json!({"items": out, "nextColor": next})
 }
 
@@ -672,8 +670,8 @@ pub fn is_view(g: &Graph, id: NodeId) -> bool {
 
 /// A search node's query as a tree the query builder draws: each group is AND or OR, each clause
 /// reads as text, a NOT group is a clause with `not` set.
-fn query_tree(g: &Graph, q: &tanacraft_core::Query, depth: usize) -> Value {
-    use tanacraft_core::query::{Clause, ClauseKind};
+fn query_tree(g: &Graph, q: &bana_core::Query, depth: usize) -> Value {
+    use bana_core::query::{Clause, ClauseKind};
     let clauses: Vec<Value> = q
         .clauses
         .iter()
@@ -681,7 +679,7 @@ fn query_tree(g: &Graph, q: &tanacraft_core::Query, depth: usize) -> Value {
         .map(|c| match &c.kind {
             ClauseKind::Group { query } if depth < 8 => json!({"not": c.not, "group": query_tree(g, query, depth + 1)}),
             _ => {
-                let one = tanacraft_core::Query { any: false, clauses: vec![Clause { not: false, kind: c.kind.clone() }] };
+                let one = bana_core::Query { any: false, clauses: vec![Clause { not: false, kind: c.kind.clone() }] };
                 json!({"not": c.not, "text": one.describe(g)})
             }
         })
@@ -694,7 +692,7 @@ fn query_tree(g: &Graph, q: &tanacraft_core::Query, depth: usize) -> Value {
 /// the week a calendar shows).
 pub fn view(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
-    let node = tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
+    let node = bana_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom);
     let def = g.view_def(node);
     let cols = g.view_columns(node);
     let mut refs = BTreeMap::new();
@@ -764,16 +762,16 @@ pub fn view(s: &Session, params: &Value) -> Value {
         // The rules behind the toolbar (N48): sort rules in order, filter conditions as chips.
         "sorts": def.sort.iter().map(|r| {
             let (by, label) = match r.by {
-                tanacraft_core::SortBy::Name => ("name".to_string(), "Name".to_string()),
-                tanacraft_core::SortBy::Created => ("created".into(), "Created time".into()),
-                tanacraft_core::SortBy::Edited => ("edited".into(), "Last edited time".into()),
-                tanacraft_core::SortBy::Done => ("done".into(), "Done".into()),
-                tanacraft_core::SortBy::DoneTime => ("done_time".into(), "Done time".into()),
-                tanacraft_core::SortBy::Field(f) => (f.0.to_string(), g.name(f).to_string()),
+                bana_core::SortBy::Name => ("name".to_string(), "Name".to_string()),
+                bana_core::SortBy::Created => ("created".into(), "Created time".into()),
+                bana_core::SortBy::Edited => ("edited".into(), "Last edited time".into()),
+                bana_core::SortBy::Done => ("done".into(), "Done".into()),
+                bana_core::SortBy::DoneTime => ("done_time".into(), "Done time".into()),
+                bana_core::SortBy::Field(f) => (f.0.to_string(), g.name(f).to_string()),
             };
             json!({"by": by, "label": label, "desc": r.desc})
         }).collect::<Vec<_>>(),
-        "filters": def.filter.clauses.iter().map(|c| tanacraft_core::query::Query { any: false, clauses: vec![c.clone()] }.describe(g)).collect::<Vec<_>>(),
+        "filters": def.filter.clauses.iter().map(|c| bana_core::query::Query { any: false, clauses: vec![c.clone()] }.describe(g)).collect::<Vec<_>>(),
         "system": def.system.iter().map(|f| f.label()).collect::<Vec<_>>(),
         "filteredOut": g.view_filtered_out(node),
         "hiddenGroups": def.hidden_groups,
@@ -827,7 +825,7 @@ pub fn used_elsewhere(s: &Session, params: &Value) -> Value {
 /// show and change. Params: `node` (default: the page).
 pub fn schema(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
-    let node = g.resolve(tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom));
+    let node = g.resolve(bana_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom));
     let named = |id: NodeId| json!({"id": id.0, "name": g.name(id)});
     if let Some(d) = g.field_def(node) {
         let (nodes, tags) = g.field_usage(node);
@@ -842,10 +840,10 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "required": d.required,
             "hide": d.hide.name(),
             "autoInit": match d.auto_init {
-                Some(tanacraft_core::AutoInit::CurrentDate) => "current_date",
-                Some(tanacraft_core::AutoInit::AncestorDay) => "ancestor_day",
-                Some(tanacraft_core::AutoInit::AncestorValue) => "ancestor_value",
-                Some(tanacraft_core::AutoInit::RandomNode) => "random_node",
+                Some(bana_core::AutoInit::CurrentDate) => "current_date",
+                Some(bana_core::AutoInit::AncestorDay) => "ancestor_day",
+                Some(bana_core::AutoInit::AncestorValue) => "ancestor_value",
+                Some(bana_core::AutoInit::RandomNode) => "random_node",
                 None => "none",
             },
             "default": d.default.as_ref().map(|v| export::display_value(g, v)),
@@ -876,7 +874,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "optional": d.optional.iter().map(|f| named(*f)).collect::<Vec<_>>(),
             "childTag": d.child_tag.map(named),
             "baseType": d.base_type,
-            "baseTypes": tanacraft_core::BASE_TYPES,
+            "baseTypes": bana_core::BASE_TYPES,
             "titleExpr": d.title_expr,
             // Commands on events (UC-02.20) and the command nodes to pick from.
             "onAdded": d.on_added.first().map(|c| c.0),
@@ -884,7 +882,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "buttons": d.buttons.iter().map(|c| named(*c)).collect::<Vec<_>>(),
             "commandNodes": g.command_nodes().into_iter().map(named).collect::<Vec<_>>(),
             "doneMap": d.done_map.as_ref().map(|m| json!({"field": named(m.field), "checked": m.checked, "unchecked": m.unchecked})),
-            "colors": tanacraft_core::TAG_COLORS,
+            "colors": bana_core::TAG_COLORS,
             "used": g.tagged(node).len(),
         });
     }

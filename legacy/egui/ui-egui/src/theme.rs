@@ -51,7 +51,7 @@ impl Tokens {
     }
 }
 
-/// Supertag colour by name (see `tanacraft_core::TAG_COLORS`): strong (text, bullet) and soft (chip fill).
+/// Supertag colour by name (see `bana_core::TAG_COLORS`): strong (text, bullet) and soft (chip fill).
 pub fn tag_color(name: &str, dark: bool) -> (Color32, Color32) {
     let (r, g, b) = match name {
         "red" => (232, 84, 84),
@@ -66,7 +66,7 @@ pub fn tag_color(name: &str, dark: bool) -> (Color32, Color32) {
         "indigo" => (110, 112, 236),
         "violet" => (154, 104, 232),
         "pink" => (226, 84, 166),
-        c if tanacraft_core::is_custom_color(c) => {
+        c if bana_core::is_custom_color(c) => {
             let h = |i: usize| u8::from_str_radix(c.get(i..i + 2).unwrap_or("80"), 16).unwrap_or(128);
             (h(1), h(3), h(5))
         }

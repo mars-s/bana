@@ -1,7 +1,7 @@
 # 11 The new Tana (tana.inc)
 
 In 2026 tana.inc became a new, agent-first product (spaces, types, docs, meetings, agents) and
-the outliner moved to outliner.tana.inc. TanaCraft targets the outliner; this file records the
+the outliner moved to outliner.tana.inc. Bana targets the outliner; this file records the
 new product's use cases so the gap is visible. Scenarios (all skipped):
 `web/tests/use-cases/11-new-tana.spec.ts`.
 

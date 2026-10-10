@@ -23,7 +23,7 @@ use serde_json::{Map, Value, json};
 use crate::model::{Node, NodeId};
 use crate::{Error, Result};
 
-pub const FORMAT: &str = "tanacraft-loro";
+pub const FORMAT: &str = "bana-loro";
 const VERSION: i64 = 1;
 
 /// Keys of a serialized [`Node`] stored in their own way (everything else is `p:<key>`).

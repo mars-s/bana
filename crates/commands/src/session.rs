@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use bana_core::{Date, Graph, NodeId};
 use serde_json::{Value, json};
-use tanacraft_core::{Date, Graph, NodeId};
 
 use crate::{CmdError, CmdResult, Registry};
 
@@ -150,7 +150,7 @@ impl Session {
         // The line the caret left keeps no empty format marks (DIFFS N19).
         if let Some(l) = left.filter(|l| result.is_ok() && self.focus != Some(*l)) {
             let name = self.graph.name(l);
-            let (clean, _) = tanacraft_core::format::strip_empty(name, 0);
+            let (clean, _) = bana_core::format::strip_empty(name, 0);
             if clean != name {
                 let _ = self.graph.set_name(l, &clean);
             }

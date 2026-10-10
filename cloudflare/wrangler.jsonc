@@ -1,8 +1,8 @@
 {
-  // The TanaCraft remote MCP connector (docs/mcp.md). `wizard.sh` fills in the ids and secrets;
+  // The Bana remote MCP connector (docs/mcp.md). `wizard.sh` fills in the ids and secrets;
   // nothing here is a secret.
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "tanacraft-mcp",
+  "name": "bana-mcp",
   "main": "worker.ts",
   "compatibility_date": "2026-09-30",
   "compatibility_flags": ["nodejs_compat"],
@@ -10,8 +10,8 @@
   "preview_urls": false,
   "observability": { "enabled": false },
   "vars": {
-    "PUBLIC_ORIGIN": "https://tanacraft-mcp.YOUR-SUBDOMAIN.workers.dev",
-    "MAC_MCP_URL": "https://tanacraft.YOUR-DOMAIN/mcp",
+    "PUBLIC_ORIGIN": "https://bana-mcp.YOUR-SUBDOMAIN.workers.dev",
+    "MAC_MCP_URL": "https://bana.YOUR-DOMAIN/mcp",
     "ALLOWED_GITHUB_ID": "0"
   },
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }]

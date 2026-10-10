@@ -1,14 +1,14 @@
 //! Frame times of the real UI on a generated 50,000-node workspace (headless, no renderer): an
 //! outline with every node expanded, typing into it, expanding and collapsing, Search and open.
-//! README numbers: `cargo test -p tanacraft-ui-egui --test perf --release -- --nocapture`.
+//! README numbers: `cargo test -p bana-ui-egui --test perf --release -- --nocapture`.
 
 use std::time::{Duration, Instant};
 
 use egui::{Event, Key, Modifiers};
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_core::{Date, sample};
-use tanacraft_ui_egui::TanaApp;
+use bana_commands::Session;
+use bana_core::{Date, sample};
+use bana_ui_egui::TanaApp;
 
 type H<'a> = egui_kittest::Harness<'a, TanaApp>;
 

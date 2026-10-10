@@ -19,12 +19,12 @@ commands:
 fn main() -> ExitCode {
     let result = match std::env::args().nth(1).as_deref() {
         Some("ci") => ci(),
-        // The Playwright tests start `target/debug/tanacraft-cli serve`, so it is built first.
+        // The Playwright tests start `target/debug/bana serve`, so it is built first.
         Some("shots") => web_prep().and_then(|_| pnpm(&["run", "shots"])),
         Some("web") => web_prep().and_then(|_| pnpm(&["exec", "playwright", "test", "--project=tests"])),
         Some("parity") => parity(),
         Some("sync") => sync(),
-        Some("connector") => cargo(&["build", "-p", "tanacraft-cli"])
+        Some("connector") => cargo(&["build", "-p", "bana-cli"])
             .and_then(|_| npm(&["ci", "--no-audit", "--no-fund"]))
             .and_then(|_| npm(&["run", "typecheck"]))
             .and_then(|_| npm(&["test"])),
@@ -64,14 +64,14 @@ fn ci() -> Result<(), String> {
     let tokens =
         Command::new("python3").arg(root().join("scripts/gen-ios-tokens.py")).arg("--check").status().map_err(|e| format!("python3: {e}"))?;
     if !tokens.success() {
-        return Err("apps/tanacraft-ios/TanaCraft/Tokens.swift is out of date: run python3 scripts/gen-ios-tokens.py".into());
+        return Err("apps/bana-ios/Bana/Tokens.swift is out of date: run python3 scripts/gen-ios-tokens.py".into());
     }
     cargo(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"])?;
     cargo(&["test", "--workspace"])
 }
 
 fn sync() -> Result<(), String> {
-    cargo(&["test", "-p", "tanacraft-sync"])?;
+    cargo(&["test", "-p", "bana-sync"])?;
     let relay = root().join("cloudflare/sync");
     run_in(&relay, "npm", &["ci", "--no-audit", "--no-fund"])?;
     run_in(&relay, "npm", &["run", "typecheck"])?;
@@ -86,7 +86,7 @@ fn run_in(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
 }
 
 fn web_prep() -> Result<(), String> {
-    cargo(&["build", "-p", "tanacraft-cli"])?;
+    cargo(&["build", "-p", "bana-cli"])?;
     pnpm(&["install", "--frozen-lockfile"])?;
     pnpm(&["run", "build"])
 }

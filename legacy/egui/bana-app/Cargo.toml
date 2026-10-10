@@ -1,0 +1,22 @@
+[package]
+name = "bana"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Bana desktop app"
+
+[lints]
+workspace = true
+
+[dependencies]
+bana-core = { workspace = true }
+bana-commands = { workspace = true }
+bana-ui-egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+egui = { workspace = true }
+serde_json = { workspace = true }
+arboard = { version = "3.6", default-features = false }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.17", default-features = false }

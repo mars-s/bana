@@ -1,22 +1,22 @@
-//! `tanacraft-mcp [--file FILE] [--connect HOST:PORT --token TOKEN]`: MCP server on stdio.
-//! Works on the running app that has FILE open (default `~/TanaCraft/graph.tanacraft`), found
+//! `bana-mcp [--file FILE] [--connect HOST:PORT --token TOKEN]`: MCP server on stdio.
+//! Works on the running app that has FILE open (default `~/Bana/graph.bana`), found
 //! through the live file beside it; on the file itself only when no app has it open.
 
-use tanacraft_mcp::{Backend, Server};
+use bana_mcp::{Backend, Server};
 
-const USAGE: &str = "usage: tanacraft-mcp [--file FILE] [--connect 127.0.0.1:PORT [--token TOKEN]]
+const USAGE: &str = "usage: bana-mcp [--file FILE] [--connect 127.0.0.1:PORT [--token TOKEN]]
 
-An MCP server (JSON-RPC on stdin and stdout) for TanaCraft notes.
-  --file FILE        the graph (default ~/TanaCraft/graph.tanacraft); the running app that has it
+An MCP server (JSON-RPC on stdin and stdout) for Bana notes.
+  --file FILE        the graph (default ~/Bana/graph.bana); the running app that has it
                      open is used when there is one, else the file itself
   --connect ADDR     a running app at 127.0.0.1:PORT
-  --token TOKEN      its token (default: this install's, ~/TanaCraft/token)
+  --token TOKEN      its token (default: this install's, ~/Bana/token)
   -h, --help         this text
 Which graph or app it works on is written to stderr when it starts.";
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("tanacraft-mcp: {e}");
+        eprintln!("bana-mcp: {e}");
         std::process::exit(2);
     }
 }
@@ -39,11 +39,12 @@ fn run() -> Result<(), String> {
             other => return Err(format!("unknown argument `{other}`\n{USAGE}")),
         }
     }
+    bana_core::rename::migrate_home().map_err(|e| e.to_string())?;
     let backend = match opts.get("--connect") {
         Some(addr) => Backend::connect(addr, opts.get("--token").cloned())?,
-        None => Backend::open(&opts.get("--file").map(std::path::PathBuf::from).unwrap_or_else(tanacraft_core::default_graph_path))?,
+        None => Backend::open(&opts.get("--file").map(std::path::PathBuf::from).unwrap_or_else(bana_core::default_graph_path))?,
     };
-    eprintln!("tanacraft-mcp: working on {}", backend.describe());
+    eprintln!("bana-mcp: working on {}", backend.describe());
     let stdin = std::io::stdin();
     Server::new(backend).serve(stdin.lock(), std::io::stdout().lock()).map_err(|e| e.to_string())
 }

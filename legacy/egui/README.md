@@ -1,11 +1,11 @@
 # Legacy egui front end (reference only)
 
-This folder holds TanaCraft's first front end, written with egui. It is **reference only and is
+This folder holds Bana's first front end, written with egui. It is **reference only and is
 not built**: the workspace excludes `legacy/`, and nothing here is compiled, linted or tested by
 `cargo xtask ci`. The last working version is the git tag `egui-final`
-(`git checkout egui-final && cargo run -p tanacraft -- --sample`).
+(`git checkout egui-final && cargo run -p bana -- --sample`).
 
-The desktop app is now the Tauri app in `apps/tanacraft-desktop`, with its web UI in `web/`.
+The desktop app is now the Tauri app in `apps/bana-desktop`, with its web UI in `web/`.
 
 ## Why it is kept
 
@@ -24,5 +24,5 @@ fix bugs in this folder; fix them in the web UI.
 
 | Folder | Was |
 |---|---|
-| `ui-egui/` | `crates/ui-egui` (`tanacraft-ui-egui`) |
-| `tanacraft-app/` | `apps/tanacraft` (the eframe desktop app, `--control PORT` JSON channel, macOS menu bar) |
+| `ui-egui/` | `crates/ui-egui` (`bana-ui-egui`) |
+| `bana-app/` | `apps/bana` (the eframe desktop app, `--control PORT` JSON channel, macOS menu bar) |

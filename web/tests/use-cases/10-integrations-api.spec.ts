@@ -5,11 +5,11 @@ import { dirname, join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree } from './helpers'
 import { pageWith, liveToken } from '../fixtures'
 
-const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'tanacraft-cli')
+const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'bana')
 
-/** An MCP client on stdio: `tanacraft-cli --file FILE mcp` on a graph file. */
+/** An MCP client on stdio: `bana --file FILE mcp` on a graph file. */
 function mcp(file: string) {
-  const proc = spawn(bin, ['--file', file, 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, TANACRAFT_HOME: dirname(file) } })
+  const proc = spawn(bin, ['--file', file, 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, BANA_HOME: dirname(file) } })
   const lines = createInterface({ input: proc.stdout! })
   const waiting = new Map<number, (v: any) => void>()
   lines.on('line', (l) => {
@@ -31,7 +31,7 @@ test('UC-10.01 an AI assistant (Claude, Cursor, Codex) adds a task through MCP; 
   // MCP finds the running engine through the live file beside the graph and works on it (UC-10.11).
   const c = mcp(server.file)
   const init = await c.call('initialize', { protocolVersion: '2025-03-26' })
-  expect(init.result.serverInfo.name).toBe('tanacraft')
+  expect(init.result.serverInfo.name).toBe('bana')
   const tools = (await c.call('tools/list')).result.tools.map((t: any) => t.name)
   expect(tools).toEqual(expect.arrayContaining(['list_commands', 'execute', 'add_node', 'export_markdown']))
   await c.call('tools/call', { name: 'execute', arguments: { command: 'nav.today' } })

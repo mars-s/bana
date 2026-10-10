@@ -1,7 +1,7 @@
-//! Offscreen screenshots of the whole TanaCraft window (wgpu), for README images and for checking UI
+//! Offscreen screenshots of the whole Bana window (wgpu), for README images and for checking UI
 //! work without a visible window.
 //!
-//! `cargo run -p tanacraft-ui-egui --example ui_shot -- script.jsonl` (or `cargo xtask shots`).
+//! `cargo run -p bana-ui-egui --example ui_shot -- script.jsonl` (or `cargo xtask shots`).
 //!
 //! The script is JSON lines, run in order:
 //! - `{"size": [1440, 900]}` window size in points (any line; applies from the start)
@@ -17,9 +17,9 @@
 
 use egui::{Event, Key, Modifiers};
 use serde_json::{Value, json};
-use tanacraft_commands::Session;
-use tanacraft_core::{Date, Graph, sample};
-use tanacraft_ui_egui::TanaApp;
+use bana_commands::Session;
+use bana_core::{Date, Graph, sample};
+use bana_ui_egui::TanaApp;
 
 type H<'a> = egui_kittest::Harness<'a, TanaApp>;
 

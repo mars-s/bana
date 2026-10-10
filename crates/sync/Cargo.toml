@@ -1,15 +1,15 @@
 [package]
-name = "tanacraft-sync"
+name = "bana-sync"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "TanaCraft sync: end-to-end encrypted Loro updates between paired copies through a relay"
+description = "Bana sync: end-to-end encrypted Loro updates between paired copies through a relay"
 
 [lints]
 workspace = true
 
 [dependencies]
-tanacraft-core = { workspace = true }
+bana-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

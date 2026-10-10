@@ -1,4 +1,4 @@
-//! TanaCraft core: the node graph.
+//! Bana core: the node graph.
 //!
 //! Every bullet is a [`Node`]. Nodes own their children; a [`Kind::Reference`] node mirrors another
 //! node. Supertags ([`Kind::Tag`]) carry template fields ([`Kind::Field`]) and can extend each
@@ -13,6 +13,7 @@ pub mod graph;
 pub mod model;
 pub mod opml;
 pub mod query;
+pub mod rename;
 pub mod sample;
 pub mod store;
 pub mod view;
@@ -26,19 +27,21 @@ pub use query::Query;
 pub use view::{GroupBy, Sort, SortBy, SystemField, ViewDef, ViewKind};
 
 /// The product name shown to people. Rename the product here.
-pub const PRODUCT_NAME: &str = "TanaCraft";
+pub const PRODUCT_NAME: &str = "Bana";
 
-/// Where the graph lives unless a file is given: `~/TanaCraft/graph.tanacraft` (a Loro document,
+/// Where the graph lives unless a file is given: `~/Bana/graph.bana` (a Loro document,
 /// see [`store`]).
 pub fn default_graph_path() -> std::path::PathBuf {
-    data_dir().join("graph.tanacraft")
+    data_dir().join("graph.bana")
 }
 
-/// The app's data folder: `$TANACRAFT_HOME`, else `~/TanaCraft`. It holds the default graph and
-/// the install's local API token.
+/// The app's data folder: `$BANA_HOME`, else the old variable's (see [`rename`]), else `~/Bana`.
+/// It holds the default graph and the install's local API token.
 pub fn data_dir() -> std::path::PathBuf {
-    if let Some(d) = std::env::var_os("TANACRAFT_HOME").filter(|d| !d.is_empty()) {
-        return std::path::PathBuf::from(d);
+    for var in ["BANA_HOME", rename::OLD_HOME_VAR] {
+        if let Some(d) = std::env::var_os(var).filter(|d| !d.is_empty()) {
+            return std::path::PathBuf::from(d);
+        }
     }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from).unwrap_or_default();
     home.join(PRODUCT_NAME)
@@ -84,7 +87,7 @@ pub fn live_file(graph: &std::path::Path) -> std::path::PathBuf {
     graph.with_file_name(name)
 }
 
-/// Where files attached to nodes are kept for `graph`: a folder beside it (`graph.tanacraft.files`).
+/// Where files attached to nodes are kept for `graph`: a folder beside it (`graph.bana.files`).
 pub fn files_dir(graph: &std::path::Path) -> std::path::PathBuf {
     let mut name = graph.file_name().unwrap_or_default().to_os_string();
     name.push(".files");
@@ -208,11 +211,12 @@ pub mod zip {
 /// before the Loro store), that one is loaded instead (and saved to `path` from then on). `None`
 /// when there is nothing to load.
 pub fn load_or_migrate(path: &std::path::Path) -> Result<Option<Graph>> {
+    rename::migrate_file(path)?;
     if path.exists() {
         return Graph::load(path).map(Some);
     }
     let old = path.with_file_name("graph.json");
-    if path.extension().is_some_and(|e| e == "tanacraft") && old.exists() {
+    if path.extension().is_some_and(|e| e == "bana") && old.exists() {
         return Graph::load(&old).map(Some);
     }
     Ok(None)

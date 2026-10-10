@@ -1,4 +1,4 @@
-//! TanaCraft sync: paired copies of a workspace (the desktop app, the phone) exchange Loro updates
+//! Bana sync: paired copies of a workspace (the desktop app, the phone) exchange Loro updates
 //! through a relay that only ever sees ciphertext and routing data (`docs/sync.md`).
 //!
 //! - [`crypto`]: the workspace key (XChaCha20-Poly1305) and device identities (Ed25519).
@@ -16,7 +16,7 @@ pub mod crypto;
 pub mod net;
 pub mod proto;
 
-pub(crate) use tanacraft_core::base64 as b64;
+pub(crate) use bana_core::base64 as b64;
 
 pub use client::{Client, Replica, State};
 pub use code::Code;

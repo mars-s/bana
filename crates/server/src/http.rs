@@ -8,7 +8,7 @@
 //! It listens on 127.0.0.1 only and refuses requests from pages on other origins, so a web site
 //! open in the same browser cannot reach the notes. A `POST /rpc` that comes from no page (an MCP
 //! server, the CLI, a script) must carry the server's token (`Authorization: Bearer <token>`),
-//! the install's local token in the data folder (`tanacraft_core::local_token`); [`announce`] writes
+//! the install's local token in the data folder (`bana_core::local_token`); [`announce`] writes
 //! the port beside the graph file for local tools to find.
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -34,7 +34,7 @@ pub struct Shared {
 impl Shared {
     pub fn new(host: Host) -> Arc<Shared> {
         // The install's token (a fresh one only when the data folder cannot be written).
-        let token = tanacraft_core::local_token().unwrap_or_else(|_| tanacraft_core::random_hex());
+        let token = bana_core::local_token().unwrap_or_else(|_| bana_core::random_hex());
         Shared::with_token(host, token)
     }
 
@@ -81,14 +81,14 @@ pub fn bind(port: u16) -> Result<TcpListener, String> {
     TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("port {port}: {e}"))
 }
 
-/// Writes the live file beside the graph (see [`tanacraft_core::live_file`]) so MCP and the CLI
+/// Writes the live file beside the graph (see [`bana_core::live_file`]) so MCP and the CLI
 /// reach this running engine. Readable by this user only. Returns its path (to remove on exit).
 /// `graph`: where to announce when the session has no file of its own (an in-memory graph served
 /// for a named file, as tests do).
 pub fn announce(shared: &Shared, port: u16, graph: Option<&Path>) -> Option<PathBuf> {
     let graph = shared.host.lock().ok()?.session.path.clone().or_else(|| graph.map(Path::to_path_buf))?;
-    let path = tanacraft_core::live_file(&graph);
-    // The token itself stays in the data folder (`tanacraft_core::local_token`).
+    let path = bana_core::live_file(&graph);
+    // The token itself stays in the data folder (`bana_core::local_token`).
     let body = json!({"port": port, "pid": std::process::id()}).to_string();
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
@@ -245,7 +245,7 @@ fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(
             "401 Unauthorized",
             "application/json",
             None,
-            "WWW-Authenticate: Bearer realm=\"tanacraft\"\r\n",
+            "WWW-Authenticate: Bearer realm=\"bana\"\r\n",
             br#"{"error":"send the install's local token as a Bearer token"}"#,
         );
     }
@@ -261,7 +261,7 @@ fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(
     };
     let me = Arc::clone(shared);
     let engine = move |method: &str, params: Value| me.handle(&json!({"method": method, "params": params}));
-    let mut server = tanacraft_mcp::Server::new(tanacraft_mcp::Backend::Engine(Box::new(engine)));
+    let mut server = bana_mcp::Server::new(bana_mcp::Backend::Engine(Box::new(engine)));
     let replies: Vec<Value> = match &msg {
         Value::Array(all) => all.iter().take(1000).filter_map(|m| server.handle_line(&m.to_string())).collect(),
         one => server.handle_line(&one.to_string()).into_iter().collect(),

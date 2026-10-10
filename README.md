@@ -1,18 +1,18 @@
-<h1 align="center">TanaCraft</h1>
+<h1 align="center">Bana</h1>
 
 <p align="center">
-  <b>A keyboard-first outliner with supertags, fields and daily notes; an open-source, clean-room
-  reimplementation of the Tana outliner, rebuilt in pure Rust.</b>
+  <b>A keyboard-first outliner with supertags, fields and daily notes: a clean-room, open-source
+  outliner inspired by the Tana outliner, built in Rust.</b>
 </p>
 
 <p align="center">
   Every bullet is a node. Tag a node with a supertag and it gains that supertag's fields. Reference any
-  node from anywhere. Write by hierarchy or by day. Your graph is a local JSON file, and every action
+  node from anywhere. Write by hierarchy or by day. Your graph is a local file, and every action
   is a command that people, scripts and AI agents can run.
 </p>
 
 <p align="center">
-  <img src="docs/images/web/today-dark.png" alt="TanaCraft showing today's page, Sat 10 Oct: the sidebar with Today, Supertags, Recents, Create new, pinned supertags and the workspace; the day page with a meeting node and its Outdoors field, a task with a pink chip, a reference to the Community garden project and an inline link; an Open tasks card on the right." width="100%">
+  <img src="docs/images/web/today-dark.png" alt="Bana showing today's page, Sat 10 Oct: the sidebar with Today, Supertags, Recents, Create new, pinned supertags and the workspace; the day page with a meeting node and its Outdoors field, a task with a pink chip, a reference to the Community garden project and an inline link; an Open tasks card on the right." width="100%">
   <br><sub><b>Today.</b> Daily notes, supertag chips, field rows, references and an Open tasks card.</sub>
 </p>
 
@@ -37,14 +37,14 @@
 </tr>
 </table>
 
-Every screenshot is TanaCraft itself (the web UI, rendered by `cargo xtask shots`). The look follows
+Every screenshot is Bana itself (the web UI, rendered by `cargo xtask shots`). The look follows
 the spec team's measured design ([DESIGN.md](DESIGN.md)); icons are our own.
 
 ## Why
 
 Tana showed that an outliner gets much more useful when nodes can carry types: tag a bullet `#task`
 and it gains a status, a due date and a checkbox; ask a search node for every open task and it stays
-live. TanaCraft rebuilds that model as open source:
+live. Bana rebuilds that model as open source:
 
 - **Local and yours.** One JSON file per workspace on your disk, saved atomically. No account, no server.
 - **Fast and small.** A Rust engine with a thin web UI (Tauri); it never blocks on the network.
@@ -63,7 +63,7 @@ live. TanaCraft rebuilds that model as open source:
 | **Daily notes** | Year, week and day nodes, relative titles, Open tasks card, week Schedule, go to date, insert date, dates that link to their day |
 | **Shell** | Tabs, resizable panels, sidebar full/mini/hidden with flyouts, pinned items, quick add, capture Inbox, several workspaces side by side (each with its own Library, Schema and Trash), page icons and banners, content width, Help page, settings with sub-pages (date and time, sidebar entries, URL embeds), a native macOS menu bar, trash |
 | **Undo** | Every command is one undo step; typing a word is one step; a failed command changes nothing |
-| **Files** | One graph file (`~/TanaCraft/graph.tanacraft` by default, a Loro CRDT document so copies edited apart merge; older JSON files are read once and kept as a backup) holding every workspace, atomic autosave, repair of damaged files, Markdown, JSON and OPML export, Markdown and OPML import, HTML plus text on the clipboard |
+| **Files** | One graph file (`~/Bana/graph.bana` by default, a Loro CRDT document so copies edited apart merge; older JSON files are read once and kept as a backup) holding every workspace, atomic autosave, repair of damaged files, Markdown, JSON and OPML export, Markdown and OPML import, HTML plus text on the clipboard |
 
 Status per spec section and screenshot: [docs/parity.md](docs/parity.md) (77 of 95 spec sections
 done, 13 partial; 140 of 160 screenshots done). AI features are out of scope for now.
@@ -105,7 +105,7 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 The web outline draws only the rows near the viewport and asks the engine for that window of rows
 only. A row never holds unsaved text (every keystroke is already in the engine), and a key typed
 while the line being edited is scrolled away brings it back first. Reproduce:
-`cargo test -p tanacraft-commands --test perf --release -- --nocapture` and
+`cargo test -p bana-commands --test perf --release -- --nocapture` and
 `pnpm --dir web exec playwright test perf`.
 
 A fuzz test runs random sequences of every command (params built from each command's own
@@ -114,7 +114,7 @@ loop, every change undoes and redoes exactly, and save/load round-trips; damaged
 owners, dangling ids, links to nodes of the wrong kind) load into a sound graph and keep working under
 random commands; after every few steps the Loro document written so far must hold exactly the same
 graph. The web UI's fuzz tests are described under [Data safety](#data-safety). Longer runs:
-`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release` and
+`FUZZ_SEEDS=1000 FUZZ_STEPS=400 cargo test -p bana-commands --test fuzz --release` and
 `FUZZ_SEEDS=40 pnpm --dir web exec playwright test fuzz`. Which of the old egui UI tests have been
 ported to the web UI: [docs/web-port.md](docs/web-port.md).
 
@@ -122,10 +122,10 @@ ported to the web UI: [docs/web-port.md](docs/web-port.md).
 
 ```sh
 pnpm --dir web install && pnpm --dir web build             # the web UI (once, and after UI changes)
-cargo run --release -p tanacraft-desktop -- --sample       # the desktop app (Tauri) with the sample graph
-cargo run --release -p tanacraft-desktop -- notes.json     # open or create a graph file
-cargo run --release -p tanacraft-cli -- serve --sample     # the same UI in a browser: http://127.0.0.1:8787/
-cd apps/tanacraft-desktop && ../../web/node_modules/.bin/tauri build --bundles app   # TanaCraft.app
+cargo run --release -p bana-desktop -- --sample       # the desktop app (Tauri) with the sample graph
+cargo run --release -p bana-desktop -- notes.json     # open or create a graph file
+cargo run --release -p bana-cli -- serve --sample     # the same UI in a browser: http://127.0.0.1:8787/
+cd apps/bana-desktop && ../../web/node_modules/.bin/tauri build --bundles app   # Bana.app
 ```
 
 Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
@@ -137,10 +137,10 @@ Playwright: 121 tests plus 179 use-case scenarios, each against its own engine) 
 
 ## iPhone app
 
-A native SwiftUI app (`apps/tanacraft-ios`, iOS 26, simulator only for now) on the same
+A native SwiftUI app (`apps/bana-ios`, iOS 26, simulator only for now) on the same
 Rust engine: `crates/ffi` exposes it to Swift with UniFFI (open a graph, run any command by id with
 JSON params, read the same view snapshots the web UI draws, hear about changes). The graph lives in
-the app's Documents folder as `graph.tanacraft`, the same Loro file the desktop app writes.
+the app's Documents folder as `graph.bana`, the same Loro file the desktop app writes.
 
 <p><img src="docs/images/ios/scrolled-dark.png" width="200" alt="The outline scrolling under the Liquid Glass bars, dark">
 <img src="docs/images/ios/editing-light.png" width="200" alt="Editing a line: the tab bar turns into the editing bar, light">
@@ -159,29 +159,29 @@ quick capture, supertag pages, and the sidebar as a Home sheet. Every keystroke 
 the file is written within half a second and at once when the app leaves the foreground. The
 chrome (top bar, tab bar, editing bar, Capture button, sheets, search) is iOS 26 Liquid Glass
 floating over the page; the outline itself stays flat. Build and
-run details: [apps/tanacraft-ios/README.md](apps/tanacraft-ios/README.md).
+run details: [apps/bana-ios/README.md](apps/bana-ios/README.md).
 
 ## For agents: CLI, MCP and the JSON API
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
 `nav.today` ...). The same commands drive the keyboard shortcuts, the command line, the CLI, the MCP
-server and the JSON API. `tanacraft-cli commands` lists all 174 with their parameters.
+server and the JSON API. `bana commands` lists all 174 with their parameters.
 
 ```sh
-tanacraft-cli commands                                  # every command, shortcut and params
-tanacraft-cli add "Plant garlic" --today --tag task     # prints the new node id
-tanacraft-cli capture "Call the plumber"                # into the capture Inbox
-tanacraft-cli import notes.md                           # a Markdown outline into the Library
-tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
-tanacraft-cli export today                              # Markdown outline
-tanacraft-cli export 2 --format json                    # JSON tree of the Library
-tanacraft-mcp --file graph.tanacraft                    # MCP server on stdio: the running app, else the file
-tanacraft-cli serve --port 8787                         # web UI + JSON API (POST /rpc) on 127.0.0.1
+bana commands                                  # every command, shortcut and params
+bana add "Plant garlic" --today --tag task     # prints the new node id
+bana capture "Call the plumber"                # into the capture Inbox
+bana import notes.md                           # a Markdown outline into the Library
+bana run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
+bana export today                              # Markdown outline
+bana export 2 --format json                    # JSON tree of the Library
+bana-mcp --file graph.bana                    # MCP server on stdio: the running app, else the file
+bana serve --port 8787                         # web UI + JSON API (POST /rpc) on 127.0.0.1
 ```
 
-MCP works on the running app: the desktop app and `serve` write `graph.tanacraft.live` beside the
-graph (its port), and `tanacraft-mcp` finds it and sends the install's local token
-(`~/TanaCraft/token`), so an assistant's edits show in the open window at once, in a window of its
+MCP works on the running app: the desktop app and `serve` write `graph.bana.live` beside the
+graph (its port), and `bana-mcp` finds it and sends the install's local token
+(`~/Bana/token`), so an assistant's edits show in the open window at once, in a window of its
 own. With no app running it edits the file. The app also serves MCP over streamable HTTP at
 `POST /mcp`, and `cloudflare/` holds a remote connector for claude.ai and ChatGPT (a Worker with
 GitHub sign-in and a Cloudflare Tunnel to the Mac; you set it up with `cloudflare/wizard.sh`).
@@ -193,13 +193,13 @@ Everything is in [docs/mcp.md](docs/mcp.md).
 |---|---|
 | `crates/core` | Node graph: nodes, supertags, fields, references, queries, views, daily notes, trash, undo/redo, JSON file, export |
 | `crates/commands` | `Session` (graph, focus, panels' navigation) and the command registry (ids, labels, shortcuts, params) |
-| `crates/mcp` | MCP server library and the `tanacraft-mcp` binary |
+| `crates/mcp` | MCP server library and the `bana-mcp` binary |
 | `crates/server` | `Host` (the Session plus each panel's navigation), JSON view snapshots, a localhost HTTP server |
 | `crates/ffi` | The engine for Swift (UniFFI): the `Host` behind `Engine.rpc`, change listeners, autosave |
-| `apps/tanacraft-ios` | The iPhone app: SwiftUI on `crates/ffi` (built with Xcode, not cargo) |
-| `apps/tanacraft-desktop` | The desktop app: Tauri 2 around the `Host` |
+| `apps/bana-ios` | The iPhone app: SwiftUI on `crates/ffi` (built with Xcode, not cargo) |
+| `apps/bana-desktop` | The desktop app: Tauri 2 around the `Host` |
 | `web/` | The UI (React + TypeScript); runs in the desktop app or a browser |
-| `apps/tanacraft-cli` | Command line, including `serve` |
+| `apps/bana-cli` | Command line, including `serve` |
 | `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity`, `cargo xtask connector` |
 | `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT (docs/mcp.md) |
 | `legacy/egui` | The old egui front end, reference only and not built (tag `egui-final`) |
@@ -217,7 +217,7 @@ later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room
 
-TanaCraft is built from Tana's public documentation and a black-box behaviour spec written by a
+Bana is built from Tana's public documentation and a black-box behaviour spec written by a
 separate team. Nobody on this side opens the Tana app, its files or any reverse-engineering tool. See
 [AGENTS.md](AGENTS.md). Every asset is original or openly licensed (see [ATTRIBUTION.md](ATTRIBUTION.md)); icons are our own SVGs.
 

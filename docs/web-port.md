@@ -70,7 +70,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | diffs_p2 supertags overview | works (shot) | `shots.spec.ts` |
 | diffs_p3 tag page breadcrumb reads Schema | works (shot) | |
 | settings pages, recents, help | works (shot) | |
-| every_menu_bar_entry_runs_a_known_command | ported (Rust test in the desktop app) | `apps/tanacraft-desktop` `menu_bar_follows_the_spec...` |
+| every_menu_bar_entry_runs_a_known_command | ported (Rust test in the desktop app) | `apps/bana-desktop` `menu_bar_follows_the_spec...` |
 | diffs_n6_n14 workspaces side by side, workspace rename | ported (create, folded rows), works (rename) | `menus.spec.ts` |
 | content width, panel split, mini sidebar flyouts | ported (flyouts), works (width, split) | `shell.spec.ts` |
 | ctrl_shift_page_keys_move_the_tab, custom keybindings | ported (keys and drag; bindings saved with the graph, set in Settings) | `shell.spec.ts` |

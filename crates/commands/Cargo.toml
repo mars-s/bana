@@ -1,14 +1,14 @@
 [package]
-name = "tanacraft-commands"
+name = "bana-commands"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "TanaCraft editing session and command registry: every action has an id, params and a shortcut"
+description = "Bana editing session and command registry: every action has an id, params and a shortcut"
 
 [lints]
 workspace = true
 
 [dependencies]
-tanacraft-core = { workspace = true }
+bana-core = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

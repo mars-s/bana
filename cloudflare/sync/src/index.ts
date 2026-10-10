@@ -1,4 +1,4 @@
-// The TanaCraft sync relay (docs/sync.md). A Worker routes `GET /v1/rooms/<room>` (a WebSocket) to
+// The Bana sync relay (docs/sync.md). A Worker routes `GET /v1/rooms/<room>` (a WebSocket) to
 // one Durable Object per room. The room keeps encrypted updates in order, hands each device what it
 // has not seen, broadcasts new ones to devices that are caught up, and replaces old updates with an
 // encrypted snapshot once every device has them. It never sees a key or a note: payloads, device
@@ -46,7 +46,7 @@ export const CLOSE_LIMIT = 4008
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
-    if (url.pathname === '/' || url.pathname === '/health') return new Response('TanaCraft sync relay: it stores encrypted updates and cannot read them.\n')
+    if (url.pathname === '/' || url.pathname === '/health') return new Response('Bana sync relay: it stores encrypted updates and cannot read them.\n')
     const m = url.pathname.match(/^\/v1\/rooms\/([^/]+)$/)
     if (!m || !ROOM.test(m[1])) return new Response('not found\n', { status: 404 })
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('expected a WebSocket\n', { status: 426 })
@@ -91,7 +91,7 @@ async function verifyHello(device: string, room: string, nonce: string, sig: str
   if (!pk || pk.length !== 32 || !s || s.length !== 64) return false
   try {
     const key = await crypto.subtle.importKey('raw', pk, { name: 'Ed25519' }, false, ['verify'])
-    return await crypto.subtle.verify({ name: 'Ed25519' }, key, s, enc.encode(`tanacraft-sync/hello/v1:${room}:${nonce}`))
+    return await crypto.subtle.verify({ name: 'Ed25519' }, key, s, enc.encode(`bana-sync/hello/v1:${room}:${nonce}`))
   } catch {
     return false
   }

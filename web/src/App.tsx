@@ -58,10 +58,10 @@ function TopBar() {
             className={`tab${i === tab ? ' active' : ''}`}
             onMouseDown={() => void switchTab(i)}
             draggable
-            onDragStart={(e) => e.dataTransfer.setData('text/x-tanacraft-tab', String(i))}
-            onDragOver={(e) => e.dataTransfer.types.includes('text/x-tanacraft-tab') && e.preventDefault()}
+            onDragStart={(e) => e.dataTransfer.setData('text/x-bana-tab', String(i))}
+            onDragOver={(e) => e.dataTransfer.types.includes('text/x-bana-tab') && e.preventDefault()}
             onDrop={(e) => {
-              const from = Number(e.dataTransfer.getData('text/x-tanacraft-tab'))
+              const from = Number(e.dataTransfer.getData('text/x-bana-tab'))
               if (Number.isFinite(from)) moveTab(from, i)
             }}
             title={t.panels.map(tabTitle).join(' | ')}
@@ -471,7 +471,7 @@ export function useTheme() {
   // A theme picked in another window of this app (the capture window follows the main one).
   useEffect(() => {
     const on = (e: StorageEvent) => {
-      if (e.key !== 'tanacraft.view' || !e.newValue) return
+      if (e.key !== 'bana.view' || !e.newValue) return
       try {
         const v = JSON.parse(e.newValue)
         if (v.theme === 'light' || v.theme === 'dark') setState({ theme: v.theme, followSystem: !!v.followSystem })

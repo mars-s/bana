@@ -22,7 +22,7 @@ class Device {
     return d
   }
   async sign(room: string, nonce: string) {
-    return b64(await crypto.subtle.sign({ name: 'Ed25519' }, this.keys.privateKey, new TextEncoder().encode(`tanacraft-sync/hello/v1:${room}:${nonce}`)))
+    return b64(await crypto.subtle.sign({ name: 'Ed25519' }, this.keys.privateKey, new TextEncoder().encode(`bana-sync/hello/v1:${room}:${nonce}`)))
   }
 }
 

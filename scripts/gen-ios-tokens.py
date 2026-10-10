@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generates the iPhone app's design tokens from web/src/tokens.css (the one source of truth).
 
-    python3 scripts/gen-ios-tokens.py          # writes apps/tanacraft-ios/TanaCraft/Tokens.swift
+    python3 scripts/gen-ios-tokens.py          # writes apps/bana-ios/Bana/Tokens.swift
     python3 scripts/gen-ios-tokens.py --check  # fails when Tokens.swift is out of date
 
 Colours become dynamic SwiftUI colours (dark from `:root`, light from `:root[data-theme='light']`),
@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CSS = ROOT / "web/src/tokens.css"
-OUT = ROOT / "apps/tanacraft-ios/TanaCraft/Tokens.swift"
+OUT = ROOT / "apps/bana-ios/Bana/Tokens.swift"
 
 
 def blocks(css):

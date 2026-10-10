@@ -1,16 +1,16 @@
 [package]
-name = "tanacraft-ffi"
+name = "bana-ffi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
-description = "TanaCraft engine for Swift (UniFFI): open a graph, run commands, read view snapshots, hear about changes"
+description = "Bana engine for Swift (UniFFI): open a graph, run commands, read view snapshots, hear about changes"
 
 # No `[lints] workspace = true`: the workspace forbids unsafe code, and UniFFI's generated
 # scaffolding is the one place that needs it (it allows it itself).
 
 [lib]
-name = "tanacraft_ffi"
+name = "bana_ffi"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [[bin]]
@@ -22,9 +22,9 @@ required-features = ["bindgen"]
 bindgen = ["uniffi/cli"]
 
 [dependencies]
-tanacraft-core = { workspace = true }
-tanacraft-commands = { workspace = true }
-tanacraft-server = { workspace = true }
+bana-core = { workspace = true }
+bana-commands = { workspace = true }
+bana-server = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 uniffi = "0.29"

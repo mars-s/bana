@@ -2273,7 +2273,8 @@ impl Graph {
 
     /// A graph from a parsed file, repaired (dangling links, loops, wrong kinds).
     fn from_file(file: GraphFile) -> Result<Graph> {
-        if file.format != FORMAT {
+        // (Files from before the rename carry the old name.)
+        if file.format != FORMAT && file.format != OLD_FORMAT {
             return Err(Error::Format(format!("not a {FORMAT} file")));
         }
         if file.version > 1 {
@@ -2673,7 +2674,7 @@ impl Graph {
             };
             self.store.read(&mut fresh)?
         };
-        let Some(meta) = meta else { return Err(Error::Format("not a TanaCraft document".into())) };
+        let Some(meta) = meta else { return Err(Error::Format("not a Bana document".into())) };
         let file = GraphFile {
             format: FORMAT.to_string(),
             version: 1,
@@ -2701,7 +2702,8 @@ impl Graph {
     }
 }
 
-const FORMAT: &str = "tanacraft-graph";
+const FORMAT: &str = "bana-graph";
+const OLD_FORMAT: &str = "tanacraft-graph";
 
 #[derive(Serialize, Deserialize)]
 struct GraphFile {
@@ -2885,7 +2887,7 @@ pub fn fuzzy_score(q: &[char], text: &str) -> Option<i64> {
     Some(score - t.len() as i64 / 4 - prev.unwrap_or(0) as i64 / 8)
 }
 
-/// The edit log beside a graph file (`graph.tanacraft.log`, N77).
+/// The edit log beside a graph file (`graph.bana.log`, N77).
 pub fn log_path(path: &std::path::Path) -> std::path::PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(".log");

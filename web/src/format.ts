@@ -1,4 +1,4 @@
-// Inline marks in a node's text, read the same way as `tanacraft_core::format::raw_spans`:
+// Inline marks in a node's text, read the same way as `bana_core::format::raw_spans`:
 // `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `~~strike~~`, `` `code` ``, `[[id:42]]` references
 // and `http(s)://` links. Only for drawing; the engine owns the text.
 

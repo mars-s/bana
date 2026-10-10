@@ -128,7 +128,7 @@ export interface State {
 
 const saved = (() => {
   try {
-    return JSON.parse(localStorage.getItem('tanacraft.view') ?? '{}')
+    return JSON.parse(localStorage.getItem('bana.view') ?? '{}')
   } catch {
     return {}
   }
@@ -187,7 +187,7 @@ export function setState(patch: Partial<State> | ((s: State) => Partial<State>))
   if ('followSystem' in p && state.followSystem && !('theme' in p)) state = { ...state, theme: systemTheme() }
   if ('theme' in p || 'sidebarMode' in p || 'followSystem' in p || 'sidebarW' in p) {
     try {
-      localStorage.setItem('tanacraft.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode, followSystem: state.followSystem, sidebarW: state.sidebarW }))
+      localStorage.setItem('bana.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode, followSystem: state.followSystem, sidebarW: state.sidebarW }))
     } catch {
       /* private mode: view prefs are not kept */
     }

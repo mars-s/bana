@@ -3,10 +3,10 @@
 //! Shortcut sources: `Ctrl+Shift+D` for today is from Tana's public docs. The other bindings are
 //! common outliner conventions chosen here (spec-gap until the behaviour spec names them).
 
+use bana_core::format::Mark;
+use bana_core::query::{Clause, ClauseKind, Query};
+use bana_core::{Date, FieldType, GroupBy, NodeId, Sort, SortBy, TAG_COLORS, ViewKind, export};
 use serde_json::{Value, json};
-use tanacraft_core::format::Mark;
-use tanacraft_core::query::{Clause, ClauseKind, Query};
-use tanacraft_core::{Date, FieldType, GroupBy, NodeId, Sort, SortBy, TAG_COLORS, ViewKind, export};
 
 const FMT: &str = r#"{"node"?: id, "start"?: chars, "end"?: chars}  (default: the selection, or the whole text)"#;
 
@@ -34,9 +34,9 @@ pub fn registry() -> Registry {
                 Some(t) => Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?,
                 None => (s.today, None),
             };
-            let mut text = tanacraft_core::format::ref_token(s.graph.day(d)?.0);
+            let mut text = bana_core::format::ref_token(s.graph.day(d)?.0);
             if let Some(e) = end {
-                text = format!("{text} to {}", tanacraft_core::format::ref_token(s.graph.day(e)?.0));
+                text = format!("{text} to {}", bana_core::format::ref_token(s.graph.day(e)?.0));
             }
             insert_text(s, v, &text)
         })
@@ -53,11 +53,11 @@ pub fn registry() -> Registry {
         .pure(),
         C::new("edit.insertNow", "Insert current date and time", "Edit", |s, v| {
             let day = s.graph.day(s.today)?;
-            let text = format!("{} {}", tanacraft_core::format::ref_token(day.0), tanacraft_core::fmt_hm(Date::now_minutes()));
+            let text = format!("{} {}", bana_core::format::ref_token(day.0), bana_core::fmt_hm(Date::now_minutes()));
             insert_text(s, v, &text)
         })
         .params(r#"{"node"?: id, "caret"?: number}"#),
-        C::new("edit.insertTime", "Insert current time", "Edit", |s, v| insert_text(s, v, &tanacraft_core::fmt_hm(Date::now_minutes())))
+        C::new("edit.insertTime", "Insert current time", "Edit", |s, v| insert_text(s, v, &bana_core::fmt_hm(Date::now_minutes())))
             .params(r#"{"node"?: id, "caret"?: number}"#),
         C::new("node.convertToSupertag", "Convert to supertag", "Node", |s, v| {
             let id = s.target(v)?;
@@ -115,7 +115,7 @@ pub fn registry() -> Registry {
             // A banner is a colour, or one of the pictures the app ships (`picture:orbit`).
             if let Some(c) = &color
                 && !TAG_COLORS.contains(&c.as_str())
-                && !tanacraft_core::is_custom_color(c)
+                && !bana_core::is_custom_color(c)
                 && !c.strip_prefix("picture:").is_some_and(|p| BANNER_PICTURES.contains(&p))
             {
                 return Err(CmdError::Params(format!(
@@ -136,7 +136,7 @@ pub fn registry() -> Registry {
             let stored = s.graph.get(id).and_then(|n| n.file.clone()).ok_or_else(|| CmdError::Params("this node holds no file".into()))?;
             let dir = files_dir(s)?;
             let bytes = std::fs::read(dir.join(&stored)).map_err(|e| CmdError::Failed(format!("{stored}: {e}")))?;
-            Ok(json!({"name": s.graph.name(id), "mime": mime_of(&stored), "size": bytes.len(), "data": tanacraft_core::base64::encode(&bytes)}))
+            Ok(json!({"name": s.graph.name(id), "mime": mime_of(&stored), "size": bytes.len(), "data": bana_core::base64::encode(&bytes)}))
         })
         .params(r#"{"node"?: id}"#)
         .pure(),
@@ -183,7 +183,7 @@ pub fn registry() -> Registry {
         C::new("import.roam", "Import Roam JSON", "File", import_roam).params(r#"{"text": string, "parent"?: id}  (Roam's JSON export: pages with their blocks)"#),
         C::new("export.opml", "Export as OPML", "Export", |s, v| {
             let id = node_or_zoom(s, v)?;
-            Ok(json!({"opml": tanacraft_core::opml::to_opml(&s.graph, &[id], s.graph.name(id))}))
+            Ok(json!({"opml": bana_core::opml::to_opml(&s.graph, &[id], s.graph.name(id))}))
         })
         .params(r#"{"node"?: id}"#)
         .pure(),
@@ -408,7 +408,7 @@ pub fn registry() -> Registry {
         C::new("view.toggleSystemField", "Display system field", "Views", |s, v| {
             let id = view_target(s, v)?;
             let name = p::req_str(v, "field")?;
-            let f = tanacraft_core::SystemField::parse(name).ok_or_else(|| CmdError::Params(format!("unknown system field `{name}`")))?;
+            let f = bana_core::SystemField::parse(name).ok_or_else(|| CmdError::Params(format!("unknown system field `{name}`")))?;
             let view = s.graph.view_mut(id)?;
             if view.system.contains(&f) {
                 view.system.retain(|x| *x != f);
@@ -503,8 +503,8 @@ pub fn registry() -> Registry {
             let id = view_target(s, v)?;
             let f = field_param(s, v, false)?;
             let calc = p::req_str(v, "calc")?;
-            if calc != "none" && !tanacraft_core::view::CALCS.contains(&calc) {
-                return Err(CmdError::Params(format!("`calc`: none or one of {}", tanacraft_core::view::CALCS.join(", "))));
+            if calc != "none" && !bana_core::view::CALCS.contains(&calc) {
+                return Err(CmdError::Params(format!("`calc`: none or one of {}", bana_core::view::CALCS.join(", "))));
             }
             let view = s.graph.view_mut(id)?;
             view.calcs.retain(|(c, _)| *c != f);
@@ -779,9 +779,9 @@ pub fn registry() -> Registry {
             let ws = here_workspace(s, v);
             let files: Vec<(String, Vec<u8>)> =
                 export::markdown_files(&s.graph, ws, shape).into_iter().map(|(p, t)| (p, t.into_bytes())).collect();
-            let zip = tanacraft_core::zip::store(&files);
+            let zip = bana_core::zip::store(&files);
             let name = format!("{} {} {}.zip", s.graph.name(ws).trim(), shape, s.today);
-            Ok(json!({"name": name, "files": files.len(), "data": tanacraft_core::base64::encode(&zip)}))
+            Ok(json!({"name": name, "files": files.len(), "data": bana_core::base64::encode(&zip)}))
         })
         .params(r#"{"shape"?: "outline" | "tags" | "vault"}  (the workspace you are in; `data` is the ZIP in base64)"#)
         .pure(),
@@ -814,7 +814,7 @@ pub fn registry() -> Registry {
                 "warn_referenced" => set.warn_referenced = flag()?,
                 "url_embeds" => set.url_embeds = flag()?,
                 "ref_counter" => set.ref_counter = flag()?,
-                k if tanacraft_core::Settings::HIDEABLE.iter().any(|h| format!("show_{h}") == k) => {
+                k if bana_core::Settings::HIDEABLE.iter().any(|h| format!("show_{h}") == k) => {
                     let what = k.trim_start_matches("show_").to_string();
                     let show = flag()?;
                     set.hidden.retain(|h| *h != what);
@@ -851,12 +851,12 @@ pub fn registry() -> Registry {
         // UC-06.37: an inline reference shown with its own text, or turned back into plain text.
         C::new("node.refAlias", "Give an inline reference an alias", "Node", |s, v| {
             let alias = p::str(v, "alias").unwrap_or("").to_string();
-            edit_inline_ref(s, v, |id, _| tanacraft_core::format::ref_alias_token(id, Some(&alias)))
+            edit_inline_ref(s, v, |id, _| bana_core::format::ref_alias_token(id, Some(&alias)))
         })
         .params(r#"{"node"?: id, "ref": id, "index"?: number, "alias": string}  (index: which reference to that node in the line, from 0; an empty alias shows the name again)"#),
         C::new("node.unlinkRef", "Turn an inline reference into text", "Node", |s, v| {
             let names: std::collections::HashMap<u64, String> =
-                tanacraft_core::format::refs(s.graph.name(s.target(v)?)).into_iter().map(|r| (r, s.graph.text(NodeId(r)))).collect();
+                bana_core::format::refs(s.graph.name(s.target(v)?)).into_iter().map(|r| (r, s.graph.text(NodeId(r)))).collect();
             edit_inline_ref(s, v, |id, alias| alias.map(str::to_string).unwrap_or_else(|| names.get(&id).cloned().unwrap_or_default()))
         })
         .params(r#"{"node"?: id, "ref": id, "index"?: number}"#),
@@ -896,7 +896,7 @@ fn edit_inline_ref(s: &mut Session, v: &Value, mut f: impl FnMut(u64, Option<&st
     let want = p::usize(v, "index").unwrap_or(0);
     let mut seen = 0;
     let mut done = false;
-    let next = tanacraft_core::format::map_refs(s.graph.name(id), |r, a| {
+    let next = bana_core::format::map_refs(s.graph.name(id), |r, a| {
         if r == target.0 && !done && seen == want {
             done = true;
             return f(r, a);
@@ -904,7 +904,7 @@ fn edit_inline_ref(s: &mut Session, v: &Value, mut f: impl FnMut(u64, Option<&st
         if r == target.0 {
             seen += 1;
         }
-        tanacraft_core::format::ref_alias_token(r, a)
+        bana_core::format::ref_alias_token(r, a)
     });
     if !done {
         return Err(CmdError::Failed(format!("no inline reference to {target} in this line")));
@@ -953,7 +953,7 @@ fn row_neighbour(s: &Session, id: NodeId, step: isize) -> Option<NodeId> {
 }
 
 /// Accepts a node id or a name; looks names up with `find`.
-fn resolve_named(s: &Session, v: &Value, key: &str, find: fn(&tanacraft_core::Graph, &str) -> Option<NodeId>) -> Result<Option<NodeId>, CmdError> {
+fn resolve_named(s: &Session, v: &Value, key: &str, find: fn(&bana_core::Graph, &str) -> Option<NodeId>) -> Result<Option<NodeId>, CmdError> {
     match v.get(key) {
         Some(Value::String(name)) if name.trim().parse::<NodeId>().is_err() => Ok(find(&s.graph, name)),
         _ => {
@@ -1041,7 +1041,7 @@ fn enter(s: &mut Session, v: &Value) -> CmdResult {
         s.set_focus(new, 0);
     } else {
         // Empty format marks at the caret would be split into both lines (DIFFS N19).
-        let (clean, caret) = tanacraft_core::format::strip_empty(s.graph.name(id), caret);
+        let (clean, caret) = bana_core::format::strip_empty(s.graph.name(id), caret);
         let (head, tail) = char_split(&clean, caret);
         s.graph.set_name(id, &head)?;
         let new = s.graph.create(parent, Some(at + 1), &tail)?;
@@ -1144,7 +1144,7 @@ const MAX_FILE: usize = 20 * 1024 * 1024;
 /// The graph's files folder (only a graph saved to a file has one).
 fn files_dir(s: &Session) -> Result<std::path::PathBuf, CmdError> {
     let path = s.path.as_ref().ok_or_else(|| CmdError::Disabled("files need a graph saved to a file".into()))?;
-    Ok(tanacraft_core::files_dir(path))
+    Ok(bana_core::files_dir(path))
 }
 
 fn mime_of(name: &str) -> &'static str {
@@ -1168,7 +1168,7 @@ fn file_attach(s: &mut Session, v: &Value) -> CmdResult {
     if name.is_empty() {
         return Err(CmdError::Params("`name` must be a file name".into()));
     }
-    let bytes = tanacraft_core::base64::decode(p::req_str(v, "data")?).ok_or_else(|| CmdError::Params("`data` must be base64".into()))?;
+    let bytes = bana_core::base64::decode(p::req_str(v, "data")?).ok_or_else(|| CmdError::Params("`data` must be base64".into()))?;
     if bytes.len() > MAX_FILE {
         return Err(CmdError::Params("files up to 20 MB can be attached".into()));
     }
@@ -1182,7 +1182,7 @@ fn file_attach(s: &mut Session, v: &Value) -> CmdResult {
     };
     let dir = files_dir(s)?;
     std::fs::create_dir_all(&dir).map_err(|e| CmdError::Failed(format!("{}: {e}", dir.display())))?;
-    let stored = format!("{}-{name}", &tanacraft_core::random_hex()[..12]);
+    let stored = format!("{}-{name}", &bana_core::random_hex()[..12]);
     // Written whole before the node points at it (a crash leaves at most an unused file).
     let tmp = dir.join(format!(".{stored}.part"));
     std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, dir.join(&stored))).map_err(|e| CmdError::Failed(format!("{stored}: {e}")))?;
@@ -1377,7 +1377,7 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
     }
     // Searches last, in the places they were written (later ones first, so indexes hold).
     for (parent, at, name, parts, view) in searches.into_iter().rev() {
-        let q = tanacraft_core::query::Query::parse(&s.graph, &parts.join(" ")).map_err(|e| CmdError::Params(format!("search `{name}`: {e}")))?;
+        let q = bana_core::query::Query::parse(&s.graph, &parts.join(" ")).map_err(|e| CmdError::Params(format!("search `{name}`: {e}")))?;
         let id = s.graph.create_search(parent, Some(at), if name.is_empty() { "Search" } else { &name }, q)?;
         if let Some(kind) = view.as_deref().and_then(ViewKind::parse) {
             s.graph.view_mut(id)?.kind = kind;
@@ -1414,7 +1414,7 @@ fn tana_dates(s: &mut Session, body: &str, link: bool) -> Result<String, CmdErro
             for part in d.split('/') {
                 let day = part.split_whitespace().next().unwrap_or_default();
                 match Date::parse(day) {
-                    Some(dt) => days.push(tanacraft_core::format::ref_token(s.graph.day(dt)?.0)),
+                    Some(dt) => days.push(bana_core::format::ref_token(s.graph.day(dt)?.0)),
                     None => days.push(part.to_string()),
                 }
             }
@@ -1506,7 +1506,7 @@ fn import_field(s: &mut Session, parent: NodeId, body: &str) -> Result<bool, Cmd
     }
     let f = match s.graph.find_field(name) {
         Some(f) => f,
-        None => s.graph.create_field(name, tanacraft_core::FieldType::Plain)?,
+        None => s.graph.create_field(name, bana_core::FieldType::Plain)?,
     };
     let count = s.graph.get(parent).map_or(0, |n| n.field_values(f).len());
     // A new field row after some lines stays where it was written, below them.
@@ -1551,15 +1551,15 @@ fn import_links(s: &mut Session, root: NodeId) -> Result<usize, CmdError> {
                 out.push_str(&rest[a..a + 4 + b]);
             } else {
                 let t = link_target(s, target_name.trim(), n)?;
-                out.push_str(&tanacraft_core::format::ref_token(t.0));
+                out.push_str(&bana_core::format::ref_token(t.0));
                 made += 1;
             }
             rest = &rest[a + 4 + b..];
         }
         out.push_str(rest);
         // A line that is just one link becomes a reference node.
-        let refs = tanacraft_core::format::refs(&out);
-        let whole = refs.len() == 1 && out.trim() == tanacraft_core::format::ref_token(refs[0]);
+        let refs = bana_core::format::refs(&out);
+        let whole = refs.len() == 1 && out.trim() == bana_core::format::ref_token(refs[0]);
         let plain_line = s.graph.get(n).is_some_and(|x| x.children.is_empty() && x.tags.is_empty() && x.fields.is_empty() && x.done.is_none());
         if whole
             && plain_line
@@ -1637,14 +1637,14 @@ fn import_line(s: &mut Session, parent: NodeId, body: &str) -> Result<NodeId, Cm
 fn import_opml(s: &mut Session, v: &Value) -> CmdResult {
     let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
     s.graph.node(root)?;
-    let items = tanacraft_core::opml::parse(p::req_str(v, "text")?);
+    let items = bana_core::opml::parse(p::req_str(v, "text")?);
     let made = import_items(s, root, &items)?;
     let linked = import_links(s, root)?;
     Ok(json!({"created": made, "parent": root.0, "linked": linked}))
 }
 
 /// OPML items under `parent`, line by line as in Markdown import, notes as descriptions.
-fn import_items(s: &mut Session, parent: NodeId, items: &[tanacraft_core::opml::Item]) -> Result<usize, CmdError> {
+fn import_items(s: &mut Session, parent: NodeId, items: &[bana_core::opml::Item]) -> Result<usize, CmdError> {
     let mut made = 0;
     for it in items {
         if it.children.is_empty() && import_field(s, parent, it.text.trim())? {
@@ -2113,14 +2113,14 @@ fn open_day(s: &mut Session, date: Date) -> CmdResult {
 fn calendar_step(s: &mut Session, v: &Value) -> CmdResult {
     let step = v.get("step").and_then(Value::as_i64).unwrap_or(1).clamp(-520, 520);
     let target = match s.graph.get(s.zoom).map(|n| n.kind.clone()) {
-        Some(tanacraft_core::Kind::Week { year, week }) => {
+        Some(bana_core::Kind::Week { year, week }) => {
             // Monday of the ISO week: Jan 4 is always in week 1.
             let jan4 = Date::new(year, 1, 4).ok_or_else(|| CmdError::Failed("bad week".into()))?;
             let monday = jan4.add_days(-(jan4.weekday() as i64) + (week as i64 - 1) * 7 + step * 7);
             let day = s.graph.day(monday)?;
             s.graph.parent(day)
         }
-        Some(tanacraft_core::Kind::Year { year }) => {
+        Some(bana_core::Kind::Year { year }) => {
             let jan4 = Date::new(year.saturating_add(step as i32), 1, 4).ok_or_else(|| CmdError::Failed("bad year".into()))?;
             let day = s.graph.day(jan4)?;
             s.graph.parent(day).and_then(|w| s.graph.parent(w))
@@ -2134,7 +2134,7 @@ fn calendar_step(s: &mut Session, v: &Value) -> CmdResult {
 
 fn step_day(s: &mut Session, step: i64) -> CmdResult {
     let date = match s.graph.get(s.zoom).map(|n| n.kind.clone()) {
-        Some(tanacraft_core::Kind::Day { date }) => date,
+        Some(bana_core::Kind::Day { date }) => date,
         _ => s.today,
     };
     open_day(s, date.add_days(step))
@@ -2171,7 +2171,7 @@ fn tag_create(s: &mut Session, v: &Value) -> CmdResult {
 fn tag_set_color(s: &mut Session, v: &Value) -> CmdResult {
     let tag = tag_param(s, v, "tag", false)?;
     let color = p::req_str(v, "color")?;
-    if !TAG_COLORS.contains(&color) && !tanacraft_core::is_custom_color(color) {
+    if !TAG_COLORS.contains(&color) && !bana_core::is_custom_color(color) {
         return Err(CmdError::Params(format!("`color` must be one of {}, or #rrggbb", TAG_COLORS.join(", "))));
     }
     s.graph.set_tag_color(tag, color)?;
@@ -2233,7 +2233,7 @@ fn field_set(s: &mut Session, v: &Value) -> CmdResult {
         // `keep`: text that is not a valid value is stored as typed (shown with a warning) instead
         // of being thrown away (DIFFS N26).
         Err(_) if p::bool(v, "keep") == Some(true) => {
-            s.graph.set_field_at(s.graph.resolve(id), field, index, Some(tanacraft_core::FieldValue::Text(text.trim().to_string())))?
+            s.graph.set_field_at(s.graph.resolve(id), field, index, Some(bana_core::FieldValue::Text(text.trim().to_string())))?
         }
         r => r?,
     }
@@ -2338,8 +2338,7 @@ fn capture(s: &mut Session, v: &Value) -> CmdResult {
 
 fn settings_json(s: &Session) -> CmdResult {
     let st = &s.graph.settings;
-    let shows: serde_json::Map<String, Value> =
-        tanacraft_core::Settings::HIDEABLE.iter().map(|h| (format!("show_{h}"), json!(st.shows(h)))).collect();
+    let shows: serde_json::Map<String, Value> = bana_core::Settings::HIDEABLE.iter().map(|h| (format!("show_{h}"), json!(st.shows(h)))).collect();
     let mut v = json!({
         "time_format": if st.time_12h { "12h" } else { "24h" },
         "week_start": if st.week_starts_sunday { "sunday" } else { "monday" },
@@ -2364,7 +2363,7 @@ fn command_node_param(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
         Some(Value::Number(n)) => n.as_u64().map(NodeId),
         _ => None,
     }
-    .filter(|c| s.graph.get(*c).is_some_and(|n| n.kind == tanacraft_core::Kind::Command))
+    .filter(|c| s.graph.get(*c).is_some_and(|n| n.kind == bana_core::Kind::Command))
     .ok_or_else(|| CmdError::Params("`command`: the name or id of a command node".into()))
 }
 
@@ -2428,7 +2427,7 @@ fn workspace_list(s: &mut Session, _: &Value) -> CmdResult {
 
 fn open_file(s: &mut Session, v: &Value) -> CmdResult {
     let path = std::path::PathBuf::from(p::req_str(v, "path")?);
-    s.graph = tanacraft_core::Graph::load(&path)?;
+    s.graph = bana_core::Graph::load(&path)?;
     s.path = Some(path);
     s.zoom = s.graph.sys.library;
     s.focus = None;
@@ -2532,12 +2531,12 @@ fn format_mark(s: &mut Session, v: &Value, mark: Mark) -> CmdResult {
         _ => (0, 0),
     };
     let (text, a2, b2) = if focused && a == b && p::usize(v, "start").is_none() {
-        let (t, c) = tanacraft_core::format::toggle_at(s.graph.name(id), a, mark);
+        let (t, c) = bana_core::format::toggle_at(s.graph.name(id), a, mark);
         (t, c, c)
     } else {
-        let (t, a2, b2) = tanacraft_core::format::toggle(s.graph.name(id), a, b, mark);
+        let (t, a2, b2) = bana_core::format::toggle(s.graph.name(id), a, b, mark);
         // Formatting an empty range leaves no empty marks (DIFFS N19).
-        let (t, b2) = tanacraft_core::format::strip_empty(&t, b2);
+        let (t, b2) = bana_core::format::strip_empty(&t, b2);
         (t, a2.min(b2), b2)
     };
     s.graph.set_name(id, &text)?;
@@ -2924,7 +2923,7 @@ fn view_add_filter(s: &mut Session, v: &Value) -> CmdResult {
     if view.filter.any && !parsed.clauses.is_empty() {
         // Keep filters an AND list: wrap the existing OR group.
         let old = std::mem::take(&mut view.filter);
-        view.filter.clauses.push(Clause { not: false, kind: tanacraft_core::query::ClauseKind::Group { query: old } });
+        view.filter.clauses.push(Clause { not: false, kind: bana_core::query::ClauseKind::Group { query: old } });
     }
     for c in parsed.clauses {
         if !view.filter.clauses.contains(&c) {
@@ -2977,7 +2976,7 @@ fn view_move_item(s: &mut Session, v: &Value) -> CmdResult {
     if anchor == Some(item) {
         return view_json(s, id);
     }
-    let children = !matches!(s.graph.get(id).map(|n| &n.kind), Some(tanacraft_core::Kind::Search(_) | tanacraft_core::Kind::Tag(_)));
+    let children = !matches!(s.graph.get(id).map(|n| &n.kind), Some(bana_core::Kind::Search(_) | bana_core::Kind::Tag(_)));
     if children {
         let kids = s.graph.children(id);
         let index = anchor.and_then(|a| kids.iter().position(|c| *c == a)).map(|i| i + usize::from(after));
@@ -3007,14 +3006,14 @@ fn view_add_item(s: &mut Session, v: &Value) -> CmdResult {
             .clauses
             .iter()
             .filter(|c| !c.not)
-            .filter_map(|c| if let tanacraft_core::query::ClauseKind::Tagged { tag } = c.kind { Some(tag) } else { None })
+            .filter_map(|c| if let bana_core::query::ClauseKind::Tagged { tag } = c.kind { Some(tag) } else { None })
             .collect();
         let values: Vec<(NodeId, String)> = q
             .clauses
             .iter()
             .filter(|c| !c.not)
             .filter_map(|c| match &c.kind {
-                tanacraft_core::query::ClauseKind::Field { field, op: tanacraft_core::query::Op::Eq, value } => Some((*field, value.clone())),
+                bana_core::query::ClauseKind::Field { field, op: bana_core::query::Op::Eq, value } => Some((*field, value.clone())),
                 _ => None,
             })
             .collect();
@@ -3059,7 +3058,7 @@ fn tag_set_done_map(s: &mut Session, v: &Value) -> CmdResult {
     let tag = tag_param(s, v, "tag", false)?;
     let map = if v.get("field").is_some_and(|f| !f.is_null()) {
         let field = field_param(s, v, false)?;
-        Some(tanacraft_core::DoneMap {
+        Some(bana_core::DoneMap {
             field,
             checked: p::str(v, "checked").unwrap_or("Done").to_string(),
             unchecked: p::str(v, "unchecked").unwrap_or("").to_string(),
@@ -3166,7 +3165,7 @@ fn field_set_required(s: &mut Session, v: &Value) -> CmdResult {
 fn field_set_hide(s: &mut Session, v: &Value) -> CmdResult {
     let f = field_param(s, v, false)?;
     let mode = p::req_str(v, "mode")?;
-    let mode = tanacraft_core::HideMode::parse(mode).ok_or_else(|| CmdError::Params(format!("unknown hide mode `{mode}`")))?;
+    let mode = bana_core::HideMode::parse(mode).ok_or_else(|| CmdError::Params(format!("unknown hide mode `{mode}`")))?;
     s.graph.field_def_mut(f)?.hide = mode;
     Ok(json!({"field": f.0, "hide": mode.name()}))
 }
@@ -3187,7 +3186,7 @@ fn field_set_range(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn field_set_auto_init(s: &mut Session, v: &Value) -> CmdResult {
-    use tanacraft_core::AutoInit;
+    use bana_core::AutoInit;
     let f = field_param(s, v, false)?;
     let mode = match p::req_str(v, "mode")? {
         "none" => None,
@@ -3205,7 +3204,7 @@ fn field_set_default(s: &mut Session, v: &Value) -> CmdResult {
     let f = field_param(s, v, false)?;
     let text = p::req_str(v, "value")?;
     let ty = s.graph.field_def(f).map(|d| d.field_type).unwrap_or_default();
-    let value = if text.trim().is_empty() { None } else { Some(tanacraft_core::FieldValue::parse(ty, text).map_err(CmdError::Params)?) };
+    let value = if text.trim().is_empty() { None } else { Some(bana_core::FieldValue::parse(ty, text).map_err(CmdError::Params)?) };
     s.graph.field_def_mut(f)?.default = value;
     Ok(json!({"field": f.0}))
 }

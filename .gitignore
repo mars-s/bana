@@ -9,10 +9,10 @@ plan/
 /web/dist/
 /web/test-results/
 /web/playwright-report/
-/apps/tanacraft-desktop/gen/
+/apps/bana-desktop/gen/
 /web/tsconfig.tsbuildinfo
-/apps/tanacraft-ios/Core/
-/apps/tanacraft-ios/build/
-/apps/tanacraft-ios/*.xcodeproj/xcuserdata/
-/apps/tanacraft-ios/*.xcodeproj/project.xcworkspace/xcuserdata/
-/apps/tanacraft-ios/TanaCraft.xcodeproj/
+/apps/bana-ios/Core/
+/apps/bana-ios/build/
+/apps/bana-ios/*.xcodeproj/xcuserdata/
+/apps/bana-ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+/apps/bana-ios/Bana.xcodeproj/

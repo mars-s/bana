@@ -190,6 +190,100 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "bana-cli"
+version = "0.1.0"
+dependencies = [
+ "bana-commands",
+ "bana-core",
+ "bana-mcp",
+ "bana-server",
+ "serde_json",
+]
+
+[[package]]
+name = "bana-commands"
+version = "0.1.0"
+dependencies = [
+ "bana-core",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bana-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "loro",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "bana-desktop"
+version = "0.1.0"
+dependencies = [
+ "bana-commands",
+ "bana-core",
+ "bana-server",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+]
+
+[[package]]
+name = "bana-ffi"
+version = "0.1.0"
+dependencies = [
+ "bana-commands",
+ "bana-core",
+ "bana-server",
+ "serde_json",
+ "thiserror 2.0.21",
+ "uniffi",
+]
+
+[[package]]
+name = "bana-mcp"
+version = "0.1.0"
+dependencies = [
+ "bana-commands",
+ "bana-core",
+ "bana-server",
+ "serde_json",
+]
+
+[[package]]
+name = "bana-server"
+version = "0.1.0"
+dependencies = [
+ "bana-commands",
+ "bana-core",
+ "bana-mcp",
+ "serde_json",
+]
+
+[[package]]
+name = "bana-sync"
+version = "0.1.0"
+dependencies = [
+ "bana-core",
+ "chacha20poly1305",
+ "ed25519-dalek",
+ "getrandom 0.2.17",
+ "native-tls",
+ "qrcode",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tungstenite",
+]
+
+[[package]]
 name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4407,100 +4501,6 @@ dependencies = [
  "pkg-config",
  "toml 0.8.2",
  "version-compare",
-]
-
-[[package]]
-name = "tanacraft-cli"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-commands",
- "tanacraft-core",
- "tanacraft-mcp",
- "tanacraft-server",
-]
-
-[[package]]
-name = "tanacraft-commands"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-core",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "tanacraft-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "loro",
- "regex",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "tanacraft-desktop"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-commands",
- "tanacraft-core",
- "tanacraft-server",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
-]
-
-[[package]]
-name = "tanacraft-ffi"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-commands",
- "tanacraft-core",
- "tanacraft-server",
- "thiserror 2.0.21",
- "uniffi",
-]
-
-[[package]]
-name = "tanacraft-mcp"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-commands",
- "tanacraft-core",
- "tanacraft-server",
-]
-
-[[package]]
-name = "tanacraft-server"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "tanacraft-commands",
- "tanacraft-core",
- "tanacraft-mcp",
-]
-
-[[package]]
-name = "tanacraft-sync"
-version = "0.1.0"
-dependencies = [
- "chacha20poly1305",
- "ed25519-dalek",
- "getrandom 0.2.17",
- "native-tls",
- "qrcode",
- "serde",
- "serde_json",
- "sha2",
- "tanacraft-core",
- "thiserror 2.0.21",
- "tungstenite",
 ]
 
 [[package]]

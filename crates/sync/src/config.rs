@@ -91,11 +91,11 @@ impl Config {
         DeviceKey::from_b64(&self.device)
     }
 
-    pub fn sent_version(&self) -> tanacraft_core::VersionVector {
-        b64::decode(&self.sent).and_then(|b| tanacraft_core::VersionVector::decode(&b).ok()).unwrap_or_default()
+    pub fn sent_version(&self) -> bana_core::VersionVector {
+        b64::decode(&self.sent).and_then(|b| bana_core::VersionVector::decode(&b).ok()).unwrap_or_default()
     }
 
-    pub fn set_sent_version(&mut self, vv: &tanacraft_core::VersionVector) {
+    pub fn set_sent_version(&mut self, vv: &bana_core::VersionVector) {
         self.sent = b64::encode(&vv.encode());
     }
 

@@ -3,13 +3,13 @@
 //! mutating command undoes and redoes exactly, and that save/load round-trips.
 //!
 //! Params come from each command's own params description, so new commands are fuzzed for free.
-//! Longer runs: `FUZZ_SEEDS=500 FUZZ_STEPS=400 cargo test -p tanacraft-commands --test fuzz --release`.
+//! Longer runs: `FUZZ_SEEDS=500 FUZZ_STEPS=400 cargo test -p bana-commands --test fuzz --release`.
 
 use std::collections::BTreeSet;
 
+use bana_commands::Session;
+use bana_commands::core::{Date, Graph, Kind, NodeId, sample};
 use serde_json::{Value, json};
-use tanacraft_commands::Session;
-use tanacraft_commands::core::{Date, Graph, Kind, NodeId, sample};
 
 /// Commands that touch the file system or other workspaces.
 const SKIP: &[&str] = &["file.save", "file.open", "import.file"];
@@ -259,7 +259,7 @@ fn run_on(graph: Graph, seed: u64, steps: usize) {
             let mut mem = snapshot(&s.graph);
             for n in mem.as_array_mut().into_iter().flatten() {
                 if let Some(name) = n["name"].as_str() {
-                    n["name"] = json!(tanacraft_core::format::strip_empty(name, 0).0);
+                    n["name"] = json!(bana_core::format::strip_empty(name, 0).0);
                 }
             }
             let (x, y) = (serde_json::to_string_pretty(&mem).unwrap_or_default(), serde_json::to_string_pretty(&snapshot(&back)).unwrap_or_default());

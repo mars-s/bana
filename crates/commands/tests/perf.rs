@@ -1,12 +1,12 @@
 //! Timed test on a generated 50,000-node workspace: typing, expand/collapse, search, save and load
 //! stay fast. Budgets are loose (debug builds run this too); the README quotes the release numbers:
-//! `cargo test -p tanacraft-commands --test perf --release -- --nocapture`.
+//! `cargo test -p bana-commands --test perf --release -- --nocapture`.
 
 use std::time::{Duration, Instant};
 
+use bana_commands::Session;
+use bana_commands::core::{Date, Graph, sample};
 use serde_json::json;
-use tanacraft_commands::Session;
-use tanacraft_commands::core::{Date, Graph, sample};
 
 fn time<T>(n: u32, mut f: impl FnMut() -> T) -> Duration {
     let start = Instant::now();

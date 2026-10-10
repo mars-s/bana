@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// Each test gets its own `tanacraft-cli serve` (see tests/fixtures.ts), so tests never share data.
+// Each test gets its own `bana serve` (see tests/fixtures.ts), so tests never share data.
 // The window matches the spec's screenshots: 1512x949.
 export default defineConfig({
   testDir: 'tests',

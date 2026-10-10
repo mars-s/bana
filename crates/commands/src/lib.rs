@@ -1,4 +1,4 @@
-//! TanaCraft commands: the editing [`Session`] and the command registry.
+//! Bana commands: the editing [`Session`] and the command registry.
 //!
 //! **Everything is a command.** Each user-visible action is a [`CommandSpec`] with a stable id
 //! (`node.indent`, `tag.add`), a label, a menu location, a default shortcut, a params description
@@ -14,8 +14,8 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
+pub use bana_core as core;
 pub use session::{NavState, Row, Session};
-pub use tanacraft_core as core;
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CmdError {
@@ -29,8 +29,8 @@ pub enum CmdError {
     Failed(String),
 }
 
-impl From<tanacraft_core::Error> for CmdError {
-    fn from(e: tanacraft_core::Error) -> Self {
+impl From<bana_core::Error> for CmdError {
+    fn from(e: bana_core::Error) -> Self {
         CmdError::Failed(e.to_string())
     }
 }
@@ -118,8 +118,8 @@ impl Registry {
 
 /// Parameter helpers. Params come from people and agents: never trust them.
 pub mod p {
+    use bana_core::NodeId;
     use serde_json::Value;
-    use tanacraft_core::NodeId;
 
     use crate::CmdError;
 

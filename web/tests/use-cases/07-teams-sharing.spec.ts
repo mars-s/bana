@@ -1,5 +1,5 @@
 // Use cases: workspaces, collaboration and publishing (docs/use-cases/07-teams-sharing.md).
-// TanaCraft is a local app with one user: members, notifications and publishing are gaps.
+// Bana is a local app with one user: members, notifications and publishing are gaps.
 import { test, expect, missing, works, partial, tree } from './helpers'
 import { pageWith, focus, nameOf, clickLine } from '../fixtures'
 

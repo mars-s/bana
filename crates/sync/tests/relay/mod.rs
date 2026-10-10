@@ -5,9 +5,9 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use tanacraft_core::base64 as b64;
-use tanacraft_sync::crypto::{invite_hash, verify_hello};
-use tanacraft_sync::proto::{CLOSE_AUTH, CLOSE_REVOKED, Device, Down, SnapInfo, Up};
+use bana_core::base64 as b64;
+use bana_sync::crypto::{invite_hash, verify_hello};
+use bana_sync::proto::{CLOSE_AUTH, CLOSE_REVOKED, Device, Down, SnapInfo, Up};
 
 /// Rows per backlog page (small, so tests page).
 pub const PAGE: usize = 16;

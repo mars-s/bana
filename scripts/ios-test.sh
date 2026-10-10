@@ -6,7 +6,7 @@
 # Run scripts/build-ios-core.sh first (and after any Rust change).
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-cd "$root/apps/tanacraft-ios"
+cd "$root/apps/bana-ios"
 python3 "$root/scripts/gen-ios-tokens.py" --check
 xcodegen generate --quiet
 sim="${SIM:-iPhone 17 Pro}"
@@ -16,7 +16,7 @@ case "$sim" in
      udid=$(xcrun simctl list devices available | grep "    $sim (" | head -1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/') ;;
 esac
 run() {
-  nice xcodebuild -project TanaCraft.xcodeproj -scheme TanaCraft -destination "$dest" -derivedDataPath build -jobs 4 test "$@" 2>&1 \
+  nice xcodebuild -project Bana.xcodeproj -scheme Bana -destination "$dest" -derivedDataPath build -jobs 4 test "$@" 2>&1 \
     | grep -E "error:|Test Case .*(passed|failed)|Executed|BUILD FAILED" | sort -u
 }
 if [ "${1:-}" = shots ]; then
@@ -24,9 +24,9 @@ if [ "${1:-}" = shots ]; then
   xcrun simctl boot "$udid" 2>/dev/null || true
   for theme in light dark; do
     xcrun simctl ui "$udid" appearance "$theme"
-    TEST_RUNNER_SHOTS_DIR="$root/docs/images/ios" TEST_RUNNER_SHOTS_THEME="$theme" run -only-testing:TanaCraftUITests/ScreenshotTests/testScreens
+    TEST_RUNNER_SHOTS_DIR="$root/docs/images/ios" TEST_RUNNER_SHOTS_THEME="$theme" run -only-testing:BanaUITests/ScreenshotTests/testScreens
   done
   xcrun simctl ui "$udid" appearance light
 else
-  run -skip-testing:TanaCraftUITests/ScreenshotTests
+  run -skip-testing:BanaUITests/ScreenshotTests
 fi

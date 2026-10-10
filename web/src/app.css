@@ -258,6 +258,34 @@ button:focus-visible {
   font-weight: var(--fw-ui);
   color: var(--c-secondary);
   transition: width var(--t-sidebar);
+  position: relative;
+}
+
+/* Mini to hidden and hidden to full use the curve with a small anticipation (M2, M3). */
+.sidebar.hidden {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  transition: width var(--t-sidebar-back), padding var(--t-sidebar-back);
+}
+
+.sidebar.resizing {
+  transition: none;
+}
+
+.side-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--q1);
+  cursor: col-resize;
+  transition: background var(--t-handle);
+}
+
+.side-grip:hover,
+.sidebar.resizing .side-grip {
+  background: var(--c-drop-line);
 }
 
 .sidebar.mini {
@@ -290,7 +318,7 @@ button:focus-visible {
   font-size: var(--fs-label);
 }
 
-.sidebar.mini > .side-row {
+.sidebar.mini .rail > .side-row {
   width: var(--icon-btn);
   height: var(--icon-btn);
   margin-bottom: var(--q1);
@@ -298,7 +326,7 @@ button:focus-visible {
   justify-content: center;
 }
 
-.sidebar.mini > .side-row .side-label {
+.sidebar.mini .rail > .side-row .side-label {
   display: none;
 }
 
@@ -306,12 +334,12 @@ button:focus-visible {
   flex-direction: column;
 }
 
-.sidebar.mini > :not(.flyout) {
+.sidebar.mini .rail > :not(.flyout) {
   opacity: 0.35;
   transition: opacity 50ms linear 100ms;
 }
 
-.sidebar.mini:hover > :not(.flyout) {
+.sidebar.mini:hover .rail > :not(.flyout) {
   opacity: 1;
 }
 
@@ -484,7 +512,7 @@ button:focus-visible {
 .panels {
   flex: 1;
   display: flex;
-  gap: var(--panel-inset);
+  gap: 0;
   min-width: 0;
   padding: 0 var(--panel-inset) var(--panel-inset) 0;
 }
@@ -498,6 +526,8 @@ button:focus-visible {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* The day page's side card goes under the outline in a narrow panel (N52). */
+  container-type: inline-size;
   background: var(--c-panel);
   border-radius: 0 0 var(--r-panel) var(--r-panel);
   overflow: hidden;
@@ -3237,4 +3267,33 @@ kbd {
   bottom: 0;
   height: var(--q1);
   cursor: ns-resize;
+}
+
+.rail {
+  display: contents;
+}
+
+/* The gap between panels is their resize handle (N52, motion M14). */
+.panel-grip {
+  flex: none;
+  width: var(--panel-inset);
+  cursor: col-resize;
+  border-radius: var(--r-sm);
+  transition: background var(--t-handle);
+}
+
+.panel-grip:hover,
+.panel-grip.active {
+  background: var(--c-drop-line);
+}
+
+@container (max-width: 900px) {
+  .page.with-side {
+    flex-direction: column;
+  }
+
+  .page-side {
+    width: auto;
+    margin-top: var(--q4);
+  }
 }

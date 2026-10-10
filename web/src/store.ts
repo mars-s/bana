@@ -59,6 +59,8 @@ export interface State {
   pages: Record<string, Page>
   /** The view snapshot of panels that show a view (table, cards, calendar...). */
   views: Record<string, ViewSnap>
+  /** How panels share the width (flex grow, 1 each by default). */
+  panelGrow: Record<string, number>
   /** A tag page's view tab shown in place, per panel (N36), and its view snapshot. */
   tagView: Record<string, number | undefined>
   subViews: Record<string, ViewSnap>
@@ -66,6 +68,8 @@ export interface State {
   windows: Record<string, { start: number; count: number }>
   sidebar: Sidebar | null
   sidebarMode: 0 | 1 | 2
+  /** The full sidebar's width when resized (null: the default). */
+  sidebarW: number | null
   theme: 'dark' | 'light'
   /** The theme follows the system's light or dark appearance (N56). */
   followSystem: boolean
@@ -117,9 +121,11 @@ let state: State = {
   views: {},
   tagView: {},
   subViews: {},
+  panelGrow: {},
   windows: {},
   sidebar: null,
   sidebarMode: saved.sidebarMode ?? 0,
+  sidebarW: saved.sidebarW ?? null,
   theme: forcedTheme ?? ((saved.followSystem ?? true) ? systemTheme() : (saved.theme ?? 'dark')),
   followSystem: !forcedTheme && (saved.followSystem ?? true),
   shortcuts: false,
@@ -149,9 +155,9 @@ export function setState(patch: Partial<State> | ((s: State) => Partial<State>))
   const p = typeof patch === 'function' ? patch(state) : patch
   state = { ...state, ...p }
   if ('followSystem' in p && state.followSystem && !('theme' in p)) state = { ...state, theme: systemTheme() }
-  if ('theme' in p || 'sidebarMode' in p || 'followSystem' in p) {
+  if ('theme' in p || 'sidebarMode' in p || 'followSystem' in p || 'sidebarW' in p) {
     try {
-      localStorage.setItem('tanacraft.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode, followSystem: state.followSystem }))
+      localStorage.setItem('tanacraft.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode, followSystem: state.followSystem, sidebarW: state.sidebarW }))
     } catch {
       /* private mode: view prefs are not kept */
     }

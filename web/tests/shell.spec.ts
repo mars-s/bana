@@ -4,19 +4,19 @@ import { test, expect } from './fixtures'
 test('the mini rail opens Pinned and Workspaces flyouts; an item opens and the flyout closes', async ({ app }) => {
   await app.keyboard.press('Meta+\\')
   await expect(app.locator('.sidebar.mini')).toBeVisible()
-  await app.locator('.sidebar.mini > .side-row[title="Pinned"]').click()
+  await app.locator('.sidebar.mini .rail > .side-row[title="Pinned"]').click()
   const fly = app.locator('.flyout[aria-label="Pinned"]')
   await expect(fly).toBeVisible()
   await expect(fly.locator('.side-row', { hasText: 'Community garden' })).toBeVisible()
   // Escape closes it.
   await app.keyboard.press('Escape')
   await expect(fly).toHaveCount(0)
-  await app.locator('.sidebar.mini > .side-row[title="Pinned"]').click()
+  await app.locator('.sidebar.mini .rail > .side-row[title="Pinned"]').click()
   await fly.locator('.side-row', { hasText: 'Community garden' }).click()
   await expect(fly).toHaveCount(0)
   await expect(app.locator('.panel .title-input')).toHaveValue('Community garden')
   // Workspaces: the workspace's entries and Manage workspaces; clicking elsewhere closes it.
-  await app.locator('.sidebar.mini > .side-row[title="Workspaces"]').click()
+  await app.locator('.sidebar.mini .rail > .side-row[title="Workspaces"]').click()
   const ws = app.locator('.flyout[aria-label="Workspaces"]')
   await expect(ws.locator('.side-row', { hasText: 'Library' })).toBeVisible()
   await expect(ws.locator('.side-foot')).toHaveText('Manage workspaces')
@@ -83,4 +83,40 @@ test('the theme follows the system appearance until a theme is picked (N56)', as
   await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
   await app.emulateMedia({ colorScheme: 'dark' })
   await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
+})
+
+test('the sidebar resizes by its edge and slides between modes (N51)', async ({ app }) => {
+  const side = app.locator('aside.sidebar')
+  const w0 = (await side.boundingBox())!.width
+  const grip = (await app.locator('.side-grip').boundingBox())!
+  await app.mouse.move(grip.x + 2, grip.y + 300)
+  await app.mouse.down()
+  await app.mouse.move(grip.x + 62, grip.y + 300, { steps: 4 })
+  await app.mouse.up()
+  await expect.poll(async () => Math.round((await side.boundingBox())!.width - w0)).toBeGreaterThan(50)
+  // Full to mini to hidden: the width animates (it is not there at once).
+  await app.keyboard.press('Meta+\\')
+  await app.keyboard.press('Meta+\\')
+  const mid = (await side.boundingBox())?.width ?? 0
+  await expect.poll(async () => (await side.boundingBox())?.width ?? 0).toBe(0)
+  expect(mid).toBeGreaterThan(0)
+})
+
+test('the gap between panels resizes them; a half panel puts the side card under the outline (N52)', async ({ app }) => {
+  // Today in two panels side by side.
+  await app.keyboard.press('Meta+m')
+  await expect(app.locator('.panel')).toHaveCount(2)
+  const first = app.locator('.panel').first()
+  const side = first.locator('.page-side')
+  await expect(side).toBeVisible()
+  const main = (await first.locator('.page-main').boundingBox())!
+  const card = (await side.boundingBox())!
+  expect(card.y).toBeGreaterThan(main.y + 50)
+  const w0 = (await first.boundingBox())!.width
+  const grip = (await app.locator('.panel-grip').boundingBox())!
+  await app.mouse.move(grip.x + 3, grip.y + 300)
+  await app.mouse.down()
+  await app.mouse.move(grip.x + 103, grip.y + 300, { steps: 5 })
+  await app.mouse.up()
+  await expect.poll(async () => Math.round((await first.boundingBox())!.width - w0)).toBeGreaterThan(80)
 })

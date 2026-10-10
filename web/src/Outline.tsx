@@ -1257,6 +1257,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   const tagView = useStore((s) => s.tagView[panel])
   const subSnap = useStore((s) => s.subViews[panel])
   const special = useStore((s) => s.special[panel])
+  const grow = useStore((s) => s.panelGrow[panel] ?? 1)
   const configureOn = useStore((s) => !!s.configure[panel])
   useEffect(() => {
     if (focusIndex == null || !page) return
@@ -1268,7 +1269,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   if (special) {
     const title = { settings: 'Settings', recents: 'Recents', help: 'Help' }[special]
     return (
-      <div className={`panel${active ? ' active' : ''}${special === 'settings' ? ' settings-panel' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
+      <div className={`panel${active ? ' active' : ''}${special === 'settings' ? ' settings-panel' : ''}`} style={{ flexGrow: grow }} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
         <div className="crumbs">
           <button className="icon-btn crumb-back" title="Back" onClick={() => setState((s) => ({ special: { ...s.special, [panel]: undefined } }))}>
             <Icon name="chevronLeft" size={14} />
@@ -1306,7 +1307,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   const layout = vs && vs.kind !== 'outline' && !configuring ? vs : null
   const schema = page.kind === 'schema' || configuring || fieldPage
   return (
-    <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
+    <div className={`panel${active ? ' active' : ''}`} style={{ flexGrow: grow }} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
       <Crumbs page={page} panel={panel} many={many} />
       <div className="scroller" ref={scroller}>
         {page.banner && <Banner banner={page.banner} />}

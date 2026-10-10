@@ -1,6 +1,6 @@
 // The window: top bar (sidebar button, history, tabs, right cluster), sidebar and panels.
 
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { DragHint, Panel, tagStyle } from './Outline'
 import { closeTab, getState, moveTab, newTab, setState, switchTab, useStore } from './store'
@@ -160,7 +160,7 @@ function WorkspaceRows({ ws, several, zoom, journal, showDaily }: { ws: SidebarD
  * open a flyout to the right with the same lists the full sidebar shows. */
 function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: (k: string) => boolean }) {
   const [fly, setFly] = useState<{ what: 'pinned' | 'workspaces'; top: number } | null>(null)
-  const ref = useRef<HTMLElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!fly) return
     const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setFly(null)
@@ -179,7 +179,7 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
   // Clicking an item inside the flyout opens it and closes the flyout.
   const closeAfter = () => setTimeout(() => setFly(null), 0)
   return (
-    <aside className="sidebar mini" ref={ref}>
+    <div className="rail" ref={ref}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
       {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" onClick={() => void exec('nav.supertags')} />}
       <SideRow icon={<Icon name="search" size={14} />} label="Search and open" onClick={() => runUiCommand('ui.searchOpen')} />
@@ -207,21 +207,54 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
           )}
         </div>
       )}
-    </aside>
+    </div>
+  )
+}
+
+/** The 4 px handle on the sidebar's right edge: drag to resize (N51, motion M14). */
+function SidebarGrip() {
+  return (
+    <span
+      className="side-grip"
+      title="Drag to resize"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        const aside = e.currentTarget.parentElement as HTMLElement
+        const x0 = e.clientX
+        const w0 = aside.getBoundingClientRect().width
+        aside.classList.add('resizing')
+        const move = (ev: PointerEvent) => setState({ sidebarW: Math.max(180, Math.min(420, Math.round(w0 + ev.clientX - x0))) })
+        const up = () => {
+          aside.classList.remove('resizing')
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }}
+    />
   )
 }
 
 function Sidebar() {
+  const width = useStore((st) => st.sidebarW)
   const sb = useStore((s) => s.sidebar)
   const mode = useStore((s) => s.sidebarMode)
   const active = useStore((s) => s.activePanel)
   const page = useStore((s) => s.pages[s.activePanel])
-  if (!sb || mode === 2) return null
+  if (!sb) return null
   const zoom = page?.zoom
   const shows = (k: string) => !sb.hidden.includes(k)
-  if (mode === 1) return <MiniRail sb={sb} zoom={zoom} shows={shows} />
+  // One element for every mode, so its width animates between them (motion M1 to M3).
+  if (mode === 1)
+    return (
+      <aside className="sidebar mini">
+        <MiniRail sb={sb} zoom={zoom} shows={shows} />
+      </aside>
+    )
   return (
-    <aside className="sidebar" data-panel-for={active}>
+    <aside className={`sidebar${mode === 2 ? ' hidden' : ''}`} data-panel-for={active} style={width && mode === 0 ? { width } : undefined} aria-hidden={mode === 2}>
+      {mode === 0 && <SidebarGrip />}
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
       {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
       {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}
@@ -246,6 +279,41 @@ function Sidebar() {
         Manage workspaces
       </div>
     </aside>
+  )
+}
+
+/** The gap between two panels: drag it to share the width differently (N52, motion M14). */
+function PanelGrip({ left, right }: { left: string; right: string }) {
+  return (
+    <span
+      className="panel-grip"
+      title="Drag to resize"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        const grip = e.currentTarget
+        const l = grip.previousElementSibling as HTMLElement | null
+        const r = grip.nextElementSibling as HTMLElement | null
+        if (!l || !r) return
+        const lw = l.getBoundingClientRect().width
+        const rw = r.getBoundingClientRect().width
+        const s0 = getState().panelGrow
+        const total = (s0[left] ?? 1) + (s0[right] ?? 1)
+        const x0 = e.clientX
+        grip.classList.add('active')
+        const move = (ev: PointerEvent) => {
+          const nl = Math.max(240, Math.min(lw + rw - 240, lw + ev.clientX - x0))
+          const gl = (total * nl) / (lw + rw)
+          setState((st) => ({ panelGrow: { ...st.panelGrow, [left]: gl, [right]: total - gl } }))
+        }
+        const up = () => {
+          grip.classList.remove('active')
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }}
+    />
   )
 }
 
@@ -340,8 +408,11 @@ export function App() {
       <div className="body">
         <Sidebar />
         <main className="panels">
-          {panels.map((p) => (
-            <Panel key={p} panel={p} many={panels.length > 1} />
+          {panels.map((p, i) => (
+            <Fragment key={p}>
+              {i > 0 && <PanelGrip left={panels[i - 1]} right={p} />}
+              <Panel panel={p} many={panels.length > 1} />
+            </Fragment>
           ))}
         </main>
       </div>

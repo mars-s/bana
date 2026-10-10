@@ -4,6 +4,7 @@
 import { test as base, expect, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -23,11 +24,21 @@ export interface Server {
   run(command: string, params?: unknown): Promise<any>
 }
 
+/** Whether nothing listens on `port` (another app, or someone else's `tanacraft-cli serve`). */
+function portFree(port: number): Promise<boolean> {
+  return new Promise((done) => {
+    const probe = createServer()
+    probe.once('error', () => done(false))
+    probe.listen(port, '127.0.0.1', () => probe.close(() => done(true)))
+  })
+}
+
 async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
   })
   for (let i = 0; i < 400; i++) {
+    if (proc.exitCode !== null) throw new Error(`server on ${port} exited (port taken?)`)
     try {
       const r = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', body: '{"method":"version"}' })
       if (r.ok) return proc
@@ -42,8 +53,10 @@ async function startServer(file: string, port: number, args: string[]): Promise<
 export const test = base.extend<{ server: Server; app: Page; serveArgs: string[] }>({
   serveArgs: [['--sample'], { option: true }],
   server: async ({ serveArgs }, use, info) => {
-    const port = nextPort + info.workerIndex * 200 + (info.repeatEachIndex % 200)
+    let port = nextPort + info.workerIndex * 200 + (info.repeatEachIndex % 200)
     nextPort += 1
+    // Never talk to a server this test did not start.
+    while (!(await portFree(port))) port = nextPort++ + info.workerIndex * 200
     const file = join(mkdtempSync(join(tmpdir(), 'tanacraft-')), 'graph.tanacraft')
     let proc = await startServer(file, port, serveArgs)
     const s: Server = {
@@ -76,7 +89,7 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
   app: async ({ page, server }, use) => {
     // Any error thrown in the page fails the test.
     const errors: string[] = []
-    page.on('pageerror', (e) => errors.push(e.message))
+    page.on('pageerror', (e) => errors.push(process.env.PAGE_STACKS ? String(e.stack) : e.message))
     await page.goto(server.url)
     await expect(page.locator('.panel .title')).toBeVisible()
     await use(page)

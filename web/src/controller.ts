@@ -107,9 +107,11 @@ export async function exec(command: string, params: Json = {}, panel = getState(
     // The engine learns where the caret is first (arrow keys and clicks move it without a command).
     if (editor && editor.kind === 'line' && editor.panel === panel) {
       const [, caret] = editor.sel()
-      if (!synced || synced.node !== editor.node || synced.caret !== caret) {
-        await call('run', { command: 'focus.set', params: { node: editor.node, caret }, panel })
-        synced = { node: editor.node, caret }
+      // `editor` can change while awaiting (the line scrolls away and unmounts): keep the node.
+      const node = editor.node
+      if (!synced || synced.node !== node || synced.caret !== caret) {
+        await call('run', { command: 'focus.set', params: { node, caret }, panel })
+        synced = { node, caret }
       }
     }
     const r = await call('run', { command, params, panel })

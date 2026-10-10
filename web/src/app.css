@@ -2323,10 +2323,10 @@ kbd {
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 2.25px;
-  width: 180px;
+  gap: var(--settings-nav-gap);
+  width: var(--settings-nav-w);
   flex: none;
-  padding: var(--q1);
+  padding: var(--q2);
   border-radius: var(--r-lg);
   background: var(--c-raised);
   align-self: flex-start;
@@ -2345,12 +2345,33 @@ kbd {
   margin-top: 0;
 }
 
+/* One option: name, description, then its control on its own line (12: Settings). */
 .setting {
   display: flex;
-  align-items: center;
-  gap: var(--q4);
-  padding: var(--q3) 0;
+  flex-direction: column;
+  gap: var(--q1);
+  padding: var(--q3) 0 var(--q4);
   border-bottom: 1px solid var(--c-divider);
+}
+
+.setting-control {
+  margin-top: var(--q1-5);
+}
+
+.setting-check {
+  cursor: pointer;
+}
+
+.setting-check:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Settings open as a second panel: a smaller title (23 px 600). */
+.settings-panel .title {
+  font-size: var(--fs-settings-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-settings-title);
 }
 
 .setting-label {

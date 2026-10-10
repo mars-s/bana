@@ -181,6 +181,12 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
     const el = ta.current
     if (!el) return
     el.focus({ preventScroll: true })
+    // A command changed the text and put the caret in it (format marks, joins): take both.
+    if (pending.current === 0 && row.name !== valueRef.current) {
+      valueRef.current = row.name
+      el.value = row.name
+      setValue(row.name)
+    }
     const v = valueRef.current
     const c = toUtf16(v, page.caret)
     const a = toUtf16(v, page.anchor)
@@ -219,6 +225,18 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
       },
       focus() {
         ta.current?.focus({ preventScroll: true })
+      },
+      adopt(text: string, a: number, c: number) {
+        const el = ta.current
+        if (!el || pending.current > 0) return
+        if (text !== valueRef.current) {
+          valueRef.current = text
+          el.value = text
+          setValue(text)
+        }
+        const ua = toUtf16(text, a)
+        const uc = toUtf16(text, c)
+        el.setSelectionRange(Math.min(ua, uc), Math.max(ua, uc), ua > uc ? 'backward' : 'forward')
       },
       setSel(a: number, c: number) {
         const el = ta.current
@@ -1198,11 +1216,18 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   if (special) {
     const title = { settings: 'Settings', recents: 'Recents', help: 'Help' }[special]
     return (
-      <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
+      <div className={`panel${active ? ' active' : ''}${special === 'settings' ? ' settings-panel' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
         <div className="crumbs">
           <button className="icon-btn crumb-back" title="Back" onClick={() => setState((s) => ({ special: { ...s.special, [panel]: undefined } }))}>
             <Icon name="chevronLeft" size={14} />
           </button>
+          {special === 'settings' && <span className="crumb">User settings</span>}
+          <span className="spacer" />
+          {many && (
+            <button className="icon-btn" title="Close panel" onClick={() => void closePanel(panel)}>
+              <Icon name="close" size={14} />
+            </button>
+          )}
         </div>
         <div className="scroller">
           <div className="page">

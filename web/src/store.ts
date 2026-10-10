@@ -62,6 +62,8 @@ export interface State {
   sidebar: Sidebar | null
   sidebarMode: 0 | 1 | 2
   theme: 'dark' | 'light'
+  /** The theme follows the system's light or dark appearance (N56). */
+  followSystem: boolean
   shortcuts: boolean
   overlay: Overlay | null
   commands: CommandInfo[]
@@ -97,6 +99,12 @@ const saved = (() => {
   }
 })()
 
+const forcedTheme = ((t) => (t === 'light' || t === 'dark' ? t : null))(new URLSearchParams(location.search).get('theme'))
+
+export function systemTheme(): 'dark' | 'light' {
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+
 let state: State = {
   tabs: [{ id: 't1', panels: ['main'], active: 0 }],
   tab: 0,
@@ -105,7 +113,8 @@ let state: State = {
   windows: {},
   sidebar: null,
   sidebarMode: saved.sidebarMode ?? 0,
-  theme: new URLSearchParams(location.search).get('theme') === 'light' ? 'light' : (saved.theme ?? 'dark'),
+  theme: forcedTheme ?? ((saved.followSystem ?? true) ? systemTheme() : (saved.theme ?? 'dark')),
+  followSystem: !forcedTheme && (saved.followSystem ?? true),
   shortcuts: false,
   overlay: null,
   commands: [],
@@ -132,9 +141,10 @@ export function getState() {
 export function setState(patch: Partial<State> | ((s: State) => Partial<State>)) {
   const p = typeof patch === 'function' ? patch(state) : patch
   state = { ...state, ...p }
-  if ('theme' in p || 'sidebarMode' in p) {
+  if ('followSystem' in p && state.followSystem && !('theme' in p)) state = { ...state, theme: systemTheme() }
+  if ('theme' in p || 'sidebarMode' in p || 'followSystem' in p) {
     try {
-      localStorage.setItem('tanacraft.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode }))
+      localStorage.setItem('tanacraft.view', JSON.stringify({ theme: state.theme, sidebarMode: state.sidebarMode, followSystem: state.followSystem }))
     } catch {
       /* private mode: view prefs are not kept */
     }
@@ -172,6 +182,11 @@ export async function run(command: string, params: Json = {}, panel = state.acti
   if (r?.error) showToast(r.error)
   scheduleRefresh()
   return r
+}
+
+/** The next refresh puts the caret where the engine says (after a command, not typing). */
+export function wantCaret() {
+  caretWanted = true
 }
 
 export function scheduleRefresh() {

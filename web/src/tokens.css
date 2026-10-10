@@ -53,6 +53,10 @@
   --flyout-w: 230px;
   --key-capture-w: 160px;
   --link-card-w: 360px;
+  --settings-nav-w: 195px;
+  --settings-nav-gap: 2.25px;
+  --fs-settings-title: 23px;
+  --lh-settings-title: 26.45px;
   --sidebar-pad: 15px;
   --sidebar-row-h: 30.4px;
   --pinned-row-h: 30px;

@@ -99,12 +99,21 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
 
 // ---- settings ----------------------------------------------------------------------------------
 
-const SECTIONS = ['Preferences', 'Date and time', 'Sidebar', 'Keyboard shortcuts']
+// The sections in Tana's order (DIFFS N23, N55), then Keybindings (ours).
+const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Keybindings']
+const EMPTY_NOTE: Record<string, string> = {
+  'Notifications seen': 'No notifications yet.',
+  'Progress stats': 'Nothing to count yet.',
+  'Move targets': 'Nodes you move often will show here.',
+  Journaling: 'Daily notes are on. Nothing else to set yet.',
+  'API keys': 'No keys. Agents use the local command line or MCP server instead.',
+}
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+/** A setting's switch: an 18 px checkbox on its own line (12: Settings). */
+function Check({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
-    <button className={`toggle${on ? ' on' : ''}`} role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}>
-      <span className="knob" />
+    <button className={`checkbox setting-check${on ? ' on' : ''}`} role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}>
+      {on && <Icon name="check" size={12} />}
     </button>
   )
 }
@@ -113,19 +122,19 @@ export function SettingsPage({ panel }: { panel: string }) {
   const [s, setS] = useState<Json>(null)
   const [tab, setTab] = useState(0)
   const theme = useStore((st) => st.theme)
+  const followSystem = useStore((st) => st.followSystem)
   const load = () => void call('run', { command: 'settings.get', params: {}, panel }).then((r) => setS(r?.result))
   useEffect(load, [panel])
   const set = (key: string, value: unknown) => void exec('settings.set', { key, value }, panel).then(load)
   if (!s) return null
   const row = (label: string, help: string, control: React.ReactNode) => (
     <div className="setting">
-      <div className="grow">
-        <div className="setting-label">{label}</div>
-        <div className="setting-help">{help}</div>
-      </div>
-      {control}
+      <div className="setting-label">{label}</div>
+      <div className="setting-help">{help}</div>
+      <div className="setting-control">{control}</div>
     </div>
   )
+  const name = SECTIONS[tab]
   return (
     <div className="settings">
       <nav className="settings-nav">
@@ -136,16 +145,27 @@ export function SettingsPage({ panel }: { panel: string }) {
         ))}
       </nav>
       <div className="settings-body">
-        <h2 className="section-title">{SECTIONS[tab]}</h2>
-        {tab === 0 && (
+        <h2 className="section-title">{name}</h2>
+        {EMPTY_NOTE[name] && <p className="muted">{EMPTY_NOTE[name]}</p>}
+        {name === 'Preferences' && (
           <>
-            {row('Dark theme', 'Switch between the dark and the light look.', <Toggle label="Dark theme" on={theme === 'dark'} onChange={(v) => setState({ theme: v ? 'dark' : 'light' })} />)}
-            {row('Warn before editing a referenced node', 'The first edit of a node used in other places asks first.', <Toggle label="Warn" on={!!s.warn_referenced} onChange={(v) => set('warn_referenced', v)} />)}
-            {row('Link previews', 'A line that is just a link shows a card under it.', <Toggle label="Link previews" on={!!s.url_embeds} onChange={(v) => set('url_embeds', v)} />)}
-            {row('Reference counter', 'A small number beside lines that are used in other places.', <Toggle label="Reference counter" on={!!s.ref_counter} onChange={(v) => set('ref_counter', v)} />)}
+            {row('Use system theme', 'Follow the light or dark appearance of the system.', <Check label="Use system theme" on={followSystem} onChange={(v) => setState({ followSystem: v })} />)}
+            {row('Dark theme', 'Switch between the dark and the light look.', <Check label="Dark theme" disabled={followSystem} on={theme === 'dark'} onChange={(v) => setState({ theme: v ? 'dark' : 'light' })} />)}
+            {row('Warn before editing a referenced node', 'The first edit of a node used in other places says so.', <Check label="Warn" on={!!s.warn_referenced} onChange={(v) => set('warn_referenced', v)} />)}
+            {row('Link previews', 'A line that is just a link shows a card under it.', <Check label="Link previews" on={!!s.url_embeds} onChange={(v) => set('url_embeds', v)} />)}
+            {row('Reference counter', 'A small number beside lines that are used in other places.', <Check label="Reference counter" on={!!s.ref_counter} onChange={(v) => set('ref_counter', v)} />)}
+            {[
+              ['show_daily_notes', 'Daily notes in the sidebar'],
+              ['show_supertags', 'Supertags in the sidebar'],
+              ['show_recents', 'Recents in the sidebar'],
+              ['show_help', 'Help button'],
+              ['show_shortcuts', 'Keyboard shortcuts button'],
+            ].map(([k, l]) => (
+              <div key={k}>{row(l, 'Shown in the sidebar or top bar.', <Check label={l} on={!!s[k]} onChange={(v) => set(k, v)} />)}</div>
+            ))}
           </>
         )}
-        {tab === 1 && (
+        {name === 'Date and time' && (
           <>
             {row('Time format', 'How times read across the app.', (
               <span className="segmented">
@@ -167,15 +187,7 @@ export function SettingsPage({ panel }: { panel: string }) {
             ))}
           </>
         )}
-        {tab === 2 &&
-          [
-            ['show_daily_notes', 'Daily notes'],
-            ['show_supertags', 'Supertags'],
-            ['show_recents', 'Recents'],
-            ['show_help', 'Help button'],
-            ['show_shortcuts', 'Keyboard shortcuts button'],
-          ].map(([k, l]) => <div key={k}>{row(l, 'Shown in the sidebar or top bar.', <Toggle label={l} on={!!s[k]} onChange={(v) => set(k, v)} />)}</div>)}
-        {tab === 3 && (
+        {name === 'Keybindings' && (
           <>
             <CustomKeys panel={panel} />
             <ShortcutList />

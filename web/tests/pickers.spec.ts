@@ -194,3 +194,17 @@ test('a checkbox field after > and Tab stays selected; Space does nothing (N31)'
   expect(await childNames(server, page)).toEqual(['x'])
   expect(await valuesOf(server, page, 'Outdoors')).toEqual([])
 })
+
+for (const gap of [0, 40, 120]) {
+  test(`Escape then Enter on a new field name adds a line below at any key speed (N57, ${gap} ms)`, async ({ app, server }) => {
+    const { page, ids } = await pageWith(server, app, ['x', 'y'], 'Page')
+    await focus(server, app, ids[0], 1)
+    for (const key of ['Enter', '>', 'Q', 'q', 'Escape', 'Enter', 'N']) {
+      if (key.length === 1) await app.keyboard.type(key)
+      else await app.keyboard.press(key)
+      if (gap) await app.waitForTimeout(gap)
+    }
+    await expect.poll(() => childNames(server, page)).toEqual(['x', 'N', 'y'])
+    expect(await valuesOf(server, page, 'Qq')).toEqual([])
+  })
+}

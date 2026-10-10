@@ -7,7 +7,7 @@
 
 import { type Json, type NodeRow, type Page, call } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
-import { closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
+import { closePanel, closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels, wantCaret } from './store'
 import { charLen } from './format'
 import { fieldKey, fieldRowKey, pickerKey } from './picker'
 import { toggleQuery } from './Views'
@@ -27,6 +27,8 @@ export interface EditorHandle {
   native(k: KeyInfo): void
   /** Takes the keyboard back (after a menu or dialog closed). */
   focus(): void
+  /** Takes the engine's text and caret after a command (unless own edits are on their way). */
+  adopt?(text: string, anchor: number, caret: number): void
 }
 
 export interface TitleHandle {
@@ -136,9 +138,18 @@ export async function exec(command: string, params: Json = {}, panel = getState(
     const r = await call('run', { command, params, panel })
     if (r?.error) showToast(r.error)
     synced = null
+    wantCaret()
     await refresh()
     // A line that just took the caret is drawn on the next frame: keys wait for its editor.
     const after = getState().pages[panel]
+    // The same line keeps the caret but the engine moved it (format marks): keys wait until the
+    // editor has put it there.
+    if (after?.focus != null && editor?.kind === 'line' && editor.node === after.focus) {
+      // The engine moved the caret in the same line (format marks, a join): keys typed meanwhile
+      // go in there, so the editor takes it now rather than on its next render (N41, N42, N58).
+      const row = nodeRows(after).find((x) => x.id === after.focus)
+      if (row) editor.adopt?.(row.name, after.anchor, after.caret)
+    }
     if (after?.focus != null && !getState().fieldEdit && (!editor || editor.kind !== 'line' || editor.node !== after.focus)) holdKeysForEditor()
     return r
   } finally {
@@ -311,7 +322,14 @@ function runUi(id: string): boolean {
       }
       return true
     }
-    case 'ui.settings':
+    case 'ui.settings': {
+      // Settings open in a second panel (N55); one already open takes the keyboard.
+      const open = visiblePanels(s).find((x) => s.special[x] === 'settings')
+      if (open) setState({ activePanel: open })
+      else
+        void openInNewPanel(p?.zoom ?? 0).then((name) => setState((st) => ({ special: { ...st.special, [name]: 'settings' } })))
+      return true
+    }
     case 'ui.recents':
     case 'ui.help':
       setState({ special: { ...s.special, [s.activePanel]: id.slice(3) as 'settings' | 'recents' | 'help' } })
@@ -370,6 +388,12 @@ export function handleKey(k: KeyInfo): boolean {
   }
   const p = page()
   if (!p) return false
+  // Escape closes a Settings panel (N55).
+  if (sc === 'Escape' && s.special[s.activePanel] === 'settings') {
+    if (visiblePanels(s).length > 1) void closePanel(s.activePanel)
+    else setState({ special: { ...s.special, [s.activePanel]: undefined } })
+    return true
+  }
   if (editor && editor.kind === 'line' && editor.panel === s.activePanel) return editorKey(k, sc, p, editor)
   // A caret or selection left in rows that are not shown takes no keys (N35).
   if ((p.focus != null || p.sel.length) && !outlineVisible(s.activePanel)) {
@@ -610,7 +634,9 @@ function editorKey(k: KeyInfo, sc: string, p: Page, ed: EditorHandle): boolean {
   const cmd = registryCommand(sc)
   if (!cmd) return false
   if (cmd.startsWith('format.')) {
-    void exec(cmd, { node: ed.node, start: Math.min(anchor, caret), end: Math.max(anchor, caret) })
+    // With no selection the engine opens an empty mark at the caret, so only what is typed next
+    // is formatted (N41); a selection is formatted as it is.
+    void exec(cmd, anchor === caret ? { node: ed.node } : { node: ed.node, start: Math.min(anchor, caret), end: Math.max(anchor, caret) })
     return true
   }
   void exec(cmd, NEEDS_LINE.has(cmd) || cmd.startsWith('node.') ? { node: ed.node } : {})

@@ -237,8 +237,11 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
           openPicker({ ...pos, mode: 'searchTag', at: -1 })
         } else if (label === 'Heading') await exec('node.toggleHeading', { node: p.node }, panel)
         else if (label === 'Checkbox') await exec('node.toggleDone', { node: p.node }, panel)
-        else if (label === 'Checklist') await exec('node.insertChecklist', { node: p.node }, panel)
-        else runUiCommand('ui.commandLine')
+        else if (label === 'Checklist') {
+          // The engine leaves the caret at the start of "New checklist" (N58).
+          await exec('node.insertChecklist', { node: p.node }, panel)
+          break
+        } else runUiCommand('ui.commandLine')
         await exec('focus.set', { node: p.node, caret: 1e9 }, panel)
         break
       }

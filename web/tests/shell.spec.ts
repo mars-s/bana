@@ -48,9 +48,9 @@ test('a custom keybinding runs its command before the default', async ({ app, se
   await app.keyboard.press('Meta+Shift+h')
   await expect(app.locator('[role=dialog][aria-label="Quick add"]')).toBeVisible()
   await app.keyboard.press('Escape')
-  // Set from Settings > Keyboard shortcuts.
+  // Set from Settings > Keybindings.
   await app.locator('.topbar .icon-btn[title="Settings"]').click()
-  await app.locator('.settings-nav .view-tab', { hasText: 'Keyboard shortcuts' }).click()
+  await app.locator('.settings-nav .view-tab', { hasText: 'Keybindings' }).click()
   await expect(app.locator('.custom-keys kbd')).toHaveText('Mod+Shift+H')
   await app.locator('.key-capture').press('Meta+Shift+KeyJ')
   await expect(app.locator('.key-capture')).toHaveValue('Mod+Shift+J')
@@ -59,4 +59,28 @@ test('a custom keybinding runs its command before the default', async ({ app, se
   await expect.poll(async () => (await server.run('settings.get')).result.keybindings).toEqual({ 'Mod+Shift+H': 'ui.quickAdd', 'Mod+Shift+J': 'ui.recents' })
   await app.locator('.custom-keys button[aria-label="Remove Mod+Shift+H"]').click()
   await expect.poll(async () => Object.keys((await server.run('settings.get')).result.keybindings)).toEqual(['Mod+Shift+J'])
+})
+
+test('Settings open in a second panel with the sections in order; Escape closes them (N55)', async ({ app }) => {
+  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await expect(app.locator('.panel')).toHaveCount(2)
+  const settings = app.locator('.panel.settings-panel')
+  await expect(settings.locator('.crumbs')).toContainText('User settings')
+  await expect(settings.locator('.settings-nav .view-tab')).toHaveText(['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Keybindings'])
+  await expect(settings.locator('button[aria-label="Use system theme"]')).toBeVisible()
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.panel')).toHaveCount(1)
+})
+
+test('the theme follows the system appearance until a theme is picked (N56)', async ({ app }) => {
+  await app.emulateMedia({ colorScheme: 'light' })
+  await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
+  await app.emulateMedia({ colorScheme: 'dark' })
+  await expect(app.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await app.locator('button[aria-label="Use system theme"]').click()
+  await app.locator('button[aria-label="Dark theme"]').click()
+  await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
+  await app.emulateMedia({ colorScheme: 'dark' })
+  await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
 })

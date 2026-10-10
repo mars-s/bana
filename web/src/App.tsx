@@ -267,6 +267,16 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+  // Following the system appearance (N56): a change there switches the theme here.
+  const followSystem = useStore((s) => s.followSystem)
+  useEffect(() => {
+    if (!followSystem) return
+    const mq = window.matchMedia?.('(prefers-color-scheme: light)')
+    const on = () => setState({ theme: mq.matches ? 'light' : 'dark' })
+    on()
+    mq?.addEventListener('change', on)
+    return () => mq?.removeEventListener('change', on)
+  }, [followSystem])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (['Shift', 'Meta', 'Control', 'Alt', 'CapsLock'].includes(e.key) || e.isComposing) return

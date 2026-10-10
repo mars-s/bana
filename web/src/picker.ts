@@ -288,7 +288,7 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         break
       }
       case 'moveTo': {
-        if (item.id != null) await exec('node.move', { node: p.node, parent: item.id }, panel)
+        if (item.id != null) await exec('node.move', { node: p.node, parent: item.id, ...(p.leaveRef ? { leaveReference: true } : {}) }, panel)
         break
       }
     }

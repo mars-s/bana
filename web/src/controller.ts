@@ -483,8 +483,10 @@ export function handleKey(k: KeyInfo): boolean {
  * references to the same nodes. */
 let lastCopy: { text: string; ids: number[] } | null = null
 
-async function copySelection(panel: string) {
-  const r = await call('run', { command: 'export.clipboard', params: {}, panel })
+/** Copies the selection (or the nodes in `params`) as HTML and text; pasting it back makes
+ * references. */
+export async function copySelection(panel: string, params: Json = {}) {
+  const r = await call('run', { command: 'export.clipboard', params, panel })
   const out = r?.result
   if (!out) return
   lastCopy = { text: out.text, ids: out.nodes }

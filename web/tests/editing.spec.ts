@@ -121,11 +121,16 @@ test('Cmd+K then Escape: typing goes on in the line', async ({ app, server }) =>
   await expect.poll(() => nameOf(server, ids[0])).toBe('oneX')
 })
 
-test('the command line offers steps for the focused line first', async ({ app, server }) => {
+test('the command line opens under the focused line with its steps first (N63)', async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['one'])
   await focus(server, app, ids[0], 3)
+  const line = (await app.locator(`.editor-input[data-node="${ids[0]}"]`).boundingBox())!
   await app.keyboard.press('Meta+k')
-  await expect(app.locator('.dialog-item').first()).toHaveText(/Add supertag/)
+  await expect(app.locator('.dialog-item .grow, .dialog-item').first()).toHaveText(/Find nodes/)
+  await expect(app.locator('.dialog-item').nth(1)).toHaveText(/Add tag/)
+  const box = (await app.locator('.dialog.palette').boundingBox())!
+  expect(box.y).toBeGreaterThan(line.y + line.height)
+  expect(box.y).toBeLessThan(line.y + line.height + 20)
   await app.keyboard.type('toggle done')
   await app.keyboard.press('Enter')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .checkbox`)).toBeVisible()

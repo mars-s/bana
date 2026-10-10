@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
-import { exec, returnKeyboard, runUiCommand } from './controller'
+import { copySelection, exec, returnKeyboard, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
 import { SubMenu } from './Views'
@@ -63,18 +63,30 @@ function Palette() {
   const focusRow = page?.rows.items.find((r) => r.k === 'node' && r.id === focusId) as NodeRow | undefined
   const ctx = focusRow ? { row: focusRow, panel: activePanel } : null
   const [q, setQ] = useState('')
+  // With a line focused the box opens under that line (N63); else top right (spec 12).
+  const [under] = useState(() => {
+    const el = focusId == null ? null : document.querySelector(`[data-panel="${activePanel}"] [data-node="${focusId}"]`)
+    const r = el?.getBoundingClientRect()
+    if (!r) return null
+    const top = Math.min(r.bottom + 6, window.innerHeight - 380)
+    return { top, left: Math.min(Math.max(8, r.left), window.innerWidth - 510), right: 'auto' }
+  })
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
   type Entry = { id: string; label: string; shortcut: string; run: () => void }
   const steps: Entry[] = []
   if (ctx) {
     const { row, panel } = ctx
     const at = { panel, at: -1, x: window.innerWidth - 520, y: 180 }
-    steps.push({ id: 'step.tag', label: 'Add supertag', shortcut: '', run: () => openPicker({ ...at, mode: 'tag', node: row.target }) })
+    // Tana's order with a line focused (N63): Find nodes, Add tag, Move to, Move and leave
+    // reference to, then the views.
+    steps.push({ id: 'step.find', label: 'Find nodes →', shortcut: '', run: () => runUiCommand('ui.searchOpen') })
+    steps.push({ id: 'step.tag', label: 'Add tag', shortcut: '#', run: () => openPicker({ ...at, mode: 'tag', node: row.target }) })
+    steps.push({ id: 'step.move', label: 'Move to', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id }) })
+    steps.push({ id: 'step.moveRef', label: 'Move and leave reference to', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id, leaveRef: true }) })
+    for (const k of ['table', 'cards', 'calendar', 'outline']) steps.push({ id: `step.view.${k}`, label: `View as ${k}`, shortcut: '', run: () => void exec('view.set', { node: row.id, kind: k }, panel) })
     for (const t of row.tags) steps.push({ id: `step.untag.${t.id}`, label: `Remove #${t.name}`, shortcut: '', run: () => void exec('tag.remove', { node: row.target, tag: t.id }, panel) })
     steps.push({ id: 'step.field', label: 'Add field', shortcut: '', run: () => openPicker({ ...at, mode: 'field', node: row.target, owner: row.target }) })
     steps.push({ id: 'step.done', label: row.done === null ? 'Add checkbox' : 'Toggle done', shortcut: 'Mod+Enter', run: () => void exec('node.toggleDone', { node: row.id }, panel) })
-    steps.push({ id: 'step.move', label: 'Move to…', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id }) })
-    for (const k of ['outline', 'table', 'cards', 'calendar']) steps.push({ id: `step.view.${k}`, label: `View as ${k}`, shortcut: '', run: () => void exec('view.set', { node: row.id, kind: k }, panel) })
   }
   const all: Entry[] = [
     ...steps,
@@ -89,7 +101,7 @@ function Palette() {
   }
   const { sel, setSel, onKeyDown } = useListKeys(list.length, pick)
   return (
-    <div className="dialog palette" role="dialog" aria-label="Command line">
+    <div className="dialog palette" role="dialog" aria-label="Command line" style={under ?? undefined}>
       <div className="dialog-input">
         <input autoFocus value={q} placeholder="Enter command…" onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown} />
       </div>
@@ -476,6 +488,8 @@ function NodeMenu() {
     return page?.rows.items.find((r) => r.k === 'node' && r.id === nm?.node) as NodeRow | undefined
   })
   const page = useStore((s) => (s.nodeMenu ? s.pages[s.nodeMenu.panel] : undefined))
+  const pinned = useStore((s) => s.sidebar?.pinned)
+  const pinnedIds = (pinned ?? []).map((p) => p.id)
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null)
   useEffect(() => {
@@ -531,6 +545,35 @@ function NodeMenu() {
     </div>
   )
   const done = row ? row.done : null
+  // Opened from a page's "…" (N65): Tana's page menu, or its supertag menu on a tag page.
+  const fromPage = !row && page?.zoom === node
+  const editLog = () => {
+    close()
+    void exec('node.editLog', { node: target }, panel).then((r) => {
+      const log = (r?.result?.log ?? []) as { event: string; at: string }[]
+      showToast(log.map((e) => `${e.event} ${e.at}`).join(' · ') || 'No edits yet')
+    })
+  }
+  const copyNode = () => (close(), void copySelection(panel, { node: target }))
+  if (fromPage && kind === 'tag')
+    return (
+      <div ref={ref} className="menu node-menu" style={pos ? { left: pos.left, top: pos.top } : { left: m.x, top: m.y, visibility: 'hidden' }} role="menu">
+        <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />
+        <It label={pinnedIds.includes(target) ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />
+        <div className="menu-sep" />
+        <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+        <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />
+        <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
+        <It label="Move" icon="forward" on={pick('moveTo')} />
+        <div className="menu-sep" />
+        <It label="Add tag" icon="hash" on={pick('tag')} />
+        <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
+        <It label="Show edit log" on={editLog} />
+        <div className="menu-sep" />
+        <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
+        <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
+      </div>
+    )
   return (
     <div
       ref={ref}
@@ -573,18 +616,20 @@ function NodeMenu() {
         ))}
       </SubMenu>
       <div className="menu-sep" />
-      <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
+      {!fromPage && <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />}
       <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+      {fromPage && <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />}
       <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
-      <It label="Move to…" icon="forward" on={pick('moveTo')} />
+      {!fromPage && <It label="Move to…" icon="forward" on={pick('moveTo')} />}
       <div className="menu-sep" />
       {kind === 'tag' && <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />}
       {kind === 'tag' && <It label={row?.pinned ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />}
       <It label="Add tag" icon="hash" on={pick('tag')} />
-      <It label="Toggle heading" on={run('node.toggleHeading')} />
-      <It label="Show progress bar" on={run('node.toggleProgress')} />
+      {!fromPage && <It label="Toggle heading" on={run('node.toggleHeading')} />}
       <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
       <It label={done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
+      <It label="Show progress bar" on={run('node.toggleProgress')} />
+      {fromPage && <It label="Show edit log" on={editLog} />}
       {isRef && <It label="Notes and fields for this context" on={run('node.contextNote')} sc="Mod+Alt+Down" />}
       {kind === 'search' && <It label="Convert search node to plain list" on={run('search.toPlainList')} />}
       <div className="menu-sep" />

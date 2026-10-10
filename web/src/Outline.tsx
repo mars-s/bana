@@ -1406,9 +1406,9 @@ function HeadActions({ page, panel, helpOnly }: { page: Page; panel: string; hel
         title="Options"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
-          // The page's node menu, under the button, right-aligned, 7 px below (N37).
+          // The page's menu, 7 px under the button, its left edge at the button (N37, N65 d79).
           const r = e.currentTarget.getBoundingClientRect()
-          setState({ nodeMenu: { panel, node: page.zoom, x: r.right, y: r.bottom + 7, alignRight: true } })
+          setState({ nodeMenu: { panel, node: page.zoom, x: r.left, y: r.bottom + 7 } })
         }}
       >
         <Icon name="more" size={12} />

@@ -139,7 +139,8 @@ test('the bullet menu fits the window; the page Options menu opens under its but
   await expect(menu).toBeVisible()
   const b = (await opts.boundingBox())!
   const mb = (await menu.boundingBox())!
-  expect(Math.abs(mb.x + mb.width - (b.x + b.width))).toBeLessThan(2)
+  // Its left edge at the button (round 9, d79).
+  expect(Math.abs(mb.x - b.x)).toBeLessThan(2)
   expect(Math.round(mb.y - (b.y + b.height))).toBe(7)
 })
 
@@ -175,4 +176,22 @@ test('Cmd+Down on a leaf shows an empty child line; a node dropped on it goes in
   await app.keyboard.press('Escape')
   await app.locator(`.row.node[data-id="${ids[1]}"] .bullet`).dragTo(app.locator('.row.empty-child'))
   await expect.poll(async () => ((await tree(server, ids[0])).children ?? []).map((c: any) => c.name)).toEqual(['mover'])
+})
+
+test('page and supertag "…" menus: Tana\'s sets, left edge at the button (N65)', async ({ app, server }) => {
+  const btn = app.locator('.head-actions [title="Options"]').first()
+  await btn.click()
+  const menu = app.locator('.node-menu')
+  await expect(menu).toBeVisible()
+  const b = (await btn.boundingBox())!
+  expect(Math.abs((await menu.boundingBox())!.x - b.x)).toBeLessThan(2)
+  for (const label of ['Copy', 'Show edit log', 'Delete', 'More commands']) await expect(menu.locator('.menu-item', { hasText: new RegExp(`^${label}`) }).first()).toBeVisible()
+  for (const label of ['Open in new panel', 'Move to…', 'Toggle heading']) await expect(menu.locator('.menu-item', { hasText: label })).toHaveCount(0)
+  await menu.locator('.menu-item', { hasText: 'Show edit log' }).click()
+  await expect(app.locator('.toast')).toContainText('created')
+  const tags = (await server.run('graph.tags', {})).result
+  await server.run('nav.open', { node: tags.find((t: any) => t.name === 'task').id })
+  await expect(app.locator('.tag-tabs')).toBeVisible()
+  await app.locator('.head-actions [title="Options"]').first().click()
+  await expect(menu.locator('.menu-item .grow')).toHaveText(['Configure supertag', 'Unpin tag', 'Copy node link', 'Copy', 'Duplicate', 'Move', 'Add tag', 'Add description', 'Show edit log', 'Delete', 'More commands'])
 })

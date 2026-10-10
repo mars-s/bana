@@ -124,3 +124,20 @@ test('the table header menu calculates, moves and hides a column', async ({ app,
   await app.locator('.header-menu .menu-item', { hasText: /^Hide column$/ }).click()
   await expect.poll(names).not.toContain(effort)
 })
+
+test('+ OR in the query builder never sends typing into a result row (N35)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'table' })
+  await app.locator('.view-toolbar .tool[title^="Search conditions"]').click()
+  await app.locator('.q-add .btn', { hasText: '+ OR' }).click()
+  // The new group's input has the keyboard.
+  await expect(app.locator('.query-builder .q-group .q-group .q-input')).toBeFocused()
+  await app.keyboard.type('xyz')
+  await app.waitForTimeout(200)
+  expect((await server.run('graph.search', { query: 'xyz' })).result).toEqual([])
+  // With the keyboard on a button, typed keys go nowhere.
+  await app.locator('.q-add .btn', { hasText: '+ AND' }).last().focus()
+  await app.keyboard.type('qq')
+  await app.waitForTimeout(200)
+  expect((await server.run('graph.search', { query: 'qq' })).result).toEqual([])
+})

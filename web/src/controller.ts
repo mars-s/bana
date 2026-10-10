@@ -75,6 +75,22 @@ export function currentEditor() {
   return editor
 }
 
+/** The title a command key was pressed in: closing a menu without running anything gives it the
+ * keyboard back (N40). */
+let titleReturn: string | null = null
+
+export function keyFromTitle(panel: string, k: KeyInfo) {
+  titleReturn = panel
+  if (!handleKey(k)) titleReturn = null
+}
+
+/** After an overlay closed: the title that opened it takes the keyboard back. */
+export function returnKeyboard() {
+  const p = titleReturn
+  titleReturn = null
+  if (p != null && !editor) titles.get(p)?.focus(true)
+}
+
 export function registerTitle(panel: string, h: TitleHandle | null) {
   if (h) titles.set(panel, h)
   else titles.delete(panel)
@@ -93,6 +109,7 @@ export function noteSynced(node: number, caret: number) {
 
 /** Runs a command that may move the caret; keys typed meanwhile wait and are replayed after. */
 export async function exec(command: string, params: Json = {}, panel = getState().activePanel): Promise<Json> {
+  if (!getState().overlay) titleReturn = null
   // Deleting a node that is used in other places asks first (DIFFS N20).
   if (command === 'node.delete' && !params.force) {
     const nodes = params.node != null ? [params.node] : undefined
@@ -229,6 +246,21 @@ export function setGhost(panel: string, node: number, atStart: boolean) {
   ghosts.set(panel, { node, atStart })
 }
 
+/** Whether keys with nowhere else to go may land in the panel's outline: its rows are drawn and
+ * the keyboard sits on the page itself, not on an input, a button or another control. */
+function outlineHasKeyboard(panel: string): boolean {
+  const a = document.activeElement
+  if (a && a !== document.body && a.closest('input, textarea, select, button, [contenteditable], [role=button], a')) return false
+  return outlineVisible(panel)
+}
+
+/** Whether the panel shows its outline rows (a table, board or calendar view, a configure panel or
+ * a field page hide them): a caret or selection in hidden rows must never take keys (N35). */
+export function outlineVisible(panel: string): boolean {
+  const rows = document.querySelector<HTMLElement>(`[data-panel="${panel}"] .rows`)
+  return !!rows && getComputedStyle(rows).display !== 'none'
+}
+
 function runUi(id: string): boolean {
   const s = getState()
   const p = page()
@@ -339,6 +371,15 @@ export function handleKey(k: KeyInfo): boolean {
   const p = page()
   if (!p) return false
   if (editor && editor.kind === 'line' && editor.panel === s.activePanel) return editorKey(k, sc, p, editor)
+  // A caret or selection left in rows that are not shown takes no keys (N35).
+  if ((p.focus != null || p.sel.length) && !outlineVisible(s.activePanel)) {
+    const cmd = registryCommand(sc)
+    if (cmd && !NEEDS_LINE.has(cmd) && !cmd.startsWith('format.') && !cmd.startsWith('node.') && !cmd.startsWith('select.') && !cmd.startsWith('focus.')) {
+      void exec(cmd)
+      return true
+    }
+    return false
+  }
   // A line holds the caret but its editor is not drawn yet (or is scrolled away): the key waits.
   if (p.focus != null) {
     requeue(k)
@@ -347,8 +388,10 @@ export function handleKey(k: KeyInfo): boolean {
     return true
   }
   if (p.sel.length) return selectionKey(k, sc, p)
-  // Nothing holds a caret: typed text goes into the last line edited, or the first line (N27).
-  if (isTextKey(k) && k.key !== ' ' && !document.activeElement?.closest('input, textarea, [contenteditable]')) {
+  // Nothing holds a caret: typed text goes into the last line edited, or the first line (N27),
+  // but only while the outline is what the panel shows and the keyboard is not on a control
+  // (a button in the query builder or a toolbar keeps it, N35).
+  if (isTextKey(k) && k.key !== ' ' && outlineHasKeyboard(s.activePanel)) {
     const rows = nodeRows(p)
     const g = ghosts.get(s.activePanel)
     const target = (g && rows.find((r) => r.id === g.node)) || rows[0]

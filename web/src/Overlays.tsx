@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
-import { exec, runUiCommand } from './controller'
+import { exec, returnKeyboard, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
 import { SubMenu } from './Views'
@@ -13,6 +13,7 @@ import { getState, newTab, openConfigure, openInNewPanel, refresh, setState, sho
 
 function close() {
   setState({ overlay: null })
+  returnKeyboard()
 }
 
 function prettyKey(sc: string) {

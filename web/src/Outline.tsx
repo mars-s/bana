@@ -8,13 +8,13 @@ import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
-import { type EditorHandle, exec, focusLine, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
-import { keyInfo } from './keys'
+import { keyInfo, shortcut } from './keys'
 
 const OVERSCAN_ROWS = 150
 const WINDOW = 400
@@ -919,23 +919,35 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
       onChange={(e) => send(e.target.value.replace(/\n/g, ' '))}
       onKeyDown={(e) => {
         const k = keyInfo(e)
+        // Commands work from the title too (Cmd+K, zoom out, back; N40): the title lets go first.
+        if ((k.metaKey || k.ctrlKey) && !['Meta', 'Control', 'Shift', 'Alt'].includes(k.key) && !TITLE_TEXT_KEYS.test(shortcut(k))) {
+          e.preventDefault()
+          e.stopPropagation()
+          e.currentTarget.blur()
+          keyFromTitle(panel, k)
+          return
+        }
         if ((k.key === 'Enter' || k.key === 'ArrowDown') && !k.metaKey && !k.ctrlKey) {
           e.preventDefault()
           e.currentTarget.blur()
           const first = page.rows.items.find((r) => r.k === 'node') as NodeRow | undefined
+          if (!outlineVisible(panel)) return
           if (k.key === 'ArrowDown' && first) void exec('focus.set', { node: first.id, caret: 0 }, panel)
           else void exec('node.enter', { node: page.zoom }, panel)
         } else if (k.key === 'Escape') {
           e.preventDefault()
           e.currentTarget.blur()
           const first = page.rows.items.find((r) => r.k === 'node') as NodeRow | undefined
-          if (first) void exec('select.set', { from: first.id }, panel)
+          if (first && outlineVisible(panel)) void exec('select.set', { from: first.id }, panel)
         }
         e.stopPropagation()
       }}
     />
   )
 }
+
+/** Chords that edit the title's text and stay with it. */
+const TITLE_TEXT_KEYS = /^Mod\+(Shift\+)?(A|C|V|X|Z|Y|Left|Right|Up|Down|Backspace|Delete)$/
 
 function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolean }) {
   const c = page.crumbs
@@ -1264,7 +1276,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                     className="vrow"
                     style={{ transform: `translateY(${vi.start - headH}px)` }}
                   >
-                    {row ? <RowView row={row} panel={panel} page={page} active={active} /> : <div className="row placeholder" />}
+                    {row ? <RowView row={row} panel={panel} page={page} active={active && !layout && !schema} /> : <div className="row placeholder" />}
                   </div>
                 )
               })}

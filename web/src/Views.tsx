@@ -226,6 +226,7 @@ function GroupBox({ g, node, panel, path, not }: { g: QueryGroup; node: number; 
         )}
         <input
           className="q-input"
+          data-path={path.join('.')}
           placeholder="Add a condition: #tag, DONE, Field:value, text"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -236,7 +237,16 @@ function GroupBox({ g, node, panel, path, not }: { g: QueryGroup; node: number; 
         />
         <div className="q-add">
           {(['and', 'or', 'not'] as const).map((k) => (
-            <button key={k} className="btn" onClick={() => void exec('search.addGroup', { node, kind: k, path }, panel)}>
+            <button
+              key={k}
+              className="btn"
+              onClick={() =>
+                // The new group's first condition is typed next, in the group (N35).
+                void exec('search.addGroup', { node, kind: k, path }, panel).then(() =>
+                  requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`.q-input[data-path="${[...path, g.clauses.length].join('.')}"]`)?.focus()),
+                )
+              }
+            >
               + {k.toUpperCase()}
             </button>
           ))}

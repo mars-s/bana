@@ -130,3 +130,22 @@ test('the command line offers steps for the focused line first', async ({ app, s
   await app.keyboard.press('Enter')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .checkbox`)).toBeVisible()
 })
+
+test('Cmd+K and Cmd+, work while the caret is in a page title (N40)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['c'], 'P')
+  await app.locator('.panel .title-input').click()
+  await app.keyboard.press('Meta+k')
+  await expect(app.locator('.palette, [role=dialog]').first()).toBeVisible()
+  await app.keyboard.press('Escape')
+  // Escape hands the keyboard back to the title.
+  await app.keyboard.type('cards')
+  await expect.poll(() => nameOf(server, page)).toBe('Pcards')
+  // K39b: zoom into c, then Cmd+, from its title goes back out with the caret in c.
+  await focus(server, app, ids[0], 1)
+  await app.keyboard.press('Meta+.')
+  await expect(app.locator('.panel .title-input')).toBeFocused()
+  await app.keyboard.press('Meta+,')
+  await expect(app.locator('.panel .title-input')).toHaveValue('Pcards')
+  await app.keyboard.type('Y')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('cY')
+})

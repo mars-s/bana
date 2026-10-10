@@ -7,13 +7,13 @@
         "rule": "design-system-font-size",
         "value": "52.5px",
         "createdAt": "2026-10-09T23:11:34.159Z",
-        "reason": "spec 10 §2: page icon emoji is 52.5/73.5"
+        "reason": "spec 10 \u00a72: page icon emoji is 52.5/73.5"
       },
       {
         "rule": "design-system-radius",
         "value": "3px",
         "createdAt": "2026-10-09T23:11:34.189Z",
-        "reason": "spec 10 §5: inline code radius 3"
+        "reason": "spec 10 \u00a75: inline code radius 3"
       },
       {
         "rule": "side-tab",
@@ -21,7 +21,8 @@
         "files": [
           "web/src/app.css"
         ],
-        "createdAt": "2026-10-09T23:41:12.927Z"
+        "createdAt": "2026-10-09T23:41:12.927Z",
+        "reason": "spec 10: calendar event 3 px tag-coloured left bar"
       },
       {
         "rule": "border-accent-on-rounded",
@@ -29,15 +30,17 @@
         "files": [
           "web/src/app.css"
         ],
-        "createdAt": "2026-10-09T23:41:12.960Z"
+        "createdAt": "2026-10-09T23:41:12.960Z",
+        "reason": "spec 10: quick add 5 px top accent on rounded modal"
       },
       {
         "rule": "layout-transition",
-        "value": "width",
+        "value": "*",
         "files": [
           "web/src/app.css"
         ],
-        "createdAt": "2026-10-09T23:41:12.992Z"
+        "createdAt": "2026-10-09T23:41:12.992Z",
+        "reason": "spec 14 M1: Tana animates sidebar width 225 to 45 over about 195 ms ease-in-out"
       }
     ]
   }

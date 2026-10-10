@@ -153,6 +153,12 @@
   --toast-pad: 14px;
   --t-toast: 200ms ease-out;
   --t-fade-delayed: 200ms ease 400ms;
+  /* Dialog tops (spec 12): most at 14 % of the window, Search and open at 180 / 949, Quick add at 368 / 949. */
+  --dialog-top: 14vh;
+  --search-top: 18.97vh;
+  --quick-top: 38.78vh;
+  --submenu-overlap: 6.6px;
+  --crumb-pad-r: 2.4px;
   /* Search summary popover width (spec 12). */
   --search-pop-w: 360px;
   /* Gap between a view title and its tools (spec 12). */

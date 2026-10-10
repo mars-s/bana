@@ -45,7 +45,7 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   await expect.poll(async () => (await inspectSchema(server, id)).fields.map((x: any) => x.name)).toEqual(['Impact'])
 })
 
-test('Configure supertag from the node menu opens one second panel; Done closes it', async ({ app, server }) => {
+test('Configure supertag from the node menu opens one second panel; its close button closes it', async ({ app, server }) => {
   const tag = (await server.run('tag.create', { name: 'idea', color: 'grey' })).result
   const id = tag.tag ?? tag.id ?? tag.node
   const lib = (await server.rpc('sidebar')).workspaces[0].library
@@ -60,7 +60,7 @@ test('Configure supertag from the node menu opens one second panel; Done closes 
   await bullet.click({ button: 'right' })
   await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
   await expect(app.locator('.panel')).toHaveCount(2)
-  await app.locator('.panel').nth(1).locator('.tag-tabs .btn', { hasText: 'Done' }).click()
+  await app.locator('.panel').nth(1).locator('.crumbs [title="Close panel"]').click()
   await expect(app.locator('.panel')).toHaveCount(1)
 })
 

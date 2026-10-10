@@ -126,12 +126,14 @@ function SearchOpen() {
   const { sel, setSel, onKeyDown } = useListKeys(hits.length, (i) => pick(i))
   return (
     <div className="dialog search" role="dialog" aria-label="Search and open">
+      {/* Header: a small label over the search box, then a rule (spec 12: Search and open). */}
+      <div className="search-head">Search and open</div>
       <div className="dialog-input">
         <Icon name="search" />
         <input
           autoFocus
           value={q}
-          placeholder="Search and open"
+          placeholder="Search..."
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (shortcut(keyInfo(e)) === 'Mod+Enter') {

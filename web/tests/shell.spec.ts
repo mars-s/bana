@@ -131,3 +131,18 @@ test('the day toolbar goes to a picked date, and calendar sync explains itself',
   await app.locator('.day-nav [title="Set up calendar sync"]').click()
   await expect(app.locator('.toast')).toContainText('Calendar sync')
 })
+
+test('dialogs and submenus sit where spec 12 puts them', async ({ app }) => {
+  // Measured in Tana (d48, d56; spec 12): Search and open at y 180 with a header label, Quick add
+  // at y 368, submenus overlapping their menu by about 6.6.
+  await app.locator('.day-nav').waitFor()
+  await app.keyboard.press('Meta+s')
+  await expect(app.locator('.dialog.search .search-head')).toHaveText('Search and open')
+  await app.waitForTimeout(300)
+  expect(Math.round((await app.locator('.dialog.search').boundingBox())!.y)).toBe(180)
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Meta+e')
+  await expect(app.locator('.dialog.quick')).toBeVisible()
+  await app.waitForTimeout(300)
+  expect(Math.round((await app.locator('.dialog.quick').boundingBox())!.y)).toBe(368)
+})

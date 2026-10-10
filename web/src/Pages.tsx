@@ -7,7 +7,7 @@ import { Icon } from './icons'
 import { tagStyle } from './Outline'
 import { exec } from './controller'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
-import { closeConfigure, refresh, setState, useStore } from './store'
+import { refresh, setState, useStore } from './store'
 
 interface TagInfo {
   id: number
@@ -73,29 +73,23 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
   return (
     <>
       <div className="tag-glow" style={tagStyle(color)} />
-      <div className={`tag-tabs${configuring ? ' bare' : ''}`}>
-        {/* The configure panel shows the tag's settings only, not its views (spec 03 §5). */}
-        {!configuring && (<>
-        <button className={`view-tab${active === tag ? ' active' : ''}`} onClick={() => showTab(undefined)}>
-          Everything tagged
-        </button>
-        {tabs.map((t) => (
-          <button key={t.id} className={`view-tab${active === t.id ? ' active' : ''}`} onClick={() => showTab(t.id)}>
-            {t.name}
+      {/* The configure panel shows the tag's settings only, not its views (spec 03 §5); its
+          panel's close button closes it (spec 12 has no Done). */}
+      {!configuring && (
+        <div className="tag-tabs">
+          <button className={`view-tab${active === tag ? ' active' : ''}`} onClick={() => showTab(undefined)}>
+            Everything tagged
           </button>
-        ))}
-        <button className="ghost-btn" onClick={() => void exec('tag.addView', { tag, kind: 'table' }, panel)}>
-          + Add view
-        </button>
-        </>)}
-        <span className="spacer" />
-        {/* Configure lives in the page's "…" menu; its panel has Done here (N59.15). */}
-        {configuring && (
-          <button className="btn regular on" onClick={() => void closeConfigure(panel)}>
-            Done
+          {tabs.map((t) => (
+            <button key={t.id} className={`view-tab${active === t.id ? ' active' : ''}`} onClick={() => showTab(t.id)}>
+              {t.name}
+            </button>
+          ))}
+          <button className="ghost-btn" onClick={() => void exec('tag.addView', { tag, kind: 'table' }, panel)}>
+            + Add view
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </>
   )
 }

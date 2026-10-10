@@ -574,7 +574,8 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   height: var(--crumb-h);
-  padding: 0 var(--q1);
+  /* Text flush left, 2.4 after it (N59.5). */
+  padding: 0 var(--crumb-pad-r) 0 0;
   border-radius: var(--r-hair);
   color: var(--c-muted);
 }
@@ -1315,7 +1316,7 @@ button:focus-visible {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 14vh;
+  padding-top: var(--dialog-top);
   z-index: 50;
 }
 
@@ -1351,7 +1352,27 @@ button:focus-visible {
   border-radius: var(--r-lg);
   border-top: 5px solid var(--c-quick-add);
   padding: var(--q6) var(--q8);
-  margin-top: 23vh;
+  margin-top: calc(var(--quick-top) - var(--dialog-top));
+}
+
+/* Search and open sits at y 180 of 949 with a labelled header (spec 12). */
+.dialog.search {
+  margin-top: calc(var(--search-top) - var(--dialog-top));
+}
+
+.search-head {
+  padding: var(--q3) var(--q3) 0;
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  color: var(--c-text);
+}
+
+.dialog.search .dialog-list {
+  border-top: 1px solid var(--c-divider);
+}
+
+.dialog.search .dialog-head {
+  padding: var(--q2) var(--q5);
 }
 
 .dialog-input {
@@ -1363,7 +1384,7 @@ button:focus-visible {
 }
 
 .dialog.search .dialog-input {
-  margin: var(--q3);
+  margin: var(--q5) var(--q3) var(--q3);
   height: 34px;
   border-radius: var(--r-md);
   background: var(--c-input-well);
@@ -2244,14 +2265,16 @@ kbd {
 
 .menu.submenu {
   position: absolute;
-  left: calc(100% + 2px);
+  /* Flush beside the parent menu (the item sits inside its padding), overlapping it by about 6.6
+     (spec 12: Menus). */
+  left: calc(100% + var(--q1-5) - var(--submenu-overlap));
   top: calc(-1 * var(--q1-5));
   animation: fade-in var(--t-submenu);
 }
 
 .menu.submenu.to-left {
   left: auto;
-  right: calc(100% + 2px);
+  right: calc(100% + var(--q1-5) - var(--submenu-overlap));
 }
 
 .menu-item.danger {
@@ -3633,7 +3656,15 @@ kbd {
   color: var(--c-text);
 }
 
-.field-head .page-desc {
+/* Configure supertag and field pages: a column 18.75 in from the panel sides (600 wide in a half
+   panel; spec 12). */
+.page.schema-col {
+  padding-left: var(--q5);
+  padding-right: var(--q5);
+}
+
+.field-head .page-desc,
+.page.schema-col .page-desc {
   width: 100%;
   border: 0;
   outline: 0;
@@ -3644,7 +3675,7 @@ kbd {
   color: var(--c-text);
 }
 
-.field-head .page-desc::placeholder {
+.page.schema-col .page-desc::placeholder {
   color: var(--c-faint);
 }
 
@@ -3712,4 +3743,13 @@ kbd {
   gap: var(--q2);
   padding: var(--q2) var(--q3);
   border-top: 1px solid var(--c-divider);
+}
+
+/* In Configure supertag the colour row follows the description line (y 185, spec 12). */
+.page.schema-col .page-head {
+  padding-bottom: 0;
+}
+
+.page.schema-col .configure {
+  margin-top: 0;
 }

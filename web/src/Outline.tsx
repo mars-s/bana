@@ -7,7 +7,7 @@ import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
-import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
+import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closeConfigure, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, SearchOptions, ViewBody, ViewTitle, ViewToolbar } from './Views'
@@ -1207,6 +1207,8 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
 const TITLE_TEXT_KEYS = /^Mod\+(Shift\+)?(A|C|V|X|Z|Y|Left|Right|Up|Down|Backspace|Delete)$/
 
 function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolean }) {
+  // A Configure supertag panel closes here (spec 12 has no Done button).
+  const configuring = useStore((s) => !!s.configure[panel]) && page.kind === 'tag'
   const wsName = useStore((s) => s.sidebar?.workspaces[0]?.name ?? '')
   const c = page.crumbs
   const shown: ({ id: number; name: string } | null)[] = c.length > 4 ? [c[0], null, ...c.slice(-2)] : c
@@ -1234,8 +1236,8 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
         </span>
       ))}
       <span className="spacer" />
-      {many ? (
-        <button className="icon-btn" title="Close panel" onClick={() => void closePanel(panel)}>
+      {many || configuring ? (
+        <button className="icon-btn" title="Close panel" onClick={() => void (configuring ? closeConfigure(panel) : closePanel(panel))}>
           <Icon name="close" size={14} />
         </button>
       ) : (
@@ -1332,10 +1334,10 @@ function PageDescription({ page, panel }: { page: Page; panel: string }) {
   )
 }
 
-function HeadActions({ page, panel }: { page: Page; panel: string }) {
+function HeadActions({ page, panel, helpOnly }: { page: Page; panel: string; helpOnly?: boolean }) {
   const search = page.kind === 'search'
-  // A field page has only help at the right (spec 12).
-  if (page.kind === 'field')
+  // A field page and a Configure supertag panel have only help at the right (spec 12).
+  if (page.kind === 'field' || helpOnly)
     return (
       <div className="head-actions">
         <button className="btn icon" title="Help" onClick={() => runUiCommand('ui.help')}>
@@ -1570,7 +1572,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         {page.banner && <Banner banner={page.banner} />}
         {/* A tagged page gets its first tag's colour washed behind the header (N59.23). */}
         {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
-        <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
+        <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}${configuring || fieldPage ? ' schema-col' : ''}`}>
           <div className="page-main">
             <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}`}>
               {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
@@ -1595,7 +1597,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                   </span>
                 )}
                 <TitleEditor key={page.zoom} page={page} panel={panel} />
-                {page.tags.length === 0 && <HeadActions page={page} panel={panel} />}
+                {page.tags.length === 0 && <HeadActions page={page} panel={panel} helpOnly={configuring} />}
               </div>
               {page.tags.length > 0 && (
                 <div className="head-meta">
@@ -1607,12 +1609,12 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                   <HeadActions page={page} panel={panel} />
                 </div>
               )}
-              {fieldPage ? <PageDescription page={page} panel={panel} /> : page.description && <p className="page-desc">{page.description}</p>}
+              {fieldPage || configuring ? <PageDescription page={page} panel={panel} /> : page.description && <p className="page-desc">{page.description}</p>}
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
               {page.kind === 'tag' && tagVs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={tagVs.tabs} active={tabId ?? page.zoom} />}
               {page.kind === 'tag' && tagVs && vs && !configuring && (
-                <ViewTitle v={vs} panel={panel} name={tagVs.tabs.find((t) => t.id === (tabId ?? page.zoom))?.name ?? vs.name} description={tabId != null ? vs.description : ''} />
+                <ViewTitle v={vs} panel={panel} name={tabId == null ? 'Everything tagged' : (tagVs.tabs.find((t) => t.id === tabId)?.name ?? vs.name)} description={tabId != null ? vs.description : ''} />
               )}
               {vs && !layout && !schema && <QueryBuilder v={vs} panel={panel} />}
               {vs && !layout && !schema && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}

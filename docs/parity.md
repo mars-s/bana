@@ -216,11 +216,11 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Calendar week | done | Hour grid of the whole day, drag to create, move and resize. |
 | List (grouped outline) | done | Group headers with chevrons. |
 | Cards | done | 300 wide cards with 30 gaps, date line. |
-| Configure supertag | done | Second panel, colour row, folded section cards. AI and voice sections left out. |
+| Configure supertag | done | Second panel with an 18.75 inset and a 600 column, Add a description line, help only at the right, colour row, folded section cards; the panel's close button closes it (no Done). AI and voice sections left out. N59 items 32 to 35 list the clone value first; d46, d48 and d56 with spec 12 settle them. |
 | Field definition page | done | Breadcrumb Schema / #supertag / field, type icon and a 19 px 500 title with help at the right, a faint Add a description line typed in place, form of label and control. (DIFFS N59.33 lists the clone first; d47 and spec 12 agree on 19 px.) |
 | Search node with query builder | done | Builder with groups, menus, Learn more and a corner close (N43). |
 | Search summary popover | done | 360 wide under Search options, right-aligned: Search heading, the query as a sentence with tinted tags, fields and values, Open query editor, Merge filters into search when the view has filters (`search.mergeFilters`). |
-| Search and open (Cmd+S) | done | Dialog, results with crumbs. |
+| Search and open (Cmd+S) | done | Dialog at y 180 with a Search and open label over the box, results with crumbs. Quick add at y 368; submenus overlap their menu by 6.6. |
 | Command line | done | 500 wide, no scrim, active item bar. |
 | Quick add | done | 630 wide, 5 px gold bar, 250 ms entry. |
 | Settings | done | Second panel, User settings, the seven sections in order plus Keybindings, checkboxes on their own lines (N55). |

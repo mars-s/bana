@@ -1705,9 +1705,35 @@ kbd {
 }
 
 /* Table: horizontal hairlines only. */
+/* A table is as wide as its columns; a narrow panel scrolls it sideways (N59). */
+.table-scroll {
+  overflow-x: auto;
+}
+
 .table {
+  width: max-content;
+  min-width: 0;
   font-size: var(--fs-dense);
   line-height: var(--lh-dense);
+}
+
+/* Column resize: a 4 px strip at a header's right edge (spec 04, table). */
+.t-head .t-cell {
+  position: relative;
+}
+
+.t-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--q1);
+  cursor: col-resize;
+}
+
+.t-grip:hover,
+.t-grip:active {
+  background: var(--c-drop-line);
 }
 
 .t-row {

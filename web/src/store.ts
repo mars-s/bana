@@ -34,6 +34,8 @@ export interface PickerState {
   items: PickItem[]
   sel: number
   nextColor: string
+  /** Ids not offered (columns already shown). */
+  exclude?: number[]
 }
 
 export interface PickItem {

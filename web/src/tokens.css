@@ -56,6 +56,9 @@
   --settings-nav-w: 195px;
   --q-close: 15px;
   --drag-dim: 0.5;
+  --table-title-w: 150px;
+  --table-title-max: 340px;
+  --table-col-w: 128px;
   --drag-hint-top: 60px;
   --drag-hint-w: 600px;
   --drag-hint-h: 40px;

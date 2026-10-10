@@ -100,8 +100,10 @@ test('clicking a table header renames the field in place; its icon opens the fie
   await app.keyboard.type('Nope')
   await app.keyboard.press('Escape')
   await expect(app.locator('.t-head .t-col-name', { hasText: 'Due date' })).toBeVisible()
+  // The icon opens the field in a panel to the right.
   await app.locator('.t-head .t-cell', { hasText: 'Due date' }).locator('.t-col-icon').click()
-  await expect(app.locator('.panel .title-input')).toHaveValue('Due date')
+  await expect(app.locator('.panel')).toHaveCount(2)
+  await expect(app.locator('.panel').nth(1).locator('.title-input')).toHaveValue('Due date')
 })
 
 test('the table header menu calculates, moves and hides a column', async ({ app, server }) => {
@@ -175,4 +177,24 @@ test('a tag page view tab switches the view in place; the tag header stays (N36)
   await app.locator('.view-toolbar .tool[title="Sort by"]').click()
   await app.locator('.menu.pop .menu-item').first().click()
   await expect(app.locator('.table')).toBeVisible()
+})
+
+test('dragging a header edge resizes the column; + Add offers new and system fields (N46)', async ({ app, server }) => {
+  await openTasks(server, app)
+  await app.locator('.view-toolbar .tool[title="View as"]').click()
+  await app.locator('.menu-item', { hasText: 'Table' }).click()
+  const head = app.locator('.t-head .t-cell', { hasText: 'Status' })
+  const before = (await head.boundingBox())!.width
+  const grip = (await head.locator('.t-grip').boundingBox())!
+  await app.mouse.move(grip.x + 2, grip.y + 5)
+  await app.mouse.down()
+  await app.mouse.move(grip.x + 82, grip.y + 5, { steps: 5 })
+  await app.mouse.up()
+  await expect.poll(async () => Math.round((await head.boundingBox())!.width - before)).toBeGreaterThan(70)
+  await app.locator('.t-head .tool', { hasText: '+ Add' }).click()
+  await expect(app.locator('.menu.pop .menu-item', { hasText: 'Add new field' })).toBeVisible()
+  await app.locator('.menu.pop .menu-item', { hasText: 'Add new field' }).click()
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  // Columns already shown are not offered again.
+  await expect(app.locator('.menu.picker .menu-item', { hasText: /^Status$/ })).toHaveCount(0)
 })

@@ -24,7 +24,8 @@ async function doFetch(p: PickerState) {
   if (p.field != null) params.field = p.field
   const r = await call('choices', params)
   if (seq !== fetchSeq) return
-  setState((s) => (s.picker ? { picker: { ...s.picker, items: r?.items ?? [], nextColor: r?.nextColor ?? 'grey', sel: Math.min(s.picker.sel, Math.max(0, (r?.items?.length ?? 1) - 1)) } } : {}))
+  const items = ((r?.items ?? []) as PickItem[]).filter((i) => i.id == null || !p.exclude?.includes(i.id))
+  setState((s) => (s.picker ? { picker: { ...s.picker, items, nextColor: r?.nextColor ?? 'grey', sel: Math.min(s.picker.sel, Math.max(0, items.length - 1)) } } : {}))
 }
 
 export function openPicker(p: Omit<PickerState, 'items' | 'sel' | 'nextColor' | 'query'> & { query?: string }) {

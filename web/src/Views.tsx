@@ -531,15 +531,58 @@ export function SubMenu({ label, children, icon = true }: { label: string; child
   )
 }
 
+let measureCtx: CanvasRenderingContext2D | null = null
+/** The width the longest title needs, with its bullet, checkbox and chip (a guess from the font). */
+function titleFit(v: ViewSnap): number {
+  measureCtx ??= document.createElement('canvas').getContext('2d')
+  if (!measureCtx) return 0
+  measureCtx.font = `${getComputedStyle(document.documentElement).getPropertyValue('--fs-dense').trim() || '14px'} Inter Variable, Inter, system-ui, sans-serif`
+  let max = 0
+  for (const g of v.groups) for (const it of g.items) max = Math.max(max, measureCtx.measureText(it.name).width)
+  return Math.ceil(max + 70)
+}
+
 function Table({ v, panel }: { v: ViewSnap; panel: string }) {
   const fe = useStore((s) => s.fieldEdit)
   const [menu, setMenu] = useState<{ col: ViewColumn; x: number; y: number } | null>(null)
-  const tmpl = `minmax(${v.titleWidth ?? 260}px, 2fr) ${v.columns.map((c) => `${c.width ?? 160}px`).join(' ')} 80px`
+  // A column being resized: its width follows the pointer, and is saved on release (N46).
+  const [sizing, setSizing] = useState<{ col: number | 'title'; width: number } | null>(null)
+  const w = (col: number | 'title', saved: number | null, token: string) => (sizing?.col === col ? `${sizing.width}px` : saved ? `${saved}px` : `var(${token})`)
+  // The title column fits its titles up to a limit (150 wide for short ones, spec 12: Table).
+  // Each row is its own grid, so the width is worked out once from the longest title.
+  const title = sizing?.col === 'title' ? `${sizing.width}px` : v.titleWidth ? `${v.titleWidth}px` : `clamp(var(--table-title-w), ${titleFit(v)}px, var(--table-title-max))`
+  const tmpl = `${title} ${v.columns.map((c) => w(c.id, c.width, '--table-col-w')).join(' ')} auto`
+  const grip = (col: number | 'title') => (
+    <span
+      className="t-grip"
+      title="Drag to resize"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const cell = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect()
+        const x0 = e.clientX
+        let width = cell.width
+        const move = (ev: PointerEvent) => {
+          width = Math.max(60, Math.round(cell.width + ev.clientX - x0))
+          setSizing({ col, width })
+        }
+        const up = () => {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+          void exec('view.setColumnWidth', { node: v.node, field: col === 'title' ? 'title' : col, width }, panel).then(() => setSizing(null))
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+      }}
+    />
+  )
   return (
+    <div className="table-scroll">
     <div className="table" role="table">
       <div className="t-row t-head" style={{ gridTemplateColumns: tmpl }} role="row">
         <span className="t-cell" role="columnheader">
           Name
+          {grip('title')}
         </span>
         {v.columns.map((c) => (
           <span
@@ -552,22 +595,37 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
               setMenu({ col: c, x: e.clientX, y: e.clientY })
             }}
           >
-            <span className="t-col-icon" title="Open the field" onClick={() => void exec('nav.open', { node: c.id }, panel)}>
+            <span className="t-col-icon" title="Open the field" onClick={() => void openInNewPanel(c.id)}>
               <Icon name={FIELD_ICON[c.type] ?? 'fieldText'} size={12} />
             </span>
             <HeaderName id={c.id} name={c.name} panel={panel} />
+            {grip(c.id)}
           </span>
         ))}
         <span className="t-cell">
-          <button
-            className="ghost-btn"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              openPicker({ mode: 'column', panel, node: v.node, at: -1, x: r.left, y: r.bottom })
-            }}
-          >
-            + Add
-          </button>
+          <MenuButton label="+ Add" title="Add a column">
+            {(close) => (
+              <>
+                <Item
+                  icon="plus"
+                  onPick={() => {
+                    close()
+                    const r = document.querySelector('.t-head .menu-anchor')?.getBoundingClientRect()
+                    openPicker({ mode: 'column', panel, node: v.node, at: -1, x: r?.left ?? 0, y: (r?.bottom ?? 0) + 4, exclude: v.columns.map((c) => c.id) })
+                  }}
+                >
+                  Add new field
+                </Item>
+                <SubMenu label="System fields">
+                  {['Created time', 'Last edited time', 'Done time', 'Owner node', 'Tags'].map((f) => (
+                    <Item key={f} onPick={() => (close(), void exec('view.toggleSystemField', { node: v.node, field: f }, panel))}>
+                      {f}
+                    </Item>
+                  ))}
+                </SubMenu>
+              </>
+            )}
+          </MenuButton>
         </span>
       </div>
       {v.groups.map((g) => (
@@ -628,6 +686,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
         <AddItem v={v} panel={panel} label="+ New item" />
       </div>
       {menu && <HeaderMenu v={v} panel={panel} col={menu.col} x={menu.x} y={menu.y} close={() => setMenu(null)} />}
+    </div>
     </div>
   )
 }

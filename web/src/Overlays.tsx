@@ -312,6 +312,41 @@ function ConfirmDelete({ o }: { o: Json }) {
 }
 
 /** Manage workspaces (spec 07 §3): create one, rename them. Each is a part of the one graph file. */
+/** Browse templates (UC-08.15): ready-made pages to start from, installed into the Library. */
+function Templates() {
+  const [list, setList] = useState<{ name: string; description: string }[]>([])
+  useEffect(() => {
+    void call('run', { command: 'template.list', params: {} }).then((r) => setList(Array.isArray(r?.result) ? r.result : []))
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && close()
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [])
+  const install = async (name: string) => {
+    close()
+    const r = await exec('template.install', { name })
+    if (r?.result?.id != null) {
+      await exec('nav.open', { node: r.result.id })
+      showToast(`${name} is in your Library`)
+    }
+  }
+  return (
+    <div className="dialog quick templates" role="dialog" aria-label="Templates">
+      <div className="dialog-head">Templates</div>
+      {list.map((t) => (
+        <div key={t.name} className="template-row">
+          <span className="grow">
+            <span className="template-name">{t.name}</span>
+            <span className="cfg-help">{t.description}</span>
+          </span>
+          <button className="btn regular" onClick={() => void install(t.name)}>
+            Install
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ManageWorkspaces() {
   const sb = useStore((s) => s.sidebar)
   const [name, setName] = useState('')
@@ -396,6 +431,7 @@ const PICK_TITLES: Record<string, string> = {
   sourceTag: 'Options from supertag',
   source: 'Source of options',
   mergeInto: 'Merge into',
+  emoji: 'Emoji',
 }
 
 /** "/" items: icon and shortcut (spec 02 §11; DIFFS N62). */
@@ -782,6 +818,7 @@ export function Overlays() {
           {o.kind === 'quickadd' && <QuickAdd />}
           {o.kind === 'confirm' && <ConfirmDelete o={o} />}
           {o.kind === 'workspaces' && <ManageWorkspaces />}
+          {o.kind === 'templates' && <Templates />}
         </div>
       )}
     </>

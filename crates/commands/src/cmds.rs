@@ -738,6 +738,24 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"node"?: id}"#)
         .pure(),
+        // UC-08.15: ready-made setups, installed as a page in the Library you are in.
+        C::new("template.list", "Templates", "File", |_, _| {
+            Ok(Value::Array(crate::templates::TEMPLATES.iter().map(|(n, d, _)| json!({"name": n, "description": d})).collect()))
+        })
+        .pure(),
+        C::new("template.install", "Install a template", "File", |s, v| {
+            let name = p::req_str(v, "name")?;
+            let (_, _, text) = crate::templates::TEMPLATES
+                .iter()
+                .find(|(n, _, _)| n.eq_ignore_ascii_case(name.trim()))
+                .ok_or_else(|| CmdError::Params(format!("no template `{name}` (see template.list)")))?;
+            let lib = s.graph.workspace_library(here_workspace(s, v));
+            let before = s.graph.children(lib).len();
+            import_tana_paste(s, &json!({"text": text, "parent": lib.0}))?;
+            let page = s.graph.children(lib).get(before).copied().ok_or_else(|| CmdError::Failed("the template made nothing".into()))?;
+            Ok(json!({"id": page.0}))
+        })
+        .params(r#"{"name": string}  (see template.list)"#),
         // UC-08.13: the whole workspace as Markdown files in a ZIP.
         C::new("export.zip", "Export everything as Markdown (ZIP)", "Export", |s, v| {
             let shape = p::str(v, "shape").unwrap_or("outline");

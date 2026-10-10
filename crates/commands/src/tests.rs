@@ -1065,6 +1065,24 @@ fn a_locked_node_refuses_edits_until_unlocked() {
 }
 
 #[test]
+fn every_template_installs_as_one_page() {
+    // UC-08.15.
+    let mut s = blank();
+    let list = run(&mut s, "template.list", json!({}));
+    let names: Vec<String> = list.as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+    assert!(names.len() >= 5);
+    for n in &names {
+        let page = id(&run(&mut s, "template.install", json!({"name": n})), "id");
+        assert_eq!(s.graph.name(page), n.as_str());
+        assert!(!s.graph.children(page).is_empty(), "{n} has content");
+    }
+    let tm = s.graph.children(s.graph.sys.library).iter().copied().find(|c| s.graph.name(*c) == "Task manager").unwrap();
+    let open = s.graph.children(tm).iter().copied().find(|c| s.graph.name(*c) == "Open tasks").unwrap();
+    assert!(s.graph.query(open).is_some(), "searches come in as search nodes");
+    assert!(s.run("template.install", &json!({"name": "nope"})).is_err());
+}
+
+#[test]
 fn counting_words_characters_and_nodes() {
     // UC-06.36.
     let mut s = blank();

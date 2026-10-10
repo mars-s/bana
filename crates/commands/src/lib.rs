@@ -8,6 +8,7 @@
 
 pub mod cmds;
 mod session;
+mod templates;
 
 use std::collections::HashMap;
 

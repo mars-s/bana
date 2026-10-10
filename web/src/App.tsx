@@ -164,7 +164,7 @@ function AccountMenu() {
             {item('By supertag', () => void exportZip('tags'))}
             {item('As an Obsidian vault', () => void exportZip('vault'))}
           </SubMenu>
-          {item('Browse templates', () => showToast('There is no template gallery in this local app yet'))}
+          {item('Browse templates', () => setState({ overlay: { kind: 'templates' } }))}
           <div className="menu-sep" />
           {item(theme === 'dark' ? 'Light theme' : 'Dark theme', () => runUiCommand('ui.toggleTheme'))}
           {item('Keyboard shortcuts', () => runUiCommand('ui.shortcuts'))}

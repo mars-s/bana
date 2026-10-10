@@ -556,6 +556,13 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             .filter(|l| l.to_lowercase().contains(&q))
             .map(|l| json!({"id": 0, "label": l}))
             .collect(),
+        // `:` and a word (UC-06.38): the emoji whose name has a word starting with it.
+        "emoji" => crate::emoji::EMOJI
+            .iter()
+            .filter(|(_, words)| q.is_empty() || words.split(' ').any(|w| w.starts_with(&q)))
+            .take(12)
+            .map(|(e, words)| json!({"id": 0, "label": format!("{e}  {}", words.split(' ').next().unwrap_or_default()), "emoji": e}))
+            .collect(),
         // "@" opens on the recently opened nodes (DIFFS N62).
         "inlineRef" | "moveTo" | "reference" | "source" if q.is_empty() => {
             s.recents.iter().copied().filter(|r| *r != node && g.get(*r).is_some()).take(8).map(|n| item(n, line(n))).collect()
@@ -615,7 +622,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         }
     }
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source" | "mergeInto") {
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source" | "mergeInto" | "emoji") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.

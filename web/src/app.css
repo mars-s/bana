@@ -4242,3 +4242,23 @@ html.capture body {
   margin-top: 2px;
   color: var(--c-muted);
 }
+
+/* Browse templates (UC-08.15): one row per template, Install at the right. */
+.template-row {
+  display: flex;
+  align-items: center;
+  gap: var(--q3);
+  padding: var(--q2) 0;
+  border-top: 1px solid var(--c-divider);
+}
+
+.template-row .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.template-name {
+  font-size: var(--fs-dense);
+  color: var(--c-text);
+}

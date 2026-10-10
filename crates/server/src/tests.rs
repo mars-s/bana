@@ -145,6 +145,10 @@ fn pickers_show_descriptions_recents_and_the_slash_set() {
         .map(|i| i["label"].as_str().unwrap().to_string())
         .collect();
     assert_eq!(slash, ["Paste", "Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "More commands"]);
+    // `:` and a word (UC-06.38): emoji by any word of their name, never a "create" row.
+    let emoji = h.handle("choices", &json!({"mode": "emoji", "query": "rock"}));
+    assert_eq!(emoji["items"][0]["emoji"], "🚀");
+    assert_eq!(h.handle("choices", &json!({"mode": "emoji", "query": "zzz"}))["items"].as_array().map(Vec::len), Some(0));
 }
 
 #[test]

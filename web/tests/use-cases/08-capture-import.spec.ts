@@ -180,6 +180,16 @@ test('UC-08.14 capture from any app: a small window of its own saves lines to to
   await expect(app.locator('.row.node', { hasText: 'Call the vet' })).toBeVisible()
   await expect(app.locator('.row.node', { hasText: 'Buy bird seed' })).toBeVisible()
 })
-missing('UC-08.15', 'browse and install templates from a gallery')
+test('UC-08.15 browse and install templates from a gallery', works('UC-08.15'), async ({ app }) => {
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Browse templates' }).click()
+  const dialog = app.getByRole('dialog', { name: 'Templates' })
+  await expect(dialog.locator('.template-row')).toHaveCount(5)
+  await dialog.locator('.template-row', { hasText: 'Reading list' }).getByRole('button', { name: 'Install' }).click()
+  // The new page opens, with its search showing the books to read.
+  await expect(app.locator('.panel .title-input')).toHaveValue('Reading list')
+  await expect(app.locator('.row.node', { hasText: 'The book I keep meaning to start' }).first()).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Up next' })).toBeVisible()
+})
 missing('UC-08.16', 'capture on the phone: app, home screen widgets, share sheet, Siri', 'out-of-scope')
 missing('UC-08.17', 'voice memo on the phone, transcribed and tagged by AI', 'ai')

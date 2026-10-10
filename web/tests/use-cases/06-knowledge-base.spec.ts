@@ -448,7 +448,18 @@ test('UC-06.37 give an inline reference its own alias text, or turn it back into
   await expect.poll(() => nameOf(server, ids[1])).toBe('Lunch with my neighbour')
   await expect(app.locator(`.row.node[data-id="${ids[1]}"] .inline-ref`)).toHaveCount(0)
 })
-missing('UC-06.38', 'type : and a word to pick an emoji')
+test('UC-06.38 type : and a word to pick an emoji', works('UC-06.38'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, [''])
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.type('Ship it :rock')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('🚀')
+  await app.keyboard.press('Enter')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Ship it 🚀')
+  // Typing goes on after it; a colon inside a word or a time opens nothing.
+  await app.keyboard.type(' at 10:30, Note: done')
+  await expect(app.locator('.menu.picker')).toHaveCount(0)
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Ship it 🚀 at 10:30, Note: done')
+})
 missing('UC-06.39', 'code blocks with a language and Mermaid diagrams')
 missing('UC-06.40', 'a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)')
 test('UC-06.41 search with a regular expression', works('UC-06.41'), async ({ app, server }) => {

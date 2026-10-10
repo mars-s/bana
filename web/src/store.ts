@@ -12,14 +12,14 @@ export interface Tab {
 }
 
 export interface Overlay {
-  kind: 'palette' | 'search' | 'picker' | 'quickadd' | 'confirm' | 'workspaces'
+  kind: 'palette' | 'search' | 'picker' | 'quickadd' | 'confirm' | 'workspaces' | 'templates'
   [k: string]: Json
 }
 
 /** An open `#`, `@`, `>`, `/` or field value menu. `at` is where the trigger character sits in the
  * line (chars); the query is the text typed after it, in the line itself (so it is in the engine). */
 export interface PickerState {
-  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column' | 'templateField' | 'sourceTag' | 'source' | 'mergeInto'
+  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column' | 'templateField' | 'sourceTag' | 'source' | 'mergeInto' | 'emoji'
   panel: string
   /** The line typed in (or the field's owner for `choice`). */
   node: number
@@ -57,6 +57,8 @@ export interface PickItem {
   fieldType?: string
   /** "@" with a date in words: the text to read as a date (UC-01.08). */
   date?: string
+  /** `:` and a word: the emoji to put in (UC-06.38). */
+  emoji?: string
 }
 
 /** A field value being typed: owner node, field, which value (the count adds one). */

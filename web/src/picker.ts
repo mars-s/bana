@@ -62,9 +62,11 @@ export function onLineText(row: { id: number; parent: number | null }, panel: st
   const open = getState().picker
   if (open && open.node === row.id && open.mode !== 'choice') {
     const trigger = chars[open.at]
-    const want = { tag: '#', inlineRef: '@', reference: '@', field: '>', slash: '/' }[open.mode as string]
-    if (trigger !== want || caret <= open.at) closePicker()
-    else setPickerQuery(chars.slice(open.at + 1, caret).join(''))
+    const want = { tag: '#', inlineRef: '@', reference: '@', field: '>', slash: '/', emoji: ':' }[open.mode as string]
+    const query = chars.slice(open.at + 1, caret).join('')
+    // `:` then a space is punctuation, not an emoji name.
+    if (trigger !== want || caret <= open.at || (open.mode === 'emoji' && /\s/.test(query))) closePicker()
+    else setPickerQuery(query)
     return null
   }
   const typed = chars[caret - 1]
@@ -75,6 +77,12 @@ export function onLineText(row: { id: number; parent: number | null }, panel: st
   else if (typed === '@') openPicker({ ...base, mode: 'inlineRef' })
   else if (typed === '>' && value === '>' && row.parent != null) openPicker({ ...base, mode: 'field', owner: row.parent })
   else if (typed === '/' && value === '/') openPicker({ ...base, mode: 'slash' })
+  // `:` at the start of a word, then a letter of its name (UC-06.38); not inside "10:30", not
+  // after "Note", and a lone `:` takes no keys.
+  else if (/^\p{L}$/u.test(typed ?? '') && chars[caret - 2] === ':' && (caret === 2 || /\s/.test(chars[caret - 3]))) {
+    const p2 = at(caret - 2)
+    openPicker({ ...base, at: caret - 2, x: p2.x, y: p2.y, mode: 'emoji', query: typed })
+  }
   else if (typed === '!' && value === '!') {
     // `!` on an empty line makes it a heading (spec 02 §10).
     void withBarrier(async () => {
@@ -168,6 +176,12 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
       return
     }
     switch (p.mode) {
+      case 'emoji': {
+        if (!item.emoji) break
+        const caret = await cutQuery(p, item.emoji)
+        await exec('focus.set', { node: p.node, caret }, panel)
+        break
+      }
       case 'tag': {
         // From the line (`#`): the typed text leaves the line. From a menu: nothing to cut.
         const caret = p.at >= 0 ? await cutQuery(p, '', true) : null

@@ -81,10 +81,10 @@ Scenarios: `web/tests/use-cases/08-capture-import.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/tana-for-desktop (Global Clipper)
 - **TanaCraft:** WORKS. In the desktop app Cmd+Shift+E (Ctrl+Shift+E elsewhere) opens a small Quick add window of its own over any app, without the main window. Each line goes to today's page as it is typed; Enter starts the next line, Escape or a click elsewhere puts the window away and the keyboard goes back to the app that had it. Not built: changing the key. The page is tested in the web suite (`#capture`); the window and its permission by Rust tests; the shortcut was tried by hand.
 
-### UC-08.15 Templates gallery: MISSING
+### UC-08.15 Templates gallery: WORKS
 - **Story:** I install a ready-made OKR or habit tracker setup.
 - **Source:** https://outliner.tana.inc/learn/features/tana-templates
-- **TanaCraft:** MISSING ("Browse templates" shows a note that there is no gallery).
+- **TanaCraft:** WORKS. Account menu, Browse templates: five of our own (task manager, habit tracker, goals and key results, reading list, meeting notes), each installed as one page in the Library with its supertags, fields and searches (`template.list`, `template.install`). No online gallery.
 
 ### UC-08.16 Capture on the phone: OUT OF SCOPE candidate (mobile)
 - **Source:** https://outliner.tana.inc/learn/features/tana-mobile

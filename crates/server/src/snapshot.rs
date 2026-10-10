@@ -21,7 +21,8 @@ pub fn page_title(s: &Session, id: NodeId) -> String {
         Some(Kind::Day { date }) if *date == s.today.add_days(-1) => format!("Yesterday, {}", g.name(id)),
         Some(Kind::Day { date }) if *date == s.today.add_days(1) => format!("Tomorrow, {}", g.name(id)),
         _ if id == g.sys.schema => "Supertags".to_string(),
-        _ => g.name(id).to_string(),
+        // Shown text: inline references as names, no format marks (N79).
+        _ => g.text(id),
     }
 }
 
@@ -83,7 +84,7 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
                       "suffix": [], "notes": false, "notesHead": null, "progress": null, "created": 0, "edited": 0, "missing": true});
     };
     for r in format::refs(&n.name) {
-        refs.entry(r).or_insert_with(|| g.name(NodeId(r)).to_string());
+        refs.entry(r).or_insert_with(|| g.text(NodeId(r)));
     }
     let has_kids = !g.children(id).is_empty() || !n.fields.is_empty() || g.query(target).is_some();
     let suffix: Vec<Value> = g.title_suffix(id).into_iter().map(|(t, ph)| json!([t, ph])).collect();
@@ -326,7 +327,8 @@ pub fn page(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
     let zoom = s.zoom;
     let target = g.resolve(zoom);
-    let mut refs = BTreeMap::new();
+    // The title's own inline references (N79).
+    let mut refs: BTreeMap<u64, String> = format::refs(g.name(zoom)).into_iter().map(|r| (r, g.text(NodeId(r)))).collect();
     let all = items(s);
     let total = all.len();
     let start = tanacraft_commands::p::usize(params, "start").unwrap_or(0).min(total);

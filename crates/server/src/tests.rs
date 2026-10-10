@@ -258,3 +258,49 @@ fn a_sample_for_a_new_file_is_written_at_once() {
     let g = tanacraft_core::Graph::load(&file).unwrap();
     assert!(g.find_tag("task").is_some());
 }
+
+#[test]
+fn an_answered_edit_survives_a_crash_before_the_next_save() {
+    // DIFFS N77: the page drops an edit from its log when the engine answers, so the answer must
+    // mean "on disk". Here the process "dies" (the host is dropped, no save) right after answers.
+    let dir = std::env::temp_dir().join(format!("tanacraft-n77-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("graph.tanacraft");
+    let today = Date::new(2026, 10, 10).unwrap();
+    let mut s = Session::with_today(sample::sample(today).unwrap(), today);
+    s.graph.save(&path).unwrap();
+    s.path = Some(path.clone());
+    let mut h = Host::new(s);
+    let lib = h.session.graph.sys.library.0;
+    let r = h.handle("run", &json!({"command": "node.add", "params": {"name": "kill line", "parent": lib}, "wal": ["c", 1]}));
+    let id = r["result"]["id"].as_u64().unwrap();
+    for (i, name) in ["kill line three", "kill line three A"].iter().enumerate() {
+        let r = h.handle("run", &json!({"command": "node.setName", "params": {"node": id, "name": name}, "wal": ["c", 2 + i]}));
+        assert!(r.get("error").is_none(), "{r}");
+    }
+    drop(h);
+    let g = tanacraft_core::Graph::load(&path).unwrap();
+    assert_eq!(g.name(tanacraft_core::NodeId(id)), "kill line three A");
+    // The answer to the last edit was lost with the process; the page sends it again to the
+    // restarted engine, which knows it already ran.
+    let mut again = Host::new(Session::with_today(g.clone(), today));
+    let r = again.handle("run", &json!({"command": "node.add", "params": {"name": "kill line", "parent": lib}, "wal": ["c", 1]}));
+    assert_eq!(r["dup"], true, "{r}");
+    // A full save takes the log in; loading again gives the same graph.
+    let mut g2 = g.clone();
+    g2.save(&path).unwrap();
+    assert!(!tanacraft_core::graph::log_path(&path).exists());
+    assert_eq!(tanacraft_core::Graph::load(&path).unwrap().name(tanacraft_core::NodeId(id)), "kill line three A");
+    // A frame cut short by a crash mid-write is ignored, the frames before it kept.
+    let mut s = Session::with_today(tanacraft_core::Graph::load(&path).unwrap(), today);
+    s.path = Some(path.clone());
+    let mut h = Host::new(s);
+    h.handle("run", &json!({"command": "node.setName", "params": {"node": id, "name": "after save"}}));
+    drop(h);
+    let log = tanacraft_core::graph::log_path(&path);
+    let mut bytes = std::fs::read(&log).unwrap();
+    bytes.extend_from_slice(&[200, 0, 0, 0, 1, 2]);
+    std::fs::write(&log, bytes).unwrap();
+    assert_eq!(tanacraft_core::Graph::load(&path).unwrap().name(tanacraft_core::NodeId(id)), "after save");
+    let _ = std::fs::remove_dir_all(&dir);
+}

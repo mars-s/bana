@@ -121,6 +121,9 @@ export interface State {
   descEdit: { panel: string; node: number } | null
   /** The engine cannot be reached (N73). */
   offline: boolean
+  /** Text typed while keys wait for the engine, as it will land (lines split by Enter): shown
+   * under the line while offline (N78). */
+  waitingText: string
 }
 
 const saved = (() => {
@@ -169,6 +172,7 @@ let state: State = {
   configure: {},
   descEdit: null,
   offline: false,
+  waitingText: '',
 }
 
 const subs = new Set<() => void>()

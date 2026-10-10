@@ -62,3 +62,20 @@ test('Mod+Alt+Down on a reference writes notes for this place only; context fiel
   await server.run('node.contextField', { node: r, field: 'Role', value: 'Lead' })
   await expect(app.locator('.row.field', { hasText: 'Role' })).toContainText('Lead')
 })
+
+test('inline references read as names in titles, tabs and reference lists (N79)', async ({ app, server }) => {
+  const hits = (await server.run('graph.search', { query: 'Robin' })).result as { id: number; line: string }[]
+  const ask = hits.find((h) => h.line.startsWith('Ask '))!.id
+  const robin = hits.find((h) => h.line.startsWith('Robin Ash'))!.id
+  // Robin's page: the line that mentions her reads with her name.
+  await server.run('nav.open', { node: robin })
+  await expect(app.locator('.reference-row', { hasText: 'shed key' })).toContainText('Ask Robin Ash for the shed key')
+  await expect(app.locator('.references').first()).not.toContainText('[[id:')
+  // Zoomed into that line: the title and the tab read the name; editing shows the raw text.
+  await server.run('nav.open', { node: ask })
+  await expect(app.locator('.title-rich')).toContainText('Ask Robin Ash for the shed key')
+  await expect(app.locator('.tab.active .tab-title')).toContainText('Ask Robin Ash')
+  await expect(app.locator('.tab.active .tab-title')).not.toContainText('[[id:')
+  await app.locator('.panel .title-input').focus()
+  await expect(app.locator('.title-rich')).toHaveCount(0)
+})

@@ -122,6 +122,9 @@ pub struct Graph {
     store: crate::store::Store,
     /// Nodes changed (or gone) since the store was last written.
     changed: BTreeSet<NodeId>,
+    /// The document's version in the file and its edit log (N77): what [`Graph::append_log`] has
+    /// already written. `None` until the graph is loaded from or saved to a file.
+    logged: Option<loro::VersionVector>,
     /// What happened during the current command, for commands that run on events (UC-02.20).
     events: Vec<GraphEvent>,
 }
@@ -167,6 +170,7 @@ impl Graph {
             redo: Vec::new(),
             dirty: false,
             store: crate::store::Store::new(),
+            logged: None,
             changed: BTreeSet::new(),
             events: Vec::new(),
         };
@@ -2346,6 +2350,7 @@ impl Graph {
             redo: Vec::new(),
             dirty: false,
             store: crate::store::Store::new(),
+            logged: None,
             changed: BTreeSet::new(),
             events: Vec::new(),
         };
@@ -2405,9 +2410,74 @@ impl Graph {
         // `compact_history`), and a copy made by hand may come back after any time.
         let bytes = self.to_snapshot()?;
         let tmp = path.with_extension("tmp");
-        std::fs::write(&tmp, bytes).map_err(|e| Error::Io(e.to_string()))?;
-        std::fs::rename(&tmp, path).map_err(|e| Error::Io(e.to_string()))?;
+        let io = |e: std::io::Error| Error::Io(e.to_string());
+        {
+            use std::io::Write;
+            let mut f = std::fs::File::create(&tmp).map_err(io)?;
+            f.write_all(&bytes).map_err(io)?;
+            f.sync_all().map_err(io)?;
+        }
+        std::fs::rename(&tmp, path).map_err(io)?;
+        // The snapshot holds everything the edit log held.
+        let log = log_path(path);
+        if log.exists() {
+            std::fs::remove_file(&log).map_err(io)?;
+        }
+        self.logged = Some(self.store.version());
         self.dirty = false;
+        Ok(())
+    }
+
+    /// Records that a page's logged edit `seq` is in (N77). Kept in the document, so it reaches the
+    /// edit log with the edit: an engine restarted after a crash still knows the edit ran and does
+    /// not run it again when the page sends it a second time.
+    pub fn note_applied(&mut self, client: &str, seq: u64) {
+        let m = self.store.doc.get_map("applied");
+        // ponytail: one entry per page load, cleared past 256; a page that old has no edits waiting.
+        if m.len() > 256 {
+            let _ = m.clear();
+        }
+        let _ = m.insert(client, i64::try_from(seq).unwrap_or(i64::MAX));
+    }
+
+    /// The logged edits known to be in, per page (see [`Graph::note_applied`]).
+    pub fn applied(&self) -> Vec<(String, u64)> {
+        let mut out = Vec::new();
+        self.store.doc.get_map("applied").for_each(|k, v| {
+            if let Some(n) = v.into_value().ok().and_then(|v| v.into_i64().ok()) {
+                out.push((k.to_string(), u64::try_from(n).unwrap_or(0)));
+            }
+        });
+        out
+    }
+
+    /// Whether the graph has been loaded from or saved to a file, so edits can go to its log.
+    pub fn has_file(&self) -> bool {
+        self.logged.is_some()
+    }
+
+    /// Writes the changes since the last save or append to the file's edit log and flushes it to
+    /// the disk (N77): an edit is safe once this returns, though the next full save is up to a
+    /// second away. Does nothing for a graph that has no file yet.
+    pub fn append_log(&mut self, path: &std::path::Path) -> Result<()> {
+        let Some(since) = self.logged.clone() else { return Ok(()) };
+        self.flush()?;
+        let now = self.store.version();
+        if now == since {
+            return Ok(());
+        }
+        let bytes = self.store.updates_since(&since)?;
+        let io = |e: std::io::Error| Error::Io(e.to_string());
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open(log_path(path)).map_err(io)?;
+            let len = u32::try_from(bytes.len()).map_err(|_| Error::Io("edit too large for the log".into()))?;
+            let mut frame = len.to_le_bytes().to_vec();
+            frame.extend_from_slice(&bytes);
+            f.write_all(&frame).map_err(io)?;
+            f.sync_data().map_err(io)?;
+        }
+        self.logged = Some(now);
         Ok(())
     }
 
@@ -2416,7 +2486,22 @@ impl Graph {
     pub fn load(path: &std::path::Path) -> Result<Graph> {
         let bytes = std::fs::read(path).map_err(|e| Error::Io(format!("{}: {e}", path.display())))?;
         if crate::store::Store::is_ours(&bytes) {
-            return Graph::from_snapshot(&bytes);
+            let store = crate::store::Store::from_bytes(&bytes)?;
+            // Edits made after the last full save (N77). A frame cut short by a crash mid-write
+            // is the end of the log.
+            if let Ok(log) = std::fs::read(log_path(path)) {
+                let mut at = 0;
+                while let Some(len) = log.get(at..at + 4).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes) {
+                    let Some(frame) = log.get(at + 4..at + 4 + len as usize) else { break };
+                    store.import(frame)?;
+                    at += 4 + len as usize;
+                }
+            }
+            let mut g = Graph::new();
+            g.store = store;
+            g.reload_from_store()?;
+            g.logged = Some(g.store.version());
+            return Ok(g);
         }
         let text = String::from_utf8(bytes).map_err(|e| Error::Format(e.to_string()))?;
         let g = Graph::from_json(&text)?;
@@ -2714,4 +2799,11 @@ pub fn fuzzy_score(q: &[char], text: &str) -> Option<i64> {
     }
     // Shorter names and earlier matches rank higher.
     Some(score - t.len() as i64 / 4 - prev.unwrap_or(0) as i64 / 8)
+}
+
+/// The edit log beside a graph file (`graph.tanacraft.log`, N77).
+pub fn log_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".log");
+    path.with_file_name(name)
 }

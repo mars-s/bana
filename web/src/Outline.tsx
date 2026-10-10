@@ -793,11 +793,30 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
           </span>
         )}
         {peek != null && <RefPeek node={peek} panel={panel} onClose={() => setPeek(null)} />}
+        {editing && <WaitingText />}
         {(row.description || describing) && (
           <span className="desc">{describing ? <DescEditor row={row} panel={panel} /> : <span onMouseDown={(e) => (e.preventDefault(), setState({ descEdit: { panel, node: row.id } }))}>{row.description}</span>}</span>
         )}
       </div>
     </div>
+  )
+}
+
+/** While the engine is out of reach, what is typed after a command (Enter) waits for it; it shows
+ * here, faint, as the lines it will become (N78), and goes in when the engine is back. */
+function WaitingText() {
+  const offline = useStore((s) => s.offline)
+  const text = useStore((s) => s.waitingText)
+  if (!offline || !text) return null
+  return (
+    <span className="waiting-text" aria-label="Waiting to be saved">
+      {text.split('\n').map((l, i) => (
+        <span key={i} className="waiting-line">
+          <span className="dot small" />
+          {l || '\u200b'}
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -1417,10 +1436,18 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
   if (!page.titleEditable) {
     return <h1 className="title">{page.title}</h1>
   }
+  // A title with inline references shows them as names until it is edited (N79).
+  const rich = !editing && value.includes('[[id:')
   return (
+    <span className="title-wrap">
+    {rich && (
+      <span className="title title-rich" aria-hidden>
+        <RichText text={value} refs={page.refs} />
+      </span>
+    )}
     <textarea
       ref={ref}
-      className="title title-input"
+      className={`title title-input${rich ? ' masked' : ''}`}
       value={value}
       rows={1}
       spellCheck={false}
@@ -1438,6 +1465,7 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
         e.stopPropagation()
       }}
     />
+    </span>
   )
 }
 

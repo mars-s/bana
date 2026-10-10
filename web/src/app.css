@@ -676,6 +676,24 @@ button:focus-visible {
   user-select: text;
 }
 
+.title-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+/* Inline references in a title read as names until the title is edited (N79). */
+.title-rich {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.title-input.masked {
+  color: transparent;
+}
+
 .title-input::placeholder {
   color: var(--c-faint);
 }
@@ -4261,4 +4279,21 @@ html.capture body {
 .template-name {
   font-size: var(--fs-dense);
   color: var(--c-text);
+}
+
+/* Text typed while offline, waiting for the engine (N78). */
+.waiting-text {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+  color: var(--c-muted);
+  font-style: italic;
+}
+
+.waiting-line {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  min-height: var(--row-h);
 }

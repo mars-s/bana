@@ -128,7 +128,11 @@ onResume(async (direct) => {
     const moved = now?.zoom !== before.zoom
     if (moved) await direct('run', { command: 'nav.open', params: { node: before.zoom }, panel })
     const ed = editor && editor.kind === 'line' && editor.panel === panel ? editor : null
-    if (ed && (moved || now?.focus !== ed.node)) await direct('run', { command: 'focus.set', params: { node: ed.node, caret: ed.sel()[1] }, panel })
+    if (ed && (moved || now?.focus !== ed.node)) {
+      const r = await direct('run', { command: 'focus.set', params: { node: ed.node, caret: ed.sel()[1] }, panel })
+      // The line is gone: no caret, so nothing queued can land in another line (N77).
+      if (r?.error) await direct('run', { command: 'focus.clear', params: {}, panel })
+    }
   }
   synced = null
 })
@@ -234,6 +238,15 @@ const KEPT = 'tanacraft.keys'
 /** Keys still waiting are written down whenever the buffer changes (in the task of the key press),
  * so a reload or a crash of the page keeps them; the next load types them again. */
 export function keepBufferedKeys() {
+  // What the waiting keys will type, for the offline preview (N78).
+  let text = ''
+  for (const k of buffer) {
+    if (k.click) text = ''
+    else if (isTextKey(k)) text += k.key
+    else if (k.key === 'Enter' && !k.metaKey && !k.ctrlKey) text += '\n'
+    else if (k.key === 'Backspace') text = text.slice(0, -1)
+  }
+  if (text !== getState().waitingText) setState({ waitingText: text })
   try {
     if (!buffer.length) return sessionStorage.removeItem(KEPT)
     // Where typing was going: a page title takes keys the engine knows nothing about.
@@ -745,7 +758,9 @@ function editorKey(k: KeyInfo, sc: string, p: Page, ed: EditorHandle): boolean {
     void exec(cmd, anchor === caret ? { node: ed.node } : { node: ed.node, start: Math.min(anchor, caret), end: Math.max(anchor, caret) })
     return true
   }
-  void exec(cmd, NEEDS_LINE.has(cmd) || cmd.startsWith('node.') ? { node: ed.node } : {})
+  // Enter names its line and offset: sent again after an outage it splits that line there, never
+  // the line another caret is on (N77).
+  void exec(cmd, cmd === 'node.enter' ? { node: ed.node, caret } : NEEDS_LINE.has(cmd) || cmd.startsWith('node.') ? { node: ed.node } : {})
   return true
 }
 

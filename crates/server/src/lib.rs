@@ -55,6 +55,8 @@ pub struct Host {
 
 impl Host {
     pub fn new(session: Session) -> Host {
+        // Edits that reached the file before a crash (N77).
+        let applied = session.graph.applied().into_iter().collect();
         Host {
             session,
             panels: HashMap::new(),
@@ -62,7 +64,7 @@ impl Host {
             version: 1,
             reads: 0,
             dirty_since: None,
-            applied: HashMap::new(),
+            applied,
             revs: HashMap::new(),
             draft: None,
             draft_window: None,
@@ -95,8 +97,11 @@ impl Host {
         if self.panels.len() > 64 {
             self.panels.clear();
         }
-        if let Some((client, seq)) = params.get("wal").and_then(Value::as_array).and_then(|w| Some((w.first()?.as_str()?, w.get(1)?.as_u64()?))) {
-            let client: String = client.chars().take(64).collect();
+        let logged = params
+            .get("wal")
+            .and_then(Value::as_array)
+            .and_then(|w| Some((w.first()?.as_str()?.chars().take(64).collect::<String>(), w.get(1)?.as_u64()?)));
+        if let Some((client, seq)) = logged.clone() {
             if self.applied.get(&client).is_some_and(|done| *done >= seq) {
                 return json!({"result": null, "dup": true});
             }
@@ -139,6 +144,17 @@ impl Host {
                 let r = self.session.run(id, &p);
                 if let (Some((line, before)), Ok(_)) = (split_from, &r) {
                     self.note_split(line, before);
+                }
+                // The edit is on disk before it is answered (N77): a page drops an edit from its
+                // write-ahead log on the answer, so a crash right after must not lose it. Its log
+                // number goes with it, so sent again after a restart it does not run twice.
+                if r.is_ok() {
+                    if let Some((client, seq)) = &logged
+                        && self.session.registry.get(id).is_some_and(|c| c.mutates)
+                    {
+                        self.session.graph.note_applied(client, *seq);
+                    }
+                    self.journal();
                 }
                 self.version += 1;
                 self.note_change();
@@ -197,6 +213,7 @@ impl Host {
                     return json!({"ok": true});
                 }
                 let r = self.draft_to_field(owner, line, &name);
+                self.journal();
                 self.version += 1;
                 self.note_change();
                 match r {
@@ -293,6 +310,16 @@ impl Host {
         self.session.run("node.delete", &json!({"node": line, "force": true}))
     }
 
+    /// Appends the latest edits to the file's edit log (see [`tanacraft_core::Graph::append_log`]).
+    fn journal(&mut self) {
+        let Some(path) = self.session.path.clone() else { return };
+        // A graph never written yet is saved whole the first time.
+        let r = if self.session.graph.has_file() { self.session.graph.append_log(&path).map_err(|e| e.to_string()) } else { self.save() };
+        if let Err(e) = r {
+            self.session.status = format!("could not write the edit log: {e}");
+        }
+    }
+
     /// Writes the file now when there are unsaved changes.
     pub fn save(&mut self) -> Result<(), String> {
         self.dirty_since = None;
@@ -344,13 +371,13 @@ pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Optio
             (tanacraft_core::load_or_migrate(&p).map_err(|e| e.to_string())?.unwrap_or_default(), Some(p))
         }
     };
-    let fresh_sample = sample && file.as_ref().is_some_and(|f| !f.exists());
+    // A new file is written at once: the edit log (N77) needs a file to follow.
+    let fresh = file.as_ref().is_some_and(|f| !f.exists());
     let mut s = Session::with_today(graph, today);
     s.path = path;
     let _ = s.run("nav.today", &json!({}));
-    // A sample for a new file is written at once, so the file (and the CLI or MCP on it) has it
-    // before the first edit.
-    if fresh_sample {
+    // So the file (and the CLI or MCP on it) has the sample before the first edit, too.
+    if fresh {
         s.run("file.save", &json!({})).map_err(|e| e.to_string())?;
     }
     Ok(s)

@@ -122,6 +122,9 @@ enum T {
     static let q12: CGFloat = 45
     static let headActionsLift: CGFloat = -3.4
     static let filterGap: CGFloat = 3.2
+    static let filePreviewW: CGFloat = 480
+    static let filePreviewH: CGFloat = 320
+    static let navMenuW: CGFloat = 240
     static let wsBtnW: CGFloat = 98
     static let fsTitle: CGFloat = 29
     static let lhTitle: CGFloat = 33.4
@@ -207,6 +210,7 @@ enum T {
     static let checkbox: CGFloat = 18
     static let checkboxTitle: CGFloat = 27.8
     static let chipH: CGFloat = 17
+    static let progressW: CGFloat = 98
     static let chipHTitle: CGFloat = 21
     static let fieldH: CGFloat = 34.5
     static let fieldNameW: CGFloat = 172.5

@@ -369,53 +369,81 @@ fn undoing_everything_after_random_merges_stays_sound() {
 }
 
 #[test]
-fn old_history_is_compacted_and_recent_copies_still_merge() {
+fn a_copy_offline_for_sixty_days_still_merges() {
+    // A phone takes a copy of the file and goes offline for 60 days of edits on both sides; the
+    // desktop compacts, saves, quits and opens the file again every day. Nothing the phone has not
+    // acknowledged is cut, so the two still merge, both ways, with everything from both.
+    let dir = std::env::temp_dir().join(format!("tanacraft-offline-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("g.tanacraft");
+    let mut home = sample::sample(today()).unwrap();
+    home.save(&path).unwrap();
+    let mut phone = Graph::load(&path).unwrap();
+    // The phone is a paired copy: the last version it acknowledged is the one it took.
+    let phone_acked = phone.version().unwrap();
+    let lib = home.sys.library;
+    let line = home.create(lib, None, "").unwrap();
+    let mut ops = 0;
+    for day in 0..60 {
+        let n = home.create(lib, None, &format!("home day {day}")).unwrap();
+        home.set_name(line, &format!("typed on day {day}")).unwrap();
+        home.set_name(n, &format!("home day {day} done")).unwrap();
+        if day % 3 == 0 {
+            phone.create(phone.sys.library, None, &format!("phone day {day}")).unwrap();
+        }
+        // A daily compaction may cut only what the phone already has.
+        home.compact_history(std::slice::from_ref(&phone_acked)).unwrap();
+        home.save(&path).unwrap();
+        home = Graph::load(&path).unwrap();
+        assert!(home.history_len() >= ops, "day {day}: history the phone needs was cut");
+        ops = home.history_len();
+    }
+    sync(&mut home, &mut phone);
+    for day in 0..60 {
+        find(&phone, &format!("home day {day} done"));
+        if day % 3 == 0 {
+            find(&home, &format!("phone day {day}"));
+        }
+    }
+    assert_eq!(phone.name(line), "typed on day 59");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn compaction_cuts_only_what_every_paired_copy_acknowledged() {
     let mut g = sample::sample(today()).unwrap();
     let lib = g.sys.library;
-    let day0 = 20_000;
-    g.compact_history(day0).unwrap();
-    // A month and more of typing.
+    let (mut laptop, mut phone) = fork(&mut g);
+    let phone_acked = phone.version().unwrap();
     let n = g.create(lib, None, "").unwrap();
     let mut text = String::new();
-    for i in 0..3000 {
+    for i in 0..2000 {
         text.push(char::from(b'a' + (i % 26) as u8));
         g.set_name(n, &text).unwrap();
         if i % 50 == 0 {
             g.to_snapshot().unwrap();
         }
     }
-    assert!(!g.compact_history(day0 + 10).unwrap(), "nothing is a month old yet");
-    // A copy made on day 35 (after the cut that is coming).
-    g.compact_history(day0 + 35).unwrap();
-    let (mut copy, _) = fork(&mut g);
-    let big = g.to_snapshot().unwrap().len();
+    sync(&mut g, &mut laptop);
+    let laptop_acked = laptop.version().unwrap();
+    // No paired copies known: nothing is cut.
+    assert!(!g.compact_history(&[]).unwrap());
+    // The phone has not seen the typing: only what both copies have goes.
     let ops = g.history_len();
-    assert!(g.compact_history(day0 + 70).unwrap(), "history older than a month is cut");
+    let big = g.to_snapshot().unwrap().len();
+    assert!(g.compact_history(&[laptop_acked.clone(), phone_acked.clone()]).unwrap());
     assert!(g.history_len() < ops);
+    assert!(!g.compact_history(&[laptop_acked.clone(), phone_acked]).unwrap(), "nothing more to cut");
+    // Nothing of the state is lost, it loads, and the phone still merges both ways.
     let small = g.to_snapshot().unwrap();
-    assert!(small.len() < big, "{} < {big}", small.len());
-    // Nothing of the state is lost, and it loads.
-    let back = Graph::from_snapshot(&small).unwrap();
-    assert_eq!(nodes_json(&back), nodes_json(&g));
-    // A second cut in the same week does nothing.
-    assert!(!g.compact_history(day0 + 72).unwrap());
-    // The copy from day 35 still merges both ways.
-    copy.set_name(n, "from the copy").unwrap();
-    let m = g.create(lib, None, "after the cut").unwrap();
-    sync(&mut g, &mut copy);
-    assert_eq!(copy.name(m), "after the cut");
-    assert_eq!(g.name(n), "from the copy");
-}
-
-#[test]
-fn saving_compacts_and_keeps_the_file_whole() {
-    let dir = std::env::temp_dir().join(format!("tanacraft-compact-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("g.tanacraft");
-    let mut g = sample::sample(today()).unwrap();
-    g.save(&path).unwrap();
-    g.save(&path).unwrap();
-    let back = Graph::load(&path).unwrap();
-    assert_eq!(nodes_json(&back), nodes_json(&g));
-    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(nodes_json(&Graph::from_snapshot(&small).unwrap()), nodes_json(&g));
+    phone.create(phone.sys.library, None, "from the phone").unwrap();
+    sync(&mut g, &mut phone);
+    assert_eq!(phone.name(n), text);
+    find(&g, "from the phone");
+    // Once the laptop acknowledged all the typing, the cut moves up and the snapshot shrinks.
+    let all = g.version().unwrap();
+    assert!(g.compact_history(&[all.clone(), all]).unwrap());
+    assert!(g.to_snapshot().unwrap().len() < big);
+    sync(&mut g, &mut laptop);
 }

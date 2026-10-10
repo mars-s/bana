@@ -122,8 +122,6 @@ pub struct Graph {
     store: crate::store::Store,
     /// Nodes changed (or gone) since the store was last written.
     changed: BTreeSet<NodeId>,
-    /// History compaction was considered this session.
-    compacted: bool,
 }
 
 impl Default for Graph {
@@ -157,7 +155,6 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
-            compacted: false,
         };
         let mut root = Node::new(ids.root, "Workspace", None);
         root.children = vec![ids.library, ids.journal, ids.schema, ids.trash];
@@ -2065,7 +2062,6 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
-            compacted: false,
         };
         g.rehome_unreachable();
         g.changed = g.nodes.keys().copied().collect();
@@ -2119,15 +2115,8 @@ impl Graph {
     /// Saves atomically (write a temp file, then rename). The file is the Loro document (see
     /// [`crate::store`]); [`Graph::to_json`] stays as an export.
     pub fn save(&mut self, path: &std::path::Path) -> Result<()> {
-        // Once per session, history older than a month is dropped (when that cuts a week or more).
-        // The file before compaction is kept next to it.
-        // ponytail: compaction runs on the saving thread (about a second on 50k nodes, once a week).
-        if !self.compacted {
-            self.compacted = true;
-            if self.compact_history((now_secs() / 86_400) as i64)? && path.exists() {
-                let _ = std::fs::copy(path, path.with_extension("before-compact"));
-            }
-        }
+        // Saving never cuts history: no paired copy has acknowledged a version yet (see
+        // `compact_history`), and a copy made by hand may come back after any time.
         let bytes = self.to_snapshot()?;
         let tmp = path.with_extension("tmp");
         std::fs::write(&tmp, bytes).map_err(|e| Error::Io(e.to_string()))?;
@@ -2185,12 +2174,13 @@ impl Graph {
         r
     }
 
-    /// Notes today's version (once a day), then drops history from before the newest checkpoint
-    /// that is [`KEEP_HISTORY_DAYS`] old, if that cuts at least a week. `today` is days since 1970.
-    pub fn compact_history(&mut self, today: i64) -> Result<bool> {
+    /// Drops history every paired copy already has: `acked` holds the version each one last
+    /// confirmed. With none (no sync yet) nothing is cut.
+    /// ponytail: callers pass the versions; when sync lands, keep each paired copy's acknowledged
+    /// version in the document and compact on save with them.
+    pub fn compact_history(&mut self, acked: &[loro::VersionVector]) -> Result<bool> {
         self.flush()?;
-        self.store.checkpoint(today)?;
-        self.store.compact(today - KEEP_HISTORY_DAYS, 7)
+        self.store.compact(acked)
     }
 
     /// Operations in the document's history.
@@ -2311,9 +2301,6 @@ impl Graph {
 }
 
 const FORMAT: &str = "tanacraft-graph";
-
-/// History newer than this is kept, so copies edited apart for up to a month still merge.
-pub const KEEP_HISTORY_DAYS: i64 = 30;
 
 #[derive(Serialize, Deserialize)]
 struct GraphFile {

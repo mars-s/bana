@@ -17,7 +17,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use loro::{ExportMode, Frontiers, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer, VersionVector};
+use loro::{ExportMode, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer, VersionVector};
 use serde_json::{Map, Value, json};
 
 use crate::model::{Node, NodeId};
@@ -108,58 +108,38 @@ impl Store {
         self.doc.import(bytes).map(drop).map_err(err)
     }
 
-    // ---- history: checkpoints and compaction ----------------------------------------------------
+    // ---- history: compaction -------------------------------------------------------------------
 
-    /// The days with a checkpoint, oldest first, and each one's version (as frontiers).
-    fn checkpoints(&self) -> Vec<(i64, Frontiers)> {
-        let root = self.doc.get_map("meta");
-        let list: Vec<(i64, String)> = get_str(&root, "checkpoints").and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-        list.into_iter().filter_map(|(d, hex)| Some((d, Frontiers::decode(&from_hex(&hex)?).ok()?))).collect()
-    }
-
-    /// Notes the document's version as of `day` (once a day). Compaction later cuts history at one
-    /// of these, so copies that parted after it still merge.
-    pub fn checkpoint(&mut self, day: i64) -> Result<()> {
-        let mut list = self.checkpoints();
-        if list.last().is_some_and(|(d, _)| *d >= day) {
-            return Ok(());
+    /// Drops history up to the newest version every paired copy has acknowledged (`acked`: each
+    /// copy's version as last confirmed), so a copy can always merge everything it has not seen.
+    /// No copies known means nothing is cut: a copy made by hand (a file on a phone, a backup) can
+    /// be away for any time and still merge. Returns whether it compacted.
+    pub fn compact(&mut self, acked: &[VersionVector]) -> Result<bool> {
+        let Some(first) = acked.first() else { return Ok(false) };
+        // What all of them (and this copy) have: the smallest counter of every peer.
+        let mut common = self.doc.oplog_vv();
+        for vv in std::iter::once(first).chain(&acked[1..]) {
+            let peers: Vec<_> = common.keys().copied().collect();
+            for peer in peers {
+                let theirs = vv.get(&peer).copied().unwrap_or(0);
+                if let Some(c) = common.get_mut(&peer) {
+                    *c = (*c).min(theirs);
+                }
+            }
         }
-        list.push((day, self.doc.oplog_frontiers()));
-        let out: Vec<(i64, String)> = list.iter().map(|(d, f)| (*d, to_hex(&f.encode()))).collect();
-        self.doc.get_map("meta").insert("checkpoints", json!(out).to_string()).map_err(err)?;
-        self.doc.commit();
-        Ok(())
-    }
-
-    /// Drops the history older than the newest checkpoint from `keep_since` or before (the state
-    /// stays whole). Does nothing unless that cuts at least `min_days` more than the last
-    /// compaction did. Returns whether it compacted.
-    pub fn compact(&mut self, keep_since: i64, min_days: i64) -> Result<bool> {
-        let list = self.checkpoints();
-        let root_day = self.shallow_day(&list);
-        let Some((day, at)) = list.iter().rev().find(|(d, _)| *d <= keep_since).cloned() else { return Ok(false) };
-        if root_day.is_some_and(|r| day < r + min_days) || self.doc.frontiers_to_vv(&at).is_none() {
+        common.retain(|_, c| *c > 0);
+        // Already cut there (or later): the version of the history's first kept change.
+        let root = self.doc.frontiers_to_vv(&self.doc.shallow_since_frontiers()).unwrap_or_default();
+        if common.is_empty() || (self.doc.is_shallow() && root.includes_vv(&common)) {
             return Ok(false);
         }
+        let at = self.doc.vv_to_frontiers(&common);
         let bytes = self.doc.export(ExportMode::shallow_snapshot(&at)).map_err(err)?;
         let doc = LoroDoc::new();
         doc.import(&bytes).map_err(err)?;
         self.tree = doc.get_tree("tree");
         self.doc = doc;
-        // Checkpoints from before the cut are gone with the history.
-        let keep: Vec<(i64, String)> = list.iter().filter(|(d, _)| *d >= day).map(|(d, f)| (*d, to_hex(&f.encode()))).collect();
-        self.doc.get_map("meta").insert("checkpoints", json!(keep).to_string()).map_err(err)?;
-        self.doc.commit();
         Ok(true)
-    }
-
-    /// The day of the checkpoint history was last cut at (`None`: never cut).
-    fn shallow_day(&self, list: &[(i64, Frontiers)]) -> Option<i64> {
-        if !self.doc.is_shallow() {
-            return None;
-        }
-        let root = self.doc.shallow_since_frontiers();
-        list.iter().find(|(_, f)| *f == root).map(|(d, _)| *d).or_else(|| list.first().map(|(d, _)| *d))
     }
 
     /// Operations held (the history's size).
@@ -466,12 +446,4 @@ fn get_str(m: &LoroMap, key: &str) -> Option<String> {
         Some(ValueOrContainer::Value(LoroValue::String(s))) => Some(s.to_string()),
         _ => None,
     }
-}
-
-fn to_hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
-}
-
-fn from_hex(s: &str) -> Option<Vec<u8>> {
-    (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|h| u8::from_str_radix(h, 16).ok())).collect()
 }

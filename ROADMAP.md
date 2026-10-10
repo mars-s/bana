@@ -9,7 +9,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | Measure | Value |
 |---|---|
 | Commands (every action; CLI, MCP and the JSON API can run them) | 175 engine commands, plus about 20 UI commands |
-| Rust tests | 138: core (incl. merge tests of copies edited apart, undo after merges, history compaction), commands (incl. fuzz tests of random command sequences and damaged files, a 50k-node timed test), server, MCP, CLI |
+| Rust tests | 138: core (incl. merge tests of copies edited apart, undo after merges, a copy offline for 60 days, compaction only up to what paired copies acknowledged), commands (incl. fuzz tests of random command sequences and damaged files, a 50k-node timed test), server, MCP, CLI |
 | Web UI tests (Playwright, each with its own engine) | 91: editing by keyboard, pickers, field rows and values, the date picker, menus, copy and paste, drag and drop, references, settings and keybindings, tabs and panels, views (table, board, cards, calendar by pointer, query builder, toolbar), Configure supertag, a damaged file in every view; fuzz: random keys never lose a character (also on a long page), reloads and force-kills keep every character, typed keys land only in a visibly focused editor; 51,550 rows |
 | UI | Tauri 2 desktop app and the same web UI in a browser (`tanacraft-cli serve`); the egui UI is in `legacy/egui` (reference only); porting status in `docs/web-port.md` |
 | Spec sections (`docs/parity.md`) | 171 mapped (files 00 to 15, DESIGN.md): 147 done, 16 partial, 3 missing, 5 notes |
@@ -43,7 +43,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M21 Loro store | The graph file is a Loro CRDT document (movable tree, text, maps); incremental writes; merge of copies edited apart; one-time import of JSON files | done |
 | M22 Design pass | Tokens and screens from the spec team's DESIGN.md and 10 to 15: shell, outline, day page, views, Supertags, motion, icon inventory | done (first version) |
 | M24 Acceptance round 8 (web UI) | DIFFS N35 to N59: keys only reach visibly focused editors (P1), the rewrite's regressions, view tabs in place, node and page menus, drag and drop per spec, tables, toolbar, board, calendar by pointer, sidebar and panel resizing, chips, settings panel, system theme, field names kept on a force-kill, visual list | done (see the git log; open: board reordering) |
-| M23 Ports and assets | Remaining egui behaviours (selected field rows, Configure in a second panel, table header rename and menu, mini rail flyouts, tab moves, custom keybindings, reference counter, edit warning, link previews, context notes and fields, calendar drag, date picker with time and end, damaged files in every view); icon inventory; undo across merges; history compaction | done |
+| M23 Ports and assets | Remaining egui behaviours (selected field rows, Configure in a second panel, table header rename and menu, mini rail flyouts, tab moves, custom keybindings, reference counter, edit warning, link previews, context notes and fields, calendar drag, date picker with time and end, damaged files in every view); icon inventory; undo across merges; history compaction (only what paired copies acknowledged) | done |
 | M25 Next | Board reordering, card displacement motion, sync over the network (iroh), AI features | next |
 
 ## Later
@@ -53,7 +53,7 @@ Sync, workspace members, mobile and web (wasm) builds.
 ## Known simplifications
 
 - Undo history is per session (merging another copy keeps it; it takes back only local edits).
-- History older than a month is compacted on save; copies apart for longer than that cannot merge.
+- History is kept whole until sync exists; compaction then cuts only what every paired copy has acknowledged.
 - A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
 - One local editor: "edited by" is the computer's user.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

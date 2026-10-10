@@ -63,10 +63,10 @@ fn fifty_thousand_nodes_stay_fast() {
         s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}")).len()
     });
     let doc_load = time(1, || Graph::from_snapshot(&doc).unwrap_or_else(|e| panic!("{e}")));
-    // History compaction (once a week at most, on save): checkpoints a month apart.
-    s.graph.compact_history(1000).unwrap_or_else(|e| panic!("{e}"));
+    // History compaction up to a version a paired copy acknowledged (all of it here).
+    let acked = s.graph.version().unwrap_or_else(|e| panic!("{e}"));
     let t = Instant::now();
-    let cut = s.graph.compact_history(1040).unwrap_or_else(|e| panic!("{e}"));
+    let cut = s.graph.compact_history(&[acked]).unwrap_or_else(|e| panic!("{e}"));
     let compact = t.elapsed();
     assert!(cut);
     let compacted = s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}"));

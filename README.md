@@ -82,9 +82,11 @@ force-kill the engine; not one character may go missing.
 The graph file is a [Loro](https://loro.dev) CRDT document: two copies edited apart (two devices,
 offline) merge, with concurrent typing in one line, concurrent moves (never a loop), delete versus
 edit, and tags and fields added on both sides covered by tests. Undo and redo keep working after a
-merge and take back only this copy's edits. History older than a month is compacted on save (at
-most once a week, the file before compaction is kept as `<name>.before-compact`), so copies edited
-apart for up to a month still merge. Older JSON graph files are read once and kept as a backup.
+merge and take back only this copy's edits. History is never cut by age: compaction drops only
+what every paired copy has acknowledged, and until sync exists (no paired copies) the file keeps
+its whole history, so a copy that was away for any time (a phone offline for months, a backup)
+still merges. Empty parts of a node store nothing, which keeps the file small. Older JSON graph
+files are read once and kept as a backup.
 Sync over the network comes later.
 
 ## Speed and robustness
@@ -97,7 +99,6 @@ Measured on a generated 50,000-node workspace (`sample::large`), release build, 
 | Enter, expand or collapse, undo (engine) | under 0.01 ms |
 | Substring search / fuzzy Search and open over every node | 15 ms / 27 ms |
 | Save while typing (Loro document, changes only) / load the graph file | 30 ms / 0.5 s |
-| Compact a month of history (once a week at most, on save) | 0.6 s |
 | Web UI: 51,550 rows expanded: jump to 60 % and draw / 15 keys to the engine | about 120 ms / 120 ms (debug engine) |
 
 The web outline draws only the rows near the viewport and asks the engine for that window of rows

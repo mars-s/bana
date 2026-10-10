@@ -4,7 +4,8 @@ A native SwiftUI app on the same Rust engine as the desktop app. The engine (`cr
 holds every note; the app only runs commands and draws the engine's view snapshots, the same JSON
 the web UI draws (`crates/server/src/snapshot.rs`).
 
-Simulator only for now: no signing, no device or App Store setup.
+The project builds for the simulator without signing. To put it on your own iPhone (free Apple ID
+for 7 days at a time, or a paid developer account), follow stage 5 of `cloudflare/sync/wizard.sh`.
 
 ## Needs
 
@@ -43,6 +44,7 @@ the date), `-reset YES` (deletes the graph first), `-graph name.bana` (another f
 
 ```sh
 scripts/ios-test.sh                # 17 UI tests (XCUITest) on the iPhone 17 Pro simulator
+scripts/ios-test.sh sync           # pairing and syncing with a desktop engine through a local relay
 SIM="iPhone 17" scripts/ios-test.sh
 scripts/ios-test.sh shots          # docs/images/ios/<screen>-<light|dark>.png
 CARGO_TARGET_DIR=target-ios cargo test -p bana-ffi   # the FFI surface
@@ -87,6 +89,22 @@ within half a second of a change, and the app calls `save()` whenever it leaves 
 The graph file is `Documents/graph.bana`, the same Loro document the desktop app writes (the
 app turns on iTunes file sharing, so the file can be copied out in Finder).
 
+## Sync
+
+Manage, Sync: scan the QR code the desktop shows in Settings, Sync, Add a device (AVFoundation),
+or paste the code. The phone's notes are then replaced by the desktop's (the old file stays as
+`graph.bana.before-sync`). The engine syncs in its own thread (`Engine.startSync`): on launch, in
+the foreground, as edits are made, and from a background refresh task (`org.bana.app.sync`,
+`Engine.syncNow`). Remote edits redraw the page through the change listener; a line being edited
+keeps its caret in its own words (`shiftedOffset` in `LineEditor.swift`) and sends `base` so the
+engine lays the edit over the other device's. The sync settings and key live in
+`Library/Application Support/sync.json`, outside the shared Documents folder. Details:
+[docs/sync.md](../../docs/sync.md).
+
+`scripts/ios-test.sh sync` starts a relay (`wrangler dev`) and a desktop engine on this Mac, sets
+sync up there and runs `SyncUITests`: the phone pastes the code, joins, shows the desktop's notes,
+an edit made on the desktop arrives, and one typed on the phone reaches the desktop.
+
 ## Known gaps
 
 - spec-gap: no phone measurements yet (`../tanacraft-spec/ios/` does not exist). The phone uses the
@@ -98,4 +116,3 @@ app turns on iTunes file sharing, so the file can be copied out in Finder).
 - Each keystroke redraws the page from a fresh snapshot (up to 2,000 rows): about 25 ms of engine
   time on a 20,000-node graph with the whole graph expanded (`keystroke_cost_on_a_big_graph`).
   ponytail: send only the changed rows when long pages lag.
-- No sync with the desktop yet (same file format, so copying the file works).

@@ -122,3 +122,19 @@ fn keystroke_cost_on_a_big_graph() {
     eprintln!("keystroke (rename + page of {} rows): {each:?}", p["rows"]["total"]);
     assert!(each < Duration::from_millis(250), "{each:?}");
 }
+
+#[test]
+fn sync_starts_off_and_answers_status() {
+    let dir = std::env::temp_dir().join(format!("bana-ffi-sync-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let e = Engine::open(dir.join("g.bana").display().to_string(), true, Some("2026-10-10".into())).unwrap();
+    assert!(e.rpc("sync.status".into(), String::new()).contains("\"off\""), "no sync before start");
+    e.start_sync(dir.join("private/sync.json").display().to_string());
+    assert!(e.rpc("sync.status".into(), String::new()).contains("\"off\""));
+    assert!(e.sync_now(10).contains("\"off\""));
+    // A bad relay address is refused, and nothing is written.
+    assert!(e.rpc("sync.setup".into(), r#"{"relay":"http://example.com"}"#.into()).contains("error"));
+    assert!(!dir.join("private/sync.json").exists());
+    assert!(e.rpc("sync.join".into(), r#"{"code":"nonsense"}"#.into()).contains("not a Bana sync code"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

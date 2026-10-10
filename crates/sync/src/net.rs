@@ -24,6 +24,9 @@ pub trait SharedReplica: Send + Sync + 'static {
 }
 
 const READ_TICK: Duration = Duration::from_millis(150);
+/// Local edits are pushed at most this often: typing makes one relay write per tick, not per key
+/// (the free plan allows 100,000 stored rows a day).
+const POLL_EVERY: Duration = Duration::from_millis(750);
 const PING_EVERY: Duration = Duration::from_secs(25);
 /// No frame (not even a pong) for this long: the connection is dead.
 const SILENT_FOR: Duration = Duration::from_secs(70);
@@ -406,6 +409,7 @@ fn session(inner: &Arc<Inner>, generation: u64, mut ws: Socket, tcp: &TcpStream)
     }
     let mut last_frame = Instant::now();
     let mut last_ping = Instant::now();
+    let mut last_poll = Instant::now();
     let send = |ws: &mut Socket, frames: Vec<String>| -> bool { frames.into_iter().all(|f| ws.send(Message::text(f)).is_ok()) };
     loop {
         match ws.read() {
@@ -454,7 +458,8 @@ fn session(inner: &Arc<Inner>, generation: u64, mut ws: Socket, tcp: &TcpStream)
             break;
         }
         let ready = inner.lock().client.as_ref().is_some_and(Client::ready);
-        if ready {
+        if ready && last_poll.elapsed() >= POLL_EVERY {
+            last_poll = Instant::now();
             let Some(out) = inner.step(generation, &mut |c, r| c.poll(r, now_ms())) else { break };
             if !send(&mut ws, out) {
                 break;

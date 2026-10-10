@@ -402,6 +402,9 @@ pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Optio
     let _ = s.run("nav.today", &json!({}));
     // So the file (and the CLI or MCP on it) has the sample before the first edit, too.
     if fresh {
+        if let Some(dir) = file.as_ref().and_then(|f| f.parent()).filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
         s.run("file.save", &json!({})).map_err(|e| e.to_string())?;
     }
     Ok(s)

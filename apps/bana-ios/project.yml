@@ -21,6 +21,14 @@ targets:
     sources:
       - path: Bana
       - path: Core/Generated
+    # Merged with the generated Info.plist: what has no INFOPLIST_KEY_ setting (arrays).
+    info:
+      path: Bana/Info.plist
+      properties:
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [org.bana.app.sync]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
     dependencies:
       - framework: Core/BanaCore.xcframework
         embed: false
@@ -34,6 +42,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Bana
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
         INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan the sync code your computer shows, to pair this iPhone."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         OTHER_LDFLAGS: ["-lc++"]
   BanaUITests:

@@ -35,13 +35,15 @@ the CLI and MCP is hostile: validate ids, clamp indexes, bound recursion.
 | `crates/commands` (`bana-commands`) | `Session` (graph + focus/zoom/selection), `CommandSpec` registry: ids, labels, shortcuts, params, `run` |
 | `crates/mcp` (`bana-mcp`) | MCP server (JSON-RPC 2.0 over stdio) exposing the commands; `bana-mcp` binary |
 | `crates/server` (`bana-server`) | `Host`: the Session plus one navigation state per panel; view snapshots as JSON; a std-only localhost HTTP server (`POST /rpc`, `GET /events`, static web UI) |
-| `crates/ffi` (`bana-ffi`) | UniFFI binding of the `Host` for Swift: `Engine.open`, `rpc`/`run` with JSON, `save`, change listeners, autosave thread. `scripts/build-ios-core.sh` builds the XCFramework |
+| `crates/ffi` (`bana-ffi`) | UniFFI binding of the `Host` for Swift: `Engine.open`, `rpc`/`run` with JSON, `save`, change listeners, autosave thread, `startSync`/`syncNow`. `scripts/build-ios-core.sh` builds the XCFramework |
+| `crates/sync` (`bana-sync`) | Sync (docs/sync.md): workspace key (XChaCha20-Poly1305), Ed25519 device identities, pairing codes and QR, the client state machine (no I/O; tested against an in-process fake relay), the WebSocket service; `crates/server/src/sync.rs` runs it on the host's graph |
 | `apps/bana-ios` | **The iPhone app**: SwiftUI, xcodegen `project.yml`, draws the same snapshots; tokens generated from `web/src/tokens.css` (`scripts/gen-ios-tokens.py`); UI tests `scripts/ios-test.sh`. See its README |
 | `apps/bana-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
 | `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `bana serve` |
 | `apps/bana-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |
-| `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots`, `cargo xtask connector` |
+| `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots`, `cargo xtask connector`, `cargo xtask sync` |
 | `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT: Worker, tests, setup wizard (docs/mcp.md) |
+| `cloudflare/sync/` | The sync relay: Worker + one SQLite Durable Object per room (hibernation, free plan), vitest in workerd, `wizard.sh` for the user's own deploy |
 | `legacy/egui` | The old egui front end: **reference only, not built**. Its tests are the porting checklist (`legacy/egui/README.md`); last working version is tag `egui-final` |
 
 **Everything is a command**: new behaviour = a `CommandSpec` in `crates/commands/src/cmds.rs` + a
@@ -52,7 +54,8 @@ data. Every keystroke reaches the engine at once; the engine autosaves within a 
 
 Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and, for UI changes,
 `cargo xtask web` (typecheck, build, Playwright); for MCP or `cloudflare/` changes,
-`cargo xtask connector`. Commit after each piece that builds. No em dashes in any text (code comments, docs, commit messages).
+`cargo xtask connector`; for sync, save or history changes, `cargo xtask sync` (Rust sync tests,
+relay vitest, `wrangler dev` end to end) and, touching the phone, `scripts/ios-test.sh sync`. Commit after each piece that builds. No em dashes in any text (code comments, docs, commit messages).
 
 ## Looking at the app
 
@@ -63,5 +66,6 @@ Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and
   PNG** next to the spec screenshot before committing (see `.claude/skills/bana-ui`).
 - `cargo run -p bana-cli -- --help`; MCP: `cargo run -p bana-mcp -- --file graph.bana`
   (works on the running app when one has the file open). Remote connector: `docs/mcp.md`; never
-  deploy it or create cloud resources yourself, the user runs `cloudflare/wizard.sh`.
+  deploy it or create cloud resources yourself, the user runs `cloudflare/wizard.sh`. The same for
+  the sync relay (`cloudflare/sync/wizard.sh`, docs/sync.md); locally it runs in `wrangler dev`.
 - Parallel agents: use a separate `CARGO_TARGET_DIR`; keep builds to a few jobs (`.cargo/config.toml`).

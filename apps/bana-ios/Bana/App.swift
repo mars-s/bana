@@ -1,4 +1,8 @@
+import BackgroundTasks
 import SwiftUI
+
+/// The background refresh that catches up with the other devices while the app is closed.
+let syncTask = "org.bana.app.sync"
 
 @main
 struct BanaApp: App {
@@ -12,11 +16,38 @@ struct BanaApp: App {
                 .environment(store)
                 .preferredColorScheme(theme == "dark" ? .dark : theme == "light" ? .light : nil)
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in store.save() }
+                // Sync on launch, then keep the status fresh while the app is open (edits go out
+                // as they are made; the engine's sync thread sends them).
+                .task {
+                    await store.syncNow()
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(3))
+                        store.readSync()
+                    }
+                }
         }
-        // Leaving the foreground writes the file at once (the engine also autosaves within half a second).
+        // Leaving the foreground writes the file at once (the engine also autosaves within half a
+        // second) and asks for a background refresh; coming back syncs at once.
         .onChange(of: phase) { _, p in
-            if p != .active { store.save() }
+            if p != .active {
+                store.save()
+                scheduleSync()
+            } else {
+                Task { await store.syncNow() }
+            }
         }
+        .backgroundTask(.appRefresh(syncTask)) {
+            scheduleSync()
+            await store.syncNow(wait: 25_000)
+            store.save()
+        }
+    }
+
+    private func scheduleSync() {
+        guard store.sync?.state != nil, store.sync?.state != "off" else { return }
+        let r = BGAppRefreshTaskRequest(identifier: syncTask)
+        r.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(r)
     }
 }
 

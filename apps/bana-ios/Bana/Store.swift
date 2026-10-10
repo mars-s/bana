@@ -101,6 +101,27 @@ struct Sidebar: Decodable {
     let recents: [SidebarEntry]
 }
 
+/// Sync with the other devices, as the engine reports it (`sync.status`, docs/sync.md).
+struct SyncStatus: Decodable, Equatable {
+    let state: String
+    let message: String?
+    let relay: String?
+    let name: String?
+    let device: String?
+    let devices: Int?
+    let lastSynced: Double?
+    let pending: Bool?
+}
+
+struct SyncDevice: Decodable, Hashable, Identifiable {
+    let device: String
+    let name: String
+    let seen: Double
+    let revoked: Bool
+    let me: Bool
+    var id: String { device }
+}
+
 struct FoundNode: Decodable, Hashable {
     let id: Int64
     let title: String
@@ -117,6 +138,8 @@ final class Store {
     private(set) var error: String?
     /// Bumped whenever `page` is replaced (editors compare names against it).
     private(set) var generation = 0
+    /// Sync's state (nil until read).
+    private(set) var sync: SyncStatus?
     let engine: Engine?
     @ObservationIgnored private var shown: UInt64 = 0
     @ObservationIgnored private let decoder = JSONDecoder()
@@ -126,6 +149,7 @@ final class Store {
         self.error = error
         engine?.subscribe(listener: Listener(store: self))
         refresh()
+        readSync()
     }
 
     /// Opens the graph in the app's Documents folder (`graph.bana`, the desktop format).
@@ -135,12 +159,18 @@ final class Store {
         let defaults = UserDefaults.standard
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let file = docs.appendingPathComponent(defaults.string(forKey: "graph") ?? "graph.bana")
+        // The sync settings hold the workspace key: in the app's private Library, never in
+        // Documents (which the Files app and Finder can see).
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? docs
+        let syncFile = support.appendingPathComponent("sync.json")
         if defaults.bool(forKey: "reset") {
             try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.removeItem(at: syncFile)
             for key in ["captureTo", "theme"] { defaults.removeObject(forKey: key) }
         }
         do {
             let engine = try Engine.open(path: file.path, sample: defaults.bool(forKey: "sample"), today: defaults.string(forKey: "today"))
+            engine.startSync(configPath: syncFile.path)
             return Store(engine: engine)
         } catch {
             return Store(engine: nil, error: "Could not open \(file.lastPathComponent): \(error)")
@@ -208,6 +238,35 @@ final class Store {
     }
 
     func clearError() { error = nil }
+
+    // MARK: sync
+
+    func readSync() {
+        let s = decode(SyncStatus.self, "sync.status")
+        if s != sync { sync = s }
+    }
+
+    func syncDevices() -> [SyncDevice] {
+        struct List: Decodable { let devices: [SyncDevice] }
+        return decode(List.self, "sync.devices")?.devices ?? []
+    }
+
+    /// A `sync.*` request; answers its error, if any.
+    @discardableResult
+    func syncCall(_ method: String, _ params: [String: Any] = [:]) -> String? {
+        let out = rpc("sync.\(method)", params) as? [String: Any]
+        readSync()
+        return out?["error"] as? String
+    }
+
+    /// Connects now and waits (off the main thread) until both sides have each other's edits:
+    /// on launch, back in the foreground, and from the background refresh task.
+    func syncNow(wait ms: UInt64 = 8000) async {
+        guard let engine, sync?.state != "off" else { return }
+        await Task.detached { _ = engine.syncNow(waitMs: ms) }.value
+        readSync()
+        refresh()
+    }
 
     func sidebar() -> Sidebar? { decode(Sidebar.self, "sidebar") }
 

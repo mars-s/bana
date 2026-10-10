@@ -208,7 +208,7 @@ struct SupertagsSheet: View {
     }
 }
 
-/// Theme, the graph file and the version.
+/// Theme, sync, the graph file and the version.
 struct ManageSheet: View {
     @Environment(Store.self) private var store
     let close: () -> Void
@@ -224,6 +224,7 @@ struct ManageSheet: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier("manage.theme")
+                SyncSection()
                 Section("Graph") {
                     LabeledContent("File", value: URL(fileURLWithPath: store.engine?.path() ?? "").lastPathComponent)
                     Button("Save now") { store.save() }

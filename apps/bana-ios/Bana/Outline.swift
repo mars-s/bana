@@ -46,7 +46,7 @@ struct PageView: View {
                         text: page.name, refs: page.refs, focused: false, caret: 0,
                         size: T.fsTitle, weight: T.fwTitle, color: .label, identifier: "title",
                         actions: LineActions(
-                            changed: { name, caret in store.run("node.setName", ["node": page.zoom, "name": name, "caret": caret]) },
+                            changed: { name, caret, base in store.run("node.setName", ["node": page.zoom, "name": name, "caret": caret, "base": base]) },
                             began: { _ in },
                             returned: { _ in addFirstLine() }
                         )
@@ -205,7 +205,7 @@ struct RowView: View {
 
     private func actions(_ id: Int64) -> LineActions {
         LineActions(
-            changed: { name, caret in store.run("node.setName", ["node": id, "name": name, "caret": caret]) },
+            changed: { name, caret, base in store.run("node.setName", ["node": id, "name": name, "caret": caret, "base": base]) },
             began: { caret in store.run("focus.set", ["node": id, "caret": caret]) },
             returned: { caret in store.run("node.enter", ["node": id, "caret": caret]) },
             backspaceAtStart: { store.run("node.backspace", ["node": id]) },

@@ -17,9 +17,23 @@ extension String {
     }
 }
 
+/// Where UTF-16 offset `i` of `before` sits in `after` when one splice turned one into the other
+/// (the web editor's rule): after the change if the change was before it, unmoved otherwise.
+func shiftedOffset(_ before: String, _ after: String, _ i: Int) -> Int {
+    let b = Array(before.utf16), a = Array(after.utf16)
+    var pre = 0
+    while pre < b.count && pre < a.count && b[pre] == a[pre] { pre += 1 }
+    var suf = 0
+    while suf < b.count - pre && suf < a.count - pre && b[b.count - 1 - suf] == a[a.count - 1 - suf] { suf += 1 }
+    if i <= pre { return i }
+    if i >= b.count - suf { return i + a.count - b.count }
+    return a.count - suf
+}
+
 /// What an outline line can ask for besides typing.
 struct LineActions {
-    var changed: (String, Int) -> Void
+    /// (new text, caret, the text the change started from)
+    var changed: (String, Int, String) -> Void
     var began: (Int) -> Void
     var returned: (Int) -> Void
     var backspaceAtStart: () -> Void = {}
@@ -71,9 +85,11 @@ struct LineEditor: UIViewRepresentable {
         if v.markedTextRange == nil {
             if v.isFirstResponder {
                 if v.text != text || v.lastAttrs != attrs.description {
-                    let sel = v.selectedRange
+                    // Text from elsewhere (another device typing in this line): the caret stays
+                    // where it was in this device's own words.
+                    let at = shiftedOffset(v.text ?? "", text, v.selectedRange.location)
                     v.attributedText = v.plain
-                    v.selectedRange = NSRange(location: min(sel.location, text.utf16.count), length: 0)
+                    v.selectedRange = NSRange(location: min(at, text.utf16.count), length: 0)
                 }
             } else {
                 let shown = NSMutableAttributedString(attributedString: Format.styled(text, refs: refs, size: size, weight: w, color: color))
@@ -135,6 +151,7 @@ struct LineEditor: UIViewRepresentable {
                 p.actions.returned(v.text.scalarOffset(utf16: range.location))
                 return false
             }
+            (v as? LineTextView)?.before = v.text
             if s.contains("\n") {
                 // ponytail: a pasted multi-line text stays one line; paste as nodes when asked for.
                 v.replace(range, with: s.replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " "))
@@ -145,7 +162,10 @@ struct LineEditor: UIViewRepresentable {
 
         func textViewDidChange(_ v: UITextView) {
             guard let p = parent else { return }
-            p.actions.changed(v.text, v.text.scalarOffset(utf16: v.selectedRange.location))
+            // `base`: the text this change started from, so the engine can lay it over text
+            // another device typed into the line meanwhile.
+            let base = (v as? LineTextView)?.before ?? p.text
+            p.actions.changed(v.text, v.text.scalarOffset(utf16: v.selectedRange.location), base)
         }
     }
 }
@@ -164,6 +184,8 @@ final class LineTextView: UITextView {
     static weak var current: LineTextView?
     var backspaceAtStart: () -> Void = {}
     var lastAttrs = ""
+    /// The text before the change being made.
+    var before: String?
     /// The stored text with plain attributes (what editing shows).
     var plain: NSAttributedString?
     override func deleteBackward() {

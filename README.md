@@ -84,11 +84,21 @@ The graph file is a [Loro](https://loro.dev) CRDT document: two copies edited ap
 offline) merge, with concurrent typing in one line, concurrent moves (never a loop), delete versus
 edit, and tags and fields added on both sides covered by tests. Undo and redo keep working after a
 merge and take back only this copy's edits. History is never cut by age: compaction drops only
-what every paired copy has acknowledged, and until sync exists (no paired copies) the file keeps
-its whole history, so a copy that was away for any time (a phone offline for months, a backup)
-still merges. Empty parts of a node store nothing, which keeps the file small. Older JSON graph
+what every paired copy has acknowledged (a copy that is not paired, such as a backup, keeps the
+whole history), so a copy that was away for any time (a phone offline for months) still merges. Empty parts of a node store nothing, which keeps the file small. Older JSON graph
 files are read once and kept as a backup.
-Sync over the network comes later.
+
+## Sync between your Mac and your iPhone
+
+Each device keeps its own full copy and works offline; online, it sends its changes, end-to-end
+encrypted, through a small relay you run on your own Cloudflare account (free plan: a Worker and a
+Durable Object). Pair the phone by scanning a QR code from **Settings, Sync, Add a device**.
+Edits from the other device show up live without moving your caret, typing in one line on both
+keeps both, and a phone away for weeks catches up. The relay sees only ciphertext and routing data;
+[docs/sync.md](docs/sync.md) says what it can and cannot see. Set it up with
+`cloudflare/sync/wizard.sh` (it also shows how to put the iPhone app on your own phone).
+
+<p><img src="docs/images/web/sync-add-device.png" width="600" alt="Settings, Sync: synced with one device, Add a device showing a QR code and the pairing code"></p>
 
 ## Speed and robustness
 
@@ -137,7 +147,7 @@ Playwright: 121 tests plus 179 use-case scenarios, each against its own engine) 
 
 ## iPhone app
 
-A native SwiftUI app (`apps/bana-ios`, iOS 26, simulator only for now) on the same
+A native SwiftUI app (`apps/bana-ios`, iOS 26; on your own phone through Xcode, see the sync wizard) on the same
 Rust engine: `crates/ffi` exposes it to Swift with UniFFI (open a graph, run any command by id with
 JSON params, read the same view snapshots the web UI draws, hear about changes). The graph lives in
 the app's Documents folder as `graph.bana`, the same Loro file the desktop app writes.
@@ -150,12 +160,15 @@ the app's Documents folder as `graph.bana`, the same Loro file the desktop app w
 scripts/build-ios-core.sh                 # engine for device and simulator, Swift bindings, XCFramework
 scripts/ios-test.sh                       # generate the Xcode project (xcodegen), run the UI tests
 scripts/ios-test.sh shots                 # screenshots of the main screens into docs/images/ios/
+scripts/ios-test.sh sync                  # pairs with a desktop engine through a local relay
 ```
 
 What works: the day page with previous and next day, the outline with bullets, tap to edit, Return
 for a new line, Backspace to merge, indent, outdent, move, collapse, checkbox, supertag and undo
 on an editing bar, zoom in with breadcrumbs and Back, tags and fields (text, options, checkbox), search,
-quick capture, supertag pages, and the sidebar as a Home sheet. Every keystroke goes to the engine;
+quick capture, supertag pages, the sidebar as a Home sheet, and sync with the desktop (Manage,
+Sync: scan the QR code or paste the code; it syncs on launch, in the foreground and in the
+background). Every keystroke goes to the engine;
 the file is written within half a second and at once when the app leaves the foreground. The
 chrome (top bar, tab bar, editing bar, Capture button, sheets, search) is iOS 26 Liquid Glass
 floating over the page; the outline itself stays flat. Build and
@@ -195,13 +208,15 @@ Everything is in [docs/mcp.md](docs/mcp.md).
 | `crates/commands` | `Session` (graph, focus, panels' navigation) and the command registry (ids, labels, shortcuts, params) |
 | `crates/mcp` | MCP server library and the `bana-mcp` binary |
 | `crates/server` | `Host` (the Session plus each panel's navigation), JSON view snapshots, a localhost HTTP server |
-| `crates/ffi` | The engine for Swift (UniFFI): the `Host` behind `Engine.rpc`, change listeners, autosave |
+| `crates/ffi` | The engine for Swift (UniFFI): the `Host` behind `Engine.rpc`, change listeners, autosave, sync |
+| `crates/sync` | Sync: workspace key and device identities, pairing codes, the client, the WebSocket service (docs/sync.md) |
 | `apps/bana-ios` | The iPhone app: SwiftUI on `crates/ffi` (built with Xcode, not cargo) |
 | `apps/bana-desktop` | The desktop app: Tauri 2 around the `Host` |
 | `web/` | The UI (React + TypeScript); runs in the desktop app or a browser |
 | `apps/bana-cli` | Command line, including `serve` |
-| `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity`, `cargo xtask connector` |
+| `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity`, `cargo xtask connector`, `cargo xtask sync` |
 | `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT (docs/mcp.md) |
+| `cloudflare/sync/` | The sync relay: a Worker with one Durable Object per synced workspace, its tests and setup wizard (docs/sync.md) |
 | `legacy/egui` | The old egui front end, reference only and not built (tag `egui-final`) |
 
 The UI holds no data: it runs commands and draws snapshots of the engine.
@@ -212,7 +227,8 @@ Done: the core graph, commands, desktop app, agents (CLI, MCP, control channel),
 rules of the spec, supertag and field configuration, the calendar time grid, workspaces and the capture
 Inbox, and every behaviour difference the spec team reported in its acceptance tests (rounds 3 to 7:
 fields saved as typed, on quit and within a second for a force-kill, on rows below the first screen too, no typed key ever dropped, notes outlines on references and in
-exports, formatted HTML on the clipboard, menu bar with keys and clipboard items). Next: an open-licence UI font with real bold and,
+exports, formatted HTML on the clipboard, menu bar with keys and clipboard items), the iPhone app,
+and end-to-end encrypted sync between them. Next: an open-licence UI font with real bold and,
 later, AI features. Details in [ROADMAP.md](ROADMAP.md).
 
 ## Clean room

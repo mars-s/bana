@@ -39,10 +39,12 @@ pub trait ChangeListener: Send + Sync {
     fn changed(&self, version: u64);
 }
 
+type Listeners = Arc<Mutex<Vec<Arc<dyn ChangeListener>>>>;
+
 #[derive(uniffi::Object)]
 pub struct Engine {
     shared: Arc<Shared>,
-    listeners: Mutex<Vec<Arc<dyn ChangeListener>>>,
+    listeners: Listeners,
 }
 
 #[uniffi::export]
@@ -57,7 +59,17 @@ impl Engine {
             None => None,
         };
         let session = bana_server::open_session(Some(PathBuf::from(path)), sample, today).map_err(|msg| EngineError::Open { msg })?;
-        let engine = Arc::new(Engine { shared: Shared::new(Host::new(session)), listeners: Mutex::new(Vec::new()) });
+        let listeners: Listeners = Arc::new(Mutex::new(Vec::new()));
+        let engine = Arc::new(Engine { shared: Shared::new(Host::new(session)), listeners: Arc::clone(&listeners) });
+        // Edits merged from another device redraw the app like local ones.
+        if let Ok(mut f) = engine.shared.on_change.lock() {
+            *f = Some(Box::new(move |version| {
+                let all: Vec<Arc<dyn ChangeListener>> = listeners.lock().map(|l| l.clone()).unwrap_or_default();
+                for l in all {
+                    l.changed(version);
+                }
+            }));
+        }
         spawn_autosave(Arc::downgrade(&engine.shared));
         Ok(engine)
     }
@@ -96,6 +108,23 @@ impl Engine {
     /// The graph file's path.
     pub fn path(&self) -> String {
         self.shared.host.lock().ok().and_then(|h| h.session.path.clone()).map(|p| p.display().to_string()).unwrap_or_default()
+    }
+
+    /// Starts syncing with the other devices; the settings (and the workspace key) live at
+    /// `config_path`, a private file outside the shared Documents folder. Then `rpc("sync.*")`
+    /// sets it up, joins, lists devices (docs/sync.md). Once per engine.
+    pub fn start_sync(&self, config_path: String) {
+        self.shared.start_sync(PathBuf::from(config_path));
+    }
+
+    /// Connects now and waits up to `wait_ms` until this copy and the relay have each other's
+    /// edits (launch, coming to the foreground, background refresh). Answers the sync status JSON.
+    /// Blocks: call it off the main thread.
+    pub fn sync_now(&self, wait_ms: u64) -> String {
+        match self.shared.sync_service() {
+            Some(s) => s.sync_now(Duration::from_millis(wait_ms.min(60_000))).to_string(),
+            None => json!({"state": "off"}).to_string(),
+        }
     }
 
     /// Calls `listener` after every request that changed the version.

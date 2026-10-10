@@ -9,7 +9,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | Measure | Value |
 |---|---|
 | Commands (every action; CLI, MCP and the JSON API can run them) | 187 engine commands, plus about 20 UI commands |
-| Rust tests | 174: core (incl. merge tests of copies edited apart, undo after merges, a copy offline for 60 days, compaction only up to what paired copies acknowledged), commands (incl. fuzz tests of random command sequences and damaged files, a 50k-node timed test), server, MCP, CLI |
+| Rust tests | 206 (plus 13 relay tests in workerd, 2 sync end-to-end Playwright tests and 1 iPhone sync XCUITest): sync (two and three engines through an in-process fake relay: offline both sides, same-line typing, moves, deletes, 60 days away, pruning, compaction, revoke, tampering, wrong key), the rename's data migration, core (incl. merge tests of copies edited apart, undo after merges, a copy offline for 60 days, compaction only up to what paired copies acknowledged), commands (incl. fuzz tests of random command sequences and damaged files, a 50k-node timed test), server, MCP, CLI |
 | Web UI tests (Playwright, each with its own engine) | 121, plus 180 use-case scenarios in `web/tests/use-cases/` (the ones still missing are listed as fixme), plus the remote connector's Worker and end-to-end tests (`cargo xtask connector`): editing by keyboard, pickers, field rows and values, the date picker, menus, copy and paste, drag and drop, references, settings and keybindings, tabs and panels, views (table, board, cards, calendar by pointer, query builder, toolbar), Configure supertag, a damaged file in every view; fuzz: random keys never lose a character (also on a long page), reloads and force-kills keep every character, typed keys land only in a visibly focused editor; killing and restarting the engine mid-typing; 51,550 rows |
 | UI | Tauri 2 desktop app and the same web UI in a browser (`bana serve`); the egui UI is in `legacy/egui` (reference only); porting status in `docs/web-port.md` |
 | Spec items (`docs/parity.md`, sections and screenshots) | 403: 344 done, 27 partial, 8 missing, 10 notes |
@@ -53,18 +53,20 @@ further on openness, local-first storage and agent control. Status by spec secti
 | I2 iPhone app | `apps/bana-ios`: SwiftUI, iOS 26, Liquid Glass chrome, xcodegen project, graph in Documents in the desktop's Loro format, tokens generated from `web/src/tokens.css`, Inter Variable | done (first version) |
 | I3 iPhone screens | Day page, outline with bullets, tap to edit, Return and Backspace, editing bar (indent, outdent, move, collapse, checkbox, supertag, undo) that morphs out of the tab bar, zoom with breadcrumbs and Back, tags and fields (text, options, checkbox), formatted lines, search, capture to Today, Tomorrow, the Inbox or a pinned node, Supertags list and pages, Browse, Search and Manage tabs (theme), node menu | done (first version) |
 | I4 iPhone tests | 17 XCUITests incl. data safety (type, background, kill, relaunch; and a kill in the foreground), screenshots in `docs/images/ios/` | done |
-| I5 iPhone next | Phone measurements from the spec team (`tanacraft-spec/ios/`), inline `#`, `@` and `>` while typing, date picker for date fields, table and board views, swipe actions, Share extension and widgets, sync with the desktop, device builds | next |
+| I5 iPhone next | Phone measurements from the spec team (`tanacraft-spec/ios/`), inline `#`, `@` and `>` while typing, date picker for date fields, table and board views, swipe actions, Share extension and widgets | next |
 | R1 Rename | TanaCraft is now Bana (before the repo goes public as mars-s/bana): product name, crates (`bana-*`), binaries (`bana`, `bana-mcp`, `bana-desktop`), iPhone app (`org.bana.app`), skills, Workers; `~/TanaCraft` and `.tanacraft` files are copied once to `~/Bana` and `.bana` (checked to load, the old files untouched; `TANACRAFT_HOME` still honoured) | done |
-| M27 Next | Sync between Mac and iPhone: end-to-end encrypted Loro updates relayed and mailboxed by a Cloudflare Durable Object, QR pairing, then iroh for direct same-Wi-Fi sync; publishing a page; AI features (decisions open) | next |
+| S1 Sync | Mac and iPhone sync (docs/sync.md): `crates/sync` (XChaCha20-Poly1305 workspace key, Ed25519 devices, pairing codes with QR, a client tested against an in-process fake relay, a WebSocket service with backoff), the relay in `cloudflare/sync` (Worker + SQLite Durable Object per room, WebSocket hibernation, invites, backlog pages, snapshot pruning, revoke, limits for the free plan; vitest in workerd), history compacted only up to what every paired device acknowledged, Settings > Sync and a status button on the desktop, Manage > Sync with a QR scanner and background refresh on the iPhone, `cloudflare/sync/wizard.sh` for the user's own deploy and a device install; tests from fake relay to `wrangler dev` with two browser windows and an XCUITest pairing with a pasted code | done |
+| M27 Next | Direct same-Wi-Fi sync (iroh), rotating the workspace key after a lost device, publishing a page; AI features (decisions open) | next |
 
 ## Later
 
-Sync, workspace members, Android and web (wasm) builds.
+Workspace members, Android and web (wasm) builds.
 
 ## Known simplifications
 
 - Undo history is per session (merging another copy keeps it; it takes back only local edits).
-- History is kept whole until sync exists; compaction then cuts only what every paired copy has acknowledged.
+- History is compacted only up to what every paired copy has acknowledged; a copy that is not paired keeps it whole.
+- Removing a sync device stops its access to the relay; it still knows the key (start sync again for a new key).
 - A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
 - One local editor: "edited by" is the computer's user.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

@@ -11,3 +11,7 @@ plan/
 /web/playwright-report/
 /apps/tanacraft-desktop/gen/
 /web/tsconfig.tsbuildinfo
+/apps/tanacraft-ios/Core/
+/apps/tanacraft-ios/build/
+/apps/tanacraft-ios/*.xcodeproj/xcuserdata/
+/apps/tanacraft-ios/*.xcodeproj/project.xcworkspace/xcuserdata/

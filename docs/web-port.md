@@ -52,7 +52,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | `!` heading | ported | `pickers.spec.ts` |
 | diffs_n28, n31, n33 selected field rows | todo | |
 | options_from_supertag picker, invalid value warning | works (picker), warning shown | |
-| date_picker_takes_a_day_and_a_time / add end | todo | |
+| date_picker_takes_a_day_and_a_time / add end | ported (typed date, system date picker), todo (time and end in a picker) | `pickers.spec.ts` |
 | hidden_fields_fold_to_a_label | works (engine decides, UI shows "+ Field") | |
 
 ## Shell, menus, pages
@@ -71,10 +71,10 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | diffs_p3 tag page breadcrumb reads Schema | works (shot) | |
 | settings pages, recents, help | works (shot) | |
 | every_menu_bar_entry_runs_a_known_command | works (desktop app menu) | |
-| diffs_n6_n14 workspaces side by side, workspace rename | todo | |
+| diffs_n6_n14 workspaces side by side, workspace rename | ported (create, folded rows), works (rename) | `menus.spec.ts` |
 | content width, panel split, mini sidebar flyouts | todo (mini sidebar works) | |
 | ctrl_shift_page_keys_move_the_tab, custom keybindings | todo | |
-| configure supertag panel, field definition page | todo | |
+| configure supertag panel, field definition page | ported (in the tag page, not a second panel yet) | `schema.spec.ts` |
 | reference counter, warn on editing a referenced node, url embeds | todo | |
 | context notes and fields on references | todo (engine works) | |
 
@@ -88,4 +88,5 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | query_builder (nested groups, Run once, Done, Cmd+Shift+O) | ported | `views.spec.ts` |
 | table_header_renames_the_field_in_place | todo | |
 | list_view_opens_the_selected_item_in_the_next_panel | works (opens a new panel) | |
-| lanes drag, calendar time grid, week schedule, new results flash | todo | |
+| calendar week and day grid | ported (no drag to create or resize yet) | `views.spec.ts` |
+| lanes drag, week page schedule, new results flash | todo | |

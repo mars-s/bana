@@ -9,8 +9,8 @@ further on openness, local-first storage and agent control. Status by spec secti
 | Measure | Value |
 |---|---|
 | Commands (every action; CLI, MCP and the JSON API can run them) | 175 engine commands, plus about 20 UI commands |
-| Rust tests | 130: core 61 (incl. 11 merge tests of two copies edited apart), commands 62 (incl. fuzz tests of random command sequences and damaged files, checked against the Loro document, and a 50k-node timed test), server 4, MCP 1, CLI 1 |
-| Web UI tests (Playwright, each with its own engine) | 44: editing by keyboard, pickers and field values, menus, copy and paste, drag and drop, views and the query builder; fuzz: random keys never lose a character (also on a long page in a small window, scrolled away mid-edit), reloads and force-kills at random points keep every character; 51,550 rows |
+| Rust tests | 131: core 61 (incl. 11 merge tests of two copies edited apart), commands 63 (incl. fuzz tests of random command sequences and damaged files, checked against the Loro document, and a 50k-node timed test), server 4, MCP 1, CLI 1 |
+| Web UI tests (Playwright, each with its own engine) | 49: editing by keyboard, pickers and field values (dates too), menus, copy and paste, drag and drop, delete confirmation, workspaces, views (table, board, month and week calendar) and the query builder, field page and Configure supertag; fuzz: random keys never lose a character (also on a long page in a small window, scrolled away mid-edit), reloads and force-kills at random points keep every character; 51,550 rows |
 | UI | Tauri 2 desktop app and the same web UI in a browser (`tanacraft-cli serve`); the egui UI is in `legacy/egui` (reference only); porting status in `docs/web-port.md` |
 | Spec sections (`docs/parity.md`) | 95 mapped: 77 done, 13 partial, 3 missing, 2 notes |
 | Spec screenshots | 160 mapped: 140 done, 14 partial, 5 missing, 1 not behaviour |

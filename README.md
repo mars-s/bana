@@ -117,13 +117,14 @@ pnpm --dir web install && pnpm --dir web build             # the web UI (once, a
 cargo run --release -p tanacraft-desktop -- --sample       # the desktop app (Tauri) with the sample graph
 cargo run --release -p tanacraft-desktop -- notes.json     # open or create a graph file
 cargo run --release -p tanacraft-cli -- serve --sample     # the same UI in a browser: http://127.0.0.1:8787/
+cd apps/tanacraft-desktop && ../../web/node_modules/.bin/tauri build --bundles app   # TanaCraft.app
 ```
 
 Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
 **Cmd+/** for the shortcut sheet.
 
-Tests: `cargo xtask ci` (Rust: fmt, clippy, 130 tests) and `cargo xtask web` (typecheck, build,
-Playwright: 44 tests, each against its own engine). Screenshots: `cargo xtask shots`.
+Tests: `cargo xtask ci` (Rust: fmt, clippy, 131 tests) and `cargo xtask web` (typecheck, build,
+Playwright: 49 tests, each against its own engine). Screenshots: `cargo xtask shots`.
 
 ## For agents: CLI, MCP and the JSON API
 

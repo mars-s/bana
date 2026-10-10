@@ -208,3 +208,19 @@ for (const gap of [0, 40, 120]) {
     expect(await valuesOf(server, page, 'Qq')).toEqual([])
   })
 }
+
+test('a field name still being typed after > survives a force-kill as a field (N26)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['x'], 'Page')
+  await focus(server, app, ids[0], 1)
+  await app.keyboard.press('Enter')
+  await app.keyboard.type('>')
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type('Fresh9')
+  // Autosave writes within a second or so; then the engine is killed.
+  await app.waitForTimeout(1700)
+  await server.kill('SIGKILL')
+  await server.restart()
+  const t = await tree(server, page)
+  expect(Object.keys(t.fields ?? {})).toContain('Fresh9')
+  expect((t.children ?? []).map((c: any) => c.name)).toEqual(['x'])
+})

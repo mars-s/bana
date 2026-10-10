@@ -35,7 +35,15 @@ export function openPicker(p: Omit<PickerState, 'items' | 'sel' | 'nextColor' | 
 }
 
 export function closePicker() {
-  if (getState().picker) setState({ picker: null })
+  const p = getState().picker
+  if (p) setState({ picker: null })
+  if (p?.mode === 'field') void call('fieldDraft', {})
+}
+
+/** A field name typed after `>` is saved as a field in the file while it is typed, so a
+ * force-kill keeps it (DIFFS N26); the live outline changes only when it is picked. */
+function draftField(p: PickerState) {
+  if (p.mode === 'field' && p.at >= 0 && p.owner != null) void call('fieldDraft', { owner: p.owner, line: p.node, name: p.query })
 }
 
 export function setPickerQuery(query: string) {
@@ -43,6 +51,7 @@ export function setPickerQuery(query: string) {
   if (!p || p.query === query) return
   const next = { ...p, query, sel: 0 }
   setState({ picker: next })
+  draftField(next)
   void fetchChoices(next)
 }
 
@@ -149,6 +158,7 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
   const p = getState().picker
   if (!p) return
   setState({ picker: null })
+  if (p.mode === 'field') void call('fieldDraft', {})
   const panel = p.panel
   await withBarrier(async () => {
     switch (p.mode) {

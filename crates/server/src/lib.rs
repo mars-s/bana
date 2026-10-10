@@ -36,6 +36,9 @@ pub struct Host {
     marks: std::collections::VecDeque<String>,
     /// The newest `rev` of each text sent (see "run").
     revs: HashMap<String, u64>,
+    /// A field name being typed after `>` (owner, line, name): saves write it in as a field, so a
+    /// force-kill keeps it (DIFFS N26); the live graph is left as it is.
+    draft: Option<(u64, u64, String)>,
 }
 
 impl Host {
@@ -49,6 +52,7 @@ impl Host {
             dirty_since: None,
             marks: Default::default(),
             revs: HashMap::new(),
+            draft: None,
         }
     }
 
@@ -137,6 +141,19 @@ impl Host {
                 }
                 json!({"ok": true})
             }
+            "fieldDraft" => {
+                let owner = params.get("owner").and_then(Value::as_u64);
+                let line = params.get("line").and_then(Value::as_u64);
+                let name = params.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+                self.draft = match (owner, line) {
+                    (Some(o), Some(l)) if !name.is_empty() => Some((o, l, name)),
+                    _ => None,
+                };
+                if self.draft.is_some() {
+                    self.note_change();
+                }
+                json!({"ok": true})
+            }
             "marked" => {
                 let token = params.get("token").and_then(Value::as_str).unwrap_or_default();
                 json!({"marked": self.marks.iter().any(|m| m == token)})
@@ -160,11 +177,27 @@ impl Host {
     pub fn save(&mut self) -> Result<(), String> {
         self.dirty_since = None;
         let Some(path) = self.session.path.clone() else { return Ok(()) };
-        if !self.session.graph.is_dirty() {
+        if !self.session.graph.is_dirty() && self.draft.is_none() {
             return Ok(());
         }
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        if let Some((owner, line, name)) = self.draft.clone() {
+            // The file gets the field the name is turning into; the live graph stays as it is.
+            let live = self.session.graph.clone();
+            let mut state = (self.session.focus, self.session.caret, self.session.anchor, self.session.sel);
+            let r = self
+                .session
+                .run("field.add", &json!({"node": owner, "field": name}))
+                .and_then(|_| self.session.run("node.delete", &json!({"node": line, "force": true})));
+            let saved = if r.is_ok() { self.session.graph.save(&path).map_err(|e| e.to_string()) } else { Ok(()) };
+            self.session.graph = live;
+            (self.session.focus, self.session.caret, self.session.anchor, self.session.sel) = std::mem::take(&mut state);
+            if r.is_err() {
+                return self.session.graph.save(&path).map_err(|e| e.to_string());
+            }
+            return saved;
         }
         self.session.graph.save(&path).map_err(|e| e.to_string())
     }

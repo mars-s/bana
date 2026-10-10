@@ -237,3 +237,46 @@ test('typing with nothing focused puts the caret back in the line edited last an
   await expect(app.locator(`.editor-input[data-node="${ids[1]}"]`)).toBeFocused()
   expect(await nameOf(server, ids[0])).toBe('first')
 })
+
+test('Escape twice then at once a click elsewhere or a reload: typing puts the caret back and types nothing (N61)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['first', 'second', 'third'])
+  await clickLine(app, 'second')
+  // No waits: the second Escape is still waiting behind the first when the click comes.
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Escape')
+  const panel = (await app.locator('.panel').first().boundingBox())!
+  await app.mouse.click(panel.x + panel.width / 2, panel.y + panel.height - 40)
+  await app.keyboard.type('QZ')
+  await expect(app.locator(`.editor-input[data-node="${ids[1]}"]`)).toBeFocused()
+  await app.waitForTimeout(300)
+  expect([await nameOf(server, ids[0]), await nameOf(server, ids[1]), await nameOf(server, ids[2])]).toEqual(['first', 'second', 'third'])
+  // The same with a reload straight after the two Escapes.
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Escape')
+  await app.reload()
+  await expect(app.locator('.panel .title-input')).toBeVisible()
+  await app.keyboard.type('QZ')
+  await expect(app.locator('.editor-input')).toBeFocused()
+  await app.waitForTimeout(300)
+  expect([await nameOf(server, ids[0]), await nameOf(server, ids[1]), await nameOf(server, ids[2])]).toEqual(['first', 'second', 'third'])
+})
+
+test('a click in the empty part of a row right of its text puts the caret at the end (N72)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Agenda', 'Notes'])
+  const box = (await app.locator('.row.node .text', { hasText: 'Agenda' }).first().boundingBox())!
+  for (const dx of [10, 80, 300]) {
+    await app.mouse.click(box.x + box.width + dx, box.y + box.height / 2)
+    await expect(app.locator(`.editor-input[data-node="${ids[0]}"]`)).toBeFocused()
+    await app.keyboard.type('x')
+    await app.keyboard.press('Escape')
+    await app.keyboard.press('Escape')
+  }
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Agendaxxx')
+  // Also while the line is being edited, with the caret elsewhere in it.
+  await clickLine(app, 'Notes')
+  await app.keyboard.press('Home')
+  const nb = (await app.locator(`.editor-input[data-node="${ids[1]}"]`).boundingBox())!
+  await app.mouse.click(nb.x + 400, nb.y + nb.height / 2)
+  await app.keyboard.type('!')
+  await expect.poll(() => nameOf(server, ids[1])).toBe('Notes!')
+})

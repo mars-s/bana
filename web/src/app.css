@@ -887,6 +887,7 @@ button:focus-visible {
 .line {
   flex: 1;
   min-width: 0;
+  cursor: text;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -1577,6 +1578,13 @@ kbd {
   z-index: 60;
   animation: toast-in var(--t-toast);
   transition: max-height var(--t-toast-exit), width var(--t-toast-exit), padding var(--t-toast-exit);
+}
+
+/* The offline notice sits at the bottom, clear of toasts, until the engine answers again (N73). */
+.toast.offline {
+  top: auto;
+  bottom: var(--q4);
+  animation: none;
 }
 
 /* Exit: it collapses in place, staying opaque (M8). */

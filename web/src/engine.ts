@@ -20,14 +20,22 @@ declare global {
   }
 }
 
+/** The engine could not be reached (the server is down or restarting): the request did not run. */
+export class Offline extends Error {}
+
 class HttpTransport implements Transport {
   constructor(private base: string) {}
   async call(method: string, params: Json) {
-    const r = await fetch(`${this.base}/rpc`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method, params }),
-    })
+    let r: Response
+    try {
+      r = await fetch(`${this.base}/rpc`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ method, params }),
+      })
+    } catch {
+      throw new Offline('engine unreachable')
+    }
     return r.json()
   }
   watch(cb: (v: number) => void) {
@@ -42,6 +50,10 @@ class HttpTransport implements Transport {
             cb(version)
           }
         } catch {
+          // A restarted engine counts versions from the start again. The banner shows even when
+          // nothing is being typed, and the queue checks for the engine until it is back.
+          since = 0
+          markUnreachable()
           await new Promise((res) => setTimeout(res, 1000))
         }
       }
@@ -176,10 +188,56 @@ const WINDOW = (() => {
 
 const send = (it: { method: string; params: Json; wal?: [string, number] }) => ({ ...it.params, window: WINDOW, ...(it.wal ? { wal: it.wal } : {}) })
 
+/** Whether the engine is out of reach (DIFFS N73): the UI says so, and the queue waits. */
+let offline = false
+const offlineSubs = new Set<(off: boolean) => void>()
+export function onOffline(cb: (off: boolean) => void) {
+  offlineSubs.add(cb)
+}
+function setOffline(off: boolean) {
+  if (off === offline) return
+  offline = off
+  offlineSubs.forEach((f) => f(off))
+}
+
+/** Set by the UI: runs once the engine answers again after an outage, before anything queued
+ * goes. A restarted engine has forgotten which page each panel showed and where the caret was;
+ * the hook puts them back with `direct` calls (they skip the queue, which is paused). */
+type Direct = (method: string, params: Json) => Promise<Json>
+let resumeHook: ((direct: Direct) => Promise<void>) | null = null
+export function onResume(f: (direct: Direct) => Promise<void>) {
+  resumeHook = f
+}
+
+function markUnreachable() {
+  setOffline(true)
+  void pump()
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 async function pump() {
   if (sending) return
   sending = true
-  while (pending.length) {
+  let wait = 250
+  while (pending.length || offline) {
+    if (offline) {
+      try {
+        await transport.call('version', {})
+        const direct: Direct = (method, params) => transport.call(method, { ...params, window: WINDOW })
+        await resumeHook?.(direct)
+      } catch (e) {
+        if (e instanceof Offline) {
+          await sleep(wait)
+          wait = Math.min(wait * 2, 2000)
+          continue
+        }
+        // The hook failed some other way: carry on with the queue.
+      }
+      wait = 250
+      setOffline(false)
+      continue
+    }
     const it = pending[0]
     try {
       const r = await transport.call(it.method, send(it))
@@ -187,6 +245,12 @@ async function pump() {
       ack(it)
       it.done.forEach((f) => f(r))
     } catch (e) {
+      // The engine is down: the request never ran. It stays first in line (and logged) and goes
+      // again as soon as the engine answers, so nothing behind it overtakes it (N73).
+      if (e instanceof Offline) {
+        setOffline(true)
+        continue
+      }
       // Not answered: the edit stays logged (a later answer, or the next load, settles it).
       pending.shift()
       it.fail.forEach((f) => f(e))

@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { DragHint, Panel, tagStyle } from './Outline'
 import { closeTab, getState, moveTab, newTab, setState, showToast, switchTab, useStore } from './store'
-import { bufferKey, clearGhosts, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
+import { bufferKey, noteClick, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
@@ -388,6 +388,17 @@ function Toast() {
   ) : null
 }
 
+/** The engine is out of reach (DIFFS N73): edits wait in the log and go as soon as it is back. */
+function OfflineBanner() {
+  const off = useStore((s) => s.offline)
+  return off ? (
+    <div className="toast offline" role="alert">
+      <Icon name="info" size={20} className="toast-icon" />
+      <span>Offline: can't reach the engine. Your edits are kept and will be saved when it is back.</span>
+    </div>
+  ) : null
+}
+
 export function App() {
   const theme = useStore((s) => s.theme)
   const tabs = useStore((s) => s.tabs)
@@ -462,7 +473,7 @@ export function App() {
     // A click anywhere lets go of a selected field row.
     const onDown = (e: MouseEvent) => {
       if (getState().fieldSel) setState({ fieldSel: null })
-      if (!(e.target as HTMLElement | null)?.closest?.('.row')) clearGhosts()
+      noteClick(!(e.target as HTMLElement | null)?.closest?.('.row'))
     }
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('mousedown', onDown, true)
@@ -489,6 +500,7 @@ export function App() {
       <Overlays />
       <DragHint />
       <Toast />
+      <OfflineBanner />
     </div>
   )
 }

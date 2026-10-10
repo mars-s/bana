@@ -5,7 +5,7 @@
 // command that moves the caret is on its way, keys wait in a buffer and are replayed into
 // whichever line holds the caret afterwards, so no key is lost or lands in the wrong line.
 
-import { type Json, type NodeRow, type Page, call } from './engine'
+import { type Json, type NodeRow, type Page, call, onResume } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
 import { closePanel, closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
@@ -44,6 +44,8 @@ const titles = new Map<string, TitleHandle>()
 
 export function registerEditor(h: EditorHandle) {
   editor = h
+  // The line that had the caret last is where typing with nothing focused puts it back (N61).
+  if (h.kind === 'line') lastEdited = h.node
   swallowing = false
   // A caret somewhere else means the field row is no longer selected.
   if (getState().fieldSel) setState({ fieldSel: null })
@@ -115,6 +117,21 @@ export function noteSynced(node: number, caret: number) {
   synced = { node, caret }
   lastEdited = node
 }
+
+// The engine is back after an outage (N73). If it restarted, it forgot each panel's page and the
+// caret: they are put back before the edits queued meanwhile go in (they carry their own lines).
+onResume(async (direct) => {
+  for (const panel of visiblePanels()) {
+    const before = getState().pages[panel]
+    if (!before) continue
+    const now = await direct('page', { panel, start: 0, count: 1 })
+    const moved = now?.zoom !== before.zoom
+    if (moved) await direct('run', { command: 'nav.open', params: { node: before.zoom }, panel })
+    const ed = editor && editor.kind === 'line' && editor.panel === panel ? editor : null
+    if (ed && (moved || now?.focus !== ed.node)) await direct('run', { command: 'focus.set', params: { node: ed.node, caret: ed.sel()[1] }, panel })
+  }
+  synced = null
+})
 
 /** Runs a command that may move the caret; keys typed meanwhile wait and are replayed after. */
 export async function exec(command: string, params: Json = {}, panel = getState().activePanel): Promise<Json> {
@@ -232,6 +249,7 @@ export function restoreKeptKeys() {
   }
   if (!Array.isArray(kept.keys) || !kept.keys.length) return drainSoon()
   // Back in the buffer at once (and so still written down), then typed on the next frame.
+  kept.keys.forEach((k) => staleKeys.add(k))
   buffer.unshift(...kept.keys)
   keepBufferedKeys()
   barrier++
@@ -285,9 +303,15 @@ export function setGhost(panel: string, node: number, atStart: boolean) {
   ghosts.set(panel, { node, atStart })
 }
 
-/** A click outside the outline: typing no longer goes on in the last line (N61). */
-export function clearGhosts() {
-  ghosts.clear()
+/** Keys pressed before a click elsewhere or a reload: an Escape among them still clears the
+ * selection, but no longer leaves typing going on in that line (N61). */
+const staleKeys = new WeakSet<KeyInfo>()
+
+/** A click: keys still waiting were pressed before it, so an Escape among them leaves no line for
+ * typing to go on in. Outside the outline, typing no longer goes on in the last line either (N61). */
+export function noteClick(outsideRows: boolean) {
+  buffer.forEach((k) => staleKeys.add(k))
+  if (outsideRows) ghosts.clear()
 }
 
 /** Whether keys with nowhere else to go may land in the panel's outline: its rows are drawn and
@@ -462,7 +486,9 @@ export function handleKey(k: KeyInfo): boolean {
     // (After a reload, the line the engine saw edited last; edit times are whole seconds.)
     const last = rows.find((r) => r.id === lastEdited) ?? rows.filter((r) => !r.ref).reduce<NodeRow | undefined>((a, r) => (!a || r.edited >= a.edited ? r : a), undefined)
     if (last) {
-      // Text keys pressed until that line's editor is drawn are dropped as well.
+      // Text keys pressed until that line's editor is drawn (or already waiting) are dropped too.
+      for (let i = buffer.length - 1; i >= 0; i--) if (isTextKey(buffer[i])) buffer.splice(i, 1)
+      keepBufferedKeys()
       swallowing = true
       window.setTimeout(() => (swallowing = false), 1000)
       void exec('focus.set', { node: last.id, caret: charLen(last.name) })
@@ -541,7 +567,7 @@ function selectionKey(k: KeyInfo, sc: string, p: Page): boolean {
       return true
     case 'Escape':
       // The selection goes, but typing still lands in its last line, at its start (N27, N34).
-      setGhost(panel, head, true)
+      if (!staleKeys.has(k)) setGhost(panel, head, true)
       void exec('select.clear')
       return true
     case 'Enter': {

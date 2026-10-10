@@ -2,7 +2,7 @@
 // menus, theme). Nothing here is note data: notes live in the engine and come back as snapshots.
 
 import { useSyncExternalStore } from 'react'
-import { type CommandInfo, type Json, type Page, type Sidebar, call, flushOnUnload, idle, transport } from './engine'
+import { type CommandInfo, type Json, type Page, type Sidebar, call, flushOnUnload, idle, onOffline, transport } from './engine'
 import type { ViewSnap } from './Views'
 
 export interface Tab {
@@ -110,6 +110,8 @@ export interface State {
   special: Record<string, 'settings' | 'recents' | 'help' | undefined>
   /** A description being typed under a line. */
   descEdit: { panel: string; node: number } | null
+  /** The engine cannot be reached (N73). */
+  offline: boolean
 }
 
 const saved = (() => {
@@ -156,6 +158,7 @@ let state: State = {
   queryOpen: {},
   configure: {},
   descEdit: null,
+  offline: false,
 }
 
 const subs = new Set<() => void>()
@@ -259,6 +262,16 @@ export async function refresh() {
   setState((s) => ({ pages: { ...s.pages, ...pages }, views: { ...s.views, ...views }, subViews: { ...s.subViews, ...subViews }, sidebar, caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch }))
   markApplied(seq)
 }
+
+// The engine went away and came back (N73): a restarted engine counts versions from the start, so
+// whatever it shows now is drawn.
+onOffline((off) => {
+  setState({ offline: off })
+  if (!off) {
+    seenVersion = 0
+    scheduleRefresh()
+  }
+})
 
 let toastTimer = 0
 /** Toasts stay 5.35 s, then collapse in place over 300 ms (motion M8). */

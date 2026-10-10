@@ -8,7 +8,7 @@ import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closeConfigure, closePanel, useStore } from './store'
-import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { type EditorHandle, currentEditor, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, SearchOptions, ViewBody, ViewTitle, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
@@ -620,7 +620,19 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
           </span>
         )}
         {blank ? <span className="bullet blank" /> : <Bullet row={row} panel={panel} onClick={() => void exec('nav.zoomIn', { node: row.id }, panel)} />}
-        <span className="line">
+        <span
+          className="line"
+          onMouseDown={(e) => {
+            // The empty part of the row right of the text: the caret goes to the end of the line (N72).
+            if (e.button !== 0 || e.target !== e.currentTarget || e.shiftKey || row.ref) return
+            e.preventDefault()
+            const ed = currentEditor()
+            if (editing && ed?.kind === 'line' && ed.node === row.id) return ed.setSel(charLen(ed.value()), charLen(ed.value()))
+            setActivePanel(panel)
+            setGhost(panel, row.id, false)
+            focusLine(panel, row.id, charLen(row.name))
+          }}
+        >
           {row.done !== null && (
             <span
               className={`checkbox${row.done ? ' on' : ''}`}

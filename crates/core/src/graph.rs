@@ -1874,6 +1874,52 @@ impl Graph {
             .collect()
     }
 
+    /// Where `name` stands as a whole word in `text` (char index), ignoring case.
+    fn word_at(text: &str, name: &str) -> Option<usize> {
+        let t: Vec<char> = text.to_lowercase().chars().collect();
+        let n: Vec<char> = name.to_lowercase().chars().collect();
+        if n.is_empty() || t.len() < n.len() {
+            return None;
+        }
+        (0..=t.len() - n.len()).find(|&i| {
+            t[i..i + n.len()] == n[..] && (i == 0 || !t[i - 1].is_alphanumeric()) && t.get(i + n.len()).is_none_or(|c| !c.is_alphanumeric())
+        })
+    }
+
+    /// Lines that name `target` (its text as a whole word) without linking it (UC-05.06): not
+    /// the node itself or anything inside it, not system nodes. Names under 3 letters find nothing.
+    pub fn unlinked_mentions(&self, target: NodeId, limit: usize) -> Vec<NodeId> {
+        let target = self.resolve(target);
+        let name = self.text(target);
+        let name = name.trim();
+        if name.chars().count() < 3 {
+            return Vec::new();
+        }
+        let token = crate::format::ref_token(target.0);
+        let mut out: Vec<(u64, NodeId)> = self
+            .iter()
+            .filter(|n| n.id != target && crate::query::searchable(self, n.id) && !self.is_ancestor_or_self(target, n.id))
+            .filter(|n| !n.name.contains(&token) && Graph::word_at(&self.text(n.id), name).is_some())
+            .map(|n| (n.created, n.id))
+            .collect();
+        out.sort();
+        out.into_iter().take(limit).map(|(_, id)| id).collect()
+    }
+
+    /// Turns the first unlinked mention of `target` in `node` into a link to it (UC-05.06).
+    pub fn link_mention(&mut self, node: NodeId, target: NodeId) -> Result<()> {
+        let target = self.resolve(target);
+        let name = self.text(target).trim().to_string();
+        let raw = self.name(node).to_string();
+        // Only plain text is matched: marks and links are left as they are.
+        let at = Graph::word_at(&raw, &name).ok_or_else(|| crate::Error::Invalid(format!("`{name}` is not named in this line")))?;
+        let chars: Vec<char> = raw.chars().collect();
+        let len = name.chars().count();
+        let next: String =
+            chars[..at].iter().copied().chain(crate::format::ref_token(target.0).chars()).chain(chars[at + len..].iter().copied()).collect();
+        self.set_name(node, &next)
+    }
+
     /// What related content `related` shows on `page`: a search runs for that page (its PARENT is
     /// the page, so "#meeting Attendees:PARENT" on #person lists each person's meetings, UC-03.05).
     pub fn related_items(&self, related: NodeId, page: NodeId) -> Vec<NodeId> {

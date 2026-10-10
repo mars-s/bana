@@ -38,10 +38,10 @@ Books, articles, quotes and concepts linked into a graph. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/views (Filter)
 - **TanaCraft:** WORKS.
 
-### UC-05.06 Unlinked mentions: MISSING
+### UC-05.06 Unlinked mentions: WORKS
 - **Story:** Find notes that name this concept without linking it, and link them in one click.
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (Reference section)
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. "Unlinked mentions" under a page lists lines naming it as a whole word; Link turns the name into a link (`node.unlinkedMentions`, `node.linkMention`).
 
 ### UC-05.07 Readwise sync: MISSING
 - **Story:** Highlights from Kindle and Reader arrive as tagged nodes.

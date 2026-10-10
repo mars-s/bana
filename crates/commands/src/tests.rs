@@ -890,6 +890,24 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn unlinked_mentions_are_found_and_linked() {
+    // UC-05.06.
+    let mut s = blank();
+    let concept = id(&run(&mut s, "node.add", json!({"name": "Compost"})), "id");
+    let a = id(&run(&mut s, "node.add", json!({"name": "Turn the compost on Sunday"})), "id");
+    let _b = id(&run(&mut s, "node.add", json!({"name": "Composting is not the word"})), "id");
+    let linked = id(&run(&mut s, "node.add", json!({"name": format!("See [[id:{}]]", concept.0)})), "id");
+    let _inside = id(&run(&mut s, "node.add", json!({"name": "compost notes", "parent": concept.0})), "id");
+    let r = run(&mut s, "node.unlinkedMentions", json!({"node": concept.0}));
+    let ids: Vec<u64> = r.as_array().unwrap().iter().map(|m| m["id"].as_u64().unwrap()).collect();
+    assert_eq!(ids, [a.0], "a whole word, not linked yet, not inside the node");
+    let _ = linked;
+    run(&mut s, "node.linkMention", json!({"node": a.0, "target": concept.0}));
+    assert_eq!(s.graph.name(a), format!("Turn the [[id:{}]] on Sunday", concept.0));
+    assert!(run(&mut s, "node.unlinkedMentions", json!({"node": concept.0})).as_array().unwrap().is_empty());
+}
+
+#[test]
 fn add_to_day_puts_a_reference_on_that_day() {
     // UC-01.12.
     let mut s = blank();

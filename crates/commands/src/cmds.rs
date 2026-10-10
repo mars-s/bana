@@ -209,6 +209,23 @@ pub fn registry() -> Registry {
             .params(r#"{"node"?: id}  (default: the selection or focused node)"#),
         C::new("node.moveMany", "Move several nodes", "Node", move_many)
             .params(r#"{"nodes": [id], "parent": id, "index"?: number}  (keeps their order)"#),
+        // UC-05.06: lines that name a node without linking it, and linking one.
+        C::new("node.unlinkedMentions", "Unlinked mentions", "Node", |s, v| {
+            let id = s.target(v)?;
+            Ok(Value::Array(
+                s.graph.unlinked_mentions(id, 50).into_iter().map(|m| json!({"id": m.0, "name": s.graph.text(m), "parent": s.graph.parent(m).map(|p| p.0)})).collect(),
+            ))
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
+        C::new("node.linkMention", "Link a mention", "Node", |s, v| {
+            let line = p::node(v, "node")?.ok_or_else(|| CmdError::Params("`node` is the line that names the target".into()))?;
+            let target = p::node(v, "target")?.ok_or_else(|| CmdError::Params("`target` is required".into()))?;
+            s.graph.node(target)?;
+            s.graph.link_mention(line, target)?;
+            Ok(json!({"node": line.0, "name": s.graph.name(line)}))
+        })
+        .params(r#"{"node": id, "target": id}  (the first plain mention of the target's name becomes a link)"#),
         // Remind me (UC-01.12): a reference to the node on that day's page.
         C::new("node.addToDay", "Add to day", "Node", |s, v| {
             let id = s.target(v)?;

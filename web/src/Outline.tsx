@@ -1515,6 +1515,38 @@ function WorkspacesButton({ panel }: { panel: string }) {
   )
 }
 
+/** Lines that name this page without linking it, found on demand; Link turns the name into a
+ * link (UC-05.06). */
+function UnlinkedMentions({ page, panel }: { page: Page; panel: string }) {
+  const [items, setItems] = useState<{ id: number; name: string }[] | null>(null)
+  const load = async () => {
+    const r = await call('run', { command: 'node.unlinkedMentions', params: { node: page.target }, panel })
+    setItems(Array.isArray(r?.result) ? r.result : [])
+  }
+  return (
+    <section className="references mentions">
+      <button className="references-head" onClick={() => (items ? setItems(null) : void load())}>
+        Unlinked mentions{items ? ` (${items.length})` : ''}
+        <Icon name={items ? 'chevronDown' : 'chevronRight'} size={12} />
+      </button>
+      {items?.length === 0 && <p className="muted">No other line names this page.</p>}
+      {items?.map((m) => (
+        <div key={m.id} className="reference-row">
+          <span className="bullet">
+            <span className="dot" />
+          </span>
+          <span className="reference-name" onClick={() => void exec('nav.open', { node: m.id }, panel)}>
+            {m.name}
+          </span>
+          <button className="btn" onClick={() => void exec('node.linkMention', { node: m.id, target: page.target }, panel).then(load)}>
+            Link
+          </button>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 /** The page's footer: where this node is referenced (spec 01 §3; 12: Tagged node page). */
 function References({ page, panel }: { page: Page; panel: string }) {
   const [open, setOpen] = useState(true)
@@ -1765,6 +1797,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
             </div>}
             {page.filteredOut > 0 && <p className="muted small">{page.filteredOut} items filtered out</p>}
             {page.references.length > 0 && <References page={page} panel={panel} />}
+            {page.titleEditable && page.kind === 'plain' && <UnlinkedMentions key={page.target} page={page} panel={panel} />}
           </div>
           {wide && (
             <aside className="page-side">

@@ -71,7 +71,20 @@ test('UC-05.05 a reading list table filtered to what is still unread', works('UC
   await expect(app.locator('.t-row', { hasText: 'Seed saving basics' })).toHaveCount(0)
 })
 
-missing('UC-05.06', 'unlinked mentions: find lines that name this page without linking it, and link them')
+test('UC-05.06 unlinked mentions: lines that name this page without linking it, linked in one click', works('UC-05.06'), async ({ app, server }) => {
+  const lib = (await server.rpc('sidebar')).workspaces[0].library
+  const concept = (await server.run('node.add', { name: 'Companion planting', parent: lib })).result.id
+  const line = (await server.run('node.add', { name: 'Try companion planting with basil', parent: lib })).result.id
+  await server.run('nav.open', { node: concept })
+  await app.locator('.mentions .references-head').click()
+  const row = app.locator('.mentions .reference-row', { hasText: 'Try companion planting with basil' })
+  await expect(row).toBeVisible()
+  await row.locator('.btn', { hasText: 'Link' }).click()
+  await expect.poll(async () => (await server.run('graph.inspect', { node: line })).result.name).toBe(`Try [[id:${concept}]] with basil`)
+  await expect(app.locator('.mentions .reference-row')).toHaveCount(0)
+  // It is a reference now.
+  await expect(app.locator('.references:not(.mentions) .reference-row')).toHaveCount(1)
+})
 missing('UC-05.07', 'Readwise sync of book and article highlights')
 missing('UC-05.08', 'attach a PDF or an image to a node and preview it')
 missing('UC-05.09', 'expand an inline reference in place (Shift+click) to read it without leaving the line')

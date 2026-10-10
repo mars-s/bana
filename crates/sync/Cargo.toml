@@ -24,3 +24,5 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 native-tls = "0.2"
 # The pairing QR code, drawn as SVG.
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+ureq = { version = "3", default-features = false, features = ["native-tls", "json"] }

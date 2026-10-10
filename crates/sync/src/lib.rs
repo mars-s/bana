@@ -13,6 +13,7 @@ pub mod client;
 pub mod code;
 pub mod config;
 pub mod crypto;
+pub mod id;
 pub mod net;
 pub mod proto;
 

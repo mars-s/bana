@@ -262,7 +262,24 @@ button:focus-visible {
 
 .sidebar.mini {
   width: var(--sidebar-mini-w);
-  padding: var(--q1-5) var(--q2);
+  padding: 5px var(--q2);
+}
+
+.sidebar.mini .side-actions {
+  margin: var(--q1) 0;
+  gap: var(--q1);
+}
+
+.sidebar.mini .side-row,
+.sidebar.mini .side-ws-head {
+  height: var(--icon-btn);
+  margin-bottom: var(--q1);
+  padding: 0;
+  justify-content: center;
+}
+
+.sidebar.mini .side-ws-items {
+  display: none;
 }
 
 .sidebar.mini .side-label,

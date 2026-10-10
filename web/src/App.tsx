@@ -116,6 +116,20 @@ function Sidebar() {
   if (!sb || mode === 2) return null
   const zoom = page?.zoom
   const shows = (k: string) => !sb.hidden.includes(k)
+  if (mode === 1) {
+    // The mini rail: one column of icon buttons (12: Mini rail).
+    return (
+      <aside className="sidebar mini">
+        <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
+        <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" onClick={() => void exec('nav.supertags')} />
+        <SideRow icon={<Icon name="search" size={14} />} label="Search and open" onClick={() => runUiCommand('ui.searchOpen')} />
+        <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />
+        <SideRow icon={<Icon name="compose" size={14} />} label="Create new" onClick={() => void exec('node.createNew')} />
+        <SideRow icon={<Icon name="pin" size={14} />} label="Pinned" onClick={() => setState({ sidebarMode: 0 })} />
+        <SideRow icon={<Icon name="home" size={14} />} label="Library" onClick={() => void exec('nav.home')} />
+      </aside>
+    )
+  }
   return (
     <aside className={`sidebar${mode === 1 ? ' mini' : ''}`} data-panel-for={active}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />

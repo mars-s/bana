@@ -94,3 +94,11 @@ test('page with a banner picture and an icon', async ({ app, server }) => {
   await app.mouse.move(0, 400)
   await app.screenshot(shot('banner'))
 })
+
+test('mini sidebar rail', async ({ app }) => {
+  await app.keyboard.press('Meta+Backslash')
+  await app.locator('.sidebar.mini').waitFor()
+  await app.waitForTimeout(300)
+  await app.mouse.move(700, 400)
+  await app.screenshot(shot('mini-rail'))
+})

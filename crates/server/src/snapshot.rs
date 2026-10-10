@@ -431,6 +431,8 @@ pub fn sidebar(s: &Session) -> Value {
         "todayDate": s.today.to_string(),
         "zoom": s.zoom.0,
         "pinned": pinned,
+        // Command nodes, listed by name in the command line (UC-06.33).
+        "commandNodes": g.command_nodes().into_iter().map(|c| json!({"id": c.0, "name": g.name(c)})).collect::<Vec<_>>(),
         "workspaces": workspaces,
         "journal": g.sys.journal.0,
         "schema": g.sys.schema.0,
@@ -800,6 +802,10 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "baseType": d.base_type,
             "baseTypes": tanacraft_core::BASE_TYPES,
             "titleExpr": d.title_expr,
+            // Commands on events (UC-02.20) and the command nodes to pick from.
+            "onAdded": d.on_added.first().map(|c| c.0),
+            "onDone": d.on_done.first().map(|c| c.0),
+            "commandNodes": g.command_nodes().into_iter().map(named).collect::<Vec<_>>(),
             "doneMap": d.done_map.as_ref().map(|m| json!({"field": named(m.field), "checked": m.checked, "unchecked": m.unchecked})),
             "colors": tanacraft_core::TAG_COLORS,
             "used": g.tagged(node).len(),

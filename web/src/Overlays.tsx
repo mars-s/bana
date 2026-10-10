@@ -63,6 +63,8 @@ function Palette() {
   const focusRow = page?.rows.items.find((r) => r.k === 'node' && r.id === focusId) as NodeRow | undefined
   const ctx = focusRow ? { row: focusRow, panel: activePanel } : null
   const [q, setQ] = useState('')
+  // Command nodes are listed by name and run on the line (UC-06.33).
+  const cmdNodes = useStore((s) => s.sidebar?.commandNodes) ?? []
   // With a line focused the box opens under that line (N63); else top right (spec 12).
   const [under] = useState(() => {
     const el = focusId == null ? null : document.querySelector(`[data-panel="${activePanel}"] [data-node="${focusId}"]`)
@@ -90,6 +92,9 @@ function Palette() {
   }
   const all: Entry[] = [
     ...steps,
+    ...cmdNodes.map((c) => ({ id: `cmdnode.${c.id}`, label: `Run ${c.name}`, shortcut: '', run: () => void exec('commandNode.run', { command: c.id, ...(ctx ? { node: ctx.row.target } : {}) }) })),
+    // On a line: run a command node on each new child of it (UC-02.20).
+    ...(ctx ? cmdNodes.map((c) => ({ id: `cmdchild.${c.id}`, label: `On new children run ${c.name}`, shortcut: '', run: () => void exec('commandNode.on', { command: c.id, event: 'child', node: ctx.row.target }) })) : []),
     ...UI_COMMANDS.map(([id, label, sc]) => ({ id, label, shortcut: sc, run: () => runUiCommand(id) })),
     ...commands.map((c) => ({ id: c.id, label: c.label, shortcut: c.shortcut, run: () => void exec(c.id, {}) })),
   ]

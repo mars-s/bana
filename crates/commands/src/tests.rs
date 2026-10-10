@@ -890,6 +890,40 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn command_nodes_run_on_events() {
+    // UC-02.20: tag added, checked, child added.
+    let mut s = blank();
+    run(&mut s, "commandNode.create", json!({"name": "Stamp", "steps": ["field.add {\"field\": \"Stamped\", \"value\": \"yes\"}"]}));
+    run(&mut s, "commandNode.create", json!({"name": "Make task", "steps": ["tag.add {\"tag\": \"task\"}"]}));
+    run(&mut s, "tag.create", json!({"name": "task"}));
+    run(&mut s, "commandNode.on", json!({"command": "Stamp", "event": "done", "tag": "task"}));
+    let inbox = id(&run(&mut s, "node.add", json!({"name": "Inbox"})), "id");
+    run(&mut s, "commandNode.on", json!({"command": "Make task", "event": "child", "node": inbox.0}));
+    // A child of the inbox becomes a task; checking it stamps the field.
+    let item = id(&run(&mut s, "node.add", json!({"name": "Call the plumber", "parent": inbox.0})), "id");
+    let task = s.graph.find_tag("task").unwrap();
+    assert_eq!(s.graph.get(item).unwrap().tags, [task]);
+    run(&mut s, "node.setDone", json!({"node": item.0, "done": true}));
+    assert_eq!(s.status, "", "the trigger ran");
+    let stamped = s.graph.find_field("Stamped").unwrap();
+    assert_eq!(s.graph.get(item).unwrap().field_values(stamped).len(), 1);
+    // One undo takes back the check and what it ran.
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.graph.get(item).unwrap().field_values(stamped).is_empty());
+    // Tag added.
+    run(&mut s, "commandNode.on", json!({"command": "Stamp", "event": "added", "tag": "task"}));
+    let other = id(&run(&mut s, "node.add", json!({"name": "Other"})), "id");
+    run(&mut s, "tag.add", json!({"node": other.0, "tag": "task"}));
+    assert_eq!(s.status, "", "the added trigger ran");
+    let stamped = s.graph.find_field("Stamped").unwrap();
+    assert_eq!(s.graph.get(other).unwrap().field_values(stamped).len(), 1);
+    // Turned off, nothing runs.
+    run(&mut s, "commandNode.on", json!({"command": "Make task", "event": "child", "node": inbox.0, "off": true}));
+    let plain = id(&run(&mut s, "node.add", json!({"name": "plain", "parent": inbox.0})), "id");
+    assert!(s.graph.get(plain).unwrap().tags.is_empty());
+}
+
+#[test]
 fn roam_json_and_notion_or_logseq_folders_import_as_pages() {
     // UC-08.10.
     let mut s = blank();

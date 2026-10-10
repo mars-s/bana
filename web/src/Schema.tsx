@@ -265,6 +265,26 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
           <input type="color" aria-label="Custom colour" value={/^#/.test(d.color ?? '') ? d.color : '#888888'} onChange={(e) => run('tag.setColor', { color: e.target.value })} />
         </label>
       </div>
+      {/* Commands on events (UC-02.20): a command node runs when the tag is added or a tagged
+          node is checked. */}
+      <Section icon="check" title="Commands on events" help="A command node runs on the node when this happens.">
+        {(['added', 'done'] as const).map((ev) => {
+          const current = ev === 'added' ? d.onAdded : d.onDone
+          return (
+            <Row key={ev} label={ev === 'added' ? 'When the tag is added' : 'When checked done'}>
+              <Select
+                label={ev === 'added' ? 'When the tag is added' : 'When checked done'}
+                value={current == null ? '' : String(current)}
+                options={[['', 'Nothing'], ...d.commandNodes.map((c: Json) => [String(c.id), c.name] as [string, string])]}
+                onChange={(v) => {
+                  if (current != null) void exec('commandNode.on', { command: current, event: ev, tag, off: true }, panel)
+                  if (v) void exec('commandNode.on', { command: Number(v), event: ev, tag }, panel)
+                }}
+              />
+            </Row>
+          )
+        })}
+      </Section>
       <Section icon="blocks" title="Building blocks" help="What this supertag is and builds on.">
         <Row label="Base type" help="A built-in meaning (task, meeting, person…).">
           <Select label="Base type" value={d.baseType ?? ''} options={[['', 'None'], ...d.baseTypes.map((b: string) => [b, b[0].toUpperCase() + b.slice(1)] as [string, string])]} onChange={(base) => run('tag.setBaseType', { base: base || null })} />

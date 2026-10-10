@@ -18,7 +18,7 @@ pub mod store;
 pub mod view;
 
 pub use date::Date;
-pub use graph::{Graph, Settings, SystemNodes};
+pub use graph::{Graph, GraphEvent, Settings, SystemNodes};
 pub use model::*;
 pub use query::Query;
 pub use view::{GroupBy, Sort, SortBy, SystemField, ViewDef, ViewKind};

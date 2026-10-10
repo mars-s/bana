@@ -426,6 +426,7 @@ export interface Sidebar {
   warnReferenced: boolean
   urlEmbeds: boolean
   recents: { id: number; name: string; kind: string }[]
+  commandNodes?: { id: number; name: string }[]
 }
 
 export interface CommandInfo {

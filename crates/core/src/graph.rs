@@ -122,6 +122,19 @@ pub struct Graph {
     store: crate::store::Store,
     /// Nodes changed (or gone) since the store was last written.
     changed: BTreeSet<NodeId>,
+    /// What happened during the current command, for commands that run on events (UC-02.20).
+    events: Vec<GraphEvent>,
+}
+
+/// Something a command node can run on (UC-02.20).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GraphEvent {
+    /// `tag` was added to `node`.
+    Tagged { node: NodeId, tag: NodeId },
+    /// `node` was checked done.
+    Checked { node: NodeId },
+    /// `child` came under `parent` (made there or moved there).
+    ChildAdded { parent: NodeId, child: NodeId },
 }
 
 impl Default for Graph {
@@ -155,6 +168,7 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
+            events: Vec::new(),
         };
         let mut root = Node::new(ids.root, "Workspace", None);
         root.children = vec![ids.library, ids.journal, ids.schema, ids.trash];
@@ -913,7 +927,57 @@ impl Graph {
         let at = index.unwrap_or(p.children.len()).min(p.children.len());
         p.children.insert(at, id);
         self.node_mut(id)?.parent = Some(parent);
+        self.events.push(GraphEvent::ChildAdded { parent, child: id });
         Ok(())
+    }
+
+    /// Command nodes to run on `ev`'s node, with that node (UC-02.20).
+    pub fn triggers(&self, ev: GraphEvent) -> Vec<(NodeId, NodeId)> {
+        let live = |c: &NodeId| self.get(*c).is_some_and(|n| n.kind == Kind::Command) && !self.in_trash(*c);
+        match ev {
+            GraphEvent::Tagged { node, tag } => {
+                self.tag_def(tag).map(|d| d.on_added.iter().filter(|c| live(c)).map(|c| (*c, node)).collect()).unwrap_or_default()
+            }
+            GraphEvent::Checked { node } => self
+                .get(node)
+                .map(|n| {
+                    n.tags
+                        .iter()
+                        .flat_map(|t| self.tag_lineage(*t))
+                        .flat_map(|t| self.tag_def(t).map(|d| d.on_done.clone()).unwrap_or_default())
+                        .filter(|c| live(c))
+                        .map(|c| (c, node))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            GraphEvent::ChildAdded { parent, child } => {
+                self.get(parent).map(|n| n.on_child.iter().filter(|c| live(c)).map(|c| (*c, child)).collect()).unwrap_or_default()
+            }
+        }
+    }
+
+    /// Adds or removes command node `command` on an event: `added` or `done` on supertag `on`, or
+    /// `child` on node `on` (UC-02.20).
+    pub fn set_trigger(&mut self, on: NodeId, event: &str, command: NodeId, add: bool) -> Result<()> {
+        if self.node(command)?.kind != Kind::Command {
+            return Err(Error::Invalid(format!("node {command} is not a command node")));
+        }
+        let list = match event {
+            "added" => &mut self.tag_def_mut(on)?.on_added,
+            "done" => &mut self.tag_def_mut(on)?.on_done,
+            "child" => &mut self.node_mut(on)?.on_child,
+            other => return Err(Error::Invalid(format!("unknown event `{other}`: added, done or child"))),
+        };
+        list.retain(|c| *c != command);
+        if add {
+            list.push(command);
+        }
+        Ok(())
+    }
+
+    /// Takes what happened since the last call (UC-02.20).
+    pub fn take_events(&mut self) -> Vec<GraphEvent> {
+        std::mem::take(&mut self.events)
     }
 
     fn detach(&mut self, id: NodeId) -> Result<usize> {
@@ -1025,7 +1089,11 @@ impl Graph {
     /// `Some(done)` shows a checkbox, `None` hides it.
     pub fn set_done(&mut self, id: NodeId, done: Option<bool>) -> Result<()> {
         let target = self.resolve(id);
+        let was = self.checkbox(target);
         self.write_done(target, done)?;
+        if done == Some(true) && was != Some(true) {
+            self.events.push(GraphEvent::Checked { node: target });
+        }
         // Done-state mapping: checking sets the mapped field (spec 03 §5).
         for m in self.done_maps(target) {
             let value = match done {
@@ -1559,6 +1627,7 @@ impl Graph {
             return Ok(());
         }
         self.node_mut(node)?.tags.push(tag);
+        self.events.push(GraphEvent::Tagged { node, tag });
         let fields = self.template_fields(tag);
         let had: Vec<NodeId> = self.node(node)?.fields.iter().map(|f| f.field).collect();
         self.ensure_fields(node, &fields)?;
@@ -2203,6 +2272,7 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
+            events: Vec::new(),
         };
         g.rehome_unreachable();
         g.changed = g.nodes.keys().copied().collect();

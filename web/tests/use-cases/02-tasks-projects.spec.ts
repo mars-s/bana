@@ -220,4 +220,24 @@ test('UC-02.04 a pinned project shows its progress ring in the sidebar', works('
   await expect(ring).toHaveAttribute('aria-label', '1 of 2 done')
 })
 missing('UC-02.19', 'Cmd+Shift+M opens Move to from the keyboard')
-missing('UC-02.20', 'commands that fire on events (on tag added, on checked, on child added)')
+test('UC-02.20 commands on events: checking a task stamps a field; new children of an Inbox become tasks', works('UC-02.20'), async ({ app, server }) => {
+  await server.run('commandNode.create', { name: 'Stamp done', steps: ['field.add {"field": "Finished", "value": "yes"}'] })
+  await server.run('commandNode.create', { name: 'Make task', steps: ['tag.add {"tag": "task"}'] })
+  const { ids } = await pageWith(server, app, ['Inbox'])
+  // On new children: from the command line on the Inbox line.
+  await focus(server, app, ids[0], 0)
+  await palette(app, 'On new children run Make task')
+  await expect.poll(async () => (await tree(server, ids[0])).onChild).toEqual(['Make task'])
+  const item = (await server.run('node.add', { name: 'Call the plumber', parent: ids[0] })).result.id
+  await expect.poll(async () => (await tree(server, item)).tags).toEqual(['task'])
+  // When checked: Configure supertag, Commands on events.
+  const task = (await server.run('graph.tags')).result.find((t: any) => t.name === 'task').id
+  await server.run('nav.open', { node: task })
+  await app.locator('.head-actions .btn[title="Options"]').click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await app.locator('.cfg-card-head', { hasText: 'Commands on events' }).click()
+  await app.locator('select[aria-label="When checked done"]').selectOption({ label: 'Stamp done' })
+  await expect.poll(async () => (await server.rpc('schema', { node: task })).onDone).toBeTruthy()
+  await server.run('node.setDone', { node: item, done: true })
+  await expect.poll(async () => (await tree(server, item)).fields?.Finished).toBeTruthy()
+})

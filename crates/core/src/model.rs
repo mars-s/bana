@@ -110,6 +110,12 @@ pub struct TagDef {
     /// Template fields marked pinned (offered first in view menus, spec 03 §9).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pinned_fields: Vec<NodeId>,
+    /// Command nodes run on a node when it gets this supertag (UC-02.20).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_added: Vec<NodeId>,
+    /// Command nodes run on a tagged node when it is checked done (UC-02.20).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_done: Vec<NodeId>,
     /// Builds tagged nodes' titles from fields: `${name}` then text and `${Field}` placeholders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title_expr: Option<String>,
@@ -475,6 +481,9 @@ pub struct Node {
     /// Shown as a heading (bigger, bold).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub heading: bool,
+    /// Command nodes run on each new child of this node (UC-02.20).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_child: Vec<NodeId>,
     /// Page decorations: an icon (a short text, usually one emoji) and a banner colour.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
@@ -523,6 +532,7 @@ impl Node {
             trashed_from: None,
             view: None,
             heading: false,
+            on_child: Vec::new(),
             icon: None,
             banner: None,
             pinned: false,

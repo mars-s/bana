@@ -181,6 +181,24 @@ pub fn registry() -> Registry {
             Ok(json!({"id": id.0}))
         })
         .params(r#"{"name": string, "steps"?: [string]}  (each step: `command.id {json params}`; `node` is filled in when run)"#),
+        // Commands on events (UC-02.20): when a supertag is added, a tagged node is checked, or a
+        // child comes under a node.
+        C::new("commandNode.on", "Run a command node on an event", "Command", |s, v| {
+            let cmd = command_node_param(s, v)?;
+            let event = p::req_str(v, "event")?;
+            let on = match event {
+                "added" | "done" => tag_param(s, v, "tag", false)?,
+                _ => s.target(v)?,
+            };
+            let add = v.get("off").and_then(Value::as_bool) != Some(true);
+            s.graph.set_trigger(on, event, cmd, add)?;
+            Ok(json!({"on": on.0, "event": event, "command": cmd.0, "active": add}))
+        })
+        .params(r#"{"command": name | id, "event": "added" | "done" | "child", "tag"?: name | id, "node"?: id, "off"?: bool}  (added, done: on a supertag; child: on a node)"#),
+        C::new("commandNode.list", "Command nodes", "Command", |s, _| {
+            Ok(Value::Array(s.graph.command_nodes().into_iter().map(|c| json!({"id": c.0, "name": s.graph.name(c)})).collect()))
+        })
+        .pure(),
         C::new("commandNode.run", "Run command node", "Command", run_command_node)
             .params(r#"{"command": name | id, "node"?: id}  (runs its steps in order on the node, as one undo step)"#),
         C::new("node.contextNote", "Notes for this context", "Node", |s, v| {
@@ -2018,14 +2036,19 @@ fn settings_json(s: &Session) -> CmdResult {
 /// Runs a command node's steps on a node. Each step is `id {params}`; the node goes in as `node`
 /// unless the step names one. Steps run directly (not through `Session::run`), so the whole run is
 /// one transaction: a failing step rolls everything back.
-fn run_command_node(s: &mut Session, v: &Value) -> CmdResult {
-    let cmd = match v.get("command") {
+/// `command`: a command node by name or id.
+fn command_node_param(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
+    match v.get("command") {
         Some(Value::String(n)) => s.graph.command_nodes().into_iter().find(|c| s.graph.name(*c) == n).or_else(|| n.parse::<NodeId>().ok()),
         Some(Value::Number(n)) => n.as_u64().map(NodeId),
         _ => None,
     }
     .filter(|c| s.graph.get(*c).is_some_and(|n| n.kind == tanacraft_core::Kind::Command))
-    .ok_or_else(|| CmdError::Params("`command`: the name or id of a command node".into()))?;
+    .ok_or_else(|| CmdError::Params("`command`: the name or id of a command node".into()))
+}
+
+pub(crate) fn run_command_node(s: &mut Session, v: &Value) -> CmdResult {
+    let cmd = command_node_param(s, v)?;
     let target = s.target(v)?;
     let steps: Vec<String> = s.graph.children(cmd).iter().map(|c| s.graph.name(*c).to_string()).collect();
     let registry = s.registry.clone();

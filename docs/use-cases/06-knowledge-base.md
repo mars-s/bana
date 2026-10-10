@@ -52,7 +52,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.32 | Light or dark. | Switch theme. | The theme changes. | WORKS | account-settings |
 | UC-06.34 | Merge duplicates. | Node menu Merge into…; Configure supertag or a field page, Merge into…. | Children, tags, values and every reference move to the kept one; the other goes to the trash. | WORKS | nodes-and-references (Merging duplicate nodes) |
 | UC-06.43 | Rolling periods in searches. | `Due:"this week"`, `Due:"NEXT 14 DAYS"`, `LAST 7 DAYS`, next or last week or month, this year. | Results follow today. | WORKS (no FOR RELATIVE DATE; on day pages PARENT is the day, UC-01.15) | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
-| UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: runs through the engine, CLI and MCP; not listed by name in the web command line; no buttons on tags or fields, no node filter | command-nodes |
+| UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: listed by name in the command line ("Run …") and run on events (UC-02.20); no buttons on tags or fields, no node filter | command-nodes |
 
 ## Gaps (MISSING)
 

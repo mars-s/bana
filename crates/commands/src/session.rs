@@ -109,8 +109,20 @@ impl Session {
         // later undo would cut the new day out of its week.
         self.graph.begin();
         let left = self.focus;
+        self.graph.take_events();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (spec.run)(self, params)))
             .unwrap_or_else(|_| Err(CmdError::Failed(format!("`{id}` crashed; nothing was changed"))));
+        // Commands that run on events (UC-02.20), in the same undo step; they start no others.
+        if result.is_ok() && spec.mutates {
+            for ev in self.graph.take_events() {
+                for (cmd, node) in self.graph.triggers(ev) {
+                    if let Err(e) = crate::cmds::run_command_node(self, &serde_json::json!({"command": cmd.0, "node": node.0})) {
+                        self.status = format!("{}: {e}", self.graph.name(cmd));
+                    }
+                }
+            }
+            self.graph.take_events();
+        }
         // The line the caret left keeps no empty format marks (DIFFS N19).
         if let Some(l) = left.filter(|l| result.is_ok() && self.focus != Some(*l)) {
             let name = self.graph.name(l);

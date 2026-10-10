@@ -290,6 +290,10 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
     if let Some(d) = n.done {
         v["done"] = json!(d);
     }
+    // Command nodes run on its new children (UC-02.20).
+    if !n.on_child.is_empty() {
+        v["onChild"] = json!(n.on_child.iter().map(|c| g.name(*c)).collect::<Vec<_>>());
+    }
     match &n.kind {
         Kind::Day { date } => v["date"] = json!(date.to_string()),
         Kind::Tag(_) => v["kind"] = json!("supertag"),

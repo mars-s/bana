@@ -328,14 +328,14 @@ test('UC-06.32 switch light and dark theme', works('UC-06.32'), async ({ app }) 
   await expect.poll(() => app.evaluate(() => document.documentElement.dataset.theme ?? '')).not.toBe(before)
 })
 
-test('UC-06.33 custom commands: a saved list of steps run on a node (engine, CLI and MCP only)', partial('UC-06.33'), async ({ app, server }) => {
+test('UC-06.33 custom commands: a saved list of steps, run by name from the command line', partial('UC-06.33'), async ({ app, server }) => {
   await server.run('commandNode.create', { name: 'Make task', steps: ['tag.add {"tag": "task"}', 'node.toggleDone'] })
   const { ids } = await pageWith(server, app, ['Clean the gutters'])
-  await server.run('commandNode.run', { command: 'Make task', node: ids[0] })
+  await focus(server, app, ids[0], 0)
+  await palette(app, 'Run Make task')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toContainText('task')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .checkbox`)).toBeVisible()
-  // Gap: the web command line does not list command nodes by name; no buttons on supertags or
-  // fields; no node filter or context parameters.
+  // Gap: no buttons on supertags or fields; no node filter or context parameters.
 })
 
 // Gaps

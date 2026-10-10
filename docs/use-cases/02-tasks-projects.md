@@ -132,7 +132,7 @@ calendars. Scenarios: `web/tests/use-cases/02-tasks-projects.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/outline-editor
 - **TanaCraft:** MISSING (the menu works from the toolbar and the command line step).
 
-### UC-02.20 Commands on events: MISSING
+### UC-02.20 Commands on events: WORKS
 - **Story:** When a task is checked, stamp a field; when a child is added to my Inbox, tag it.
 - **Source:** https://outliner.tana.inc/learn/features/supertags (Trigger commands on events), https://outliner.tana.inc/learn/features/nodes-and-references (On child added/removed)
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. A command node runs when a supertag is added or a tagged node is checked (Configure supertag, Commands on events) or when a child comes under a node (command line on the line: "On new children run …"); `commandNode.on`. It runs in the same undo step and starts no further events. Not built: on child removed, on field changed.

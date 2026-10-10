@@ -10,6 +10,7 @@ commands:
   ci      fmt --check, clippy -D warnings, test (stops at the first failure)
   web     build the web UI and run its Playwright tests (needs pnpm)
   shots   web UI screenshots (Playwright) into docs/images/web/
+  connector  the remote MCP connector's tests (cloudflare/: npm ci, typecheck, Worker + end to end)
   parity  check that docs/parity.md maps every spec file and section; print status counts
 ";
 
@@ -20,6 +21,10 @@ fn main() -> ExitCode {
         Some("shots") => web_prep().and_then(|_| pnpm(&["run", "shots"])),
         Some("web") => web_prep().and_then(|_| pnpm(&["exec", "playwright", "test", "--project=tests"])),
         Some("parity") => parity(),
+        Some("connector") => cargo(&["build", "-p", "tanacraft-cli"])
+            .and_then(|_| npm(&["ci", "--no-audit", "--no-fund"]))
+            .and_then(|_| npm(&["run", "typecheck"]))
+            .and_then(|_| npm(&["test"])),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -66,6 +71,13 @@ fn pnpm(args: &[&str]) -> Result<(), String> {
     let what = format!("pnpm {}", args.join(" "));
     eprintln!("$ {what} (in web/)");
     let status = Command::new("pnpm").args(args).current_dir(root().join("web")).status().map_err(|e| format!("{what}: {e}"))?;
+    if status.success() { Ok(()) } else { Err(format!("{what}: exited with {status}")) }
+}
+
+fn npm(args: &[&str]) -> Result<(), String> {
+    let what = format!("npm {}", args.join(" "));
+    eprintln!("$ {what} (in cloudflare/)");
+    let status = Command::new("npm").args(args).current_dir(root().join("cloudflare")).status().map_err(|e| format!("{what}: {e}"))?;
     if status.success() { Ok(()) } else { Err(format!("{what}: exited with {status}")) }
 }
 

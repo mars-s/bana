@@ -48,7 +48,8 @@ data. Every keystroke reaches the engine at once; the engine autosaves within a 
 ## Quality gates
 
 Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and, for UI changes,
-`cargo xtask web` (typecheck, build, Playwright). Commit after each piece that builds. No em dashes in any text (code comments, docs, commit messages).
+`cargo xtask web` (typecheck, build, Playwright); for MCP or `cloudflare/` changes,
+`cargo xtask connector`. Commit after each piece that builds. No em dashes in any text (code comments, docs, commit messages).
 
 ## Looking at the app
 
@@ -57,5 +58,7 @@ Before every commit: `cargo xtask ci` (fmt check, clippy -D warnings, tests) and
   http://127.0.0.1:8787/ (or `pnpm --dir web dev` on :5173, which proxies to the server).
 - `cargo xtask shots` writes Playwright screenshots to `docs/images/web/`. For UI work, **look at the
   PNG** next to the spec screenshot before committing (see `.claude/skills/tanacraft-ui`).
-- `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.tanacraft`.
+- `cargo run -p tanacraft-cli -- --help`; MCP: `cargo run -p tanacraft-mcp -- --file graph.tanacraft`
+  (works on the running app when one has the file open). Remote connector: `docs/mcp.md`; never
+  deploy it or create cloud resources yourself, the user runs `cloudflare/wizard.sh`.
 - Parallel agents: use a separate `CARGO_TARGET_DIR`; keep builds to a few jobs (`.cargo/config.toml`).

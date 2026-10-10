@@ -67,6 +67,9 @@ pub struct Session {
     pub config_view: bool,
     /// Last status line (result or error of the last command).
     pub status: String,
+    /// Where the engine's web UI answers (`http://127.0.0.1:PORT/`), once it serves one: node
+    /// links point there (UC-07.10).
+    pub web_url: Option<String>,
     command_count: u64,
 }
 
@@ -96,6 +99,7 @@ impl Session {
             move_target: None,
             config_view: false,
             status: String::new(),
+            web_url: None,
             command_count: 0,
         }
     }

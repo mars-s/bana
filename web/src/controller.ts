@@ -542,6 +542,16 @@ export async function copySelection(panel: string, params: Json = {}) {
   }
 }
 
+/** Copy node link (UC-07.10): a link that opens the node in the engine's web UI from any app. */
+export async function copyNodeLink(node: number, panel: string) {
+  const r = await call('run', { command: 'node.link', params: { node }, panel })
+  const text: string = r?.result?.url ?? r?.result?.token ?? `[[id:${node}]]`
+  await navigator.clipboard?.writeText(text).then(
+    () => showToast('Node link copied'),
+    () => showToast('Could not reach the clipboard'),
+  )
+}
+
 /** Text pasted into a line: copied nodes come back as references; several lines become nodes. */
 export function pasteInto(panel: string, node: number, lineText: string, text: string): boolean {
   if (lastCopy && text.trim() === lastCopy.text.trim()) {

@@ -54,6 +54,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.44 | Content width per page. | The panel's width button: Medium or Full width. | The page uses the column or the whole panel; kept per page. | WORKS | views (Content widths) |
 | UC-06.43 | Rolling periods in searches. | `Due:"this week"`, `Due:"NEXT 14 DAYS"`, `LAST 7 DAYS`, next or last week or month, this year. | Results follow today. | WORKS (no FOR RELATIVE DATE; on day pages PARENT is the day, UC-01.15) | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
 | UC-06.36 | How long is this page? | Command line, Count words. | Words, characters and nodes of the page, or of the selected lines. | WORKS (`node.count`; names only, not field values) | outline-editor; changelog 2026 wk 37-39 |
+| UC-06.37 | A reference that reads well in my sentence. | Right-click an inline reference: Alias, or Turn into text. | The reference shows my words (`[[id:N\|alias]]`) and still points at the node; or it becomes plain text. | WORKS (`node.refAlias`, `node.unlinkRef`; exports write `[[Name\|alias]]`) | nodes-and-references (Alias, Remove an inline reference) |
 | UC-06.41 | Find text by pattern. | A search with `/pattern/` or `/pattern/i`. | Nodes whose text matches. | WORKS (spaces allowed inside the slashes; a broken pattern is refused) | search-nodes (regular expressions) |
 | UC-06.42 | Look for something inside one page. | Search and open, pick a result, Tab, type. | Only results under that node; Backspace searches everywhere again. | WORKS | sidebar (Global Search) |
 | UC-06.45 | Cross something out. | Select, Cmd+Shift+X. | `~~text~~`, drawn struck through; exports as `<s>`. | WORKS (spec-gap: the key is ours) | nodes-and-references (Formatting text) |
@@ -64,7 +65,6 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | ID | Story | Source |
 |---|---|---|
 | UC-06.35 | Lock a node so it cannot be edited. | nodes-and-references (Lock nodes) |
-| UC-06.37 | Give an inline reference an alias, or turn it back into text. | nodes-and-references (Alias, Remove an inline reference) |
 | UC-06.38 | Type `:` and a word to pick an emoji. | nodes-and-references (Add emojis) |
 | UC-06.39 | Code blocks with a language; Mermaid diagrams. | copy-paste-and-export; changelog 2026 wk 21-22 |
 | UC-06.40 | A Part of tree searched with COMPONENTS REC. | fields (Part of) |

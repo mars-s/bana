@@ -65,9 +65,10 @@ Scenarios: `web/tests/use-cases/08-capture-import.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/tana-paste
 - **TanaCraft:** WORKS. Pasting text that starts with `%%tana%%` (or `import.tanaPaste`, or importing such a file) makes the nodes: `#tag`, `#[[two words]]`, `Field:: value`, `[[Field]]::` with value bullets, `[[Name]]` links, `[[date:...]]` (single, range), `[ ]` and `[x]`, `!!` headings, `%%search%%` with the query below and `%%view:...%%`. Not read: Tana node ids, images, tables.
 
-### UC-08.12 Paste spreadsheet cells as a table: MISSING
+### UC-08.12 Paste spreadsheet cells as a table: WORKS
+- **Story:** I copy rows from a spreadsheet and get one node per row, the columns as fields.
 - **Source:** https://outliner.tana.inc/learn/features/copy-paste-and-export (Pasting from Google Sheets)
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. Tab-separated lines with a header row: the first column names the nodes, the others become fields (new ones are made); View as Table shows them as columns. Values are plain text.
 
 ### UC-08.13 Whole-workspace Markdown ZIP: MISSING
 - **Story:** Export everything as folders of Markdown (outline, by supertag, or a vault for Obsidian).

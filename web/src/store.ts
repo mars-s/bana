@@ -105,6 +105,9 @@ export interface State {
   fieldSel: { panel: string; owner: number; field: number; name: string; checkbox: boolean } | null
   /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
   nodeMenu: { panel: string; node: number; x: number; y: number; alignRight?: boolean } | null
+  /** The menu of an inline reference (right-click it, UC-06.37): the line, the node it points at
+   * and which of the line's references to that node it is. */
+  refMenu: { panel: string; line: number; ref: number; index: number; alias: string; x: number; y: number } | null
   /** Panels showing a supertag's configuration instead of its items. */
   configure: Record<string, boolean>
   /** Panels whose search query builder is open. */
@@ -158,6 +161,7 @@ let state: State = {
   fieldEdit: null,
   fieldSel: null,
   nodeMenu: null,
+  refMenu: null,
   special: {},
   queryOpen: {},
   configure: {},

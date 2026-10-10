@@ -107,6 +107,10 @@ pub fn serve(shared: Arc<Shared>, port: u16, web: PathBuf) -> Result<(), String>
 
 /// [`serve`] on a listener already bound (after [`announce`]).
 pub fn serve_on(shared: Arc<Shared>, listener: TcpListener, web: PathBuf) -> Result<(), String> {
+    // Node links open here (UC-07.10).
+    if let (Ok(addr), Ok(mut h)) = (listener.local_addr(), shared.host.lock()) {
+        h.session.web_url = Some(format!("http://127.0.0.1:{}/", addr.port()));
+    }
     for stream in listener.incoming().flatten() {
         let shared = Arc::clone(&shared);
         let web = web.clone();

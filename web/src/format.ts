@@ -11,6 +11,8 @@ export interface Span {
   strike?: boolean
   code?: boolean
   node?: number
+  /** An inline reference's own text (UC-06.37). */
+  alias?: string
   url?: string
   /** A mark or reference token itself (shown faint while editing, hidden otherwise). */
   marker?: boolean
@@ -41,10 +43,14 @@ export function rawSpans(s: string): Span[] {
   while (i < s.length) {
     if (!cur.code && s.startsWith('[[id:', i)) {
       const end = s.indexOf(']]', i + 5)
-      const id = end > 0 ? Number(s.slice(i + 5, end)) : NaN
-      if (end > 0 && /^\d+$/.test(s.slice(i + 5, end)) && Number.isFinite(id)) {
+      // `[[id:42]]` or `[[id:42|alias]]` (UC-06.37).
+      const inner = end > 0 ? s.slice(i + 5, end) : ''
+      const bar = inner.indexOf('|')
+      const idText = bar >= 0 ? inner.slice(0, bar) : inner
+      const id = Number(idText)
+      if (end > 0 && /^\d+$/.test(idText) && Number.isFinite(id)) {
         flush()
-        out.push({ text: '', node: id, at: i })
+        out.push({ text: '', node: id, at: i, ...(bar >= 0 ? { alias: inner.slice(bar + 1) } : {}) })
         out.push({ text: s.slice(i, end + 2), node: id, marker: true, at: i })
         i = end + 2
         cur.at = i

@@ -793,6 +793,30 @@ pub fn registry() -> Registry {
         .params(r#"{"shortcut": "Mod+Shift+H", "command"?: string}  (no command removes the binding)"#)
         .pure(),
         // What copying nodes puts on the clipboard: formatted HTML plus plain text (spec 02 §12).
+        // UC-06.37: an inline reference shown with its own text, or turned back into plain text.
+        C::new("node.refAlias", "Give an inline reference an alias", "Node", |s, v| {
+            let alias = p::str(v, "alias").unwrap_or("").to_string();
+            edit_inline_ref(s, v, |id, _| tanacraft_core::format::ref_alias_token(id, Some(&alias)))
+        })
+        .params(r#"{"node"?: id, "ref": id, "index"?: number, "alias": string}  (index: which reference to that node in the line, from 0; an empty alias shows the name again)"#),
+        C::new("node.unlinkRef", "Turn an inline reference into text", "Node", |s, v| {
+            let names: std::collections::HashMap<u64, String> =
+                tanacraft_core::format::refs(s.graph.name(s.target(v)?)).into_iter().map(|r| (r, s.graph.text(NodeId(r)))).collect();
+            edit_inline_ref(s, v, |id, alias| alias.map(str::to_string).unwrap_or_else(|| names.get(&id).cloned().unwrap_or_default()))
+        })
+        .params(r#"{"node"?: id, "ref": id, "index"?: number}"#),
+        // UC-07.10: a link that opens the node from another app (a calendar invite, a chat): the
+        // engine's web UI at that node. Without a web UI, the inline reference token.
+        C::new("node.link", "Copy node link", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let token = format!("[[id:{}]]", id.0);
+            Ok(match &s.web_url {
+                Some(base) => json!({"url": format!("{base}?node={}", id.0), "token": token}),
+                None => json!({"url": null, "token": token}),
+            })
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
         // UC-06.36: words, characters and nodes of the open page (below its title) or of the
         // selected lines with what is under them. `message` is shown to the person.
         C::new("node.count", "Count words, characters and nodes", "Node", count)
@@ -809,6 +833,30 @@ pub fn registry() -> Registry {
 }
 
 // ---- helpers ------------------------------------------------------------------------------------
+
+/// Rewrites the `index`th inline reference to `ref` in a line with `f(node, alias)` (UC-06.37).
+fn edit_inline_ref(s: &mut Session, v: &Value, mut f: impl FnMut(u64, Option<&str>) -> String) -> CmdResult {
+    let id = s.graph.resolve(s.target(v)?);
+    let target = p::node(v, "ref")?.ok_or_else(|| CmdError::Params("`ref`: the node the inline reference points at".into()))?;
+    let want = p::usize(v, "index").unwrap_or(0);
+    let mut seen = 0;
+    let mut done = false;
+    let next = tanacraft_core::format::map_refs(s.graph.name(id), |r, a| {
+        if r == target.0 && !done && seen == want {
+            done = true;
+            return f(r, a);
+        }
+        if r == target.0 {
+            seen += 1;
+        }
+        tanacraft_core::format::ref_alias_token(r, a)
+    });
+    if !done {
+        return Err(CmdError::Failed(format!("no inline reference to {target} in this line")));
+    }
+    s.graph.set_name(id, &next)?;
+    Ok(json!({"node": id.0, "name": next}))
+}
 
 fn count(s: &mut Session, v: &Value) -> CmdResult {
     let g = &s.graph;
@@ -1541,6 +1589,11 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let parent = s.graph.parent(id).ok_or_else(|| CmdError::Failed("no parent".into()))?;
     let mut at = s.graph.index_in_parent(id).unwrap_or(0);
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(10_000).collect();
+    // Cells copied from a spreadsheet (UC-08.12): a header row, then one node per row with the other
+    // columns as its fields.
+    if lines.len() >= 2 && lines.iter().all(|l| l.contains('\t')) {
+        return paste_table(s, id, parent, at, &lines);
+    }
     let bulleted = lines.iter().any(|l| {
         let t = l.trim_start();
         t.starts_with("- ") || t.starts_with("* ")
@@ -1574,6 +1627,41 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     }
     s.set_focus(last, usize::MAX);
     Ok(json!({"last": last.0}))
+}
+
+fn paste_table(s: &mut Session, id: NodeId, parent: NodeId, mut at: usize, lines: &[&str]) -> CmdResult {
+    let cells = |l: &str| l.split('\t').map(str::trim).map(str::to_string).collect::<Vec<_>>();
+    let head = cells(lines[0]);
+    let mut fields = Vec::new();
+    for name in head.iter().skip(1).take(100) {
+        fields.push(match name.as_str() {
+            "" => None,
+            n => Some(match s.graph.find_field(n) {
+                Some(f) => f,
+                None => s.graph.create_field(n, FieldType::Plain)?,
+            }),
+        });
+    }
+    let mut last = id;
+    for (i, row) in lines[1..].iter().enumerate() {
+        let row = cells(row);
+        let name = row.first().map(String::as_str).unwrap_or("");
+        let node = if i == 0 && s.graph.name(id).is_empty() && s.graph.children(id).is_empty() {
+            s.graph.set_name(id, name)?;
+            id
+        } else {
+            at += 1;
+            s.graph.create(parent, Some(at), name)?
+        };
+        for (f, value) in fields.iter().zip(row.iter().skip(1)) {
+            if let (Some(f), false) = (f, value.is_empty()) {
+                s.graph.set_field_text(node, *f, value)?;
+            }
+        }
+        last = node;
+    }
+    s.set_focus(last, usize::MAX);
+    Ok(json!({"last": last.0, "rows": lines.len() - 1}))
 }
 
 fn toggle_heading(s: &mut Session, v: &Value) -> CmdResult {

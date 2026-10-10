@@ -53,10 +53,10 @@ pages to the web. TanaCraft is local and single-user so far. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/workspaces (Allow content from)
 - **TanaCraft:** MISSING.
 
-### UC-07.10 A link that opens a node from another app: MISSING
+### UC-07.10 A link that opens a node from another app: WORKS
 - **Story:** I paste a link to a node in my calendar invite and it opens the node.
 - **Source:** https://outliner.tana.inc/learn/features/copy-paste-and-export (Copy node link)
-- **TanaCraft:** MISSING. Copy node link copies an internal `[[id:N]]` token; no deep link.
+- **TanaCraft:** WORKS. Copy node link (node menu, selection toolbar; `node.link`) copies `http://127.0.0.1:PORT/?node=N`, which opens the node in the engine's web UI from any app while TanaCraft runs; pasted into a line it becomes an inline reference. spec-gap: the link opens a browser window, not the desktop window (that needs the bundled app's URL scheme), and it follows the port (8787 unless taken).
 
 ### UC-07.11 Save a view for everyone: OUT OF SCOPE candidate (needs members)
 - **Source:** https://outliner.tana.inc/learn/features/views (Save for everyone)

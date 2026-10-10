@@ -34,17 +34,17 @@ Everything here comes from Tana's public pages, written in our own words:
 | [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 19 | 1 | 0 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 9 | 0 | 0 | 2 | 0 |
-| [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 6 | 1 | 2 | 0 | 1 |
-| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 38 | 2 | 5 | 0 | 0 |
-| [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 3 | 1 | 5 | 2 | 0 |
-| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 11 | 1 | 3 | 1 | 1 |
+| [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 7 | 1 | 1 | 0 | 1 |
+| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 39 | 2 | 4 | 0 | 0 |
+| [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 4 | 1 | 4 | 2 | 0 |
+| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 12 | 1 | 2 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **110** | **10** | **23** | **14** | **24** |
+| **Total (181)** | | **114** | **10** | **19** | **14** | **24** |
 
-Out of the 143 use cases that need neither AI nor a cloud or mobile service, 120 work fully or in
-part (110 + 10) and 23 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 124 work fully or in
+part (114 + 10) and 19 are missing.
 
 ## Top 15 gaps by user value
 
@@ -76,8 +76,10 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
     window of its own; Escape or a click elsewhere puts it away and gives the keyboard back.
 
 Also done since: Cmd+Shift+M opens Move to (UC-02.19), merging duplicate contacts (UC-04.11),
-strikethrough (UC-06.45), counting words (UC-06.36), regular expressions in searches (UC-06.41)
-and searching inside one node from the search box (UC-06.42).
+strikethrough (UC-06.45), counting words (UC-06.36), regular expressions in searches (UC-06.41),
+searching inside one node from the search box (UC-06.42), node links that open from other apps
+(UC-07.10), spreadsheet cells pasted as nodes with fields (UC-08.12), aliases on inline references
+(UC-06.37) and reading one in place with Shift+click (UC-05.09).
 
 Smaller defects found on the way, all fixed since: the Content width button sets Medium or Full
 width per page (UC-06.44); side menu and tabs views show the item in place (UC-06.14); table and

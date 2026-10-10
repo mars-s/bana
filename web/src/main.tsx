@@ -28,7 +28,17 @@ if (root && location.hash === '#capture') {
     // A field name this window was typing after `>` becomes the field (N26; once: its line goes).
     .then(() => call('fieldDraft', { commit: true }))
     .then(start)
+    .then(openLinkedNode)
     .then(restoreKeptKeys)
+}
+
+/** A node link (`/?node=42`, UC-07.10) opens that node; the address then drops it, so a reload stays
+ * where the person went next. */
+async function openLinkedNode() {
+  const node = Number(new URLSearchParams(location.search).get('node'))
+  if (!Number.isInteger(node) || node <= 0) return
+  history.replaceState(null, '', location.pathname + location.hash)
+  await exec('nav.open', { node })
 }
 
 // Inside the desktop app, the native menu bar sends command ids (spec 00 §7).

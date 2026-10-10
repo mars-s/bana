@@ -4170,3 +4170,63 @@ html.capture body {
   font-size: var(--fs-label);
   color: var(--c-text);
 }
+
+/* An inline reference read in place (Shift+click, UC-05.09). */
+.ref-peek {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+  width: calc(100% - var(--text-from-bullet));
+  margin: var(--q1) 0 var(--q1) var(--text-from-bullet);
+  cursor: default;
+  padding: var(--q1-5) var(--q2);
+  border: 1px solid var(--c-outline);
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  font-size: var(--fs-dense);
+}
+
+.ref-peek-head {
+  display: flex;
+  align-items: center;
+  gap: var(--q1);
+  font-weight: var(--fw-button);
+}
+
+.ref-peek-title {
+  flex: 1;
+  cursor: pointer;
+}
+
+.ref-peek-title:hover {
+  text-decoration: underline;
+}
+
+.ref-peek-line {
+  display: flex;
+  align-items: center;
+  gap: var(--q1-5);
+  color: var(--c-secondary);
+}
+
+/* The alias box in an inline reference's menu (UC-06.37). */
+.ref-alias {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  padding: var(--q1) var(--q3);
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.ref-alias input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px var(--q1-5);
+  border: 1px solid var(--c-outline);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+}

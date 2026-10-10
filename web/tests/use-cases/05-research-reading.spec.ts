@@ -105,5 +105,17 @@ test('UC-05.08 drop a picture or a PDF on a line: it is kept beside the graph an
   expect(back.mime).toBe('application/pdf')
   expect(Buffer.from(back.data, 'base64').toString()).toBe('%PDF-1.4 tiny')
 })
-missing('UC-05.09', 'expand an inline reference in place (Shift+click) to read it without leaving the line')
+test('UC-05.09 expand an inline reference in place (Shift+click) to read it without leaving the line', works('UC-05.09'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Deep Work', 'Reading list'], 'Books')
+  for (const n of ['Rule 1: work deeply', 'Rule 2: embrace boredom']) await server.run('node.add', { name: n, parent: ids[0] })
+  await server.run('node.setName', { node: ids[1], name: `Next: [[id:${ids[0]}]]` })
+  await app.locator(`.row.node[data-id="${ids[1]}"] .inline-ref`).click({ modifiers: ['Shift'] })
+  const peek = app.locator(`.row.node[data-id="${ids[1]}"] .ref-peek`)
+  await expect(peek).toContainText('Deep Work')
+  await expect(peek).toContainText('Rule 2: embrace boredom')
+  // The page stays where it was; a second Shift+click closes it.
+  await expect(app.locator('.panel .title-input')).toHaveValue('Books')
+  await app.locator(`.row.node[data-id="${ids[1]}"] .inline-ref`).click({ modifiers: ['Shift'] })
+  await expect(peek).toHaveCount(0)
+})
 missing('UC-05.10', 'record a lecture and get a transcript and summary (AI)', 'ai')

@@ -4,7 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
-import { copySelection, exec, returnKeyboard, runUiCommand } from './controller'
+import { copyNodeLink, copySelection, exec, returnKeyboard, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
 import { SubMenu } from './Views'
@@ -586,10 +586,6 @@ function NodeMenu() {
         : undefined
     openPicker({ mode, panel, node: mode === 'moveTo' ? node : target, nodes, owner: mode === 'field' ? target : undefined, at: -1, x: m.x, y: m.y })
   }
-  const copy = (text: string, note: string) => () => {
-    close()
-    void navigator.clipboard?.writeText(text).then(() => showToast(note), () => showToast('Could not reach the clipboard'))
-  }
   const It = ({ label, on, sc, danger, icon }: { label: string; on: () => void; sc?: string; danger?: boolean; icon?: IconName }) => (
     <div className={`menu-item${danger ? ' danger' : ''}`} onMouseDown={(e) => (e.preventDefault(), on())}>
       <span className="menu-icon">{icon && <Icon name={icon} size={12} />}</span>
@@ -614,7 +610,7 @@ function NodeMenu() {
         <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />
         <It label={pinnedIds.includes(target) ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />
         <div className="menu-sep" />
-        <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+        <It label="Copy node link" icon="link" on={() => (close(), void copyNodeLink(target, panel))} />
         <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />
         <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
         <It label="Move" icon="forward" on={pick('moveTo')} />
@@ -674,7 +670,7 @@ function NodeMenu() {
       </SubMenu>
       <div className="menu-sep" />
       {!fromPage && <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />}
-      <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+      <It label="Copy node link" icon="link" on={() => (close(), void copyNodeLink(target, panel))} />
       {fromPage && <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />}
       <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
       {!fromPage && <It label="Move to…" icon="forward" on={pick('moveTo')} />}
@@ -716,12 +712,67 @@ function NodeMenu() {
   )
 }
 
+/** The menu of an inline reference (UC-06.37): open it, give it an alias, or turn it into text. */
+function RefMenu() {
+  const m = useStore((s) => s.refMenu)
+  const [alias, setAlias] = useState('')
+  useEffect(() => {
+    if (!m) return
+    setAlias(m.alias)
+    const off = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest?.('.ref-menu')) setState({ refMenu: null })
+    }
+    window.addEventListener('mousedown', off)
+    return () => window.removeEventListener('mousedown', off)
+  }, [m])
+  if (!m) return null
+  const shut = () => setState({ refMenu: null })
+  const params = { node: m.line, ref: m.ref, index: m.index }
+  const save = () => {
+    shut()
+    if (alias !== m.alias) void exec('node.refAlias', { ...params, alias }, m.panel)
+  }
+  return (
+    <div className="menu node-menu ref-menu" style={{ left: Math.min(m.x, window.innerWidth - 260), top: Math.min(m.y, window.innerHeight - 160) }} role="menu">
+      <div className="menu-item" onMouseDown={(e) => (e.preventDefault(), shut(), void exec('nav.open', { node: m.ref }, m.panel))}>
+        <span className="menu-icon">
+          <Icon name="forward" size={12} />
+        </span>
+        <span className="grow">Open</span>
+      </div>
+      <label className="ref-alias">
+        <span>Alias</span>
+        <input
+          autoFocus
+          aria-label="Alias"
+          placeholder="The node's name"
+          value={alias}
+          onChange={(e) => setAlias(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') save()
+            else if (e.key === 'Escape') shut()
+          }}
+        />
+      </label>
+      <div className="menu-sep" />
+      <div className="menu-item" onMouseDown={(e) => (e.preventDefault(), shut(), void exec('node.unlinkRef', params, m.panel))}>
+        <span className="menu-icon">
+          <Icon name="close" size={12} />
+        </span>
+        <span className="grow">Turn into text</span>
+      </div>
+    </div>
+  )
+}
+
 export function Overlays() {
   const o = useStore((s) => s.overlay)
   return (
     <>
       <Picker />
       <NodeMenu />
+      <RefMenu />
       <Shortcuts />
       {o && (
         <div className={`scrim${o.kind === 'palette' ? '' : ' dim'}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>

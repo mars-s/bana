@@ -3,12 +3,12 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as RME } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
+import type { Chip, FieldRow, Json, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closeConfigure, closePanel, useStore } from './store'
-import { type EditorHandle, currentEditor, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { type EditorHandle, copyNodeLink, currentEditor, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, SearchOptions, ViewBody, ViewTitle, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
@@ -63,7 +63,21 @@ export function TagChip({ chip, onOpen, onRemove }: { chip: Chip; onOpen?: () =>
 }
 
 /** Styled text of a line (marks hidden), with inline references and links. */
-export function RichText({ text, refs, onRef }: { text: string; refs: Record<string, string>; onRef?: (id: number) => void }) {
+export function RichText({
+  text,
+  refs,
+  onRef,
+  onPeek,
+  onRefMenu,
+}: {
+  text: string
+  refs: Record<string, string>
+  onRef?: (id: number) => void
+  /** Shift+click on an inline reference (UC-05.09). */
+  onPeek?: (id: number) => void
+  /** Right-click on an inline reference: which one (the `index`th to that node) and where. */
+  onRefMenu?: (id: number, index: number, alias: string, x: number, y: number) => void
+}) {
   const spans = rawSpans(text)
   const linkOnly = spans.filter((s) => !s.marker && s.text.trim()).length === 1 && spans.some((s) => s.url)
   return (
@@ -72,18 +86,34 @@ export function RichText({ text, refs, onRef }: { text: string; refs: Record<str
         if (s.marker) return <span key={i} data-at={s.at} data-marker="1" className="mark-hidden" />
         if (s.node != null) {
           const name = refs[String(s.node)]
+          const index = spans.slice(0, i).filter((x) => !x.marker && x.node === s.node).length
           return (
             <span
               key={i}
               className="inline-ref"
               data-at={s.at}
-              onMouseDown={(e) => e.preventDefault()}
+              data-ref={s.node}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                // Shift+click reads it in place (UC-05.09), it does not extend a selection.
+                if (e.shiftKey) e.stopPropagation()
+              }}
               onClick={(e) => {
                 e.stopPropagation()
-                onRef?.(s.node!)
+                if (e.shiftKey && onPeek) onPeek(s.node!)
+                else onRef?.(s.node!)
               }}
+              onContextMenu={
+                onRefMenu
+                  ? (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      onRefMenu(s.node!, index, s.alias ?? '', e.clientX, e.clientY)
+                    }
+                  : undefined
+              }
             >
-              {name === undefined ? '(missing node)' : name || 'Untitled'}
+              {s.alias || (name === undefined ? '(missing node)' : name || 'Untitled')}
             </span>
           )
         }
@@ -354,6 +384,13 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
             return
           }
           const text = e.clipboardData.getData('text/plain')
+          // A node link of this app (UC-07.10) pasted into a line is an inline reference.
+          const link = /^http:\/\/(127\.0\.0\.1|localhost):\d+\/\?node=(\d+)$/.exec(text.trim())
+          if (link) {
+            e.preventDefault()
+            document.execCommand('insertText', false, `[[id:${link[2]}]]`)
+            return
+          }
           if (pasteInto(panel, row.id, valueRef.current, text)) e.preventDefault()
         }}
       />
@@ -471,7 +508,7 @@ function SelectionToolbar({ row, panel }: { row: NodeRow; panel: string }) {
       <span className="sel-div" />
       {b('H', 'Toggle heading', () => void exec('node.toggleHeading', { node: row.id }, panel))}
       <span className="sel-div" />
-      {b(<Icon name="link" size={12} />, 'Copy node link', () => void navigator.clipboard?.writeText(`[[id:${row.target}]]`))}
+      {b(<Icon name="link" size={12} />, 'Copy node link', () => void copyNodeLink(row.target, panel))}
       {b(<Icon name="sidebar" size={12} />, 'Open in new panel', () => void openInNewPanel(row.target))}
       {b(<Icon name="more" size={12} />, 'Node menu', (e) => {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -639,6 +676,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
   const { drop, dragged } = useDrop(row.id)
   const descEdit = useStore((s) => s.descEdit)
   const describing = descEdit?.panel === panel && descEdit.node === row.id
+  const [peek, setPeek] = useState<number | null>(null)
   const blank = !editing && !row.ref && !row.hasKids && !row.name && !row.tags.length && row.kind === 'plain'
   return (
     <div
@@ -709,7 +747,17 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
                 }
               }}
             >
-              {row.name ? <RichText text={row.name} refs={page.refs} onRef={(id) => void exec('nav.open', { node: id }, panel)} /> : '\u200b'}
+              {row.name ? (
+                <RichText
+                  text={row.name}
+                  refs={page.refs}
+                  onRef={(id) => void exec('nav.open', { node: id }, panel)}
+                  onPeek={(id) => setPeek((p) => (p === id ? null : id))}
+                  onRefMenu={(ref, index, alias, x, y) => setState({ refMenu: { panel, line: row.target, ref, index, alias, x, y } })}
+                />
+              ) : (
+                '\u200b'
+              )}
             </span>
           )}
           {row.suffix.map(([t, ph], i) => (
@@ -738,11 +786,46 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             <Attachment row={row} panel={panel} />
           </span>
         )}
+        {peek != null && <RefPeek node={peek} panel={panel} onClose={() => setPeek(null)} />}
         {(row.description || describing) && (
           <span className="desc">{describing ? <DescEditor row={row} panel={panel} /> : <span onMouseDown={(e) => (e.preventDefault(), setState({ descEdit: { panel, node: row.id } }))}>{row.description}</span>}</span>
         )}
       </div>
     </div>
+  )
+}
+
+/** An inline reference read in place (Shift+click, UC-05.09): its title and first lines, without
+ * leaving the line. A click on the title opens it. */
+function RefPeek({ node, panel, onClose }: { node: number; panel: string; onClose: () => void }) {
+  const [t, setT] = useState<Json | null>(null)
+  useEffect(() => {
+    let live = true
+    void call('run', { command: 'export.json', params: { node }, panel }).then((r) => live && setT(r?.result ?? null))
+    return () => {
+      live = false
+    }
+  }, [node, panel])
+  const kids: Json[] = t?.children ?? []
+  return (
+    <span className="ref-peek" role="region" aria-label="Reference preview">
+      <span className="ref-peek-head">
+        <span className="ref-peek-title" onClick={() => void exec('nav.open', { node }, panel)}>
+          {t?.name || 'Untitled'}
+        </span>
+        <button className="q-x" title="Close the preview" onMouseDown={(e) => e.preventDefault()} onClick={onClose}>
+          <Icon name="close" size={9} />
+        </button>
+      </span>
+      {kids.slice(0, 12).map((k, i) => (
+        <span key={i} className="ref-peek-line">
+          <span className="dot small" />
+          {k.name}
+        </span>
+      ))}
+      {kids.length > 12 && <span className="ref-peek-line faint">{kids.length - 12} more</span>}
+      {t && !kids.length && <span className="ref-peek-line faint">Nothing inside</span>}
+    </span>
   )
 }
 

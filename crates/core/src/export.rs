@@ -61,16 +61,12 @@ fn tag_token(name: &str) -> String {
     if name.contains(' ') { format!("[[{name}]]") } else { name.to_string() }
 }
 
-/// `[[id:42]]` becomes `[[Name]]` in exports.
+/// `[[id:42]]` becomes `[[Name]]` in exports, `[[id:42|alias]]` becomes `[[Name|alias]]`.
 fn inline_refs_as_names(g: &Graph, s: &str) -> String {
-    if !s.contains("[[id:") {
-        return s.to_string();
-    }
-    let mut out = s.to_string();
-    for r in crate::format::refs(s) {
-        out = out.replace(&crate::format::ref_token(r), &format!("[[{}]]", g.name(NodeId(r))));
-    }
-    out
+    crate::format::map_refs(s, |r, alias| match alias {
+        Some(a) => format!("[[{}|{a}]]", g.name(NodeId(r))),
+        None => format!("[[{}]]", g.name(NodeId(r))),
+    })
 }
 
 /// Markdown outline of `id` and its subtree. The root line is included unless `children_only`.
@@ -166,9 +162,10 @@ fn shown_line(g: &Graph, id: NodeId, html: bool) -> String {
         None => {}
     }
     for sp in crate::format::spans(&t.name) {
-        let text = match sp.node {
-            Some(r) => g.name(NodeId(r)).to_string(),
-            None => sp.text.clone(),
+        let text = match (sp.node, &sp.alias) {
+            (Some(_), Some(a)) => a.clone(),
+            (Some(r), None) => g.name(NodeId(r)).to_string(),
+            (None, _) => sp.text.clone(),
         };
         if !html {
             s.push_str(&text);

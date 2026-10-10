@@ -126,7 +126,20 @@ test('UC-08.11 paste Tana Paste text: tagged nodes, fields, dates and a search a
   expect(garlic.tags).toEqual(['task'])
   expect(garlic.fields.Due).toBeTruthy()
 })
-missing('UC-08.12', 'paste spreadsheet cells as a table')
+test('UC-08.12 paste spreadsheet cells as nodes with fields, shown as a table', works('UC-08.12'), async ({ app, server, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const { page, ids } = await pageWith(server, app, [''], 'Seeds')
+  await app.evaluate(() => navigator.clipboard.writeText('Plant\tSow\tSpacing\nBeans\tMay\t10 cm\nKale\tApril\t40 cm\n'))
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => (await tree(server, page)).children.map((c: any) => c.name)).toEqual(['Beans', 'Kale'])
+  const kale = (await tree(server, page)).children[1]
+  expect(kale.fields).toEqual({ Sow: 'April', Spacing: '40 cm' })
+  // As a table, the columns are the spreadsheet's.
+  await server.run('view.set', { node: page, kind: 'table' })
+  await server.run('view.addColumn', { node: page, field: 'Sow' })
+  await expect(app.locator('.t-row', { hasText: 'Kale' })).toContainText('April')
+})
 missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
 // UC-08.14: Cmd+Shift+E in any app shows the desktop app's capture window, which loads this page
 // at #capture (the shortcut and window are checked by Rust tests in apps/tanacraft-desktop). Here:

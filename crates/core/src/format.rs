@@ -2,7 +2,8 @@
 //! Markdown): `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `~~strike~~`, `` `code` ``. A mark with
 //! no partner later in the text is shown as typed.
 //!
-//! Inline references are `[[id:42]]` (shown as the target's name); `http(s)://` words are links.
+//! Inline references are `[[id:42]]` (shown as the target's name) or `[[id:42|alias]]` (shown as
+//! the alias, UC-06.37); `http(s)://` words are links.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mark {
@@ -49,8 +50,10 @@ pub struct Span {
     pub highlight: bool,
     pub strike: bool,
     pub code: bool,
-    /// An inline reference to this node (`text` is empty; show the target's name).
+    /// An inline reference to this node (`text` is empty; show the alias, else the target's name).
     pub node: Option<u64>,
+    /// An inline reference's own text (UC-06.37).
+    pub alias: Option<String>,
     /// A link (`text` is the URL).
     pub url: Option<String>,
 }
@@ -60,12 +63,40 @@ pub fn ref_token(id: u64) -> String {
     format!("[[id:{id}]]")
 }
 
-/// An inline reference at byte `i`: (node id, token length).
-fn ref_at(s: &str, i: usize) -> Option<(u64, usize)> {
+/// The inline reference token for node `id` shown as `alias` (none or blank: the node's name).
+pub fn ref_alias_token(id: u64, alias: Option<&str>) -> String {
+    match alias.map(|a| a.replace("]]", "] ]").replace('|', "/")).filter(|a| !a.trim().is_empty()) {
+        Some(a) => format!("[[id:{id}|{}]]", a.trim()),
+        None => ref_token(id),
+    }
+}
+
+/// An inline reference at byte `i`: (node id, alias, token length).
+fn ref_at(s: &str, i: usize) -> Option<(u64, Option<String>, usize)> {
     let rest = s.get(i..)?.strip_prefix("[[id:")?;
     let end = rest.find("]]")?;
-    let id = rest.get(..end)?.parse().ok()?;
-    Some((id, 5 + end + 2))
+    let inner = rest.get(..end)?;
+    let (id, alias) = match inner.split_once('|') {
+        Some((id, a)) => (id, Some(a.to_string())),
+        None => (inner, None),
+    };
+    let id = id.parse().ok()?;
+    Some((id, alias, 5 + end + 2))
+}
+
+/// `s` with every inline reference token replaced by `f(node, alias)`; the rest is kept as typed.
+pub fn map_refs(s: &str, mut f: impl FnMut(u64, Option<&str>) -> String) -> String {
+    if !s.contains("[[id:") {
+        return s.to_string();
+    }
+    let mut out = String::new();
+    for (sp, marker) in raw_spans(s) {
+        match (marker, sp.node) {
+            (true, Some(id)) => out.push_str(&f(id, ref_at(&sp.text, 0).and_then(|(_, a, _)| a).as_deref())),
+            _ => out.push_str(&sp.text),
+        }
+    }
+    out
 }
 
 /// Node ids referenced inline in `s`.
@@ -100,10 +131,10 @@ pub fn raw_spans(s: &str) -> Vec<(Span, bool)> {
     };
     while i < s.len() {
         if !cur.code
-            && let Some((id, len)) = ref_at(s, i)
+            && let Some((id, alias, len)) = ref_at(s, i)
         {
             flush(&mut out, &mut cur);
-            out.push((Span { text: String::new(), node: Some(id), ..cur.clone() }, false));
+            out.push((Span { text: String::new(), node: Some(id), alias, ..cur.clone() }, false));
             out.push((Span { text: s.get(i..i + len).unwrap_or("").to_string(), node: Some(id), ..Span::default() }, true));
             i += len;
             continue;

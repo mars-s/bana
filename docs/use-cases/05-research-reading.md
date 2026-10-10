@@ -53,10 +53,10 @@ Books, articles, quotes and concepts linked into a graph. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (Storing files on nodes)
 - **TanaCraft:** WORKS. Files dropped on a line or pasted into it become nodes after it; the file is kept in a folder beside the graph (`graph.tanacraft.files`), pictures show a preview, other files a chip that opens them (`file.attach`, `file.read`, up to 20 MB). Not built: a PDF viewer inside the page, files in sync.
 
-### UC-05.09 Peek into an inline reference: MISSING
+### UC-05.09 Peek into an inline reference: WORKS
 - **Story:** Shift+click an inline link to read its content in place.
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (Edit an inline reference)
-- **TanaCraft:** MISSING (a click opens it).
+- **TanaCraft:** WORKS. Shift+click shows the node's title and first lines in a box under the line (a click on the title opens it); Shift+click again or its close button hides it. The box is read-only.
 
 ### UC-05.10 Lecture transcription: OUT OF SCOPE candidate (AI)
 - **Source:** https://outliner.tana.inc/learn/tutorials/turn-lectures-into-lasting-knowledge, https://outliner.tana.inc/students

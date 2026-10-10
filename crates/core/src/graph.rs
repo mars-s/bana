@@ -399,9 +399,10 @@ impl Graph {
         }
         crate::format::spans(raw)
             .into_iter()
-            .map(|sp| match sp.node {
-                Some(n) => crate::format::plain(self.name(NodeId(n))),
-                None => sp.text,
+            .map(|sp| match (sp.node, sp.alias) {
+                (Some(_), Some(a)) => a,
+                (Some(n), None) => crate::format::plain(self.name(NodeId(n))),
+                (None, _) => sp.text,
             })
             .collect()
     }
@@ -1390,12 +1391,11 @@ impl Graph {
             _ => return Err(Error::Invalid("only two plain nodes, two supertags or two fields can be merged".into())),
         }
         // Every pointer at `from` now points at `into`.
-        let (old, new) = (crate::format::ref_token(from.0), crate::format::ref_token(into.0));
         let ids: Vec<NodeId> = self.nodes.keys().copied().collect();
         for id in ids {
             let Some(n) = self.get(id) else { continue };
             let is_ref = n.reference_target() == Some(from);
-            let in_name = n.name.contains(&old);
+            let in_name = crate::format::refs(&n.name).contains(&from.0);
             let in_fields = n.fields.iter().any(|e| e.value.iter().chain(e.more.iter()).any(|v| *v == FieldValue::Node(from)));
             if !(is_ref || in_name || in_fields) {
                 continue;
@@ -1405,7 +1405,7 @@ impl Graph {
                 n.kind = Kind::Reference { target: into };
             }
             if in_name {
-                n.name = n.name.replace(&old, &new);
+                n.name = crate::format::map_refs(&n.name, |r, a| crate::format::ref_alias_token(if r == from.0 { into.0 } else { r }, a));
             }
             for e in &mut n.fields {
                 for v in e.value.iter_mut().chain(e.more.iter_mut()) {
@@ -2102,11 +2102,10 @@ impl Graph {
         if name.chars().count() < 3 {
             return Vec::new();
         }
-        let token = crate::format::ref_token(target.0);
         let mut out: Vec<(u64, NodeId)> = self
             .iter()
             .filter(|n| n.id != target && crate::query::searchable(self, n.id) && !self.is_ancestor_or_self(target, n.id))
-            .filter(|n| !n.name.contains(&token) && Graph::word_at(&self.text(n.id), name).is_some())
+            .filter(|n| !crate::format::refs(&n.name).contains(&target.0) && Graph::word_at(&self.text(n.id), name).is_some())
             .map(|n| (n.created, n.id))
             .collect();
         out.sort();

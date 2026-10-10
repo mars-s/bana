@@ -962,6 +962,56 @@ fn command_nodes_run_on_events() {
 }
 
 #[test]
+fn node_links_open_the_web_ui_at_the_node() {
+    // UC-07.10.
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Plan"})), "id");
+    assert_eq!(run(&mut s, "node.link", json!({"node": a.0}))["url"], serde_json::Value::Null);
+    s.web_url = Some("http://127.0.0.1:8787/".into());
+    let r = run(&mut s, "node.link", json!({"node": a.0}));
+    assert_eq!(r["url"], format!("http://127.0.0.1:8787/?node={}", a.0));
+    assert_eq!(r["token"], format!("[[id:{}]]", a.0));
+}
+
+#[test]
+fn pasting_spreadsheet_cells_makes_nodes_with_fields() {
+    // UC-08.12.
+    let mut s = blank();
+    let line = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
+    run(&mut s, "node.paste", json!({"node": line.0, "text": "Plant\tSow\tSpacing\nBeans\tMay\t10 cm\nKale\t\t40 cm\n"}));
+    assert_eq!(s.graph.name(line), "Beans");
+    let sow = s.graph.find_field("Sow").unwrap();
+    let spacing = s.graph.find_field("Spacing").unwrap();
+    let kale = s.graph.children(s.graph.parent(line).unwrap())[1];
+    assert_eq!(s.graph.name(kale), "Kale");
+    assert_eq!(s.graph.get(line).unwrap().field_values(sow).len(), 1);
+    assert!(s.graph.get(kale).unwrap().field_values(sow).is_empty(), "an empty cell sets nothing");
+    assert_eq!(s.graph.get(kale).unwrap().field_values(spacing).len(), 1);
+}
+
+#[test]
+fn inline_references_take_an_alias_or_turn_into_text() {
+    // UC-06.37.
+    let mut s = blank();
+    let robin = id(&run(&mut s, "node.add", json!({"name": "Robin Ash"})), "id");
+    let line = id(&run(&mut s, "node.add", json!({"name": format!("Ask [[id:{0}]] and [[id:{0}]]", robin.0)})), "id");
+    run(&mut s, "node.refAlias", json!({"node": line.0, "ref": robin.0, "index": 1, "alias": "her"}));
+    assert_eq!(s.graph.name(line), format!("Ask [[id:{0}]] and [[id:{0}|her]]", robin.0));
+    assert_eq!(s.graph.text(line), "Ask Robin Ash and her");
+    assert_eq!(tanacraft_core::format::refs(s.graph.name(line)), [robin.0, robin.0], "still a reference");
+    // Turned into text: the alias, or the name.
+    run(&mut s, "node.unlinkRef", json!({"node": line.0, "ref": robin.0, "index": 1}));
+    run(&mut s, "node.unlinkRef", json!({"node": line.0, "ref": robin.0}));
+    assert_eq!(s.graph.name(line), "Ask Robin Ash and her");
+    assert!(s.run("node.unlinkRef", &json!({"node": line.0, "ref": robin.0})).is_err());
+    // Merging keeps an alias on the moved reference.
+    let dup = id(&run(&mut s, "node.add", json!({"name": "Robin A."})), "id");
+    let l2 = id(&run(&mut s, "node.add", json!({"name": format!("see [[id:{}|R]]", dup.0)})), "id");
+    run(&mut s, "node.merge", json!({"node": dup.0, "into": robin.0}));
+    assert_eq!(s.graph.name(l2), format!("see [[id:{}|R]]", robin.0));
+}
+
+#[test]
 fn counting_words_characters_and_nodes() {
     // UC-06.36.
     let mut s = blank();

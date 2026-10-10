@@ -404,6 +404,7 @@ pub fn sidebar(s: &Session) -> Value {
         .collect();
     json!({
         "today": s.today.day,
+        "todayDate": s.today.to_string(),
         "zoom": s.zoom.0,
         "pinned": pinned,
         "workspaces": workspaces,

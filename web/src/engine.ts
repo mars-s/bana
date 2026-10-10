@@ -294,6 +294,8 @@ export interface SidebarItem {
 
 export interface Sidebar {
   today: number
+  /** Today as YYYY-MM-DD (the engine's today). */
+  todayDate: string
   zoom: number
   pinned: SidebarItem[]
   workspaces: { id: number; name: string; library: number; trash: number; main: boolean; entries: SidebarItem[] }[]

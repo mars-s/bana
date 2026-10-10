@@ -52,7 +52,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | `!` heading | ported | `pickers.spec.ts` |
 | diffs_n28, n31, n33 selected field rows | ported | `pickers.spec.ts` |
 | options_from_supertag picker, invalid value warning | works (picker), warning shown | |
-| date_picker_takes_a_day_and_a_time / add end | ported (typed date, system date picker), todo (time and end in a picker) | `pickers.spec.ts` |
+| date_picker_takes_a_day_and_a_time / add end | ported (our own picker: day, start and end time, Add end) | `pickers.spec.ts` |
 | hidden_fields_fold_to_a_label | works (engine decides, UI shows "+ Field") | |
 
 ## Shell, menus, pages

@@ -1,7 +1,7 @@
 // A panel: breadcrumbs, the page header and the outline (virtualized: only rows near the
 // viewport are in the DOM; a row never holds unsaved text, every keystroke is already sent).
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as RME } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as RME } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Chip, FieldRow, MoreRow, NodeRow, Page, Row } from './engine'
 import { call } from './engine'
@@ -856,32 +856,136 @@ export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow;
         // Clicking elsewhere ends typing; the value is already in the engine.
         setTimeout(() => {
           const fe = getState().fieldEdit
-          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current && !document.activeElement?.closest('.date-pick'))
+          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current && !document.activeElement?.closest('.date-pick-anchor'))
             setState({ fieldEdit: null })
         }, 0)
       }}
     />
   )
   if (row.type !== 'date') return input
-  // Dates: typed (2026-10-12, or 2026-10-12 09:00-10:00), or picked from the system's date picker.
+  // Dates: typed (2026-10-12, 2026-10-12 09:00-10:00, 2026-10-12/2026-10-14), or picked.
   return (
     <span className="date-edit">
       {input}
-      <label className="date-pick" title="Pick a date">
+      <DatePicker
+        value={value}
+        onPick={(v) => {
+          setValue(v)
+          valueRef.current = v
+          send(v)
+          ref.current?.focus()
+        }}
+      />
+    </span>
+  )
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const pad2 = (n: number) => String(n).padStart(2, '0')
+const isoOf = (y: number, m: number, d: number) => `${y}-${pad2(m)}-${pad2(d)}`
+function isoWeekOf(iso: string): number {
+  const d = new Date(`${iso}T00:00:00Z`)
+  const day = (d.getUTCDay() + 6) % 7
+  d.setUTCDate(d.getUTCDate() - day + 3)
+  const first = new Date(Date.UTC(d.getUTCFullYear(), 0, 4))
+  return 1 + Math.round(((d.getTime() - first.getTime()) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7)
+}
+
+/** The date picker (spec 03 §8): month grid with ISO weeks, today, the picked day, a start and
+ * end time, Add end for a range of days, OK. */
+function DatePicker({ value, onPick }: { value: string; onPick: (v: string) => void }) {
+  const today = useStore((s) => s.sidebar?.todayDate) ?? new Date().toISOString().slice(0, 10)
+  const [open, setOpen] = useState(false)
+  const parsed = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?:-(\d{2}:\d{2}))?)?(?:\/(\d{4}-\d{2}-\d{2}))?/.exec(value.trim())
+  const [day, setDay] = useState<string | null>(null)
+  const [end, setEnd] = useState<string | null>(null)
+  const [pickingEnd, setPickingEnd] = useState(false)
+  const [t1, setT1] = useState('')
+  const [t2, setT2] = useState('')
+  const [ym, setYm] = useState<[number, number]>([0, 0])
+  const start = () => {
+    const d = parsed?.[1] ?? null
+    setDay(d)
+    setEnd(parsed?.[4] ?? null)
+    setT1(parsed?.[2] ?? '')
+    setT2(parsed?.[3] ?? '')
+    setPickingEnd(false)
+    const base = d ?? today
+    setYm([Number(base.slice(0, 4)), Number(base.slice(5, 7))])
+    setOpen(true)
+  }
+  const [y, m] = ym
+  const first = isoOf(y, m || 1, 1)
+  const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7
+  const inMonth = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const cells = Array.from({ length: Math.ceil((lead + inMonth) / 7) * 7 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1, 1 - lead + i))
+    return d.toISOString().slice(0, 10)
+  })
+  const step = (n: number) => setYm(([yy, mm]) => (mm + n < 1 ? [yy - 1, 12] : mm + n > 12 ? [yy + 1, 1] : [yy, mm + n]))
+  const ok = () => {
+    if (!day) return setOpen(false)
+    let v = day
+    if (end && end > day) v = `${day}/${end}`
+    else if (t1) v = `${day} ${t1}${t2 ? `-${t2}` : ''}`
+    setOpen(false)
+    onPick(v)
+  }
+  return (
+    <span className="date-pick-anchor">
+      <button className="date-pick" title="Pick a date" tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => (open ? setOpen(false) : start())}>
         <Icon name="calendar" size={12} />
-        <input
-          type="date"
-          tabIndex={-1}
-          onChange={(e) => {
-            const v = e.target.value
-            if (!v) return
-            setValue(v)
-            valueRef.current = v
-            send(v)
-            ref.current?.focus()
-          }}
-        />
-      </label>
+      </button>
+      {open && (
+        <div className="menu pop date-picker" role="dialog" aria-label="Date picker" onMouseDown={(e) => e.preventDefault()}>
+          <button className="dp-close" title="Close" onClick={() => setOpen(false)}>
+            <Icon name="close" size={9} />
+          </button>
+          <div className="dp-head">
+            <button className="icon-btn" title="Previous month" onClick={() => step(-1)}>
+              <Icon name="chevronLeft" size={12} />
+            </button>
+            <span className="dp-chip">{y}</span>
+            <span className="dp-chip">{MONTH_SHORT[m - 1]}</span>
+            <button className="icon-btn" title="Next month" onClick={() => step(1)}>
+              <Icon name="chevronRight" size={12} />
+            </button>
+          </div>
+          <div className="dp-grid">
+            <span />
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+              <span key={i} className="dp-dow">
+                {d}
+              </span>
+            ))}
+            {cells.map((d, i) => (
+              <Fragment key={d}>
+                {i % 7 === 0 && <span className="dp-week">W{isoWeekOf(d)}</span>}
+                <button
+                  className={`dp-day${d.slice(5, 7) !== pad2(m) ? ' out' : ''}${d === today ? ' today' : ''}${d === day || d === end ? ' sel' : ''}${day && end && d > day && d < end ? ' range' : ''}`}
+                  onClick={() => {
+                    if (pickingEnd && day && d >= day) (setEnd(d), setPickingEnd(false))
+                    else (setDay(d), setEnd(null))
+                  }}
+                >
+                  {Number(d.slice(8))}
+                </button>
+              </Fragment>
+            ))}
+          </div>
+          <div className="dp-foot">
+            <input className="dp-time" type="time" aria-label="Start time" value={t1} onChange={(e) => setT1(e.target.value)} />
+            {t1 && <input className="dp-time" type="time" aria-label="End time" value={t2} onChange={(e) => setT2(e.target.value)} />}
+            <button className="btn" onClick={() => setPickingEnd(true)} disabled={!day}>
+              {end ? `To ${Number(end.slice(8))} ${MONTH_SHORT[Number(end.slice(5, 7)) - 1]}` : 'Add end'}
+            </button>
+            <span className="spacer" />
+            <button className="btn regular" onClick={ok}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </span>
   )
 }

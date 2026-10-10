@@ -3097,11 +3097,114 @@ kbd {
   background: var(--c-hover);
 }
 
-.date-pick input {
+.date-pick-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The date picker popover (spec 03 §8). */
+.menu.pop.date-picker {
+  width: var(--date-picker-w);
+  left: auto;
+  right: 0;
+  padding: var(--q3);
+  font-size: var(--fs-label);
+}
+
+.dp-close {
   position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
+  top: calc(var(--q-close) / -2);
+  right: calc(var(--q-close) / -2);
+  width: var(--q-close);
+  height: var(--q-close);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--c-pressed);
+  color: var(--c-text);
+}
+
+.dp-head {
+  display: flex;
+  align-items: center;
+  gap: var(--q1);
+  margin-bottom: var(--q2);
+}
+
+.dp-chip {
+  padding: var(--q1) var(--q2);
+  border-radius: var(--r-sm);
+  background: var(--c-button);
+  color: var(--c-text);
+}
+
+.dp-grid {
+  display: grid;
+  grid-template-columns: var(--q8) repeat(7, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.dp-dow,
+.dp-week {
+  text-align: center;
+  color: var(--c-muted);
+  font-size: var(--fs-meta);
+}
+
+.dp-day {
+  height: var(--dp-day);
+  border-radius: var(--r-sm);
+  color: var(--c-text);
+}
+
+.dp-day:hover {
+  background: var(--c-hover);
+}
+
+.dp-day.out {
+  color: var(--c-faint);
+}
+
+.dp-day.today {
+  border-radius: var(--r-full);
+  background: var(--c-today);
+  color: var(--c-on-accent);
+}
+
+.dp-day.sel {
+  background: var(--c-active-item);
+  color: var(--c-on-accent);
+  border-radius: var(--r-sm);
+}
+
+.dp-day.range {
+  background: var(--c-selection);
+}
+
+.dp-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--q1-5);
+  margin-top: var(--q3);
+}
+
+.dp-time {
+  height: var(--icon-btn);
+  padding: 0 var(--q1);
+  border: 0;
+  outline: 0;
+  border-radius: var(--r-hair);
+  background: var(--c-panel);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+  color: var(--c-text);
+  font: inherit;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] .dp-time {
+  color-scheme: light;
 }
 
 .ws-chev {

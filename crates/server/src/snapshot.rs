@@ -74,7 +74,14 @@ fn is_link_only(name: &str) -> bool {
 pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> Value {
     let g = &s.graph;
     let target = g.resolve(id);
-    let Some(n) = g.get(target) else { return json!({"id": id.0, "missing": true}) };
+    // A reference whose node is gone still draws as a full row (a damaged file, or the other
+    // copy deleted it): no text, no tags, marked missing.
+    let Some(n) = g.get(target) else {
+        return json!({"id": id.0, "target": target.0, "parent": g.parent(id).map(|p| p.0), "index": g.index_in_parent(id),
+                      "pinned": false, "inTrash": false, "name": "", "ref": true, "kind": "missing", "tags": [], "done": null,
+                      "hasKids": false, "expanded": false, "heading": false, "description": "", "icon": null, "link": false,
+                      "suffix": [], "notes": false, "notesHead": null, "progress": null, "created": 0, "edited": 0, "missing": true});
+    };
     for r in format::refs(&n.name) {
         refs.entry(r).or_insert_with(|| g.name(NodeId(r)).to_string());
     }

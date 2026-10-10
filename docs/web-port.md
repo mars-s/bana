@@ -14,7 +14,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | random_keys_never_crash_the_ui | ported | `fuzz.spec.ts` random keys (no page error, every character kept) |
 | random_keys_on_long_pages_never_lose_text | ported | `fuzz.spec.ts` long page in a small window, scrolled away mid-edit |
 | quitting_at_a_random_point_keeps_typed_text | ported | `fuzz.spec.ts` reload at a random point; force-kill of the engine after autosave |
-| damaged_files_draw_in_every_view | todo | (the engine side is `crates/commands/tests/fuzz.rs`) |
+| damaged_files_draw_in_every_view | ported | `damaged.spec.ts` (the engine side is `crates/commands/tests/fuzz.rs`) |
 | 50k-node frame test (perf.rs) | ported | `perf.spec.ts` 51,550 rows: scroll, click far down, type |
 
 ## Editing and keys (typing.rs)

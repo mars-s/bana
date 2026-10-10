@@ -166,3 +166,13 @@ test('hovering a tag chip shows a remove part; clicking it removes the tag (N53)
   await chip.locator('.chip-x').click()
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toHaveCount(0)
 })
+
+test('Cmd+Down on a leaf shows an empty child line; a node dropped on it goes inside (N45)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['parent', 'mover'])
+  await focus(server, app, ids[0], 6)
+  await app.keyboard.press('Meta+ArrowDown')
+  await expect(app.locator('.row.empty-child')).toHaveCount(1)
+  await app.keyboard.press('Escape')
+  await app.locator(`.row.node[data-id="${ids[1]}"] .bullet`).dragTo(app.locator('.row.empty-child'))
+  await expect.poll(async () => ((await tree(server, ids[0])).children ?? []).map((c: any) => c.name)).toEqual(['mover'])
+})

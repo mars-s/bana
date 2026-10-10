@@ -3346,3 +3346,9 @@ kbd {
     margin-top: var(--q4);
   }
 }
+
+/* An open node's empty child line (spec 02 §7). */
+.row.empty-child {
+  cursor: text;
+  position: relative;
+}

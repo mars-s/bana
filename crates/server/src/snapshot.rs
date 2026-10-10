@@ -160,6 +160,8 @@ enum Item {
     Field(NodeId, NodeId, usize),
     /// The "+ Field" line of folded and optional fields: owner, depth, (field, name, optional).
     More(NodeId, usize, Vec<(NodeId, bool)>),
+    /// The empty child line of an expanded node with no children (spec 02 §7): parent, depth.
+    Empty(NodeId, usize),
 }
 
 fn push_fields(s: &Session, owner: NodeId, slot: Option<NodeId>, depth: usize, out: &mut Vec<Item>) {
@@ -226,8 +228,12 @@ fn walk(s: &Session, parent: NodeId, depth: usize, path: &mut Vec<NodeId>, out: 
         let target = g.resolve(c);
         if g.is_expanded(c) && !path.contains(&target) {
             path.push(target);
+            let before = out.len();
             walk(s, c, depth + 1, path, out);
             path.pop();
+            if out.len() == before && g.query(target).is_none() {
+                out.push(Item::Empty(c, depth + 1));
+            }
         }
         // Field rows added among the children (`>` on a line) show after their child.
         if plain_children {
@@ -273,6 +279,7 @@ fn item_json(s: &Session, it: &Item, refs: &mut BTreeMap<u64, String>) -> Value 
             Some(e) => field_row(g, *owner, e, *depth),
             None => json!({"k": "gone", "key": format!("f{}:{}", owner.0, field.0), "depth": depth}),
         },
+        Item::Empty(parent, depth) => json!({"k": "empty", "key": format!("e{}", parent.0), "parent": parent.0, "depth": depth}),
         Item::More(owner, depth, fields) => json!({
             "k": "more",
             "key": format!("m{}", owner.0),

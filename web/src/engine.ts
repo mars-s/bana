@@ -248,7 +248,7 @@ export interface MoreRow {
   fields: { field: number; name: string; optional: boolean }[]
 }
 
-export type Row = NodeRow | FieldRow | MoreRow | { k: 'gone'; key: string; depth: number }
+export type Row = NodeRow | FieldRow | MoreRow | { k: 'gone'; key: string; depth: number } | { k: 'empty'; key: string; parent: number; depth: number }
 
 export interface Page {
   version: number

@@ -902,7 +902,48 @@ function MoreLine({ row, panel }: { row: MoreRow; panel: string }) {
   )
 }
 
+/** The empty child line of an open node with no children: click to start one, or drop a node on
+ * it to put it inside (spec 02 §6, §7; N45). */
+function EmptyLine({ parent, depth, panel }: { parent: number; depth: number; panel: string }) {
+  const [over, setOver] = useState(false)
+  return (
+    <div
+      className="row empty-child"
+      style={{ paddingLeft: `calc(${depth} * var(--indent))` }}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        setActivePanel(panel)
+        void withBarrier(async () => {
+          const r = await exec('node.add', { parent, index: 0, name: '' }, panel)
+          if (r?.result?.id != null) await exec('focus.set', { node: r.result.id, caret: 0 }, panel)
+        })
+      }}
+      onDragOver={(e) => {
+        if (!dragging.length || dragging.includes(parent)) return
+        e.preventDefault()
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        const nodes = dragging
+        dragging = []
+        dropSubs.forEach((f) => f())
+        if (nodes.length && !nodes.includes(parent)) void exec('node.moveMany', { nodes, parent, index: 0 }, panel)
+      }}
+    >
+      <Guides depth={depth} />
+      {over && <span className="drop-line above" style={{ '--d': depth } as CSSProperties} />}
+      <span className="bullet">
+        <span className="dot faint" />
+      </span>
+    </div>
+  )
+}
+
 function RowView({ row, panel, page, active }: { row: Row; panel: string; page: Page; active: boolean }) {
+  if (row.k === 'empty') return <EmptyLine parent={row.parent} depth={row.depth} panel={panel} />
   if (row.k === 'node') {
     const s = getState()
     const pf = s.activePanel === panel && !s.fieldEdit

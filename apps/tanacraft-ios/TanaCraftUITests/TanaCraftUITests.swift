@@ -161,6 +161,28 @@ final class TanaCraftUITests: UITestCase {
         XCTAssertTrue(line("Mulch keeps **moisture** in and ==weeds== out, *most* of the time").waitForExistence(timeout: 3))
     }
 
+    func testOptionsFieldPicker() {
+        launch(sample: true)
+        app.buttons["nav.search"].tap()
+        app.searchFields.firstMatch.tap()
+        app.searchFields.firstMatch.typeText("Community garden")
+        app.buttons.matching(identifier: "search.result").firstMatch.tap()
+        waitTitle("Community garden")
+        btn("In progress").tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(btn("Done").waitForExistence(timeout: 3))
+        XCTAssertTrue(gone(btn("In progress")))
+    }
+
+    func testDeleteFromNodeMenu() {
+        launch(sample: false)
+        newLine("Throw me away")
+        app.buttons["kb.hide"].tap()
+        btn("Open Throw me away").press(forDuration: 1.2)
+        app.buttons["Delete"].tap()
+        XCTAssertTrue(gone(line("Throw me away")))
+    }
+
     func testQuickCapture() {
         launch(sample: false)
         app.buttons["nav.capture"].tap()

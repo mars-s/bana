@@ -157,6 +157,7 @@ struct RowView: View {
                     .frame(width: Phone.rowH, height: Phone.rowH)
             }
             .buttonStyle(.plain)
+            .contextMenu { nodeMenu(id) }
             .accessibilityIdentifier("bullet")
             .accessibilityLabel("Open \(store.shown(name))")
             if let done = row.done {
@@ -191,6 +192,17 @@ struct RowView: View {
         .frame(minHeight: Phone.rowH)
     }
 
+    /// The node menu (long press on the bullet).
+    @ViewBuilder private func nodeMenu(_ id: Int64) -> some View {
+        Button { store.run("nav.open", ["node": id]) } label: { Label("Open", systemImage: "arrow.up.right") }
+        Button { tagPickerFor = id } label: { Label("Add supertag", systemImage: "number") }
+        Button { store.run("node.toggleDone", ["node": id]) } label: { Label("Checkbox", systemImage: "checkmark.square") }
+        Button { store.run("node.addToDay", ["node": id, "date": "today"]) } label: { Label("Add to today", systemImage: "calendar.badge.plus") }
+        Button { store.run("node.togglePin", ["node": id]) } label: { Label("Pin or unpin", systemImage: "pin") }
+        Divider()
+        Button(role: .destructive) { store.run("node.delete", ["node": id]) } label: { Label("Delete", systemImage: "trash") }
+    }
+
     private func actions(_ id: Int64) -> LineActions {
         LineActions(
             changed: { name, caret in store.run("node.setName", ["node": id, "name": name, "caret": caret]) },
@@ -208,6 +220,8 @@ struct RowView: View {
                 AccessoryItem(id: "collapse", symbol: "chevron.up.chevron.down", label: "Expand or collapse") { store.toggleExpand(id) },
                 AccessoryItem(id: "done", symbol: "checkmark.square", label: "Checkbox") { store.run("node.toggleDone", ["node": id]) },
                 AccessoryItem(id: "tag", symbol: "number", label: "Add supertag") { tagPickerFor = id },
+                AccessoryItem(id: "undo", symbol: "arrow.uturn.backward", label: "Undo") { store.run("edit.undo") },
+                AccessoryItem(id: "redo", symbol: "arrow.uturn.forward", label: "Redo") { store.run("edit.redo") },
                 AccessoryItem(id: "hide", symbol: "keyboard.chevron.compact.down", label: "Hide keyboard") {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 },
@@ -242,6 +256,8 @@ struct FieldRowView: View {
     let row: Row
     @State private var editing = false
     @State private var draft = ""
+    @State private var picking = false
+    @State private var options: [String] = []
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: T.q2) {
@@ -264,7 +280,20 @@ struct FieldRowView: View {
 
     @ViewBuilder private var values: some View {
         let vals = row.values ?? []
-        if row.type == "checkbox" {
+        if row.type == "options" || row.type == "options_from_tag" || row.type == "user" {
+            Button {
+                options = store.decode(Choices.self, "choices", ["mode": "choice", "node": row.owner ?? 0, "field": row.field ?? 0])?.items.compactMap(\.label) ?? []
+                picking = true
+            } label: {
+                valueText(vals)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("fieldValue")
+            .confirmationDialog(row.name ?? "", isPresented: $picking) {
+                ForEach(options, id: \.self) { o in Button(o) { set(o) } }
+                if !(vals.first?.text ?? "").isEmpty { Button("Clear", role: .destructive) { set("") } }
+            }
+        } else if row.type == "checkbox" {
             let on = vals.first?.checked ?? false
             Button { set(on ? "false" : "true") } label: { CheckBox(on: on) }.buttonStyle(.plain)
         } else if editing {
@@ -279,14 +308,24 @@ struct FieldRowView: View {
                 draft = vals.first?.text ?? ""
                 editing = true
             } label: {
-                Text(vals.isEmpty || vals.allSatisfy { $0.text.isEmpty } ? "Empty" : vals.map(\.text).joined(separator: ", "))
-                    .font(Fonts.font(Phone.body, Fonts.textWeight(scheme)))
-                    .foregroundStyle(vals.isEmpty ? T.cFaint : T.cText)
-                    .multilineTextAlignment(.leading)
+                valueText(vals)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("fieldValue")
         }
+    }
+
+    private func valueText(_ vals: [ValueCell]) -> some View {
+        let empty = vals.allSatisfy { $0.text.isEmpty }
+        return Text(empty ? "Empty" : vals.map(\.text).joined(separator: ", "))
+            .font(Fonts.font(Phone.body, Fonts.textWeight(scheme)))
+            .foregroundStyle(empty ? T.cFaint : T.cText)
+            .multilineTextAlignment(.leading)
+    }
+
+    struct Choices: Decodable {
+        struct Item: Decodable { let label: String? }
+        let items: [Item]
     }
 
     /// Every keystroke of a value goes to the engine at once (`keep`: text that does not parse

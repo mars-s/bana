@@ -81,12 +81,12 @@ with an optional `#day` template. Scenarios: `web/tests/use-cases/01-daily-journ
 - **Source:** https://outliner.tana.inc/learn/tutorials/weekly-reflection
 - **TanaCraft:** WORKS.
 
-### UC-01.12 Add to day (Remind me): MISSING
+### UC-01.12 Add to day (Remind me): WORKS
 - **Story:** I want an article to come back to me next Tuesday.
 - **Steps:** Run Add to day on a node and pick a day.
 - **Expected:** A reference to the node appears on that day's page.
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 37-39, "Add to day")
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. Node menu, Add to day: Today, Tomorrow, Next Monday, In a week; `node.addToDay` takes any date in words (default tomorrow) from the command line, CLI or MCP.
 
 ### UC-01.13 Week start and time format: PARTIAL
 - **Story:** My weeks start on Sunday and I read times in 12-hour format.

@@ -136,7 +136,16 @@ test('UC-01.13 week start and 12/24-hour time are settings; calendar views follo
 })
 
 missing('UC-01.09', 'journal prompts: a field that auto-fills with a random node of a supertag')
-missing('UC-01.12', 'Add to day (Remind me): send a reference of a node to a chosen day')
+test('UC-01.12 Add to day (Remind me): a reference of the node on the chosen day', works('UC-01.12'), async ({ app, server }) => {
+  const day = (await server.run('nav.today')).result.zoom
+  const id = (await server.run('node.add', { name: 'Read the soil article', parent: day })).result.id
+  await app.locator(`.row.node[data-id="${id}"] .bullet`).click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Add to day' }).hover()
+  await app.locator('.node-menu .menu-item', { hasText: /^Tomorrow$/ }).click()
+  await app.locator('.day-nav .btn[title="Next day"]').click()
+  await expect(app.locator('.panel .title').first()).toContainText('Sun, 11 Oct')
+  await expect(app.locator('.row.node', { hasText: 'Read the soil article' })).toBeVisible()
+})
 missing('UC-01.14', 'daily notes for a second workspace (Today follows the main workspace only)')
 test('UC-01.15 every day page lists the tasks due that day and the overdue ones (PARENT is the day)', works('UC-01.15'), async ({ app, server }) => {
   await server.run('field.set', { node: await idOf(server, 'Build four beds'), field: 'Due', value: '2026-10-12' })

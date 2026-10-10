@@ -634,6 +634,19 @@ function NodeMenu() {
       {fromPage && <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />}
       <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
       {!fromPage && <It label="Move to…" icon="forward" on={pick('moveTo')} />}
+      {/* Remind me (UC-01.12): a reference on that day's page. */}
+      <SubMenu label="Add to day">
+        {[['today', 'Today'], ['tomorrow', 'Tomorrow'], ['next monday', 'Next Monday'], ['next week', 'In a week']].map(([d, l]) => (
+          <It
+            key={d}
+            label={l}
+            on={() => {
+              close()
+              void exec('node.addToDay', { node: target, date: d }, panel).then((r) => r?.result && showToast(`Added to ${r.result.date}`))
+            }}
+          />
+        ))}
+      </SubMenu>
       <div className="menu-sep" />
       {kind === 'tag' && <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />}
       {kind === 'tag' && <It label={row?.pinned ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />}

@@ -890,6 +890,21 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn add_to_day_puts_a_reference_on_that_day() {
+    // UC-01.12.
+    let mut s = blank();
+    s.today = tanacraft_core::Date::new(2026, 10, 10).unwrap();
+    let n = id(&run(&mut s, "node.add", json!({"name": "Read the soil article"})), "id");
+    let r = run(&mut s, "node.addToDay", json!({"node": n.0, "date": "next tuesday"}));
+    assert_eq!(r["date"], "2026-10-13");
+    let day = s.graph.day(tanacraft_core::Date::new(2026, 10, 13).unwrap()).unwrap();
+    let kids = s.graph.children(day);
+    assert_eq!(kids.len(), 1);
+    assert_eq!(s.graph.get(kids[0]).unwrap().reference_target(), Some(n));
+    assert!(s.run("node.addToDay", &json!({"node": n.0, "date": "someday"})).is_err());
+}
+
+#[test]
 fn table_suggests_fields_its_items_use_and_their_tags_define() {
     // DIFFS N46: "+ Add" > Suggested lists fields not shown yet (no AI).
     let mut s = blank();

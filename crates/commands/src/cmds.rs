@@ -209,6 +209,16 @@ pub fn registry() -> Registry {
             .params(r#"{"node"?: id}  (default: the selection or focused node)"#),
         C::new("node.moveMany", "Move several nodes", "Node", move_many)
             .params(r#"{"nodes": [id], "parent": id, "index"?: number}  (keeps their order)"#),
+        // Remind me (UC-01.12): a reference to the node on that day's page.
+        C::new("node.addToDay", "Add to day", "Node", |s, v| {
+            let id = s.target(v)?;
+            let t = p::str(v, "date").unwrap_or("tomorrow");
+            let (d, _) = Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?;
+            let day = s.graph.day(d)?;
+            let r = s.graph.create_reference(day, None, s.graph.resolve(id))?;
+            Ok(json!({"reference": r.0, "day": day.0, "date": d.to_string()}))
+        })
+        .params(r#"{"node"?: id, "date"?: "tomorrow | next tuesday | 2026-10-20 ..."}  (default tomorrow)"#),
         C::new("node.reference", "Add reference", "Node", reference)
             .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),

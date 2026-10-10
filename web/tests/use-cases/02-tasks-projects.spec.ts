@@ -169,7 +169,18 @@ test('UC-02.14 subtasks under a project get #task by themselves (default child s
 })
 
 // Typing # or using # Tag with two lines selected tags only one of them.
-missing('UC-02.15', 'tag several selected lines at once (# or Add tag on a selection)')
+test('UC-02.15 tag several selected lines at once', works('UC-02.15'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Rake leaves', 'Turn compost', 'Mulch beds'])
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.press('Shift+ArrowDown')
+  await app.keyboard.press('Shift+ArrowDown')
+  await expect(app.locator('.row.selected')).toHaveCount(2)
+  await app.locator('.sel-toolbar button', { hasText: '# Tag' }).click()
+  await app.keyboard.type('task')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('task')
+  await app.keyboard.press('Enter')
+  await expect.poll(async () => Promise.all(ids.map(async (id) => (await tree(server, id)).tags ?? []))).toEqual([['task'], ['task'], []])
+})
 
 test('UC-02.16 process an inbox into a move target (GTD style)', works('UC-02.16'), async ({ app, server }) => {
   const ideas = await idOf(server, 'Ideas')

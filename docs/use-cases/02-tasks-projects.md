@@ -99,12 +99,12 @@ calendars. Scenarios: `web/tests/use-cases/02-tasks-projects.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/supertags (Default child supertag)
 - **TanaCraft:** WORKS.
 
-### UC-02.15 Tag several lines at once: MISSING
+### UC-02.15 Tag several lines at once: WORKS
 - **Story:** I select five lines and tag them all `#task`.
 - **Steps:** Select, then # or Add tag.
 - **Expected:** Every selected line gets the tag.
 - **Source:** https://outliner.tana.inc/learn/features/supertags (bulk add or remove)
-- **TanaCraft:** MISSING. Only one of the selected lines is tagged (checked with # and with the toolbar's # Tag).
+- **TanaCraft:** WORKS with the selection toolbar's # Tag and the node menu's Add tag on a selected line (`tag.add` with `nodes`). Typing `#` on a selection types into its last line, as typing does there (DIFFS N27).
 
 ### UC-02.16 Process an inbox into move targets: WORKS
 - **Story:** GTD style, I send items to fixed places with one command.

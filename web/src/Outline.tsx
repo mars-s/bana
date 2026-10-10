@@ -447,7 +447,10 @@ function SelectionToolbar({ row, panel }: { row: NodeRow; panel: string }) {
       <span className="sel-div" />
       {b('# Tag', 'Add supertag', (e) => {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-        openPicker({ mode: 'tag', panel, node: row.target, at: -1, x: r.left, y: r.bottom })
+        // Every selected line gets the tag (UC-02.15).
+        const page = getState().pages[panel]
+        const rows = (page?.rows.items ?? []).filter((x): x is NodeRow => x.k === 'node' && (page?.sel ?? []).includes(x.id))
+        openPicker({ mode: 'tag', panel, node: row.target, nodes: rows.map((x) => x.target), at: -1, x: r.left, y: r.bottom })
       })}
       {b('Move', 'Move to', (e) => {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()

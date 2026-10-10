@@ -31,6 +31,8 @@ export interface PickerState {
   index?: number
   /** A field picked from "/" Field ▸ <type> is given that type when it is new. */
   fieldType?: string
+  /** Several nodes the pick applies to (a selection, UC-02.15). */
+  nodes?: number[]
   /** Move to: a reference stays where the node was. */
   leaveRef?: boolean
   x: number

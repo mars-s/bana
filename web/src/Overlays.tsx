@@ -534,7 +534,13 @@ function NodeMenu() {
   }
   const pick = (mode: 'tag' | 'field' | 'moveTo') => () => {
     close()
-    openPicker({ mode, panel, node: mode === 'moveTo' ? node : target, owner: mode === 'field' ? target : undefined, at: -1, x: m.x, y: m.y })
+    // On a line in a selection, Add tag tags every selected line (UC-02.15).
+    const sel = page?.sel ?? []
+    const nodes =
+      mode === 'tag' && sel.length > 1 && sel.includes(node)
+        ? (page?.rows.items ?? []).filter((x): x is NodeRow => x.k === 'node' && sel.includes(x.id)).map((x) => x.target)
+        : undefined
+    openPicker({ mode, panel, node: mode === 'moveTo' ? node : target, nodes, owner: mode === 'field' ? target : undefined, at: -1, x: m.x, y: m.y })
   }
   const copy = (text: string, note: string) => () => {
     close()

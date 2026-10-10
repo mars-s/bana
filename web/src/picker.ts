@@ -171,8 +171,9 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
       case 'tag': {
         // From the line (`#`): the typed text leaves the line. From a menu: nothing to cut.
         const caret = p.at >= 0 ? await cutQuery(p, '', true) : null
-        if (item.create) await exec('tag.add', { node: p.node, tag: item.create, color: p.nextColor }, panel)
-        else await exec('tag.add', { node: p.node, tag: item.id }, panel)
+        const on = p.nodes && p.nodes.length > 1 ? { nodes: p.nodes } : { node: p.node }
+        if (item.create) await exec('tag.add', { ...on, tag: item.create, color: p.nextColor }, panel)
+        else await exec('tag.add', { ...on, tag: item.id }, panel)
         if (caret != null) await exec('focus.set', { node: p.node, caret }, panel)
         break
       }

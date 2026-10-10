@@ -546,6 +546,18 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             v
         }
         "reference" => g.search(&q).into_iter().filter(|n| *n != node).take(10).map(|n| item(n, line(n))).collect(),
+        // Merge into (UC-06.34): a supertag into a supertag, a field into a field, else a node.
+        "mergeInto" => {
+            let t = g.resolve(node);
+            let pool: Vec<NodeId> = if g.tag_def(t).is_some() {
+                g.tags()
+            } else if g.field_def(t).is_some() {
+                g.iter().filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id)).map(|n| n.id).collect()
+            } else {
+                g.fuzzy(&q, 20)
+            };
+            pool.into_iter().filter(|n| *n != t && g.name(*n).to_lowercase().contains(&q)).take(10).map(|n| item(n, line(n))).collect()
+        }
         _ => Vec::new(),
     };
     out.truncate(10);
@@ -561,7 +573,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         out.truncate(10);
     }
     // Node rows show where the node lives (the "@" menu's breadcrumb line, DIFFS N62).
-    if matches!(mode, "reference" | "inlineRef" | "moveTo" | "source") {
+    if matches!(mode, "reference" | "inlineRef" | "moveTo" | "source" | "mergeInto") {
         for v in out.iter_mut() {
             if let Some(n) = v["id"].as_u64().map(NodeId) {
                 let path: Vec<String> = g.ancestors(n).into_iter().filter(|a| *a != g.sys.root && *a != n).map(|a| page_title(s, a)).collect();
@@ -570,7 +582,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         }
     }
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source") {
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source" | "mergeInto") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.

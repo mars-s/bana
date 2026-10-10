@@ -339,7 +339,27 @@ test('UC-06.33 custom commands: a saved list of steps run on a node (engine, CLI
 })
 
 // Gaps
-missing('UC-06.34', 'merge duplicate nodes, supertags or fields into one')
+test('UC-06.34 merge duplicate nodes, supertags or fields into one', works('UC-06.34'), async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['Basil', 'basil (herb)'], 'Herbs')
+  await server.run('node.add', { name: 'sow in May', parent: ids[1] })
+  await app.locator(`.row.node[data-id="${ids[1]}"] .bullet`).click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Merge into' }).click()
+  await app.keyboard.type('Basil')
+  await app.locator('.menu.picker .menu-item', { hasText: /Basil$/ }).first().click()
+  await expect.poll(async () => (await tree(server, page)).children.map((c: any) => c.name)).toEqual(['Basil'])
+  expect((await tree(server, ids[0])).children.map((c: any) => c.name)).toEqual(['sow in May'])
+  // Two supertags: Configure supertag, Merge into.
+  const a = (await server.run('node.add', { name: 'Fix the tap', parent: page })).result.id
+  await server.run('tag.add', { node: a, tag: 'todo' })
+  const todo = (await server.run('graph.tags')).result.find((t: any) => t.name === 'todo').id
+  await server.run('nav.open', { node: todo })
+  await app.locator('.head-actions .btn[title="Options"]').click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await app.locator('.cfg-foot .ghost-btn', { hasText: 'Merge into' }).click()
+  await app.keyboard.type('task')
+  await app.locator('.menu.picker .menu-item', { hasText: /task$/ }).first().click()
+  await expect.poll(async () => (await tree(server, a)).tags).toEqual(['task'])
+})
 missing('UC-06.35', 'lock a node so it cannot be edited')
 missing('UC-06.36', 'count words, characters and nodes of a page or selection')
 missing('UC-06.37', 'give an inline reference its own alias text, or turn it back into plain text')

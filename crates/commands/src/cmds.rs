@@ -209,6 +209,17 @@ pub fn registry() -> Registry {
             .params(r#"{"node"?: id}  (default: the selection or focused node)"#),
         C::new("node.moveMany", "Move several nodes", "Node", move_many)
             .params(r#"{"nodes": [id], "parent": id, "index"?: number}  (keeps their order)"#),
+        // UC-06.34: merge duplicate nodes, supertags or fields.
+        C::new("node.merge", "Merge duplicate into", "Node", |s, v| {
+            let from = s.target(v)?;
+            let into = p::node(v, "into")?.ok_or_else(|| CmdError::Params("`into` is the node to keep".into()))?;
+            s.graph.merge_duplicate(from, into)?;
+            if s.focus == Some(from) {
+                s.focus = None;
+            }
+            Ok(json!({"into": into.0}))
+        })
+        .params(r#"{"node"?: id, "into": id}  (two plain nodes, two supertags or two fields; the first goes to the trash)"#),
         // UC-05.06: lines that name a node without linking it, and linking one.
         C::new("node.unlinkedMentions", "Unlinked mentions", "Node", |s, v| {
             let id = s.target(v)?;

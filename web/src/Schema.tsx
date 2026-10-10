@@ -201,11 +201,20 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
       <Row label="Hide field">
         <Select label="Hide field" value={d.hide} options={HIDE} onChange={(mode) => run('field.setHide', { mode })} />
       </Row>
+      <button className="ghost-btn" onClick={(e) => mergeFrom(e, field, panel)}>
+        <Icon name="duplicate" size={12} /> Merge into…
+      </button>
       <p className="cfg-help">
         Used on {d.usedIn.nodes} {d.usedIn.nodes === 1 ? 'node' : 'nodes'} and in {d.usedIn.tags} {d.usedIn.tags === 1 ? 'supertag' : 'supertags'}.
       </p>
     </div>
   )
+}
+
+/** Merge into (UC-06.34): pick the supertag or field to keep. */
+function mergeFrom(e: React.MouseEvent, node: number, panel: string) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  openPicker({ mode: 'mergeInto', panel, node, at: -1, x: r.left, y: r.bottom })
 }
 
 // ---- configure supertag ----------------------------------------------------------------------------
@@ -304,6 +313,10 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
         <span className="cfg-used">
           <Icon name="list" size={12} /> Used {d.used} {d.used === 1 ? 'time' : 'times'}
         </span>
+        {/* A duplicate supertag goes into another (UC-06.34). */}
+        <button className="ghost-btn" onClick={(e) => mergeFrom(e, tag, panel)}>
+          <Icon name="duplicate" size={12} /> Merge into…
+        </button>
         <button className="ghost-btn danger" onClick={() => void exec('node.delete', { node: tag }, panel)}>
           <Icon name="trash" size={12} /> Delete
         </button>

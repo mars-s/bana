@@ -298,6 +298,14 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         if (item.id != null) await exec('field.addSource', { field: p.node, node: item.id }, panel)
         break
       }
+      case 'mergeInto': {
+        if (item.id == null) break
+        const page = getState().pages[panel]
+        await exec('node.merge', { node: p.node, into: item.id }, panel)
+        // Merging the page shown: the kept one opens.
+        if (page && (page.zoom === p.node || page.target === p.node)) await exec('nav.open', { node: item.id }, panel)
+        break
+      }
       case 'moveTo': {
         if (item.id != null) await exec('node.move', { node: p.node, parent: item.id, ...(p.leaveRef ? { leaveReference: true } : {}) }, panel)
         break

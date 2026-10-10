@@ -890,6 +890,39 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn duplicates_merge_with_every_pointer_moved() {
+    // UC-06.34: nodes, supertags and fields.
+    let mut s = blank();
+    let keep = id(&run(&mut s, "node.add", json!({"name": "Robin"})), "id");
+    let dup = id(&run(&mut s, "node.add", json!({"name": "Robin A."})), "id");
+    let kid = id(&run(&mut s, "node.add", json!({"name": "phone", "parent": dup.0})), "id");
+    let line = id(&run(&mut s, "node.add", json!({"name": format!("call [[id:{}]]", dup.0)})), "id");
+    let r = id(&run(&mut s, "node.reference", json!({"target": dup.0})), "id");
+    run(&mut s, "node.merge", json!({"node": dup.0, "into": keep.0}));
+    assert_eq!(s.graph.parent(kid), Some(keep));
+    assert_eq!(s.graph.name(line), format!("call [[id:{}]]", keep.0));
+    assert_eq!(s.graph.get(r).unwrap().reference_target(), Some(keep));
+    assert!(s.graph.in_trash(dup));
+    // Two supertags.
+    let a = id(&run(&mut s, "node.add", json!({"name": "a"})), "id");
+    run(&mut s, "tag.add", json!({"node": a.0, "tag": "todo"}));
+    run(&mut s, "tag.add", json!({"node": keep.0, "tag": "task"}));
+    let (todo, task) = (s.graph.find_tag("todo").unwrap(), s.graph.find_tag("task").unwrap());
+    run(&mut s, "node.merge", json!({"node": todo.0, "into": task.0}));
+    assert_eq!(s.graph.get(a).unwrap().tags, [task]);
+    // Two fields: values move, both kept where a node had both.
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Phone", "value": "1"}));
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Tel", "value": "2"}));
+    let b = id(&run(&mut s, "node.add", json!({"name": "b"})), "id");
+    run(&mut s, "field.add", json!({"node": b.0, "field": "Tel", "value": "3"}));
+    let (phone, tel) = (s.graph.find_field("Phone").unwrap(), s.graph.find_field("Tel").unwrap());
+    run(&mut s, "node.merge", json!({"node": tel.0, "into": phone.0}));
+    assert_eq!(s.graph.get(a).unwrap().field_values(phone).len(), 2);
+    assert_eq!(s.graph.get(b).unwrap().field_values(phone).len(), 1);
+    assert!(s.run("node.merge", &json!({"node": a.0, "into": phone.0})).is_err(), "a node into a field");
+}
+
+#[test]
 fn unlinked_mentions_are_found_and_linked() {
     // UC-05.06.
     let mut s = blank();

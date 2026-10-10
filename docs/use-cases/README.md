@@ -35,16 +35,16 @@ Everything here comes from Tana's public pages, written in our own words:
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 5 | 1 | 3 | 0 | 1 |
-| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 28 | 6 | 11 | 0 | 0 |
+| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 29 | 6 | 10 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 2 | 2 | 5 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 8 | 1 | 6 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **92** | **14** | **36** | **15** | **24** |
+| **Total (181)** | | **93** | **14** | **35** | **15** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 106 work fully or in
-part (92 + 14) and 36 are missing.
+Out of the 142 use cases that need neither AI nor a cloud or mobile service, 107 work fully or in
+part (93 + 14) and 35 are missing.
 
 ## Top 15 gaps by user value
 
@@ -71,7 +71,7 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 10. ~~**Rolling dates in searches** (UC-06.43).~~ Done: this week, NEXT 14 DAYS, LAST 7 DAYS and more.
 11. ~~**Add to day** (UC-01.12).~~ Done: node menu Add to day, `node.addToDay`.
 12. ~~**Unlinked mentions** (UC-05.06).~~ Done.
-13. **Merge duplicates** (UC-06.34). Nodes, supertags and fields.
+13. ~~**Merge duplicates** (UC-06.34).~~ Done: nodes, supertags and fields (`node.merge`).
 14. ~~**Progress at a glance** (UC-02.03, UC-02.04).~~ Done: bars by themselves, rings on pinned
     projects.
 15. **Capture from anywhere** (UC-08.14). A system-wide quick capture in the desktop app.

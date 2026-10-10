@@ -1223,6 +1223,88 @@ impl Graph {
         Ok(caret)
     }
 
+    /// Merges duplicate `from` into `into` (UC-06.34), then moves `from` to the trash. Two plain
+    /// nodes: children, supertags and fields move over. Two supertags: tagged nodes and template
+    /// fields move over. Two fields: values and template places move over. In every case each
+    /// reference, inline link and node value that pointed at `from` points at `into`.
+    pub fn merge_duplicate(&mut self, from: NodeId, into: NodeId) -> Result<()> {
+        let (from, into) = (self.resolve(from), self.resolve(into));
+        if from == into || self.is_system(from) || self.is_ancestor_or_self(from, into) {
+            return Err(Error::Invalid("pick two different nodes, the second not inside the first".into()));
+        }
+        let kinds = (&self.node(from)?.kind, &self.node(into)?.kind);
+        match kinds {
+            (Kind::Plain, Kind::Plain) => {
+                for c in self.children(from).to_vec() {
+                    self.move_to(c, into, None)?;
+                }
+                for t in self.node(from)?.tags.clone() {
+                    self.add_tag(into, t)?;
+                }
+                let have: Vec<NodeId> = self.node(into)?.fields.iter().map(|e| e.field).collect();
+                let moved: Vec<FieldEntry> = self.node(from)?.fields.iter().filter(|e| !have.contains(&e.field)).cloned().collect();
+                self.node_mut(into)?.fields.extend(moved);
+            }
+            (Kind::Tag(_), Kind::Tag(_)) => {
+                for n in self.tagged(from) {
+                    self.remove_tag(n, from)?;
+                    self.add_tag(n, into)?;
+                }
+                for f in self.template_fields(from) {
+                    self.tag_add_field(into, f)?;
+                }
+            }
+            (Kind::Field(_), Kind::Field(_)) => {
+                let holders: Vec<NodeId> = self.nodes.values().filter(|n| n.fields.iter().any(|e| e.field == from)).map(|n| n.id).collect();
+                for h in holders {
+                    let n = self.node_mut(h)?;
+                    if n.fields.iter().any(|e| e.field == into) {
+                        // Both: the values of `from` follow those of `into`.
+                        let Some(i) = n.fields.iter().position(|e| e.field == from) else { continue };
+                        let e = n.fields.remove(i);
+                        if let Some(t) = n.fields.iter_mut().find(|x| x.field == into) {
+                            t.more.extend(e.value.into_iter().chain(e.more));
+                        }
+                    } else if let Some(e) = n.fields.iter_mut().find(|e| e.field == from) {
+                        e.field = into;
+                    }
+                }
+                let tags: Vec<NodeId> = self.tags().into_iter().filter(|t| self.template_fields(*t).contains(&from)).collect();
+                for t in tags {
+                    self.tag_add_field(t, into)?;
+                }
+            }
+            _ => return Err(Error::Invalid("only two plain nodes, two supertags or two fields can be merged".into())),
+        }
+        // Every pointer at `from` now points at `into`.
+        let (old, new) = (crate::format::ref_token(from.0), crate::format::ref_token(into.0));
+        let ids: Vec<NodeId> = self.nodes.keys().copied().collect();
+        for id in ids {
+            let Some(n) = self.get(id) else { continue };
+            let is_ref = n.reference_target() == Some(from);
+            let in_name = n.name.contains(&old);
+            let in_fields = n.fields.iter().any(|e| e.value.iter().chain(e.more.iter()).any(|v| *v == FieldValue::Node(from)));
+            if !(is_ref || in_name || in_fields) {
+                continue;
+            }
+            let n = self.node_mut(id)?;
+            if is_ref {
+                n.kind = Kind::Reference { target: into };
+            }
+            if in_name {
+                n.name = n.name.replace(&old, &new);
+            }
+            for e in &mut n.fields {
+                for v in e.value.iter_mut().chain(e.more.iter_mut()) {
+                    if *v == FieldValue::Node(from) {
+                        *v = FieldValue::Node(into);
+                    }
+                }
+            }
+        }
+        self.trash(from)
+    }
+
     /// Copies `id` and its owned subtree right after it. References stay references.
     pub fn duplicate(&mut self, id: NodeId) -> Result<NodeId> {
         if self.is_system(id) {

@@ -352,6 +352,7 @@ const PICK_TITLES: Record<string, string> = {
   templateField: 'Add a field to the template',
   sourceTag: 'Options from supertag',
   source: 'Source of options',
+  mergeInto: 'Merge into',
 }
 
 /** "/" items: icon and shortcut (spec 02 §11; DIFFS N62). */
@@ -532,7 +533,7 @@ function NodeMenu() {
     close()
     void exec(cmd, { node, ...p }, panel)
   }
-  const pick = (mode: 'tag' | 'field' | 'moveTo') => () => {
+  const pick = (mode: 'tag' | 'field' | 'moveTo' | 'mergeInto') => () => {
     close()
     // On a line in a selection, Add tag tags every selected line (UC-02.15).
     const sel = page?.sel ?? []
@@ -634,6 +635,7 @@ function NodeMenu() {
       {fromPage && <It label="Copy" icon="copy" on={copyNode} sc="Mod+C" />}
       <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
       {!fromPage && <It label="Move to…" icon="forward" on={pick('moveTo')} />}
+      {!isRef && <It label="Merge into…" on={pick('mergeInto')} />}
       {/* Remind me (UC-01.12): a reference on that day's page. */}
       <SubMenu label="Add to day">
         {[['today', 'Today'], ['tomorrow', 'Tomorrow'], ['next monday', 'Next Monday'], ['next week', 'In a week']].map(([d, l]) => (

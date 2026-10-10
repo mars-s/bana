@@ -253,6 +253,54 @@ function ConfirmDelete({ o }: { o: Json }) {
   )
 }
 
+/** Manage workspaces (spec 07 §3): create one, rename them. Each is a part of the one graph file. */
+function ManageWorkspaces() {
+  const sb = useStore((s) => s.sidebar)
+  const [name, setName] = useState('')
+  const create = () => {
+    if (!name.trim()) return
+    void exec('workspace.create', { name: name.trim() })
+    setName('')
+  }
+  return (
+    <div className="dialog quick workspaces" role="dialog" aria-label="Manage workspaces">
+      <div className="dialog-head">Manage workspaces</div>
+      <p className="confirm-text">Workspaces keep separate Libraries, supertags and trash in the same file. They all stay open in the sidebar.</p>
+      {sb?.workspaces.map((w) => (
+        <div key={w.id} className="ws-row">
+          <input
+            className="cfg-input"
+            aria-label={`Rename ${w.name}`}
+            defaultValue={w.name}
+            onBlur={(e) => e.target.value.trim() && e.target.value !== w.name && void exec('workspace.rename', { workspace: w.id, name: e.target.value.trim() })}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') close()
+            }}
+          />
+        </div>
+      ))}
+      <div className="ws-row">
+        <input
+          className="cfg-input"
+          placeholder="Workspace name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') create()
+            if (e.key === 'Escape') close()
+          }}
+        />
+        <button className="btn regular" onClick={create}>
+          Create workspace
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Shortcuts() {
   const commands = useStore((s) => s.commands)
   const on = useStore((s) => s.shortcuts)
@@ -479,6 +527,7 @@ export function Overlays() {
           {o.kind === 'search' && <SearchOpen />}
           {o.kind === 'quickadd' && <QuickAdd />}
           {o.kind === 'confirm' && <ConfirmDelete o={o} />}
+          {o.kind === 'workspaces' && <ManageWorkspaces />}
         </div>
       )}
     </>

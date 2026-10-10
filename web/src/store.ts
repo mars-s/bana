@@ -12,7 +12,7 @@ export interface Tab {
 }
 
 export interface Overlay {
-  kind: 'palette' | 'search' | 'picker' | 'quickadd' | 'confirm'
+  kind: 'palette' | 'search' | 'picker' | 'quickadd' | 'confirm' | 'workspaces'
   [k: string]: Json
 }
 

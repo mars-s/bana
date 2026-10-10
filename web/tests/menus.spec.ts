@@ -87,3 +87,16 @@ test('deleting a node used elsewhere asks first (N20)', async ({ app, server }) 
   await app.locator('.dialog.confirm .btn', { hasText: 'Delete anyway' }).click()
   await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).not.toContain('shared')
 })
+
+test('manage workspaces creates a second workspace, shown folded in the sidebar (N24)', async ({ app }) => {
+  await app.locator('.side-foot', { hasText: 'Manage workspaces' }).click()
+  await app.locator('.workspaces input[placeholder="Workspace name"]').fill('Lab')
+  await app.locator('.workspaces input[placeholder="Workspace name"]').press('Enter')
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.side-ws-head', { hasText: 'Lab' })).toBeVisible()
+  await expect(app.locator('.side-head', { hasText: 'Workspaces' })).toBeVisible()
+  // Folded until opened.
+  await expect(app.locator('.side-ws').nth(1).locator('.side-ws-items')).toHaveCount(0)
+  await app.locator('.side-ws-head', { hasText: 'Lab' }).click()
+  await expect(app.locator('.side-ws').nth(1).locator('.side-row', { hasText: 'Library' })).toBeVisible()
+})

@@ -1,13 +1,13 @@
 // The window: top bar (sidebar button, history, tabs, right cluster), sidebar and panels.
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { Panel, tagStyle } from './Outline'
 import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
 import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
-import type { SidebarItem } from './engine'
+import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
 function TopBar() {
   const tabs = useStore((s) => s.tabs)
@@ -108,6 +108,47 @@ function initials(name: string) {
     .join('')
 }
 
+/** One workspace in the sidebar: its row (avatar, name, "+"), and its entries (spec 07 §3). With
+ * several workspaces each row folds (they start folded, DIFFS N24). */
+function WorkspaceRows({ ws, several, zoom, journal, showDaily }: { ws: SidebarData['workspaces'][number]; several: boolean; zoom?: number; journal: number; showDaily: boolean }) {
+  const [open, setOpen] = useState(false)
+  const unfolded = !several || open
+  return (
+    <div className="side-ws">
+      <div className="side-ws-head" onClick={() => (several ? setOpen((o) => !o) : void exec('nav.open', { node: ws.library }))} role="button">
+        {several && (
+          <span className="ws-chev">
+            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} />
+          </span>
+        )}
+        <span className="ws-dot">{initials(ws.name)}</span>
+        <span className="side-label">{ws.name}</span>
+        <span className="spacer" />
+        <button
+          className="icon-btn small"
+          title={`Create new item in ${ws.name}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            void exec('node.add', { name: '', parent: ws.library }).then((r) => r?.result?.id != null && exec('nav.open', { node: r.result.id }))
+          }}
+        >
+          <Icon name="plus" size={12} />
+        </button>
+      </div>
+      {unfolded && (
+        <div className="side-ws-items">
+          {ws.main && showDaily && <SideRow pin icon={null} label="Daily notes" active={zoom === journal} onClick={() => void exec('nav.dailyNotes')} />}
+          <SideRow pin icon={null} label="Library" active={zoom === ws.library} onClick={() => void exec('nav.open', { node: ws.library })} />
+          {ws.entries.slice(0, 12).map((it) => (
+            <SideRow key={it.id} pin icon={null} label={it.name || 'Untitled'} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
+          ))}
+          <SideRow pin icon={null} label="Trash" active={zoom === ws.trash} onClick={() => void exec('nav.open', { node: ws.trash })} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Sidebar() {
   const sb = useStore((s) => s.sidebar)
   const mode = useStore((s) => s.sidebarMode)
@@ -148,32 +189,11 @@ function Sidebar() {
       {sb.pinned.map((it) => (
         <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
       ))}
-      <div className="side-head">Workspaces</div>
+      {sb.workspaces.length > 1 && <div className="side-head">Workspaces</div>}
       {sb.workspaces.map((ws) => (
-        <div key={ws.id} className="side-ws">
-          <div className="side-ws-head" onClick={() => void exec('nav.open', { node: ws.library })} role="button">
-            <span className="ws-dot">{initials(ws.name)}</span>
-            <span className="side-label">{ws.name}</span>
-            <span className="spacer" />
-            <button
-              className="icon-btn small"
-              title="Add to workspace"
-              onClick={(e) => {
-                e.stopPropagation()
-                void exec('node.add', { name: '', parent: ws.library })
-              }}
-            >
-              <Icon name="plus" size={12} />
-            </button>
-          </div>
-          <div className="side-ws-items">
-            {ws.main && shows('daily_notes') && <SideRow pin icon={null} label="Daily notes" active={zoom === sb.journal} onClick={() => void exec('nav.dailyNotes')} />}
-            <SideRow pin icon={null} label="Library" active={zoom === ws.library} onClick={() => void exec('nav.open', { node: ws.library })} />
-            <SideRow pin icon={null} label="Trash" active={zoom === ws.trash} onClick={() => void exec('nav.open', { node: ws.trash })} />
-          </div>
-        </div>
+        <WorkspaceRows key={ws.id} ws={ws} several={sb.workspaces.length > 1} zoom={zoom} journal={sb.journal} showDaily={shows('daily_notes')} />
       ))}
-      <div className="side-foot" onClick={() => void exec('workspace.list')}>
+      <div className="side-foot" onClick={() => setState({ overlay: { kind: 'workspaces' } })} role="button">
         Manage workspaces
       </div>
     </aside>

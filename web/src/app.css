@@ -2790,3 +2790,24 @@ kbd {
   opacity: 0;
   cursor: pointer;
 }
+
+.ws-chev {
+  position: absolute;
+  left: -9px;
+  display: inline-flex;
+  color: var(--c-muted);
+}
+
+.side-ws-head {
+  position: relative;
+}
+
+.ws-row {
+  display: flex;
+  gap: var(--q2);
+  margin-top: var(--q2);
+}
+
+.ws-row .cfg-input {
+  flex: 1;
+}

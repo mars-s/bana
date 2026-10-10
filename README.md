@@ -136,13 +136,13 @@ Playwright: 121 tests plus the use cases in `web/tests/use-cases/`, each against
 
 ## iPhone app
 
-A native SwiftUI app (`apps/tanacraft-ios`, iOS 17 and later, simulator only for now) on the same
+A native SwiftUI app (`apps/tanacraft-ios`, iOS 26, simulator only for now) on the same
 Rust engine: `crates/ffi` exposes it to Swift with UniFFI (open a graph, run any command by id with
 JSON params, read the same view snapshots the web UI draws, hear about changes). The graph lives in
 the app's Documents folder as `graph.tanacraft`, the same Loro file the desktop app writes.
 
-<p><img src="docs/images/ios/today-dark.png" width="200" alt="Today page on the iPhone, dark">
-<img src="docs/images/ios/editing-light.png" width="200" alt="Editing a line with the keyboard bar, light">
+<p><img src="docs/images/ios/scrolled-dark.png" width="200" alt="The outline scrolling under the Liquid Glass bars, dark">
+<img src="docs/images/ios/editing-light.png" width="200" alt="Editing a line: the tab bar turns into the editing bar, light">
 <img src="docs/images/ios/supertag-dark.png" width="200" alt="A supertag page listing its tagged nodes"></p>
 
 ```sh
@@ -152,10 +152,12 @@ scripts/ios-test.sh shots                 # screenshots of the main screens into
 ```
 
 What works: the day page with previous and next day, the outline with bullets, tap to edit, Return
-for a new line, Backspace to merge, indent, outdent, move, collapse, checkbox, supertag, undo on a
-keyboard bar, zoom in with breadcrumbs and Back, tags and fields (text, options, checkbox), search,
+for a new line, Backspace to merge, indent, outdent, move, collapse, checkbox, supertag and undo
+on an editing bar, zoom in with breadcrumbs and Back, tags and fields (text, options, checkbox), search,
 quick capture, supertag pages, and the sidebar as a Home sheet. Every keystroke goes to the engine;
-the file is written within half a second and at once when the app leaves the foreground. Build and
+the file is written within half a second and at once when the app leaves the foreground. The
+chrome (top bar, tab bar, editing bar, Capture button, sheets, search) is iOS 26 Liquid Glass
+floating over the page; the outline itself stays flat. Build and
 run details: [apps/tanacraft-ios/README.md](apps/tanacraft-ios/README.md).
 
 ## For agents: CLI, MCP and the JSON API

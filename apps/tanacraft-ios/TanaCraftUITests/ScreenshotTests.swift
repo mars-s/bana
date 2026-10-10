@@ -11,19 +11,33 @@ final class ScreenshotTests: UITestCase {
         XCTAssertNoThrow(try png.write(to: url))
     }
 
+    /// A slow drag on the page (in fractions of the screen height), so it stops where it was let go.
+    func drag(from: CGFloat, to: CGFloat) {
+        let a = app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: from))
+        a.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: to)), withVelocity: .slow, thenHoldForDuration: 0.3)
+    }
+
     func testScreens() throws {
         guard ProcessInfo.processInfo.environment["SHOTS_DIR"] != nil else { throw XCTSkip("SHOTS_DIR not set") }
         let theme = ProcessInfo.processInfo.environment["SHOTS_THEME"] ?? "light"
         launch(sample: true)
         shot("today-\(theme)")
+        // A longer page scrolled so the outline runs under the glass bars.
+        for name in ["Community garden", "Raised beds", "Seed list", "Water rota", "Ask the hardware store about bulk compost"] {
+            if btn("Expand \(name)").waitForExistence(timeout: 1) { btn("Expand \(name)").tap() }
+        }
+        drag(from: 0.75, to: 0.45)
+        shot("scrolled-\(theme)")
+        drag(from: 0.3, to: 0.9)
         btn("Open Volunteer meetup").tap()
         waitTitle("Volunteer meetup")
         line("Agree on the water rota").tap()
         shot("editing-\(theme)")
         app.buttons["kb.hide"].tap()
         app.buttons["nav.supertags"].tap()
-        waitTitle("Supertags")
-        btn("Open task").tap()
+        XCTAssertTrue(app.buttons["supertag.task"].waitForExistence(timeout: 3))
+        shot("supertags-\(theme)")
+        app.buttons["supertag.task"].tap()
         waitTitle("task")
         shot("supertag-\(theme)")
         app.buttons["nav.search"].tap()
@@ -39,5 +53,8 @@ final class ScreenshotTests: UITestCase {
         app.buttons["Done"].tap()
         app.buttons["nav.capture"].tap()
         shot("capture-\(theme)")
+        app.buttons["Cancel"].tap()
+        app.buttons["nav.manage"].tap()
+        shot("manage-\(theme)")
     }
 }

@@ -8,7 +8,7 @@ Simulator only for now: no signing, no device or App Store setup.
 
 ## Needs
 
-- Xcode 26 with an iOS 26 simulator (the app targets iOS 17 and later)
+- Xcode 26 with an iOS 26 simulator (the app targets iOS 26: its chrome is Liquid Glass, no fallback)
 - Rust with `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
 - `brew install xcodegen`
 
@@ -42,7 +42,7 @@ the date), `-reset YES` (deletes the graph first), `-graph name.tanacraft` (anot
 ## Tests
 
 ```sh
-scripts/ios-test.sh                # 15 UI tests (XCUITest) on the iPhone 17 Pro simulator
+scripts/ios-test.sh                # 17 UI tests (XCUITest) on the iPhone 17 Pro simulator
 SIM="iPhone 17" scripts/ios-test.sh
 scripts/ios-test.sh shots          # docs/images/ios/<screen>-<light|dark>.png
 CARGO_TARGET_DIR=target-ios cargo test -p tanacraft-ffi   # the FFI surface
@@ -54,13 +54,26 @@ bar, collapse and expand, checkbox, adding a supertag, zoom in and Back, day ste
 the node menu, and data safety: type, send the app to the background, kill it, relaunch, the text
 is there (also a kill in the foreground after the half-second autosave).
 
+## Look
+
+Chrome floats over the page in Liquid Glass (system APIs, iOS 26): Back, the breadcrumbs and
+Today on top; the tabs (Browse, Supertags, Search, Manage, after Tana's public mobile docs) and a
+prominent Capture button below, in one `GlassEffectContainer`, so while a line has the caret the
+tab capsule morphs into the editing bar (indent, outdent, move, collapse, checkbox, supertag,
+undo) and Capture into Done (`glassEffectID`). Both bars are `safeAreaBar`s: the outline scrolls
+under them with the system's scroll edge effect. Sheets at partial height and the search fields
+are the system's glass. The outline rows stay flat and quiet (DESIGN.md). Reduce Motion drops
+the morph animation; Reduce Transparency and Increase Contrast are the system's (frosted bars
+with defined edges, see `docs/images/ios/scrolled-reduce-transparency.png`).
+
 ## How it fits together
 
 | File | Job |
 |---|---|
 | `project.yml` | xcodegen spec: app and UI test targets, links `Core/TanaCraftCore.xcframework` |
 | `TanaCraft/Store.swift` | The one link to the engine: `run(command, params)`, `page`, decoders for the snapshots |
-| `TanaCraft/LineEditor.swift` | A line: a UITextView that sends every change to the engine at once, Return splits, Backspace at the start merges, keyboard bar |
+| `TanaCraft/LineEditor.swift` | A line: a UITextView that sends every change to the engine at once, Return splits, Backspace at the start merges |
+| `TanaCraft/App.swift` | The shell: glass top bar, tab bar and editing bar, sheets, save on leaving the foreground |
 | `TanaCraft/Outline.swift` | Page title, rows (node, field, empty line), field values, view items |
 | `TanaCraft/Sheets.swift` | Home (the sidebar), Search, Quick capture, supertag picker |
 | `TanaCraft/Format.swift` | Inline marks and references drawn as people read them |
@@ -79,7 +92,7 @@ app turns on iTunes file sharing, so the file can be copied out in Finder).
 - spec-gap: no phone measurements yet (`../tanacraft-spec/ios/` does not exist). The phone uses the
   desktop tokens with body text at 17 pt (`Phone.scale`) and a 22.5 pt indent.
 - Lines show their stored marks while being edited (formatted only when not editing).
-- No inline `#`, `@`, `>` or `/` menus while typing; supertags come from the keyboard bar.
+- No inline `#`, `@`, `>` or `/` menus while typing; supertags come from the editing bar.
 - Views show as plain lists (no table, board or calendar), date fields are edited as text.
 - A multi-line paste stays one line.
 - Each keystroke redraws the page from a fresh snapshot (up to 2,000 rows): about 25 ms of engine

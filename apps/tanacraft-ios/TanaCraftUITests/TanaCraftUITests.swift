@@ -196,10 +196,35 @@ final class TanaCraftUITests: UITestCase {
     func testSupertagPage() {
         launch(sample: true)
         app.buttons["nav.supertags"].tap()
-        waitTitle("Supertags")
-        btn("Open task").tap()
+        XCTAssertTrue(app.buttons["supertag.task"].waitForExistence(timeout: 3))
+        app.buttons["supertag.task"].tap()
+        waitTitle("task")
         XCTAssertTrue(app.buttons.matching(identifier: "viewItem").firstMatch.waitForExistence(timeout: 3))
         XCTAssertGreaterThanOrEqual(app.buttons.matching(identifier: "viewItem").count, 4)
+    }
+
+    func testCaptureToTomorrow() {
+        launch(sample: false)
+        app.buttons["nav.capture"].tap()
+        let field = app.textViews["capture.text"].exists ? app.textViews["capture.text"] : app.textFields["capture.text"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.typeText("Buy seeds")
+        app.buttons["capture.destination"].tap()
+        app.buttons["Tomorrow"].tap()
+        app.buttons["capture.add"].tap()
+        XCTAssertFalse(line("Buy seeds").waitForExistence(timeout: 1), "not on today")
+        app.buttons["day.next"].tap()
+        waitTitle("Tomorrow, Sun, 11 Oct")
+        XCTAssertTrue(line("Buy seeds").waitForExistence(timeout: 3))
+    }
+
+    func testManageTheme() {
+        launch(sample: true)
+        app.buttons["nav.manage"].tap()
+        XCTAssertTrue(app.buttons["Dark"].waitForExistence(timeout: 3))
+        app.buttons["Dark"].tap()
+        XCTAssertTrue(app.buttons["Dark"].isSelected)
+        app.buttons["System"].tap()
     }
 
     func testHomeSheet() {

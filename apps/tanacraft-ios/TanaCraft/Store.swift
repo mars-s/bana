@@ -137,6 +137,7 @@ final class Store {
         let file = docs.appendingPathComponent(defaults.string(forKey: "graph") ?? "graph.tanacraft")
         if defaults.bool(forKey: "reset") {
             try? FileManager.default.removeItem(at: file)
+            for key in ["captureTo", "theme"] { defaults.removeObject(forKey: key) }
         }
         do {
             let engine = try Engine.open(path: file.path, sample: defaults.bool(forKey: "sample"), today: defaults.string(forKey: "today"))

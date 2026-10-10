@@ -255,7 +255,8 @@ pub fn registry() -> Registry {
         C::new("node.paste", "Paste as nodes", "Node", paste).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.toggleHeading", "Toggle heading", "Node", toggle_heading).params(r#"{"node"?: id}"#),
         C::new("node.insert", "Insert node", "Node", insert).key("Shift+Enter").params(r#"{"node"?: id}"#),
-        C::new("node.quickAdd", "Quick add to today", "Node", quick_add).params(r#"{"name": string, "tag"?: string}"#),
+        C::new("node.quickAdd", "Quick add to today", "Node", quick_add)
+            .params(r#"{"name": string, "tag"?: string, "date"?: "tomorrow | 2026-10-20 ...", "parent"?: id}  (date: that day instead of today; parent: under that node, e.g. a pinned one)"#),
         // Inline formatting (marks in the text; see core::format).
         C::new("format.bold", "Bold", "Format", |s, v| format_mark(s, v, Mark::Bold)).key("Mod+B").params(FMT),
         C::new("format.italic", "Italic", "Format", |s, v| format_mark(s, v, Mark::Italic)).key("Mod+I").params(FMT),
@@ -1908,8 +1909,16 @@ fn quick_add(s: &mut Session, v: &Value) -> CmdResult {
     if name.trim().is_empty() {
         return Err(CmdError::Params("`name` is empty".into()));
     }
-    let day = s.graph.day(s.today)?;
-    let id = s.graph.create(day, None, name)?;
+    let day = match p::str(v, "date") {
+        Some(t) => s.graph.day(Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?.0)?,
+        None => s.graph.day(s.today)?,
+    };
+    let parent = match p::node(v, "parent")? {
+        Some(n) if s.graph.get(n).is_some() => n,
+        Some(n) => return Err(CmdError::Params(format!("no node {}", n.0))),
+        None => day,
+    };
+    let id = s.graph.create(parent, None, name)?;
     if let Some(t) = p::str(v, "tag") {
         let tag = match s.graph.find_tag(t) {
             Some(t) => t,

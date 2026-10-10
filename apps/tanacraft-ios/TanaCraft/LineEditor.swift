@@ -24,14 +24,6 @@ struct LineActions {
     var returned: (Int) -> Void
     var backspaceAtStart: () -> Void = {}
     var ended: () -> Void = {}
-    var accessory: [AccessoryItem] = []
-}
-
-struct AccessoryItem {
-    let id: String
-    let symbol: String
-    let label: String
-    let action: () -> Void
 }
 
 /// One editable line: a UITextView that sends every change to the engine at once (it never holds
@@ -90,7 +82,6 @@ struct LineEditor: UIViewRepresentable {
             }
             v.lastAttrs = attrs.description
         }
-        v.setAccessory(actions.accessory)
         if focused && !v.isFirstResponder {
             let at = text.utf16Offset(scalars: caret)
             DispatchQueue.main.async {
@@ -175,66 +166,11 @@ final class LineTextView: UITextView {
     var lastAttrs = ""
     /// The stored text with plain attributes (what editing shows).
     var plain: NSAttributedString?
-    private var accessoryIds: [String] = []
-    private var accessoryActions: [() -> Void] = []
-
     override func deleteBackward() {
         if selectedRange.location == 0 && selectedRange.length == 0 && markedTextRange == nil {
             backspaceAtStart()
             return
         }
         super.deleteBackward()
-    }
-
-    /// The keyboard bar: outline moves the phone has no keys for (Tab, Shift+Tab, ...).
-    func setAccessory(_ items: [AccessoryItem]) {
-        accessoryActions = items.map(\.action)
-        let ids = items.map(\.id)
-        guard ids != accessoryIds else { return }
-        accessoryIds = ids
-        guard !items.isEmpty else {
-            inputAccessoryView = nil
-            return
-        }
-        // A row of plain 44 pt buttons that scrolls sideways when it does not fit.
-        let bar = UIInputView(frame: CGRect(x: 0, y: 0, width: 320, height: 48), inputViewStyle: .keyboard)
-        let scroll = UIScrollView()
-        scroll.showsHorizontalScrollIndicator = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        let stack = UIStackView()
-        stack.axis = .horizontal
-        stack.spacing = 4
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        for (i, it) in items.enumerated() {
-            var cfg = UIButton.Configuration.plain()
-            cfg.image = UIImage(systemName: it.symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 17))
-            cfg.baseForegroundColor = .label
-            let b = UIButton(configuration: cfg)
-            b.tag = i
-            b.accessibilityIdentifier = "kb.\(it.id)"
-            b.accessibilityLabel = it.label
-            b.addTarget(self, action: #selector(tapAccessory(_:)), for: .touchUpInside)
-            b.widthAnchor.constraint(equalToConstant: 44).isActive = true
-            stack.addArrangedSubview(b)
-        }
-        bar.addSubview(scroll)
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: bar.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
-            stack.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
-        ])
-        inputAccessoryView = bar
-        if isFirstResponder { reloadInputViews() }
-    }
-
-    @objc private func tapAccessory(_ b: UIButton) {
-        if accessoryActions.indices.contains(b.tag) { accessoryActions[b.tag]() }
     }
 }

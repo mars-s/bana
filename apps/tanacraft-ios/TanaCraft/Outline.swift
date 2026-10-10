@@ -23,7 +23,7 @@ struct PageView: View {
                     addLine
                 }
                 .padding(.horizontal, T.q4)
-                .padding(.bottom, 120)
+                .padding(.bottom, T.q8)
             }
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: page.focus) { _, f in
@@ -211,21 +211,7 @@ struct RowView: View {
             backspaceAtStart: { store.run("node.backspace", ["node": id]) },
             ended: {
                 if store.page?.focus == id { store.run("focus.clear") }
-            },
-            accessory: [
-                AccessoryItem(id: "outdent", symbol: "decrease.indent", label: "Outdent") { store.run("node.outdent", ["node": id]) },
-                AccessoryItem(id: "indent", symbol: "increase.indent", label: "Indent") { store.run("node.indent", ["node": id]) },
-                AccessoryItem(id: "up", symbol: "arrow.up", label: "Move up") { store.run("node.moveUp", ["node": id]) },
-                AccessoryItem(id: "down", symbol: "arrow.down", label: "Move down") { store.run("node.moveDown", ["node": id]) },
-                AccessoryItem(id: "collapse", symbol: "chevron.up.chevron.down", label: "Expand or collapse") { store.toggleExpand(id) },
-                AccessoryItem(id: "done", symbol: "checkmark.square", label: "Checkbox") { store.run("node.toggleDone", ["node": id]) },
-                AccessoryItem(id: "tag", symbol: "number", label: "Add supertag") { tagPickerFor = id },
-                AccessoryItem(id: "undo", symbol: "arrow.uturn.backward", label: "Undo") { store.run("edit.undo") },
-                AccessoryItem(id: "redo", symbol: "arrow.uturn.forward", label: "Redo") { store.run("edit.redo") },
-                AccessoryItem(id: "hide", symbol: "keyboard.chevron.compact.down", label: "Hide keyboard") {
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                },
-            ]
+            }
         )
     }
 

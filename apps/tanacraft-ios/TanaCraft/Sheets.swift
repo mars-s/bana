@@ -28,7 +28,7 @@ struct HomeSheet: View {
                     }
                 }
             }
-            .navigationTitle("Home")
+            .navigationTitle("Browse")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", action: close) } }
         }
@@ -93,15 +93,18 @@ struct SearchSheet: View {
     }
 }
 
-/// Quick capture: one line (and optionally a supertag) onto today's page.
+/// Quick capture: one line, optionally with a supertag, to Today, Tomorrow, the Inbox or a pinned
+/// node (Tana's public mobile docs name these destinations). The last destination is remembered.
 struct CaptureSheet: View {
     @Environment(Store.self) private var store
     let close: () -> Void
     @State private var text = ""
     @State private var tag = ""
+    @AppStorage("captureTo") private var destination = "today"
     @FocusState private var focused: Bool
 
     var body: some View {
+        let pinned = store.sidebar()?.pinned.filter { $0.kind != "tag" } ?? []
         NavigationStack {
             Form {
                 TextField("Capture a thought", text: $text, axis: .vertical)
@@ -110,27 +113,129 @@ struct CaptureSheet: View {
                 TextField("Supertag (optional)", text: $tag)
                     .textInputAutocapitalization(.never)
                     .accessibilityIdentifier("capture.tag")
+                Picker("Add to", selection: $destination) {
+                    Text("Today").tag("today")
+                    Text("Tomorrow").tag("tomorrow")
+                    Text("Inbox").tag("inbox")
+                    ForEach(pinned, id: \.id) { p in Text(p.name).tag("node:\(p.id)") }
+                }
+                .accessibilityIdentifier("capture.destination")
             }
-            .navigationTitle("Quick add to today")
+            // A partial-height sheet is Liquid Glass on iOS 26: let it show through.
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Capture")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: close) }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        var p: [String: Any] = ["name": text]
-                        let t = tag.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-                        if !t.isEmpty { p["tag"] = t }
-                        store.run("node.quickAdd", p)
-                        store.save()
-                        close()
-                    }
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("capture.add")
+                    Button("Add", action: add)
+                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("capture.add")
                 }
             }
             .onAppear { focused = true }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private func add() {
+        var p: [String: Any] = ["name": text]
+        let t = tag.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        if !t.isEmpty { p["tag"] = t }
+        switch destination {
+        case "inbox": store.run("node.capture", p)
+        case "tomorrow":
+            p["date"] = "tomorrow"
+            store.run("node.quickAdd", p)
+        case let d where d.hasPrefix("node:"):
+            p["parent"] = Int64(d.dropFirst(5)) ?? 0
+            store.run("node.quickAdd", p)
+        default: store.run("node.quickAdd", p)
+        }
+        store.save()
+        close()
+    }
+}
+
+/// Every supertag with a filter, pinned ones first; a tap opens its page.
+struct SupertagsSheet: View {
+    @Environment(Store.self) private var store
+    let close: () -> Void
+    @State private var query = ""
+
+    struct Tag: Decodable, Hashable {
+        let id: Int64
+        let name: String
+        let color: String
+        let pinned: Bool
+        let count: Int
+    }
+    struct Tags: Decodable { let tags: [Tag] }
+
+    var body: some View {
+        let all = store.decode(Tags.self, "tags")?.tags ?? []
+        let q = query.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "# "))
+        let shown = all.filter { q.isEmpty || $0.name.lowercased().contains(q) }.sorted { ($0.pinned ? 0 : 1, $0.name.lowercased()) < ($1.pinned ? 0 : 1, $1.name.lowercased()) }
+        NavigationStack {
+            List(shown, id: \.id) { t in
+                Button {
+                    store.run("nav.open", ["node": t.id])
+                    close()
+                } label: {
+                    HStack {
+                        ChipLabel(name: t.name, color: t.color)
+                        if t.pinned { Image(systemName: "pin.fill").font(.caption).foregroundStyle(T.cMuted) }
+                        Spacer()
+                        Text("\(t.count)").foregroundStyle(T.cMuted)
+                    }
+                }
+                .accessibilityIdentifier("supertag.\(t.name)")
+            }
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Filter supertags")
+            .navigationTitle("Supertags")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Close", action: close) }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Schema") {
+                        store.run("nav.supertags")
+                        close()
+                    }
+                    .accessibilityIdentifier("supertags.schema")
+                }
+            }
+        }
+    }
+}
+
+/// Theme, the graph file and the version.
+struct ManageSheet: View {
+    @Environment(Store.self) private var store
+    let close: () -> Void
+    @AppStorage("theme") private var theme = "system"
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Theme", selection: $theme) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("manage.theme")
+                Section("Graph") {
+                    LabeledContent("File", value: URL(fileURLWithPath: store.engine?.path() ?? "").lastPathComponent)
+                    Button("Save now") { store.save() }
+                }
+                Section {
+                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
+                }
+            }
+            .navigationTitle("Manage")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", action: close) } }
+        }
     }
 }
 
@@ -172,6 +277,7 @@ struct TagPicker: View {
                     .accessibilityIdentifier("tag.choice")
                 }
             }
+            .scrollContentBackground(.hidden)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Supertag")
             .navigationTitle("Add supertag")
             .navigationBarTitleDisplayMode(.inline)

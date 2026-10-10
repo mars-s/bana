@@ -11,7 +11,7 @@ set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target-ios}"
-export IPHONEOS_DEPLOYMENT_TARGET=17.0
+export IPHONEOS_DEPLOYMENT_TARGET=26.0
 profile="${PROFILE:-release}"
 flag=""
 [ "$profile" = release ] && flag="--release"

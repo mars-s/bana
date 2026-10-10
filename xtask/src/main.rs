@@ -52,6 +52,12 @@ fn cargo(args: &[&str]) -> Result<(), String> {
 
 fn ci() -> Result<(), String> {
     cargo(&["fmt", "--all", "--check"])?;
+    // The iPhone app's tokens are generated from web/src/tokens.css: they must not drift.
+    let tokens =
+        Command::new("python3").arg(root().join("scripts/gen-ios-tokens.py")).arg("--check").status().map_err(|e| format!("python3: {e}"))?;
+    if !tokens.success() {
+        return Err("apps/tanacraft-ios/TanaCraft/Tokens.swift is out of date: run python3 scripts/gen-ios-tokens.py".into());
+    }
     cargo(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"])?;
     cargo(&["test", "--workspace"])
 }

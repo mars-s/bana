@@ -766,7 +766,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
             ) : (
               <span key={i} className="field-value" onMouseDown={(e) => (e.preventDefault(), edit(i))}>
                 {/* An option value shows the option marker (I-38, N59.24); others a bullet. */}
-                {row.type === 'options' && v?.node != null ? (
+                {row.type === 'options' || row.type === 'options_from_tag' ? (
                   <span className="bullet option-mark">
                     <Icon name="option" size={13} />
                   </span>
@@ -1618,6 +1618,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                     #
                   </span>
                 )}
+                {page.kind === 'tag' && <span className="title-slot" aria-hidden />}
                 {/* A page with a checkbox shows it before the title (N59.22). */}
                 {page.done != null && page.kind !== 'tag' && (
                   <span

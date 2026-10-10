@@ -130,6 +130,30 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
         </Row>
       )}
       {d.type === 'options' && (
+        <Row label="Sources of options" help="List of references and search nodes, whose children will become options.">
+          <div className="cfg-options">
+            {(d.sources as { id: number; name: string }[]).map((n) => (
+              <span key={n.id} className="cfg-option">
+                <span className="dot small" />
+                {n.name}
+                <button className="q-x" title="Remove source" onClick={() => run('field.removeSource', { node: n.id })}>
+                  <Icon name="close" size={9} />
+                </button>
+              </span>
+            ))}
+            <button
+              className="ghost-btn"
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect()
+                openPicker({ mode: 'source', panel, node: field, at: -1, x: r.left, y: r.bottom })
+              }}
+            >
+              + Add source
+            </button>
+          </div>
+        </Row>
+      )}
+      {d.type === 'options' && (
         <Row label="Auto-collect values" help="New values typed in become options.">
           <Toggle label="Auto-collect values" on={d.autoCollect} onChange={(on) => run('field.setAutoCollect', { on })} />
         </Row>
@@ -271,6 +295,15 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
           <TextBox label="Title expression" value={d.titleExpr ?? ''} placeholder="${name}" onCommit={(expression) => run('tag.setTitleExpression', { expression })} />
         </Row>
       </Section>
+      {/* Footer: how often the tag is used, and Delete (spec 12 d46). */}
+      <div className="cfg-foot">
+        <span className="cfg-used">
+          <Icon name="list" size={12} /> Used {d.used} {d.used === 1 ? 'time' : 'times'}
+        </span>
+        <button className="ghost-btn danger" onClick={() => void exec('node.delete', { node: tag }, panel)}>
+          <Icon name="trash" size={12} /> Delete
+        </button>
+      </div>
     </div>
   )
 }

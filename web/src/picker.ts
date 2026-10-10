@@ -287,6 +287,10 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         await exec('view.addColumn', { node: p.node, field: item.create ?? item.id }, panel)
         break
       }
+      case 'source': {
+        if (item.id != null) await exec('field.addSource', { field: p.node, node: item.id }, panel)
+        break
+      }
       case 'moveTo': {
         if (item.id != null) await exec('node.move', { node: p.node, parent: item.id, ...(p.leaveRef ? { leaveReference: true } : {}) }, panel)
         break

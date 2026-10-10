@@ -351,6 +351,7 @@ const PICK_TITLES: Record<string, string> = {
   column: 'Add a column',
   templateField: 'Add a field to the template',
   sourceTag: 'Options from supertag',
+  source: 'Source of options',
 }
 
 /** "/" items: icon and shortcut (spec 02 §11; DIFFS N62). */

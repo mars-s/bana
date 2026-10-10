@@ -72,3 +72,31 @@ test('a field page reads Schema / #supertag / field, and its description is type
   await app.locator('.field-head .page-desc').fill('Where a task is')
   await expect.poll(async () => (await server.run('graph.inspect', { node: id })).result?.description).toBe('Where a task is')
 })
+
+test('a field page lists sources of options and adds one; Configure supertag ends with Used N times and Delete (N59.32, N59.33)', async ({ app, server }) => {
+  const hits = await server.rpc('find', { query: 'Status', limit: 10 })
+  const id = hits.find((h: any) => h.name === 'Status').id
+  await server.run('nav.open', { node: id })
+  const row = app.locator('.cfg-row', { hasText: 'Sources of options' })
+  await row.locator('.ghost-btn', { hasText: '+ Add source' }).click()
+  await app.keyboard.type('Ideas')
+  await app.locator('.menu.picker .menu-item', { hasText: 'Ideas' }).first().click()
+  await expect(row.locator('.cfg-option', { hasText: 'Ideas' })).toBeVisible()
+  // The control column starts 157.5 from the labels.
+  const lx = (await app.locator('.cfg-label').first().boundingBox())!.x
+  const cx = (await app.locator('.cfg-control').first().boundingBox())!.x
+  expect(Math.abs(cx - lx - 157.5)).toBeLessThan(1)
+  const tags = (await server.run('graph.tags', {})).result
+  await server.run('nav.open', { node: tags.find((t: any) => t.name === 'task').id })
+  await app.locator('.head-actions [title="Options"]').first().click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await expect(app.locator('.cfg-used')).toHaveText(/Used \d+ times/)
+})
+
+test('option values show the option marker, not a bullet (N59.24)', async ({ app, server }) => {
+  const hits = await server.rpc('find', { query: 'Build four beds', limit: 5 })
+  await server.run('nav.open', { node: hits.find((h: any) => h.name === 'Build four beds').id })
+  const status = app.locator('.row.field', { hasText: 'Status' })
+  await expect(status.locator('.option-mark')).toBeVisible()
+  await expect(status.locator('.field-value .dot')).toHaveCount(0)
+})

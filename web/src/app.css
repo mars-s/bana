@@ -2207,10 +2207,19 @@ kbd {
   border-radius: 2px;
   border-left: 3px solid var(--tag, var(--c-muted));
   background: none;
-  color: var(--tag, var(--c-text));
+  /* A softer tag tint than the chip text (Tana: rgb(214, 119, 164) for pink, N59.28). */
+  color: color-mix(in srgb, var(--tag, var(--c-text)) 60%, var(--c-text));
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
+  height: var(--cal-event-h);
+  overflow: hidden;
   cursor: pointer;
+}
+
+.cal-grid .cal-event .checkbox {
+  width: 12px;
+  height: 12px;
+  flex: none;
 }
 
 /* Week and day grid events keep a tinted fill. */
@@ -3066,7 +3075,8 @@ kbd {
 }
 
 .cfg-label {
-  width: 157.5px;
+  /* The control column starts 157.5 from the label (spec 12: Field definition). */
+  width: calc(var(--cfg-label-col) - var(--q4));
   flex: none;
   padding-top: var(--q2);
   font-size: var(--fs-label);
@@ -3870,4 +3880,49 @@ kbd {
 /* The Settings title sits at y 100 (spec 12). */
 .settings-panel .page {
   padding-top: calc(var(--page-top) - var(--q2));
+}
+
+/* The supertag page's checkbox-like slot after the tag square (spec 12: Supertag page). */
+.title-slot {
+  flex: none;
+  width: var(--title-check);
+  height: var(--title-check);
+  border-radius: var(--r-md);
+  background: var(--c-raised);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+}
+
+/* Field page: selects span the control column; options sit in an outlined box (spec 12). */
+.cfg-grid .cfg-control select {
+  width: 100%;
+}
+
+.cfg-grid .cfg-options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--q1);
+  padding: var(--q2) var(--q3);
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+}
+
+.cfg-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--q2);
+  margin-top: var(--q2);
+  font-size: var(--fs-dense);
+  color: var(--c-secondary);
+}
+
+.cfg-used {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q2);
+}
+
+.ghost-btn.danger {
+  color: var(--c-danger);
 }

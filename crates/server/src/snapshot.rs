@@ -523,10 +523,10 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             .map(|l| json!({"id": 0, "label": l}))
             .collect(),
         // "@" opens on the recently opened nodes (DIFFS N62).
-        "inlineRef" | "moveTo" | "reference" if q.is_empty() => {
+        "inlineRef" | "moveTo" | "reference" | "source" if q.is_empty() => {
             s.recents.iter().copied().filter(|r| *r != node && g.get(*r).is_some()).take(8).map(|n| item(n, line(n))).collect()
         }
-        "inlineRef" => g.fuzzy(&q, 10).into_iter().filter(|n| *n != node).map(|n| item(n, line(n))).collect(),
+        "inlineRef" | "source" => g.fuzzy(&q, 10).into_iter().filter(|n| *n != node).map(|n| item(n, line(n))).collect(),
         "moveTo" => {
             let mut v: Vec<Value> = [g.sys.library, g.sys.journal]
                 .into_iter()
@@ -541,7 +541,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
     };
     out.truncate(10);
     // Node rows show where the node lives (the "@" menu's breadcrumb line, DIFFS N62).
-    if matches!(mode, "reference" | "inlineRef" | "moveTo") {
+    if matches!(mode, "reference" | "inlineRef" | "moveTo" | "source") {
         for v in out.iter_mut() {
             if let Some(n) = v["id"].as_u64().map(NodeId) {
                 let path: Vec<String> = g.ancestors(n).into_iter().filter(|a| *a != g.sys.root && *a != n).map(|a| page_title(s, a)).collect();
@@ -550,7 +550,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         }
     }
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag") {
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.
@@ -729,6 +729,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "options": g.field_options(node),
             "ownOptions": d.options,
             "sourceTag": d.source_tag.map(named),
+            "sources": d.sources.iter().map(|n| named(*n)).collect::<Vec<_>>(),
             "required": d.required,
             "hide": d.hide.name(),
             "autoInit": match d.auto_init {
@@ -755,6 +756,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
         return json!({
             "kind": "tag",
             "id": node.0,
+            "used": g.tagged(node).len(),
             "color": d.color,
             "checkbox": d.checkbox,
             "extends": d.extends.iter().map(|t| named(*t)).collect::<Vec<_>>(),

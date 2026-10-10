@@ -809,6 +809,16 @@ pub fn registry() -> Registry {
         C::new("export.json", "Export as JSON", "Export", |s, v| Ok(export::to_json_tree(&s.graph, node_or_zoom(s, v)?)))
             .params(r#"{"node"?: id}"#)
             .pure(),
+        // The person using the app (onboarding, the profile page): their #person node.
+        C::new("person.setMe", "Set your name", "Settings", |s, v| {
+            let name = p::req_str(v, "name")?.trim().chars().filter(|c| !c.is_control()).take(80).collect::<String>();
+            if name.is_empty() {
+                return Err(CmdError::Params("`name` cannot be empty".into()));
+            }
+            let id = s.graph.set_me(&name)?;
+            Ok(json!({"id": id.0, "name": name}))
+        })
+        .params(r#"{"name": string}  (makes or renames your #person node)"#),
         // Settings saved with the graph (spec 07 §8): Date/Time and what the sidebar and top bar show.
         C::new("settings.get", "Show settings", "Settings", |s, _| settings_json(s)).pure(),
         C::new("settings.set", "Change a setting", "Settings", |s, v| {

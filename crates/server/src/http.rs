@@ -53,13 +53,13 @@ impl Shared {
     /// Runs one request (or an array of them) and wakes event waiters.
     pub fn handle(&self, req: &Value) -> Value {
         // Sync requests never take the engine lock (the sync service takes it when it merges).
-        if let Some(m) = req.get("method").and_then(Value::as_str).filter(|m| m.starts_with("sync.")) {
+        if let Some(m) = req.get("method").and_then(Value::as_str).filter(|m| m.starts_with("sync.") || m.starts_with("id.")) {
             return self.sync_request(m, req.get("params").unwrap_or(&Value::Null));
         }
         let Ok(mut host) = self.host.lock() else { return json!({"error": "host lock poisoned"}) };
         let one = |host: &mut Host, r: &Value| {
             let method = r.get("method").and_then(Value::as_str).unwrap_or_default();
-            if method.starts_with("sync.") {
+            if method.starts_with("sync.") || method.starts_with("id.") {
                 return json!({"error": "send sync requests one at a time"});
             }
             let params = r.get("params").cloned().unwrap_or_else(|| json!({}));

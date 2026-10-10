@@ -264,6 +264,7 @@ dependencies = [
  "bana-core",
  "bana-mcp",
  "bana-sync",
+ "serde",
  "serde_json",
 ]
 

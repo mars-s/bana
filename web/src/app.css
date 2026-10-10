@@ -2811,3 +2811,88 @@ kbd {
 .ws-row .cfg-input {
   flex: 1;
 }
+
+/* ---- calendar week and day grid ---- */
+
+.tg {
+  font-size: var(--fs-label);
+}
+
+.tg-head,
+.tg-allday,
+.tg-hours {
+  display: grid;
+}
+
+.tg-head {
+  border-bottom: 1px solid var(--c-divider);
+  color: var(--c-muted);
+}
+
+.tg-day,
+.tg-week {
+  padding: 2px 4px;
+}
+
+.tg-day.today {
+  color: var(--c-today);
+  font-weight: var(--fw-bold);
+}
+
+.tg-allday {
+  min-height: 40px;
+  border-bottom: 1px solid var(--c-divider);
+}
+
+.tg-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 1px;
+  border-left: 1px solid var(--c-divider);
+}
+
+.tg-body {
+  max-height: 540px;
+  overflow-y: auto;
+}
+
+.tg-gutter {
+  display: flex;
+  flex-direction: column;
+}
+
+.tg-hour {
+  height: 45px;
+  padding-right: 6px;
+  text-align: right;
+  letter-spacing: -0.75px;
+  color: var(--c-muted);
+  border-top: 1px solid var(--c-divider);
+}
+
+.tg-col {
+  position: relative;
+  border-left: 1px solid var(--c-divider);
+  background-image: repeating-linear-gradient(to bottom, var(--c-divider) 0 1px, transparent 1px 45px);
+  height: calc(24 * 45px);
+}
+
+.tg-event-wrap {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  display: flex;
+}
+
+.tg-event-wrap .cal-event {
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  border-radius: 2px;
+}
+
+.cal-event-time {
+  font-size: var(--fs-meta);
+  opacity: 0.75;
+}

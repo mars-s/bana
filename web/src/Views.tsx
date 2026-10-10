@@ -518,6 +518,7 @@ function addDays(iso: string, n: number): string {
 
 function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
   const c = v.calendar
+  const [offset, setOffset] = useState(0)
   const items = v.groups.flatMap((g) => g.items)
   const byDay = new Map<string, ViewItem[]>()
   for (const it of items) for (const d of it.dates) byDay.set(d, [...(byDay.get(d) ?? []), it])
@@ -527,10 +528,14 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
   const dow = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7
   const sundayFirst = c.weekdays[0]?.startsWith('Sun')
   const start = addDays(first, -(sundayFirst ? (dow + 1) % 7 : dow))
-  const weeks = c.mode === 'week' ? 1 : 6
-  const gridStart = c.mode === 'week' ? c.weekStart : start
-  const days = Array.from({ length: weeks * 7 }, (_, i) => addDays(gridStart, i))
-  const title = c.mode === 'week' ? `Week of ${c.weekStart}` : `${MONTHS[c.month - 1]} ${c.year}`
+  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i))
+  // Week and day views step on their own (the engine keeps the month).
+  const span = c.mode === 'day' ? [addDays(c.today, offset)] : Array.from({ length: 7 }, (_, i) => addDays(c.weekStart, offset + i))
+  const title = c.mode === 'month' ? `${MONTHS[c.month - 1]} ${c.year}` : c.mode === 'week' ? `Week ${isoWeek(span[0])}, ${span[0].slice(0, 4)}` : span[0]
+  const step = (dir: number) => {
+    if (c.mode === 'month') void exec('view.month', { step: dir }, panel)
+    else setOffset((o) => o + dir * (c.mode === 'week' ? 7 : 1))
+  }
   return (
     <div className="calendar">
       <div className="cal-head">
@@ -543,17 +548,18 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
             </button>
           ))}
         </span>
-        <button className="icon-btn" title="Previous" onClick={() => void exec('view.month', { step: -1 }, panel)}>
+        <button className="icon-btn" title="Previous" onClick={() => step(-1)}>
           <Icon name="chevronLeft" size={14} />
         </button>
-        <button className="icon-btn" title="This month" onClick={() => void exec('view.month', {}, panel)}>
+        <button className="icon-btn" title="Today" onClick={() => (setOffset(0), void exec('view.month', {}, panel))}>
           <Icon name="calendar" size={14} />
         </button>
-        <button className="icon-btn" title="Next" onClick={() => void exec('view.month', { step: 1 }, panel)}>
+        <button className="icon-btn" title="Next" onClick={() => step(1)}>
           <Icon name="chevronRight" size={14} />
         </button>
       </div>
-      <div className="cal-grid">
+      {c.mode !== 'month' && <TimeGrid days={span} byDay={byDay} weekdays={c.weekdays} today={c.today} panel={panel} />}
+      {c.mode === 'month' && <div className="cal-grid">
         {c.weekdays.map((d) => (
           <div key={d} className="cal-dow">
             {d}
@@ -580,8 +586,79 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
             </div>
           )
         })}
-      </div>
+      </div>}
       {undated.length > 0 && <div className="cal-undated">{undated.length} nodes with no dates ›</div>}
+    </div>
+  )
+}
+
+/** Week and day: an all-day strip over an hour grid (spec 04 §10; 12: Calendar week). */
+function TimeGrid({ days, byDay, weekdays, today, panel }: { days: string[]; byDay: Map<string, ViewItem[]>; weekdays: string[]; today: string; panel: string }) {
+  const grid = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // Start the view at 08:00.
+    if (grid.current) grid.current.scrollTop = 8 * 45
+  }, [])
+  const hours = Array.from({ length: 24 }, (_, h) => h)
+  return (
+    <div className="tg">
+      <div className="tg-head" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <span className="tg-week">W{isoWeek(days[0])}</span>
+        {days.map((d, i) => (
+          <span key={d} className={`tg-day${d === today ? ' today' : ''}`}>
+            {weekdays[i % 7] ?? ''} {d.slice(8)}/{d.slice(5, 7)}
+          </span>
+        ))}
+      </div>
+      <div className="tg-allday" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <span />
+        {days.map((d) => (
+          <span key={d} className="tg-cell">
+            {(byDay.get(d) ?? [])
+              .filter((it) => !it.time)
+              .map((it) => (
+                <EventChip key={it.id} it={it} panel={panel} />
+              ))}
+          </span>
+        ))}
+      </div>
+      <div className="tg-body" ref={grid}>
+        <div className="tg-hours" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+          <div className="tg-gutter">
+            {hours.map((h) => (
+              <span key={h} className="tg-hour">
+                {String(h).padStart(2, '0')}:00
+              </span>
+            ))}
+          </div>
+          {days.map((d) => (
+            <div key={d} className="tg-col">
+              {(byDay.get(d) ?? [])
+                .filter((it) => it.time)
+                .map((it) => {
+                  const [a, b] = it.time!
+                  return (
+                    <div key={it.id} className="tg-event-wrap" style={{ top: (a / 60) * 45, height: Math.max(22, ((b - a) / 60) * 45) }}>
+                      <EventChip it={it} panel={panel} time={`${hm(a)} → ${hm(b)}`} />
+                    </div>
+                  )
+                })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+function EventChip({ it, panel, time }: { it: ViewItem; panel: string; time?: string }) {
+  const tag = it.tags.find((t) => t.name !== 'day')
+  return (
+    <div className="cal-event" style={tag ? tagStyle(tag.color) : undefined} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
+      <span className="cal-event-name">{it.name || 'Untitled'}</span>
+      {time && <span className="cal-event-time">{time}</span>}
     </div>
   )
 }

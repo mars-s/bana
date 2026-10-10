@@ -73,3 +73,14 @@ test('the query builder adds a condition, and results wait for Run once (spec 05
   await expect(app.locator('.query-builder')).toHaveCount(0)
   await expect(app.locator('.t-row[data-id]')).toHaveCount(1)
 })
+
+test('the calendar week view has an hour grid and steps by a week', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'calendar' })
+  await app.locator('.seg', { hasText: 'Week' }).click()
+  await expect(app.locator('.tg')).toBeVisible()
+  await expect(app.locator('.cal-title')).toHaveText('Week 41, 2026')
+  await app.locator('.cal-head .icon-btn[title="Next"]').click()
+  await expect(app.locator('.cal-title')).toHaveText('Week 42, 2026')
+  await expect(app.locator('.tg .cal-event', { hasText: 'Build four beds' })).toBeVisible()
+})

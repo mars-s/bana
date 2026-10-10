@@ -153,6 +153,8 @@
   --toast-pad: 14px;
   --t-toast: 200ms ease-out;
   --t-fade-delayed: 200ms ease 400ms;
+  /* Gap between a view title and its tools (spec 12). */
+  --view-title-gap: 6.65px;
   /* Cards sliding aside for a dragged card (M19). */
   --t-displace: 200ms ease-in-out;
 

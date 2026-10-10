@@ -209,7 +209,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Day page | done | Title, day toolbar, Open tasks card 403 wide that moves under the outline in a narrow panel. No calendar sync button. |
 | Tagged node page (node with a supertag and its fields) | done | Title checkbox, tag colour wash, field boxes. |
 | Node page (plain node with fields and nesting) | done | Field rows, guides, nesting. |
-| Supertag page (tag node with views) | done | Tag square, + Create new, help and options by the title; tab strip; views in place. View title row with description: partial. |
+| Supertag page (tag node with views) | done | Tag square, + Create new, help and options by the title; tab strip; views in place; view title row (name 19 px 600 with +, search options and options, then the view's description). The view toolbar stays on by default (it can be hidden per view). |
 | Table | done | Tag-named first column with a 2 px tag underline, 1 px underlines, fitted title column (150 to 340), fields 128, resizable, header menu, + Add after the last column, sideways scroll. |
 | Board | done | Columns 300 with 30 gaps, headers 35.4, card date lines, + Add at the top of a column, Hide, unset column. Reordering inside a column (`view.moveItem`: a node's children move; a search or supertag view keeps its own order; a sorted view drops its sort, spec-gap); during a drag the dimmed card is the placeholder and the others slide 200 ms ease-in-out (M19). |
 | Calendar month | done | As many weeks as the month needs, 3 px bars without fill, today circle, weekends lifted, undated count. |
@@ -217,7 +217,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | List (grouped outline) | done | Group headers with chevrons. |
 | Cards | done | 300 wide cards with 30 gaps, date line. |
 | Configure supertag | done | Second panel, colour row, folded section cards. AI and voice sections left out. |
-| Field definition page | partial | Form of label and control; title smaller than the spec's 29 px and the breadcrumb shows Schema only. |
+| Field definition page | done | Breadcrumb Schema / #supertag / field, type icon and a 19 px 500 title with help at the right, a faint Add a description line typed in place, form of label and control. (DIFFS N59.33 lists the clone first; d47 and spec 12 agree on 19 px.) |
 | Search node with query builder | done | Builder with groups, menus, Learn more and a corner close (N43). |
 | Search summary popover | partial | Search options by the title opens the query editor directly; no summary sentence or Merge filters. |
 | Search and open (Cmd+S) | done | Dialog, results with crumbs. |
@@ -475,8 +475,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `18-list-grouped-light.png` | done | Matched in the visual pass and round 8. |
 | `19-configure-supertag-dark.png` | done | Matched in the visual pass and round 8. |
 | `19-configure-supertag-light.png` | done | Matched in the visual pass and round 8. |
-| `20-field-config-dark.png` | partial | Form layout; title size and breadcrumb differ. |
-| `20-field-config-light.png` | partial | Form layout; title size and breadcrumb differ. |
+| `20-field-config-dark.png` | done | Breadcrumb, type icon, small title, description line, form layout. |
+| `20-field-config-light.png` | done | Breadcrumb, type icon, small title, description line, form layout. |
 | `21-table-dark.png` | done | Matched in the visual pass and round 8. |
 | `21-table-light.png` | done | Matched in the visual pass and round 8. |
 | `22-menu-options-dark.png` | done | Matched in the visual pass and round 8. |

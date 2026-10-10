@@ -44,6 +44,8 @@ export interface ViewSnap {
   calendar: { year: number; month: number; mode: 'month' | 'week' | 'day'; today: string; weekStart: string; weekdays: string[] }
   selected: number | null
   tabs: { id: number; name: string }[]
+  name: string
+  description: string
   query: { tree: QueryGroup; text: string; held: boolean } | null
   refs: Record<string, string>
 }
@@ -1311,3 +1313,36 @@ export function ViewBody({ v, panel, showToolbar = true }: { v: ViewSnap; panel:
 }
 
 export { Toolbar as ViewToolbar }
+
+/** A supertag page's view header (spec 12): the view's name 19 px 600 with +, search options and
+ * options after it, then its description in 14 px muted. */
+export function ViewTitle({ v, panel, name, description }: { v: ViewSnap; panel: string; name: string; description: string }) {
+  const qOpen = useStore((s) => !!s.queryOpen[panel])
+  return (
+    <div className="view-title">
+      <div className="view-title-row">
+        <h2 className="view-name">{name}</h2>
+        <button className="icon-btn small" title="Add an item" onClick={() => void exec('view.addItem', { node: v.node, name: '' }, panel)}>
+          <Icon name="plus" size={12} />
+        </button>
+        {v.query && (
+          <button className={`icon-btn small${qOpen ? ' on' : ''}`} title="Search options (query editor)" onClick={() => void toggleQuery(panel, v.node, !qOpen)}>
+            <Icon name="dotCircle" size={12} />
+          </button>
+        )}
+        <button
+          className="icon-btn small"
+          title="View options"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setState({ nodeMenu: { panel, node: v.node, x: r.left, y: r.bottom + 7 } })
+          }}
+        >
+          <Icon name="more" size={12} />
+        </button>
+      </div>
+      {description && <p className="view-desc">{description}</p>}
+    </div>
+  )
+}

@@ -329,11 +329,18 @@ pub fn page(s: &Session, params: &Value) -> Value {
     }
     // Where the focused row is, so the front end can scroll it into view (DIFFS N32).
     let focus_index = s.focus.and_then(|f| all.iter().position(|it| matches!(it, Item::Node(id, _) if *id == f)));
-    let crumbs: Vec<Value> = s
+    let mut crumbs: Vec<Value> = s
         .breadcrumbs()
         .into_iter()
         .map(|c| json!({"id": c.0, "name": if c == g.sys.schema { "Schema".to_string() } else { page_title(s, c) }}))
         .collect();
+    // A field definition reads Schema / #<first supertag using it> / <field> (spec 12).
+    if g.field_def(target).is_some() {
+        if let Some(t) = g.tags().into_iter().find(|t| g.tag_def(*t).is_some_and(|d| d.fields.contains(&target))) {
+            crumbs.push(json!({"id": t.0, "name": format!("#{}", g.name(t))}));
+        }
+        crumbs.push(json!({"id": target.0, "name": g.name(target)}));
+    }
     let node = g.get(target);
     let vdef = g.view_def(zoom);
     let related: Vec<Value> = g
@@ -365,6 +372,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "done": g.checkbox(target),
         "kind": kind_name(g, target),
         "tagColor": g.tag_def(target).map(|d| d.color.clone()),
+        "fieldType": g.field_def(target).map(|d| d.field_type.name()),
         "icon": node.and_then(|n| n.icon.clone()),
         "banner": node.and_then(|n| n.banner.clone()),
         "description": node.map(|n| n.description.clone()).unwrap_or_default(),
@@ -653,6 +661,8 @@ pub fn view(s: &Session, params: &Value) -> Value {
                       "today": today.to_string(), "weekStart": g.week_start(today).to_string(), "weekdays": g.weekday_names()},
         "selected": s.nav_selected.get(&node).map(|n| n.0),
         "tabs": tabs,
+        "name": g.name(node),
+        "description": g.get(node).map(|n| n.description.clone()).unwrap_or_default(),
         "query": g.query(g.resolve(node)).map(|q| json!({"tree": query_tree(g, q, 0), "text": q.describe(g), "held": g.held_results(g.resolve(node)).is_some()})),
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
     })

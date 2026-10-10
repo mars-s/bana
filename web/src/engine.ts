@@ -297,6 +297,8 @@ export interface Page {
   done: boolean | null
   kind: string
   tagColor: string | null
+  /** On a field definition page: the field's type. */
+  fieldType?: string | null
   icon: string | null
   banner: string | null
   description: string

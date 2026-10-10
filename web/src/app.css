@@ -3619,3 +3619,56 @@ kbd {
   width: calc(100% - 2 * var(--panel-inset));
   margin: 0 var(--panel-inset);
 }
+
+/* Field definition page: type icon and a 19 px 500 title, faint description line (spec 12). */
+.field-head .title-row {
+  align-items: center;
+  gap: var(--q2);
+  color: var(--c-muted);
+}
+
+.field-head .title {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+  color: var(--c-text);
+}
+
+.field-head .page-desc {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--c-text);
+}
+
+.field-head .page-desc::placeholder {
+  color: var(--c-faint);
+}
+
+/* A supertag page's view header (spec 12): name 19 px 600, small tools 6.65 apart, muted description. */
+.view-title {
+  margin-top: var(--q5);
+}
+
+.view-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--view-title-gap);
+}
+
+.view-name {
+  margin: 0 var(--q1) 0 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-section);
+  color: var(--c-strong);
+}
+
+.view-desc {
+  margin: var(--q2) 0 0;
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+}

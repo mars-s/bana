@@ -63,3 +63,12 @@ test('Configure supertag from the node menu opens one second panel; Done closes 
   await app.locator('.panel').nth(1).locator('.tag-tabs .btn', { hasText: 'Done' }).click()
   await expect(app.locator('.panel')).toHaveCount(1)
 })
+
+test('a field page reads Schema / #supertag / field, and its description is typed in place', async ({ app, server }) => {
+  const hits = await server.rpc('find', { query: 'Status', limit: 10 })
+  const id = hits.find((h: any) => h.name === 'Status').id
+  await server.run('nav.open', { node: id })
+  await expect(app.locator('.crumbs .crumb')).toHaveText(['Schema', '#task', 'Status'])
+  await app.locator('.field-head .page-desc').fill('Where a task is')
+  await expect.poll(async () => (await server.run('graph.inspect', { node: id })).result?.description).toBe('Where a task is')
+})

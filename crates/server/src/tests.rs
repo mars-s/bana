@@ -75,3 +75,14 @@ fn origins_from_other_sites_are_refused() {
 fn http_origin_ok(o: Option<&str>) -> bool {
     crate::http::origin_ok(o)
 }
+
+#[test]
+fn a_field_page_reads_schema_its_supertag_and_itself() {
+    let mut h = host();
+    let status = h.session.graph.find_field("Status").unwrap();
+    h.handle("run", &json!({"command": "nav.open", "params": {"node": status.0}}));
+    let p = h.handle("page", &json!({}));
+    let names: Vec<&str> = p["crumbs"].as_array().unwrap().iter().map(|c| c["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Schema", "#task", "Status"]);
+    assert_eq!(p["fieldType"], json!("options"));
+}

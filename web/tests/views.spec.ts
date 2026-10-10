@@ -303,3 +303,14 @@ test('calendar by pointer: move an event, drag out a new one, stretch its end; t
   await expect(app.locator('.cal-title')).toHaveText('October 10th, 2026')
   await expect(app.locator('.tg-day')).toHaveText('Sat 10/10')
 })
+
+test('a supertag page shows the open view tab as a title row with its tools', async ({ app, server }) => {
+  const hits = await server.rpc('find', { query: 'task', limit: 10 })
+  await server.run('nav.open', { node: hits.find((h: any) => h.name === 'task').id })
+  await app.locator('.view-tab', { hasText: 'Task board' }).click()
+  await expect(app.locator('.view-title .view-name')).toHaveText('Task board')
+  await app.locator('.view-tab', { hasText: 'Task calendar' }).click()
+  await expect(app.locator('.view-title .view-name')).toHaveText('Task calendar')
+  await app.locator('.view-title [title="View options"]').click()
+  await expect(app.locator('.menu')).toBeVisible()
+})

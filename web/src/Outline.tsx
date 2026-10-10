@@ -10,7 +10,7 @@ import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
-import { QueryBuilder, ViewBody, ViewToolbar, toggleQuery } from './Views'
+import { QueryBuilder, ViewBody, ViewTitle, ViewToolbar, toggleQuery } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
@@ -1306,9 +1306,44 @@ function Decorate({ page, panel }: { page: Page; panel: string }) {
   )
 }
 
+/** The page's description typed in place under the title (a field page shows the line even when
+ * empty, spec 12). Saved as typed. */
+function PageDescription({ page, panel }: { page: Page; panel: string }) {
+  const [value, setValue] = useState(page.description)
+  const [editing, setEditing] = useState(false)
+  useEffect(() => {
+    if (!editing) setValue(page.description)
+  }, [page.description, editing])
+  return (
+    <textarea
+      className="page-desc desc-input"
+      rows={1}
+      value={value}
+      placeholder="Add a description"
+      onFocus={() => setEditing(true)}
+      onBlur={() => setEditing(false)}
+      onChange={(e) => {
+        const v = e.target.value.replace(/\n/g, ' ')
+        setValue(v)
+        void call('run', { command: 'node.setDescription', params: { node: page.target, text: v }, panel })
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+    />
+  )
+}
+
 function HeadActions({ page, panel }: { page: Page; panel: string }) {
   const qOpen = useStore((s) => !!s.queryOpen[panel])
   const search = page.kind === 'search'
+  // A field page has only help at the right (spec 12).
+  if (page.kind === 'field')
+    return (
+      <div className="head-actions">
+        <button className="btn icon" title="Help" onClick={() => runUiCommand('ui.help')}>
+          <Icon name="help" size={12} />
+        </button>
+      </div>
+    )
   return (
     <div className="head-actions">
       <button className="btn icon" title="AI (not available)">
@@ -1539,10 +1574,12 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
-            <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}`}>
+            <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}`}>
               {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
               <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}
+                {/* A field definition: its type's icon, a small title (spec 12). */}
+                {fieldPage && <Icon name={FIELD_ICONS[page.fieldType ?? ''] ?? 'fieldText'} size={16} />}
                 {page.kind === 'tag' && (
                   <span className="tag-square title" style={tagStyle(page.tagColor ?? 'grey')}>
                     #
@@ -1572,10 +1609,13 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                   <HeadActions page={page} panel={panel} />
                 </div>
               )}
-              {page.description && <p className="page-desc">{page.description}</p>}
+              {fieldPage ? <PageDescription page={page} panel={panel} /> : page.description && <p className="page-desc">{page.description}</p>}
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
               {page.kind === 'tag' && tagVs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={tagVs.tabs} active={tabId ?? page.zoom} />}
+              {page.kind === 'tag' && tagVs && vs && !configuring && (
+                <ViewTitle v={vs} panel={panel} name={tagVs.tabs.find((t) => t.id === (tabId ?? page.zoom))?.name ?? vs.name} description={tabId != null ? vs.description : ''} />
+              )}
               {vs && !layout && !schema && <QueryBuilder v={vs} panel={panel} />}
               {vs && !layout && !schema && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>

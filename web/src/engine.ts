@@ -226,7 +226,8 @@ export async function replayWal() {
  * runs a logged edit once, so the next page replaying the log does no harm. */
 export function flushOnUnload() {
   const batch = pending.map((i) => ({ method: i.method, params: send(i) }))
-  transport.flushBeacon([...batch, { method: 'save', params: {} }])
+  // A field name still being typed after `>` becomes the field (N26).
+  transport.flushBeacon([...batch, { method: 'fieldDraft', params: { commit: true, window: WINDOW } }, { method: 'save', params: {} }])
 }
 
 // ---- snapshot types ------------------------------------------------------------------------------

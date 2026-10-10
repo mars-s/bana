@@ -245,3 +245,19 @@ test('the date picker takes a day and a time, or a range of days with Add end (s
   await dp.locator('.btn', { hasText: 'OK' }).click()
   await expect.poll(() => valuesOf(server, page, 'When')).toEqual(['2026-10-20/2026-10-22'])
 })
+
+test('a field name typed after > and then a reload shows as the field (N26)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['x'], 'Page')
+  await focus(server, app, ids[0], 1)
+  await app.keyboard.press('Enter')
+  await app.keyboard.type('>')
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type('Fresh9')
+  await app.reload()
+  await expect(app.locator('.row.field .field-name', { hasText: 'Fresh9' })).toBeVisible()
+  await expect(app.locator('.row.node .text', { hasText: '>Fresh9' })).toHaveCount(0)
+  // One field in the graph, no stray line.
+  const hits = (await server.run('graph.search', { query: 'Fresh9' })).result ?? []
+  expect(hits.filter((h: any) => String(h.name).includes('>'))).toEqual([])
+  void page
+})

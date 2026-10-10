@@ -44,6 +44,8 @@ pub struct Host {
     /// A field name being typed after `>` (owner, line, name): saves write it in as a field, so a
     /// force-kill keeps it (DIFFS N26); the live graph is left as it is.
     draft: Option<(u64, u64, String)>,
+    /// The window typing that field name (only it commits the draft).
+    draft_window: Option<String>,
 }
 
 impl Host {
@@ -58,6 +60,7 @@ impl Host {
             applied: HashMap::new(),
             revs: HashMap::new(),
             draft: None,
+            draft_window: None,
             primary: None,
         }
     }
@@ -166,10 +169,33 @@ impl Host {
                 }
                 json!({"ok": true})
             }
+            // `commit`: the window that was typing the name went away (reload or close): the line
+            // becomes the field in the live graph too, as saves already wrote it (DIFFS N26).
+            "fieldDraft" if params.get("commit").and_then(Value::as_bool) == Some(true) => {
+                let window = params.get("window").and_then(Value::as_str).map(str::to_string);
+                if window.is_some() && self.draft_window.is_some() && window != self.draft_window {
+                    return json!({"ok": true});
+                }
+                let Some((owner, line, name)) = self.draft.take() else { return json!({"ok": true}) };
+                if self.session.graph.get(tanacraft_core::NodeId(line)).is_none() {
+                    return json!({"ok": true});
+                }
+                let r = self
+                    .session
+                    .run("field.add", &json!({"node": owner, "field": name}))
+                    .and_then(|_| self.session.run("node.delete", &json!({"node": line, "force": true})));
+                self.version += 1;
+                self.note_change();
+                match r {
+                    Ok(_) => json!({"ok": true}),
+                    Err(e) => json!({"error": e.to_string()}),
+                }
+            }
             "fieldDraft" => {
                 let owner = params.get("owner").and_then(Value::as_u64);
                 let line = params.get("line").and_then(Value::as_u64);
                 let name = params.get("name").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+                self.draft_window = params.get("window").and_then(Value::as_str).map(str::to_string);
                 self.draft = match (owner, line) {
                     (Some(o), Some(l)) if !name.is_empty() => Some((o, l, name)),
                     _ => None,

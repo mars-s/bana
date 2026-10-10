@@ -2743,3 +2743,33 @@ kbd {
   background: var(--c-pressed);
   color: var(--c-strong);
 }
+
+.date-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q1);
+  flex: 1;
+}
+
+.date-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border-radius: var(--r-sm);
+  color: var(--c-muted);
+  cursor: pointer;
+}
+
+.date-pick:hover {
+  background: var(--c-hover);
+}
+
+.date-pick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}

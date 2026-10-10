@@ -131,3 +131,13 @@ test('! on an empty line makes a heading', async ({ app, server }) => {
   await expect.poll(() => nameOf(server, ids[0])).toBe('Plan')
   await expect(app.locator(`.row.node.heading[data-id="${ids[0]}"]`)).toBeVisible()
 })
+
+test('a date field takes a typed date and shows it as a day', async ({ app, server }) => {
+  await server.run('field.create', { name: 'When', type: 'date' })
+  const { page } = await fieldAfterX(server, app, 'When')
+  await expect(app.locator('.date-pick')).toBeVisible()
+  await app.keyboard.type('2026-10-20')
+  await expect.poll(() => valuesOf(server, page, 'When')).toEqual(['2026-10-20'])
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.row.field', { hasText: 'When' })).toContainText('Tue, 20 Oct')
+})

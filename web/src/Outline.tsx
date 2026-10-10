@@ -732,7 +732,7 @@ export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow;
     return () => unregisterEditor(h)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.owner, row.field, index])
-  return (
+  const input = (
     <input
       ref={ref}
       className="editor-input field-input"
@@ -749,11 +749,33 @@ export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow;
         // Clicking elsewhere ends typing; the value is already in the engine.
         setTimeout(() => {
           const fe = getState().fieldEdit
-          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current)
+          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current && !document.activeElement?.closest('.date-pick'))
             setState({ fieldEdit: null })
         }, 0)
       }}
     />
+  )
+  if (row.type !== 'date') return input
+  // Dates: typed (2026-10-12, or 2026-10-12 09:00-10:00), or picked from the system's date picker.
+  return (
+    <span className="date-edit">
+      {input}
+      <label className="date-pick" title="Pick a date">
+        <Icon name="calendar" size={12} />
+        <input
+          type="date"
+          tabIndex={-1}
+          onChange={(e) => {
+            const v = e.target.value
+            if (!v) return
+            setValue(v)
+            valueRef.current = v
+            send(v)
+            ref.current?.focus()
+          }}
+        />
+      </label>
+    </span>
   )
 }
 

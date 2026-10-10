@@ -7,6 +7,7 @@ import { Icon, type IconName } from './icons'
 import { exec, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
+import { SubMenu } from './Views'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { getState, newTab, openConfigure, openInNewPanel, refresh, setState, showToast, useStore } from './store'
 
@@ -399,17 +400,6 @@ function Picker() {
 
 // ---- the node menu ------------------------------------------------------------------------------
 
-function Sub({ label, children }: { label: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="menu-item has-sub" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <span className="grow">{label}</span>
-      <Icon name="chevronRight" size={12} />
-      {open && <div className="menu submenu">{children}</div>}
-    </div>
-  )
-}
-
 function NodeMenu() {
   const m = useStore((s) => s.nodeMenu)
   const row = useStore((s) => {
@@ -472,21 +462,21 @@ function NodeMenu() {
       <It label="Show progress bar" on={run('node.toggleProgress')} />
       <It label={row?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} icon="pin" on={run('node.togglePin')} />
       <div className="menu-sep" />
-      <Sub label="View as">
+      <SubMenu icon={false} label="View as">
         {['outline', 'table', 'cards', 'list', 'side_menu', 'tabs', 'calendar'].map((k) => (
           <It key={k} label={k[0].toUpperCase() + k.slice(1).replace('_', ' ')} on={run('view.set', { kind: k })} />
         ))}
-      </Sub>
-      <Sub label="Sort by">
+      </SubMenu>
+      <SubMenu icon={false} label="Sort by">
         {[['name', 'Name'], ['created', 'Created'], ['edited', 'Last edited'], ['done', 'Done'], ['none', 'None']].map(([by, l]) => (
           <It key={by} label={l} on={run('view.sort', { by })} />
         ))}
-      </Sub>
-      <Sub label="Group by">
+      </SubMenu>
+      <SubMenu icon={false} label="Group by">
         {[['tags', 'Supertags'], ['done', 'Done'], ['owner', 'Owner'], ['created', 'Created day'], ['none', 'None']].map(([by, l]) => (
           <It key={by} label={l} on={run('view.group', { by })} />
         ))}
-      </Sub>
+      </SubMenu>
       <div className="menu-sep" />
       <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
       <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />

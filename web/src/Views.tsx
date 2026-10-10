@@ -321,8 +321,118 @@ function AddItem({ v, panel, preset, label = '+ Add' }: { v: ViewSnap; panel: st
 
 // ---- table -------------------------------------------------------------------------------------
 
+/** A column header's name: a click renames the field in place (Enter keeps, Escape leaves it as it
+ * was); the icon beside it opens the field (spec 04, table). */
+function HeaderName({ id, name, panel }: { id: number; name: string; panel: string }) {
+  const [editing, setEditing] = useState(false)
+  if (!editing)
+    return (
+      <span className="t-col-name" onClick={() => setEditing(true)}>
+        {name}
+      </span>
+    )
+  const done = (text: string | null) => {
+    setEditing(false)
+    if (text != null && text.trim() && text !== name) void exec('node.setName', { node: id, name: text.trim() }, panel)
+  }
+  return (
+    <input
+      className="t-col-input"
+      autoFocus
+      defaultValue={name}
+      aria-label="Field name"
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') done(e.currentTarget.value)
+        else if (e.key === 'Escape') done(null)
+      }}
+      onBlur={(e) => done(e.currentTarget.value)}
+    />
+  )
+}
+
+const FIELD_TYPES: [string, string][] = [['plain', 'Plain'], ['options', 'Options'], ['options_from_tag', 'Options from supertag'], ['date', 'Date'], ['number', 'Number'], ['user', 'User'], ['url', 'Url'], ['email', 'E-Mail'], ['checkbox', 'Checkbox']]
+const CALCS: [string, string][] = [['sum', 'Sum'], ['average', 'Average'], ['median', 'Median'], ['min', 'Min'], ['max', 'Max'], ['count_all', 'Count all'], ['count_values', 'Count values'], ['count_unique', 'Count unique'], ['none', 'None']]
+
+/** Right-click on a column header (spec 04, table): type, calculation, sort, move, hide, delete. */
+function HeaderMenu({ v, panel, col, x, y, close }: { v: ViewSnap; panel: string; col: ViewColumn; x: number; y: number; close: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && close()
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), close())
+    window.addEventListener('mousedown', off)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', off)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [close])
+  const run = (c: string, p: Json = {}) => () => {
+    close()
+    void exec(c, { node: v.node, field: col.id, ...p }, panel)
+  }
+  return (
+    <div ref={ref} className="menu header-menu" style={{ left: Math.min(x, window.innerWidth - 230), top: Math.min(y, window.innerHeight - 360) }} role="menu">
+      <SubMenu label="Change field type">
+        {FIELD_TYPES.map(([t, l]) => (
+          <Item key={t} checked={col.type === t} onPick={() => (close(), void exec('field.setType', { field: col.id, type: t }, panel))}>
+            {l}
+          </Item>
+        ))}
+      </SubMenu>
+      <Item icon="gear" onPick={() => (close(), void exec('nav.open', { node: col.id }, panel))}>
+        Configure field…
+      </Item>
+      <div className="menu-sep" />
+      <SubMenu label="Calculate">
+        {CALCS.map(([k, l]) => (
+          <Item key={k} checked={(col.calc ?? 'none') === k} onPick={run('view.calculate', { calc: k })}>
+            {l}
+          </Item>
+        ))}
+      </SubMenu>
+      <div className="menu-sep" />
+      <Item icon="sort" onPick={() => (close(), void exec('view.sort', { node: v.node, by: String(col.id), desc: false }, panel))}>
+        Sort ascending
+      </Item>
+      <Item onPick={() => (close(), void exec('view.sort', { node: v.node, by: String(col.id), desc: true }, panel))}>Sort descending</Item>
+      <div className="menu-sep" />
+      <Item onPick={run('view.moveColumn', { direction: 'left' })}>Move column left</Item>
+      <Item onPick={run('view.moveColumn', { direction: 'right' })}>Move column right</Item>
+      <div className="menu-sep" />
+      <Item onPick={run('view.removeColumn')}>Hide column</Item>
+      <Item onPick={run('view.hideOtherColumns')}>Hide all other columns</Item>
+      <div className="menu-item danger" onMouseDown={(e) => (e.preventDefault(), run('view.deleteColumn')())}>
+        <span className="menu-icon">
+          <Icon name="trash" size={12} />
+        </span>
+        <span className="grow">Delete column and values</span>
+      </div>
+    </div>
+  )
+}
+
+/** A menu item with a submenu on hover; it opens to the left when there is no room on the right. */
+export function SubMenu({ label, children, icon = true }: { label: string; children: ReactNode; icon?: boolean }) {
+  const [open, setOpen] = useState<'right' | 'left' | null>(null)
+  return (
+    <div
+      className="menu-item has-sub"
+      onMouseEnter={(e) => setOpen(e.currentTarget.getBoundingClientRect().right + 240 > window.innerWidth ? 'left' : 'right')}
+      onMouseLeave={() => setOpen(null)}
+    >
+      {icon && <span className="menu-icon" />}
+      <span className="grow">{label}</span>
+      <Icon name="chevronRight" size={12} />
+      {open && <div className={`menu submenu${open === 'left' ? ' to-left' : ''}`}>{children}</div>}
+    </div>
+  )
+}
+
 function Table({ v, panel }: { v: ViewSnap; panel: string }) {
   const fe = useStore((s) => s.fieldEdit)
+  const [menu, setMenu] = useState<{ col: ViewColumn; x: number; y: number } | null>(null)
   const tmpl = `minmax(${v.titleWidth ?? 260}px, 2fr) ${v.columns.map((c) => `${c.width ?? 160}px`).join(' ')} 80px`
   return (
     <div className="table" role="table">
@@ -331,11 +441,20 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
           Name
         </span>
         {v.columns.map((c) => (
-          <span key={c.id} className="t-cell" role="columnheader" title={c.name}>
-            <Icon name={FIELD_ICON[c.type] ?? 'fieldText'} size={12} />
-            <span className="t-col-name" onClick={() => void exec('nav.open', { node: c.id }, panel)}>
-              {c.name}
+          <span
+            key={c.id}
+            className="t-cell"
+            role="columnheader"
+            title={c.name}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setMenu({ col: c, x: e.clientX, y: e.clientY })
+            }}
+          >
+            <span className="t-col-icon" title="Open the field" onClick={() => void exec('nav.open', { node: c.id }, panel)}>
+              <Icon name={FIELD_ICON[c.type] ?? 'fieldText'} size={12} />
             </span>
+            <HeaderName id={c.id} name={c.name} panel={panel} />
           </span>
         ))}
         <span className="t-cell">
@@ -407,6 +526,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
       <div className="t-add">
         <AddItem v={v} panel={panel} label="+ New item" />
       </div>
+      {menu && <HeaderMenu v={v} panel={panel} col={menu.col} x={menu.x} y={menu.y} close={() => setMenu(null)} />}
     </div>
   )
 }

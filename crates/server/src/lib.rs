@@ -37,6 +37,10 @@ pub struct Host {
     applied: HashMap<String, u64>,
     /// The newest `rev` of each text sent (see "run").
     revs: HashMap<String, u64>,
+    /// The first window (`window` on a request) to talk to the host uses the plain panel names
+    /// ("main"); every other window gets its own (`<window>:main`), so each has its own page,
+    /// caret and selection, and two windows never type into each other's line (DIFFS N60).
+    primary: Option<String>,
     /// A field name being typed after `>` (owner, line, name): saves write it in as a field, so a
     /// force-kill keeps it (DIFFS N26); the live graph is left as it is.
     draft: Option<(u64, u64, String)>,
@@ -54,6 +58,7 @@ impl Host {
             applied: HashMap::new(),
             revs: HashMap::new(),
             draft: None,
+            primary: None,
         }
     }
 
@@ -68,6 +73,14 @@ impl Host {
 
     /// One request from a front end. Never panics; errors come back as `{"error": ...}`.
     pub fn handle(&mut self, method: &str, params: &Value) -> Value {
+        let own;
+        let params = match self.window_params(method, params) {
+            Some(p) => {
+                own = p;
+                &own
+            }
+            None => params,
+        };
         let panel = params.get("panel").and_then(Value::as_str);
         // Bounded: a hostile client cannot grow the panel map without limit.
         if self.panels.len() > 64 {
@@ -91,8 +104,16 @@ impl Host {
                 let p = params.get("params").cloned().unwrap_or_else(|| json!({}));
                 // Text that arrives late (a request overtaken by the unload batch that repeats it)
                 // never types over newer text: a rename or value with an older `rev` is dropped.
+                // A line typed in two windows at once: this window's change is rebased over the
+                // text the other one wrote since (`base` is what this window started from).
+                let mut p = p;
+                if id == "node.setName" {
+                    rebase_name(&self.session, &mut p);
+                }
+                // (Per window: two windows' clocks and queues are independent.)
                 if let (Some(rev), "node.setName" | "field.set") = (params.get("rev").and_then(Value::as_u64), id) {
-                    let key = format!("{id}:{}:{}:{}", p["node"], p["field"], p["index"]);
+                    let client = params.get("wal").and_then(|w| w.get(0)).and_then(Value::as_str).unwrap_or_default();
+                    let key = format!("{id}:{client}:{}:{}:{}", p["node"], p["field"], p["index"]);
                     if self.revs.get(&key).is_some_and(|r| *r > rev) {
                         return json!({"result": {"stale": true}});
                     }
@@ -167,6 +188,29 @@ impl Host {
         }
     }
 
+    /// Requests from a window that is not the primary one name their panels in its own space.
+    fn window_params(&mut self, method: &str, params: &Value) -> Option<Value> {
+        let window: String = params.get("window").and_then(Value::as_str)?.chars().take(64).collect();
+        let primary = self.primary.get_or_insert_with(|| window.clone());
+        if *primary == window {
+            // A request with no panel is for this window's main panel, not the last one used.
+            if params.get("panel").is_some() {
+                return None;
+            }
+            let mut p = params.clone();
+            p["panel"] = json!(MAIN_PANEL);
+            return Some(p);
+        }
+        let mut p = params.clone();
+        let mine = |name: &str| format!("{window}:{name}");
+        let panel = p.get("panel").and_then(Value::as_str).unwrap_or(MAIN_PANEL).to_string();
+        p["panel"] = json!(mine(&panel));
+        if let (true, Some(n)) = (matches!(method, "panel.open" | "panel.close"), p.get("name").and_then(Value::as_str).map(str::to_string)) {
+            p["name"] = json!(mine(&n));
+        }
+        Some(p)
+    }
+
     fn note_change(&mut self) {
         if self.session.graph.is_dirty() && self.dirty_since.is_none() {
             self.dirty_since = Some(Instant::now());
@@ -235,3 +279,45 @@ pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Optio
 
 #[cfg(test)]
 mod tests;
+
+/// `p` renames a line from `base` (what the window had) to `name`; when the line changed since
+/// (another window typed in it), the window's own change is moved over that one: one edit each
+/// side, the other window's text stays, and the caret moves with this window's edit.
+fn rebase_name(s: &Session, p: &mut Value) {
+    let (Some(base), Some(mine)) = (p.get("base").and_then(Value::as_str), p.get("name").and_then(Value::as_str)) else { return };
+    let Some(node) = tanacraft_commands::p::node(p, "node").ok().flatten() else { return };
+    let current = s.graph.name(s.graph.resolve(node));
+    if current == base || current == mine {
+        return;
+    }
+    let (text, shift) = rebase(base, mine, current);
+    if let Some(c) = p.get("caret").and_then(Value::as_u64) {
+        p["caret"] = json!((c as i64 + shift).max(0));
+    }
+    p["name"] = json!(text);
+}
+
+/// One splice turning `a` into `b`: (start, chars removed, text inserted), in chars.
+fn splice(a: &[char], b: &[char]) -> (usize, usize, Vec<char>) {
+    let pre = a.iter().zip(b).take_while(|(x, y)| x == y).count();
+    let suf = a[pre..].iter().rev().zip(b[pre..].iter().rev()).take_while(|(x, y)| x == y).count();
+    (pre, a.len() - pre - suf, b[pre..b.len() - suf].to_vec())
+}
+
+/// `mine` and `theirs` both edited `base`: `mine` applied on `theirs`, and how far it moved.
+/// ponytail: one splice per side; overlapping edits keep `mine` whole (last writer wins).
+pub fn rebase(base: &str, mine: &str, theirs: &str) -> (String, i64) {
+    let (base, mine_c, theirs_c): (Vec<char>, Vec<char>, Vec<char>) = (base.chars().collect(), mine.chars().collect(), theirs.chars().collect());
+    let (p1, d1, ins1) = splice(&base, &mine_c);
+    let (p2, d2, ins2) = splice(&base, &theirs_c);
+    let at = if p2 + d2 <= p1 {
+        p1 + ins2.len() - d2
+    } else if p2 >= p1 + d1 {
+        p1
+    } else {
+        return (mine.to_string(), 0);
+    };
+    let mut out = theirs_c;
+    out.splice(at..at + d1, ins1);
+    (out.into_iter().collect(), at as i64 - p1 as i64)
+}

@@ -86,3 +86,40 @@ fn a_field_page_reads_schema_its_supertag_and_itself() {
     assert_eq!(names, ["Schema", "#task", "Status"]);
     assert_eq!(p["fieldType"], json!("options"));
 }
+
+#[test]
+fn lines_typed_in_two_windows_rebase_over_each_other() {
+    // Both insert into "Volunteer meetup": A at the end, B at the start, from the same text.
+    assert_eq!(rebase("Volunteer meetup", "Volunteer meetup AAA", "BBB Volunteer meetup"), ("BBB Volunteer meetup AAA".into(), 4));
+    assert_eq!(rebase("Volunteer meetup", "BBB Volunteer meetup", "Volunteer meetup AAA"), ("BBB Volunteer meetup AAA".into(), 0));
+    // A deletion before this window's insert shifts it back.
+    assert_eq!(rebase("abcdef", "abcdefX", "cdef"), ("cdefX".into(), -2));
+    // Both at the same place: theirs first.
+    assert_eq!(rebase("ab", "aXb", "aYb"), ("aYXb".into(), 1));
+    // Overlapping changes: this window's text wins.
+    assert_eq!(rebase("abcdef", "aZf", "abYf"), ("aZf".into(), 0));
+}
+
+#[test]
+fn each_window_has_its_own_page_and_caret() {
+    let mut h = host();
+    let rows = h.handle("page", &json!({"window": "A"}))["rows"]["items"].clone();
+    let ids: Vec<u64> = rows.as_array().unwrap().iter().filter(|r| r["k"] == "node").map(|r| r["id"].as_u64().unwrap()).collect();
+    let (one, two) = (ids[0], ids[1]);
+    let name = |h: &Host, n: u64| h.session.graph.name(tanacraft_core::NodeId(n)).to_string();
+    let (n1, n2) = (name(&h, one), name(&h, two));
+    h.handle("run", &json!({"window": "A", "command": "focus.set", "params": {"node": one, "caret": 0}}));
+    h.handle("run", &json!({"window": "B", "command": "focus.set", "params": {"node": two, "caret": 0}}));
+    assert_eq!(h.handle("page", &json!({"window": "A"}))["focus"], json!(one));
+    assert_eq!(h.handle("page", &json!({"window": "B"}))["focus"], json!(two), "B's caret stays in B's line");
+    // Both type in one line at once, each from the text it had.
+    h.handle("run", &json!({"window": "A", "command": "node.setName", "params": {"node": one, "name": format!("{n1} AAA"), "base": n1}}));
+    h.handle("run", &json!({"window": "B", "command": "node.setName", "params": {"node": one, "name": format!("BBB {n1}"), "base": n1}}));
+    assert_eq!(name(&h, one), format!("BBB {n1} AAA"));
+    assert_eq!(name(&h, two), n2);
+    // Panels B opens are its own too.
+    h.handle("panel.open", &json!({"window": "B", "name": "p2", "node": one}));
+    h.handle("panel.open", &json!({"window": "A", "name": "p2", "node": two}));
+    assert_eq!(h.handle("page", &json!({"window": "B", "panel": "p2"}))["zoom"], json!(one));
+    assert_eq!(h.handle("page", &json!({"window": "A", "panel": "p2"}))["zoom"], json!(two));
+}

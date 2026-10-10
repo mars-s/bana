@@ -139,10 +139,12 @@ export function call(method: string, params: Json = {}): Promise<Json> {
     // (Never the request already on its way: it is pending[0] while sending.)
     const waiting = pending.length > (sending ? 1 : 0)
     if (waiting && last && isRename(last) && isRename({ method, params }) && last.params.panel === params.panel && last.params.params?.node === params.params?.node) {
-      last.params = params
+      // The merged edit starts from the text the first one started from.
+      const base = last.params.params?.base
+      last.params = base == null ? params : { ...params, params: { ...params.params, base } }
       const e = wal.find((x) => last.wal && x.wal[0] === last.wal[0] && x.wal[1] === last.wal[1])
       if (e) {
-        e.params = params
+        e.params = last.params
         writeWal()
       }
       last.done.push(resolve)
@@ -160,7 +162,19 @@ export function call(method: string, params: Json = {}): Promise<Json> {
   })
 }
 
-const send = (it: { method: string; params: Json; wal?: [string, number] }) => (it.wal ? { ...it.params, wal: it.wal } : it.params)
+/** This window (kept across reloads of the tab): the engine gives each window its own panels, so
+ * two windows never share a page or a caret (DIFFS N60). */
+const WINDOW = (() => {
+  try {
+    const w = sessionStorage.getItem('tanacraft.window') ?? `w${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+    sessionStorage.setItem('tanacraft.window', w)
+    return w
+  } catch {
+    return client
+  }
+})()
+
+const send = (it: { method: string; params: Json; wal?: [string, number] }) => ({ ...it.params, window: WINDOW, ...(it.wal ? { wal: it.wal } : {}) })
 
 async function pump() {
   if (sending) return

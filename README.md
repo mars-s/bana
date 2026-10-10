@@ -74,7 +74,8 @@ The web UI never owns your notes. Every keystroke goes to the engine at once, in
 pressed while a command is still moving the caret waits and is replayed into the right line. Each
 edit and each waiting key is also written to a log in the browser's session storage the moment it
 happens, and leaves it only once the engine has it; after a reload the rest is replayed, and the
-engine runs each logged edit exactly once. The engine autosaves within a second and saves on quit.
+engine runs each logged edit exactly once. Two windows on one graph each keep their own page and
+caret, and when both type in the same line, both windows' words are kept. The engine autosaves within a second and saves on quit.
 Playwright fuzz tests type random keys at full speed (also on a long page in a small window,
 scrolled away mid-edit), reload the window at a random point with the CPU slowed 4 to 6 times, and
 force-kill the engine; not one character may go missing.

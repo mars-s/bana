@@ -154,6 +154,18 @@ function caretFromPoint(e: RME, raw: string): number {
 
 // ---- the line editor ---------------------------------------------------------------------------
 
+/** Where offset `i` of `before` sits in `after` when one splice turned one into the other: after
+ * the change if it was before `i`, unmoved otherwise (UTF-16 offsets, as the textarea uses). */
+function shiftedOffset(before: string, after: string, i: number): number {
+  let pre = 0
+  while (pre < before.length && pre < after.length && before[pre] === after[pre]) pre++
+  let suf = 0
+  while (suf < before.length - pre && suf < after.length - pre && before[before.length - 1 - suf] === after[after.length - 1 - suf]) suf++
+  if (i <= pre) return i
+  if (i >= before.length - suf) return i + after.length - before.length
+  return after.length - suf
+}
+
 function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: Page }) {
   const [value, setValue] = useState(row.name)
   const ta = useRef<HTMLTextAreaElement>(null)
@@ -162,15 +174,26 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
   valueRef.current = value
   const caretEpoch = useStore((s) => s.caretEpoch)
 
-  // The engine's text wins once every edit sent from here has arrived.
+  // The engine's text wins once every edit sent from here has arrived. Text another window typed
+  // in this line keeps this window's caret where it was in its own words (N60).
   useEffect(() => {
-    if (pending.current === 0 && row.name !== valueRef.current) setValue(row.name)
+    if (pending.current !== 0 || row.name === valueRef.current) return
+    const el = ta.current
+    if (el && document.activeElement === el) {
+      const move = (i: number) => shiftedOffset(valueRef.current, row.name, i)
+      const [a, b] = [move(el.selectionStart), move(el.selectionEnd)]
+      el.value = row.name
+      el.setSelectionRange(a, b)
+    }
+    valueRef.current = row.name
+    setValue(row.name)
   }, [row.name])
 
-  const sendName = (name: string, caret: number) => {
+  /** `base`: the text this edit started from, so the engine can merge it with another window's. */
+  const sendName = (name: string, caret: number, base: string) => {
     pending.current++
     noteSynced(row.id, caret)
-    void call('run', { command: 'node.setName', params: { node: row.id, name, caret }, panel }).then((r) => {
+    void call('run', { command: 'node.setName', params: { node: row.id, name, caret, base }, panel }).then((r) => {
       pending.current--
       if (r?.error) setState({ toast: r.error })
       if (pending.current === 0) void scheduleQuietRefresh()
@@ -181,6 +204,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
   const textChanged = (raw: string, caretUtf16: number) => {
     // Keys never insert line breaks (Enter is a command).
     const v = raw.replace(/\n/g, ' ')
+    const base = valueRef.current
     valueRef.current = v
     setValue(v)
     const caret = toChars(v, caretUtf16)
@@ -192,7 +216,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
       return
     }
     warnIfReferenced(row, panel)
-    sendName(v, caret)
+    sendName(v, caret, base)
   }
 
   // Put the caret where the engine says: on mount and after commands (not after typing).
@@ -292,7 +316,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
           setValue(next)
           el.value = next
           el.setSelectionRange(s0, s0)
-          sendName(next, toChars(next, s0))
+          sendName(next, toChars(next, s0), v)
         } else if (k.key === 'ArrowLeft') el.setSelectionRange(Math.max(0, s0 - 1), Math.max(0, s0 - 1))
         else if (k.key === 'ArrowRight') el.setSelectionRange(Math.min(v.length, s1 + 1), Math.min(v.length, s1 + 1))
       },

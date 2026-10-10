@@ -1,6 +1,6 @@
 // Use cases: capture, import, export and keeping data safe (docs/use-cases/08-capture-import.md).
 import { execFileSync } from 'node:child_process'
-import { writeFileSync, mkdtempSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree, idOf, library, palette } from './helpers'
@@ -100,8 +100,32 @@ test('UC-08.09 import into the Library by default', works('UC-08.09'), async ({ 
   expect((await tree(server, lib)).children.map((c: any) => c.name)).toContain('Bean varieties')
 })
 
-missing('UC-08.10', 'import a Notion, Roam or Logseq export')
-missing('UC-08.11', 'paste Tana Paste text to create tagged nodes, fields and searches at once')
+test('UC-08.10 import a Notion or Logseq export folder, or a Roam JSON export', works('UC-08.10'), async ({ server }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'notion-'))
+  mkdirSync(join(dir, 'Garden 0123456789abcdef0123456789abcdef'))
+  writeFileSync(join(dir, 'Garden 0123456789abcdef0123456789abcdef', 'Beds 0123456789abcdef0123456789abcdef.md'), '# Beds\n\n- North bed\n- South bed #task\n')
+  await server.run('import.folder', { path: dir })
+  const lib = await library(server)
+  const garden = (await tree(server, lib)).children.find((c: any) => c.name === 'Garden')
+  expect(garden.children[0].name).toBe('Beds')
+  expect(garden.children[0].children.map((c: any) => c.name)).toEqual(['North bed', 'South bed'])
+  await server.run('import.roam', { text: JSON.stringify([{ title: 'Roam page', children: [{ string: '{{[[DONE]]}} prune [[Apple tree]]' }] }]) })
+  const roam = (await tree(server, lib)).children.find((c: any) => c.name === 'Roam page')
+  expect(roam.children[0].done).toBe(true)
+})
+
+test('UC-08.11 paste Tana Paste text: tagged nodes, fields, dates and a search at once', works('UC-08.11'), async ({ app, server, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const { page, ids } = await pageWith(server, app, [''], 'From an AI')
+  await focus(server, app, ids[0], 0)
+  const paste = '%%tana%%\n- Plant garlic #task\n  - Due:: [[date:2026-10-20]]\n- Open tasks %%search%%\n  - #task\n'
+  await app.evaluate((t) => navigator.clipboard.writeText(t), paste)
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['Plant garlic', 'Open tasks'])
+  const garlic = (await tree(server, page)).children[0]
+  expect(garlic.tags).toEqual(['task'])
+  expect(garlic.fields.Due).toBeTruthy()
+})
 missing('UC-08.12', 'paste spreadsheet cells as a table')
 missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
 missing('UC-08.14', 'capture from any app with a system-wide shortcut (Global Clipper)')

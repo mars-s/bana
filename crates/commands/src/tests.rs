@@ -890,6 +890,64 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn roam_json_and_notion_or_logseq_folders_import_as_pages() {
+    // UC-08.10.
+    let mut s = blank();
+    let lib = s.graph.sys.library;
+    let roam = r#"[{"title": "Garden", "children": [{"string": "{{[[TODO]]}} water [[Seeds]]", "children": [{"string": "Where:: back bed"}]}]}, {"title": "Seeds"}]"#;
+    run(&mut s, "import.roam", json!({"text": roam}));
+    let garden = s.graph.children(lib).iter().copied().find(|k| s.graph.text(*k) == "Garden").unwrap();
+    let todo = s.graph.children(garden)[0];
+    assert_eq!(s.graph.checkbox(todo), Some(false));
+    assert!(s.graph.name(todo).contains("[[id:"), "{}", s.graph.name(todo));
+    assert_eq!(s.graph.get(todo).unwrap().field_values(s.graph.find_field("Where").unwrap()).len(), 1);
+    let dir = std::env::temp_dir().join(format!("tanacraft-notion-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("Projects 0123456789abcdef0123456789abcdef")).unwrap();
+    std::fs::write(
+        dir.join("Projects 0123456789abcdef0123456789abcdef/Shed 0123456789abcdef0123456789abcdef.md"),
+        "# Shed\n\n- roof\n- door #task\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("journal___ideas.md"), "- compost tea\n").unwrap();
+    run(&mut s, "import.folder", json!({"path": dir.to_str().unwrap()}));
+    let names: Vec<String> = s.graph.children(lib).iter().map(|k| s.graph.text(*k)).collect();
+    assert!(names.contains(&"Projects".to_string()) && names.contains(&"journal/ideas".to_string()), "{names:?}");
+    let projects = s.graph.children(lib).iter().copied().find(|k| s.graph.text(*k) == "Projects").unwrap();
+    let shed = s.graph.children(projects)[0];
+    assert_eq!(s.graph.text(shed), "Shed");
+    assert_eq!(s.graph.children(shed).iter().map(|k| s.graph.text(*k)).collect::<Vec<_>>(), ["roof", "door"]);
+}
+
+#[test]
+fn tana_paste_makes_tags_fields_dates_checkboxes_and_searches() {
+    // UC-08.11.
+    let mut s = blank();
+    let lib = s.graph.sys.library;
+    let text = "%%tana%%\n- !! Garden plan\n- Build beds #task\n  - Due:: [[date:2026-10-12]]\n  - [ ] Buy screws\n- Meet [[Robin Ash]] #[[garden meeting]]\n  - [[Attendees]]::\n    - Robin\n    - Mia\n- Open tasks %%search%% %%view:table%%\n  - #task\n- Week [[date:2026-10-12/2026-10-14]]\n";
+    let r = run(&mut s, "import.tanaPaste", json!({"text": text}));
+    assert!(r["created"].as_u64().unwrap() >= 5, "{r}");
+    let kids = s.graph.children(lib).to_vec();
+    let by = |s: &Session, name: &str| kids.iter().copied().find(|k| s.graph.text(*k).starts_with(name)).unwrap();
+    assert!(s.graph.get(by(&s, "Garden plan")).unwrap().heading);
+    let beds = by(&s, "Build beds");
+    assert_eq!(s.graph.get(beds).unwrap().tags, [s.graph.find_tag("task").unwrap()]);
+    let due = s.graph.find_field("Due").unwrap();
+    assert_eq!(s.graph.get(beds).unwrap().field_values(due).len(), 1);
+    let screws = s.graph.children(beds)[0];
+    assert_eq!(s.graph.checkbox(screws), Some(false));
+    let meet = by(&s, "Meet");
+    assert!(s.graph.get(meet).unwrap().tags.contains(&s.graph.find_tag("garden meeting").unwrap()));
+    assert!(s.graph.name(meet).contains("[[id:"), "a link to Robin Ash");
+    let att = s.graph.find_field("Attendees").unwrap();
+    assert_eq!(s.graph.get(meet).unwrap().field_values(att).len(), 2);
+    let search = by(&s, "Open tasks");
+    assert!(s.graph.query(search).is_some());
+    assert!(s.graph.view_items(search).contains(&beds));
+    let week = by(&s, "Week");
+    assert_eq!(s.graph.name(week).matches("[[id:").count(), 2);
+}
+
+#[test]
 fn duplicates_merge_with_every_pointer_moved() {
     // UC-06.34: nodes, supertags and fields.
     let mut s = blank();

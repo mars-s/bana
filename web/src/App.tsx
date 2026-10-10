@@ -12,6 +12,15 @@ import type { Sidebar as SidebarData, SidebarItem } from './engine'
 /** What the sidebar button does next, as its accessible name (N75): full, mini, hidden, full. */
 const SIDEBAR_NEXT = ['Show mini sidebar', 'Hide sidebar', 'Show sidebar']
 
+/** Which importer reads a file (UC-08.10, UC-08.11): OPML, Roam JSON, Tana Paste, else Markdown. */
+function importCommand(name: string, text: string): string {
+  const n = name.toLowerCase()
+  if (n.endsWith('.opml')) return 'import.opml'
+  if (n.endsWith('.json')) return 'import.roam'
+  if (text.trimStart().startsWith('%%tana%%')) return 'import.tanaPaste'
+  return 'import.markdown'
+}
+
 function TopBar() {
   const tabs = useStore((s) => s.tabs)
   const tab = useStore((s) => s.tab)
@@ -117,16 +126,16 @@ function AccountMenu() {
       <button className={`icon-btn${open ? ' on' : ''}`} title="Account" aria-label="Settings" onClick={() => setOpen((o) => !o)}>
         <Icon name="user" size={14} />
       </button>
-      {/* A Markdown or OPML file read here and imported by the engine (spec 07). */}
+      {/* A Markdown, OPML, Roam JSON or Tana Paste file read here and imported by the engine (spec 07). */}
       <input
         ref={file}
         type="file"
-        accept=".md,.markdown,.txt,.opml"
+        accept=".md,.markdown,.txt,.opml,.json"
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0]
           e.target.value = ''
-          if (f) void f.text().then((text) => exec(f.name.toLowerCase().endsWith('.opml') ? 'import.opml' : 'import.markdown', { text }))
+          if (f) void f.text().then((text) => exec(importCommand(f.name, text), { text }))
         }}
       />
       {open && (

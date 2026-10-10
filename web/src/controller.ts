@@ -554,6 +554,16 @@ export function pasteInto(panel: string, node: number, lineText: string, text: s
     })
     return true
   }
+  // Tana Paste (UC-08.11): tagged nodes, fields, dates and searches under the line's parent.
+  if (text.trimStart().startsWith('%%tana%%')) {
+    const page = getState().pages[panel]
+    const row = page?.rows.items.find((r) => r.k === 'node' && r.id === node) as NodeRow | undefined
+    void withBarrier(async () => {
+      await exec('import.tanaPaste', { text, parent: row?.parent ?? page?.zoom }, panel)
+      if (lineText === '') await exec('node.delete', { node, force: true }, panel)
+    })
+    return true
+  }
   if (text.includes('\n')) {
     void exec('node.paste', { node, text }, panel)
     return true

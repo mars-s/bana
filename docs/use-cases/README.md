@@ -37,14 +37,14 @@ Everything here comes from Tana's public pages, written in our own words:
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 5 | 1 | 3 | 0 | 1 |
 | [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 29 | 6 | 10 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 2 | 2 | 5 | 2 | 0 |
-| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 8 | 1 | 6 | 1 | 1 |
+| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 1 | 4 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **93** | **14** | **35** | **15** | **24** |
+| **Total (181)** | | **95** | **14** | **33** | **15** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 107 work fully or in
-part (93 + 14) and 35 are missing.
+Out of the 142 use cases that need neither AI nor a cloud or mobile service, 109 work fully or in
+part (95 + 14) and 33 are missing.
 
 ## Top 15 gaps by user value
 
@@ -58,7 +58,8 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
    day page or the tagged node. One engine fix unlocks Tana's most copied dashboards.
 3. ~~**Dates typed in words** (UC-01.08b).~~ Done: `@` reads dates and ranges in words. `@tomorrow`, `@next friday`, `@Nov 21 to Nov 30` in any
    line; today only a command inserts today's link.
-4. **Moving in from Tana and others** (UC-08.11, UC-08.10). Tana Paste, and Notion, Roam and
+4. ~~**Moving in from Tana and others** (UC-08.11, UC-08.10).~~ Done: Tana Paste, Notion and
+   Logseq folders, Roam JSON. Tana Paste, and Notion, Roam and
    Logseq imports. Tana Paste matters most: it is how Tana users and AI tools write structure.
 5. **Files on nodes** (UC-05.08). Images and PDFs dropped on a node, with previews.
 6. ~~**MCP on the running app** (UC-10.11, UC-10.01).~~ Done: MCP finds the running app through

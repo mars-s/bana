@@ -130,6 +130,9 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "color": string}  (a colour name, #rrggbb or picture:orbit; empty removes it)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags, `Field:: value` lines, [[Name]] links)"#),
+        C::new("import.tanaPaste", "Import Tana Paste", "File", import_tana_paste).params(
+            r#"{"text": string, "parent"?: id}  (%%tana%% then - bullets: #tag, #[[two words]], Field:: value, [[Field]]:: with value bullets, [[Name]], [[date:2026-10-12]], [ ] / [x], !! heading, %%search%% with the query below, %%view:table%%)"#,
+        ),
         C::new("import.opml", "Import OPML", "File", import_opml)
         .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.file", "Import content", "File", |s, v| {
@@ -144,9 +147,22 @@ pub fn registry() -> Registry {
             if let Some(p) = v.get("parent") {
                 params["parent"] = p.clone();
             }
-            if path.to_ascii_lowercase().ends_with(".opml") { import_opml(s, &params) } else { import_markdown(s, &params) }
+            let lower = path.to_ascii_lowercase();
+            if lower.ends_with(".opml") {
+                import_opml(s, &params)
+            } else if lower.ends_with(".json") {
+                import_roam(s, &params)
+            } else if text.trim_start().starts_with("%%tana%%") {
+                import_tana_paste(s, &params)
+            } else {
+                import_markdown(s, &params)
+            }
         })
-        .params(r#"{"path": string, "parent"?: id}  (a Markdown (.md) or OPML (.opml) file)"#),
+        .params(r#"{"path": string, "parent"?: id}  (Markdown (.md), OPML (.opml), Roam JSON (.json) or Tana Paste)"#),
+        // UC-08.10: a Notion or Logseq export is a folder of Markdown pages; Roam exports JSON.
+        C::new("import.folder", "Import a Notion or Logseq export", "File", import_folder)
+            .params(r#"{"path": string, "parent"?: id}  (every .md file becomes a page named after it, nested folders too)"#),
+        C::new("import.roam", "Import Roam JSON", "File", import_roam).params(r#"{"text": string, "parent"?: id}  (Roam's JSON export: pages with their blocks)"#),
         C::new("export.opml", "Export as OPML", "Export", |s, v| {
             let id = node_or_zoom(s, v)?;
             Ok(json!({"opml": tanacraft_core::opml::to_opml(&s.graph, &[id], s.graph.name(id))}))
@@ -921,6 +937,240 @@ fn join_next(s: &mut Session, v: &Value) -> CmdResult {
 /// Builds nodes from Markdown under `parent` (default: the Library): bullet lists nest by indent,
 /// `#` headings become heading nodes that hold what follows, `[ ]` / `[x]` make checkboxes and
 /// trailing `#tags` become supertags.
+/// Roam's JSON export (UC-08.10): `[{"title", "children": [{"string", "children"}]}]`. Each page
+/// becomes a node with its blocks below; `[[links]]` and `#tags` work as in Markdown.
+fn import_roam(s: &mut Session, v: &Value) -> CmdResult {
+    let text = p::req_str(v, "text")?;
+    let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+    s.graph.node(root)?;
+    let pages: Value = serde_json::from_str(text).map_err(|e| CmdError::Params(format!("not Roam JSON: {e}")))?;
+    let pages = pages.as_array().ok_or_else(|| CmdError::Params("Roam JSON is a list of pages".into()))?;
+    fn blocks(s: &mut Session, parent: NodeId, kids: &Value, depth: usize, made: &mut usize) -> Result<(), CmdError> {
+        for b in kids.as_array().map(Vec::as_slice).unwrap_or_default().iter().take(100_000) {
+            let t = b.get("string").and_then(Value::as_str).unwrap_or_default();
+            // Roam's TODO and DONE markers are checkboxes.
+            let t = t.replace("{{[[TODO]]}}", "[ ]").replace("{{[[DONE]]}}", "[x]");
+            if import_field(s, parent, &t)? {
+                continue;
+            }
+            let n = import_line(s, parent, t.trim())?;
+            *made += 1;
+            if depth < 64
+                && let Some(k) = b.get("children")
+            {
+                blocks(s, n, k, depth + 1, made)?;
+            }
+        }
+        Ok(())
+    }
+    let mut made = 0;
+    for page in pages.iter().take(100_000) {
+        let title = page.get("title").and_then(Value::as_str).unwrap_or("Untitled");
+        let n = s.graph.create(root, None, title)?;
+        made += 1;
+        if let Some(k) = page.get("children") {
+            blocks(s, n, k, 0, &mut made)?;
+        }
+    }
+    let linked = import_links(s, root)?;
+    Ok(json!({"parent": root.0, "created": made, "linked": linked}))
+}
+
+/// A Notion or Logseq export folder (UC-08.10): each `.md` file is a page named after the file
+/// (Notion's id suffix and Logseq's `___` namespaces cleaned up), its outline below; folders
+/// become parent pages. Links between pages are made after everything is in.
+fn import_folder(s: &mut Session, v: &Value) -> CmdResult {
+    let path = std::path::PathBuf::from(p::req_str(v, "path")?);
+    let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+    s.graph.node(root)?;
+    fn page_name(stem: &str) -> String {
+        // Notion: "Garden plan 1a2b3c...(32 hex)"; Logseq: "projects___garden".
+        let stem = match stem.rsplit_once(' ') {
+            Some((a, id)) if id.len() == 32 && id.chars().all(|c| c.is_ascii_hexdigit()) => a,
+            _ => stem,
+        };
+        stem.replace("___", "/")
+    }
+    fn walk(s: &mut Session, dir: &std::path::Path, parent: NodeId, depth: usize, made: &mut usize) -> Result<(), CmdError> {
+        let mut entries: Vec<std::path::PathBuf> =
+            std::fs::read_dir(dir).map_err(|e| CmdError::Failed(format!("{}: {e}", dir.display())))?.flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for p in entries.into_iter().take(20_000) {
+            let stem = p.file_stem().and_then(|x| x.to_str()).unwrap_or_default().to_string();
+            if stem.starts_with('.') || stem == "logseq" {
+                continue;
+            }
+            if p.is_dir() && depth < 16 {
+                let n = s.graph.create(parent, None, &page_name(&stem))?;
+                *made += 1;
+                walk(s, &p, n, depth + 1, made)?;
+            } else if p.extension().and_then(|x| x.to_str()).is_some_and(|x| x.eq_ignore_ascii_case("md")) {
+                if std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0) > 16 * 1024 * 1024 {
+                    continue;
+                }
+                let text = std::fs::read_to_string(&p).map_err(|e| CmdError::Failed(format!("{}: {e}", p.display())))?;
+                let n = s.graph.create(parent, None, &page_name(&stem))?;
+                *made += 1;
+                // Notion starts a page with its title as a heading: it is the page's own name.
+                let body = text.trim_start().strip_prefix(&format!("# {}", page_name(&stem))).unwrap_or(&text);
+                let r = import_markdown(s, &json!({"text": body, "parent": n.0}))?;
+                *made += r["created"].as_u64().unwrap_or(0) as usize;
+            }
+        }
+        Ok(())
+    }
+    if !path.is_dir() {
+        return Err(CmdError::Params(format!("{} is not a folder", path.display())));
+    }
+    let mut made = 0;
+    walk(s, &path, root, 0, &mut made)?;
+    let linked = import_links(s, root)?;
+    Ok(json!({"parent": root.0, "created": made, "linked": linked}))
+}
+
+/// Tana Paste (UC-08.11): the plain text format scripts and AI tools write. Searches become search
+/// nodes (their query from the lines below `%%search%%`), dates link day pages.
+fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
+    enum Open {
+        Node(NodeId),
+        Search(usize),
+        Field(NodeId, String),
+    }
+    let text = p::req_str(v, "text")?;
+    let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
+    s.graph.node(root)?;
+    let mut stack: Vec<(usize, Open)> = Vec::new();
+    // (parent, index, name, query parts, view) of each search, made at the end.
+    type Pending = (NodeId, usize, String, Vec<String>, Option<String>);
+    let mut searches: Vec<Pending> = Vec::new();
+    let mut made = 0usize;
+    for line in text.lines().take(50_000) {
+        let t = line.trim();
+        if t.is_empty() || t == "%%tana%%" {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        let body = t.strip_prefix("- ").unwrap_or(t).trim();
+        while stack.last().is_some_and(|(w, _)| *w >= indent) {
+            stack.pop();
+        }
+        match stack.last() {
+            Some((_, Open::Search(i))) => {
+                let part = tana_query_part(body);
+                if let Some(sr) = searches.get_mut(*i) {
+                    sr.3.push(part);
+                }
+                continue;
+            }
+            Some((_, Open::Field(owner, name))) => {
+                let (owner, name) = (*owner, name.clone());
+                let value = tana_dates(s, body, false)?;
+                import_field(s, owner, &format!("{name}::{value}"))?;
+                continue;
+            }
+            _ => {}
+        }
+        let parent = match stack.last() {
+            Some((_, Open::Node(n))) => *n,
+            _ => root,
+        };
+        // A field value keeps its date as text (the field reads it); in a line it links the day.
+        let body = tana_dates(s, body, !body.contains("::"))?;
+        // `Field::` alone (or `[[Field]]::`): the values are the bullets below.
+        if let Some(name) = body.strip_suffix("::") {
+            let name = name.trim().trim_start_matches("[[").trim_end_matches("]]").to_string();
+            if !name.is_empty() {
+                stack.push((indent, Open::Field(parent, name)));
+                continue;
+            }
+        }
+        if body.contains("::") && import_field(s, parent, &body.replacen("[[", "", 1).replacen("]]::", "::", 1))? {
+            continue;
+        }
+        if body.contains("%%search%%") {
+            let view = body.split("%%view:").nth(1).and_then(|r| r.split("%%").next()).map(str::to_string);
+            let name = body.replace("%%search%%", "").split("%%view:").next().unwrap_or_default().trim().to_string();
+            let at = s.graph.children(parent).len();
+            searches.push((parent, at, name, Vec::new(), view));
+            stack.push((indent, Open::Search(searches.len() - 1)));
+            continue;
+        }
+        let (heading, body) = match body.strip_prefix("!!") {
+            Some(b) => (true, b.trim().to_string()),
+            None => (false, body),
+        };
+        let n = import_line(s, parent, &body)?;
+        if heading {
+            s.graph.set_heading(n, true)?;
+        }
+        s.graph.set_expanded(parent, true);
+        stack.push((indent, Open::Node(n)));
+        made += 1;
+    }
+    // Searches last, in the places they were written (later ones first, so indexes hold).
+    for (parent, at, name, parts, view) in searches.into_iter().rev() {
+        let q = tanacraft_core::query::Query::parse(&s.graph, &parts.join(" ")).map_err(|e| CmdError::Params(format!("search `{name}`: {e}")))?;
+        let id = s.graph.create_search(parent, Some(at), if name.is_empty() { "Search" } else { &name }, q)?;
+        if let Some(kind) = view.as_deref().and_then(ViewKind::parse) {
+            s.graph.view_mut(id)?.kind = kind;
+        }
+        made += 1;
+    }
+    let linked = import_links(s, root)?;
+    Ok(json!({"parent": root.0, "created": made, "linked": linked}))
+}
+
+/// `[[date:2026-10-12]]`, `[[date:2026-10-12 09:00]]`, `[[date:2026-10-12/2026-10-14]]` become
+/// links to the day pages; `[[Name^id]]` loses the Tana id (the name is looked up).
+fn tana_dates(s: &mut Session, body: &str, link: bool) -> Result<String, CmdError> {
+    let mut out = String::new();
+    let mut rest = body;
+    while let Some(a) = rest.find("[[") {
+        let Some(b) = rest[a + 2..].find("]]") else { break };
+        let inner = &rest[a + 2..a + 2 + b];
+        out.push_str(&rest[..a]);
+        if let Some(d) = inner.strip_prefix("date:") {
+            let mut days = Vec::new();
+            if !link {
+                out.push_str(d.trim());
+                rest = &rest[a + 4 + b..];
+                continue;
+            }
+            for part in d.split('/') {
+                let day = part.split_whitespace().next().unwrap_or_default();
+                match Date::parse(day) {
+                    Some(dt) => days.push(tanacraft_core::format::ref_token(s.graph.day(dt)?.0)),
+                    None => days.push(part.to_string()),
+                }
+            }
+            out.push_str(&days.join(" to "));
+        } else {
+            out.push_str("[[");
+            out.push_str(inner.split('^').next().unwrap_or(inner));
+            out.push_str("]]");
+        }
+        rest = &rest[a + 4 + b..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+/// One line under `%%search%%` in our query syntax: `#tag`, `Field:: value`, `Field:: Set`.
+fn tana_query_part(body: &str) -> String {
+    match body.split_once("::") {
+        Some((f, val)) => {
+            let f = f.trim().trim_start_matches("[[").trim_end_matches("]]");
+            let field = if f.contains(' ') { format!("\"{f}\"") } else { f.to_string() };
+            match val.trim() {
+                v if v.eq_ignore_ascii_case("set") => format!("{field}:SET"),
+                v if v.eq_ignore_ascii_case("not set") => format!("{field}:NOTSET"),
+                v => format!("{field}:\"{}\"", v.trim_start_matches("[[").trim_end_matches("]]")),
+            }
+        }
+        None => body.to_string(),
+    }
+}
+
 fn import_markdown(s: &mut Session, v: &Value) -> CmdResult {
     let text = p::req_str(v, "text")?;
     let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);

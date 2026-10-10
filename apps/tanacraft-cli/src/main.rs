@@ -17,7 +17,7 @@ commands:
   add NAME [--parent NODE | --today] [--tag TAG]...
                                     add a node; prints its id
   capture TEXT [--tag TAG]          add a node to the capture inbox; prints its id
-  import FILE [--parent NODE]       import a Markdown (.md) or OPML (.opml) outline (default: into the Library)
+  import FILE|FOLDER [--parent NODE]  import Markdown, OPML, Roam JSON, Tana Paste, or a Notion or Logseq export folder (default: into the Library)
   export [NODE] [--format md|json|opml]  export a subtree (default: Markdown of Home)
   search QUERY                      find nodes
   tags                              list supertags with their fields
@@ -123,14 +123,14 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
         }
         "import" => {
             let parent = take_opt(&mut args, "--parent");
-            let path = args.first().ok_or("import needs a FILE")?;
-            let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+            let path = args.first().ok_or("import needs a FILE or FOLDER")?;
             let mut s = open(&file)?;
-            let mut p = json!({"text": text});
+            let mut p = json!({"path": path});
             if let Some(par) = parent {
                 p["parent"] = json!(node_arg(&mut s, Some(&par))?.0);
             }
-            let cmd = if path.to_ascii_lowercase().ends_with(".opml") { "import.opml" } else { "import.markdown" };
+            // A folder is a Notion or Logseq export; a file is Markdown, OPML, Roam JSON or Tana Paste.
+            let cmd = if std::path::Path::new(path).is_dir() { "import.folder" } else { "import.file" };
             let r = s.run(cmd, &p).map_err(cmd_err)?;
             save(&mut s)?;
             Ok(format!("imported {} nodes", r["created"]))

@@ -56,14 +56,14 @@ Scenarios: `web/tests/use-cases/08-capture-import.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/workspaces (Library)
 - **TanaCraft:** WORKS.
 
-### UC-08.10 Import Notion, Roam or Logseq: MISSING
+### UC-08.10 Import Notion, Roam or Logseq: WORKS
 - **Source:** https://outliner.tana.inc/learn/features/import-data-into-tana, https://outliner.tana.inc/learn/guides/import-from-notion
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. A Notion or Logseq export folder (`tanacraft-cli import FOLDER`, `import.folder`) becomes pages named after the files (Notion ids and Logseq namespaces cleaned up), folders as parent pages; Roam's JSON (`import.roam`, or Import content with a .json file) becomes pages with their blocks, TODO and DONE as checkboxes. `[[links]]` become links. Notion databases (CSV) are not read.
 
-### UC-08.11 Tana Paste: MISSING
+### UC-08.11 Tana Paste: WORKS
 - **Story:** A script or an AI writes plain text that becomes tagged nodes, fields, dates and searches.
 - **Source:** https://outliner.tana.inc/learn/features/tana-paste
-- **TanaCraft:** MISSING (Markdown import covers tags, checkboxes and fields; not searches, views or dates).
+- **TanaCraft:** WORKS. Pasting text that starts with `%%tana%%` (or `import.tanaPaste`, or importing such a file) makes the nodes: `#tag`, `#[[two words]]`, `Field:: value`, `[[Field]]::` with value bullets, `[[Name]]` links, `[[date:...]]` (single, range), `[ ]` and `[x]`, `!!` headings, `%%search%%` with the query below and `%%view:...%%`. Not read: Tana node ids, images, tables.
 
 ### UC-08.12 Paste spreadsheet cells as a table: MISSING
 - **Source:** https://outliner.tana.inc/learn/features/copy-paste-and-export (Pasting from Google Sheets)

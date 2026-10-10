@@ -1941,10 +1941,6 @@ kbd {
   border-bottom: 0;
 }
 
-.t-add {
-  padding: var(--q2) 0;
-}
-
 .t-cell .field-input {
   height: var(--lh-dense);
   font-size: var(--fs-dense);
@@ -2414,7 +2410,8 @@ kbd {
   width: 100%;
   height: 36px;
   padding: var(--q2);
-  margin: var(--q3) 0 var(--q8);
+  /* y 138 under the Supertags title (N69). */
+  margin: var(--q2) 0 var(--q8);
   border: 0;
   outline: 0;
   border-radius: var(--r-hair);
@@ -2455,7 +2452,7 @@ kbd {
 
 .tag-tile-name {
   font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-ui);
 }
 
 .tag-square {
@@ -2509,6 +2506,8 @@ kbd {
   background: var(--c-raised);
   text-align: left;
   color: var(--c-text);
+  /* Tag names 15 px 400 (N69). */
+  font-weight: var(--fw-ui);
 }
 
 :root[data-theme='light'] .tag-row-tile {
@@ -3814,4 +3813,40 @@ kbd {
 .picker-sub {
   left: calc(100% + var(--q1-5) - var(--submenu-overlap));
   top: 0;
+}
+
+/* The Supertags page title is 29 px 600 (spec 12, N69). */
+.schema-head .title {
+  font-weight: var(--fw-semibold);
+}
+
+/* An outline button (Browse templates, spec 12: 33.4 tall). */
+.btn.outline {
+  height: var(--btn-outline-h);
+  padding: 0 var(--q3);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+  font-size: var(--fs-dense);
+}
+
+/* The table's last, empty row (N68). */
+.t-row.t-new {
+  border-bottom: 0;
+  cursor: text;
+}
+
+.t-row.t-new .dot.faint {
+  width: 5px;
+  height: 5px;
+  margin-left: var(--q1-5);
+  border-radius: 50%;
+  background: var(--c-faint);
+  opacity: 0.6;
+}
+
+/* The account menu hangs from the right edge of the window (N66). */
+.menu.pop.account-menu {
+  left: auto;
+  right: 0;
+  width: var(--menu-w);
 }

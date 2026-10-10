@@ -370,7 +370,7 @@ function runUi(id: string): boolean {
     case 'ui.searchOptions': {
       // Only on a search page (DIFFS N13); elsewhere the key does nothing.
       const v = s.views[s.activePanel]
-      if (v?.query && p) void toggleQuery(s.activePanel, v.node, !s.queryOpen[s.activePanel])
+      if (v?.query && p) void toggleQuery(s.activePanel, v.node, s.queryOpen[s.activePanel] !== v.node)
       return true
     }
     case 'ui.quickAdd':

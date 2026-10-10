@@ -15,7 +15,8 @@ test('the reference counter shows how many places point at a line', async ({ app
   await server.run('nav.open', { node: page })
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .ref-count`)).toHaveText('2')
   // From Settings too.
-  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
   await app.locator('button[aria-label="Reference counter"]').click()
   await expect.poll(async () => (await server.run('settings.get')).result.ref_counter).toBe(false)
 })

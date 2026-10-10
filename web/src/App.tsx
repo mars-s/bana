@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { DragHint, Panel, tagStyle } from './Outline'
-import { closeTab, getState, moveTab, newTab, setState, switchTab, useStore } from './store'
+import { closeTab, getState, moveTab, newTab, setState, showToast, switchTab, useStore } from './store'
 import { bufferKey, clearGhosts, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
@@ -13,8 +13,15 @@ function TopBar() {
   const tabs = useStore((s) => s.tabs)
   const tab = useStore((s) => s.tab)
   const pages = useStore((s) => s.pages)
+  const special = useStore((s) => s.special)
   const active = useStore((s) => s.activePanel)
   const page = pages[active]
+  const SPECIAL = { settings: 'Settings', recents: 'Recents', help: 'Help' } as const
+  const tabTitle = (p: string) => {
+    const sp = special[p]
+    if (sp) return SPECIAL[sp]
+    return pages[p]?.kind === 'schema' ? 'Tag overview' : (pages[p]?.title ?? '')
+  }
   return (
     <header className="topbar" data-tauri-drag-region>
       <div className="topbar-left">
@@ -28,6 +35,8 @@ function TopBar() {
           <Icon name="forward" size={14} />
         </button>
       </div>
+      {/* Each panel by its own page: Settings, Recents and Help by name (N70), the Supertags page as
+          Tag overview (N59.38). */}
       <nav className="tabs" data-tauri-drag-region>
         {tabs.map((t, i) => (
           <div
@@ -41,12 +50,12 @@ function TopBar() {
               const from = Number(e.dataTransfer.getData('text/x-tanacraft-tab'))
               if (Number.isFinite(from)) moveTab(from, i)
             }}
-            title={t.panels.map((p) => pages[p]?.title ?? '').join(' | ')}
+            title={t.panels.map(tabTitle).join(' | ')}
           >
             {t.panels.map((p, j) => (
               <span key={p} className="tab-title">
                 {j > 0 && <span className="tab-div" />}
-                {pages[p]?.title ?? ''}
+                {tabTitle(p)}
               </span>
             ))}
             {tabs.length > 1 && (
@@ -76,11 +85,59 @@ function TopBar() {
         <button className="icon-btn" title="Keyboard shortcuts" onClick={() => runUiCommand('ui.shortcuts')}>
           <Icon name="keyboard" size={14} />
         </button>
-        <button className="icon-btn" title="Settings" onClick={() => runUiCommand('ui.settings')}>
-          <Icon name="user" size={14} />
-        </button>
+        <AccountMenu />
       </div>
     </header>
+  )
+}
+
+/** The account menu under the person icon (N66): what a local app has of Tana's list. */
+function AccountMenu() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  const file = useRef<HTMLInputElement>(null)
+  const theme = useStore((s) => s.theme)
+  useEffect(() => {
+    if (!open) return
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    window.addEventListener('mousedown', off)
+    return () => window.removeEventListener('mousedown', off)
+  }, [open])
+  const item = (label: string, run: () => void) => (
+    <div className="menu-item" role="menuitem" onMouseDown={(e) => (e.preventDefault(), setOpen(false), run())}>
+      {label}
+    </div>
+  )
+  return (
+    <span className="menu-anchor" ref={ref}>
+      <button className={`icon-btn${open ? ' on' : ''}`} title="Account" onClick={() => setOpen((o) => !o)}>
+        <Icon name="user" size={14} />
+      </button>
+      {/* A Markdown or OPML file read here and imported by the engine (spec 07). */}
+      <input
+        ref={file}
+        type="file"
+        accept=".md,.markdown,.txt,.opml"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ''
+          if (f) void f.text().then((text) => exec(f.name.toLowerCase().endsWith('.opml') ? 'import.opml' : 'import.markdown', { text }))
+        }}
+      />
+      {open && (
+        <div className="menu pop account-menu" role="menu">
+          {item('Workspaces', () => setState({ overlay: { kind: 'workspaces' } }))}
+          {item('Settings', () => runUiCommand('ui.settings'))}
+          {item('Import content…', () => file.current?.click())}
+          {item('Browse templates', () => showToast('There is no template gallery in this local app yet'))}
+          <div className="menu-sep" />
+          {item(theme === 'dark' ? 'Light theme' : 'Dark theme', () => runUiCommand('ui.toggleTheme'))}
+          {item('Keyboard shortcuts', () => runUiCommand('ui.shortcuts'))}
+          {item('Help', () => runUiCommand('ui.help'))}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -256,7 +313,7 @@ function Sidebar() {
     <aside className={`sidebar${mode === 2 ? ' hidden' : ''}`} data-panel-for={active} style={width && mode === 0 ? { width } : undefined} aria-hidden={mode === 2}>
       {mode === 0 && <SidebarGrip />}
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
-      {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
+      {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={false} onClick={() => void exec('nav.supertags')} />}
       {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}
       {/* Where Tana has AI chats (out of scope): the space is kept so everything below sits right. */}
       <div className="side-spacer" aria-hidden />

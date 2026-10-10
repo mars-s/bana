@@ -1360,6 +1360,15 @@ function PageDescription({ page, panel }: { page: Page; panel: string }) {
 
 function HeadActions({ page, panel, helpOnly }: { page: Page; panel: string; helpOnly?: boolean }) {
   const search = page.kind === 'search'
+  // The Supertags page has Browse templates at the right (spec 12; no template gallery yet).
+  if (page.kind === 'schema')
+    return (
+      <div className="head-actions">
+        <button className="btn outline" onClick={() => showToast('There is no template gallery in this local app yet')}>
+          Browse templates
+        </button>
+      </div>
+    )
   // A field page and a Configure supertag panel have only help at the right (spec 12).
   if (page.kind === 'field' || helpOnly)
     return (
@@ -1598,7 +1607,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}${configuring || fieldPage ? ' schema-col' : ''}`}>
           <div className="page-main">
-            <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}`}>
+            <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}${page.kind === 'schema' ? ' schema-head' : ''}`}>
               {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
               <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}

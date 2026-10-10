@@ -2,9 +2,11 @@
 import { test, expect, type Server } from './fixtures'
 import type { Page } from '@playwright/test'
 
-async function openTasks(server: Server, app: Page) {
+/** Opens "Open tasks" with its view toolbar shown (it is hidden until asked, N68). */
+async function openTasks(server: Server, app: Page, toolbar = true) {
   const hits = await server.rpc('find', { query: 'Open tasks', limit: 5 })
   const id = hits.find((h: any) => h.name === 'Open tasks').id
+  if (toolbar) await server.run('view.toggleToolbar', { node: id })
   await server.run('nav.open', { node: id })
   await expect(app.locator('.panel .title-input')).toHaveValue('Open tasks')
   return id as number
@@ -199,6 +201,7 @@ test('the query builder has its menus, Learn more and a corner close button (N43
 test('a tag page view tab switches the view in place; the tag header stays (N36)', async ({ app, server }) => {
   const tags = (await server.run('graph.tags', {})).result
   const task = tags.find((t: any) => t.name === 'task')
+  await server.run('view.toggleToolbar', { node: task.id })
   await server.run('nav.open', { node: task.id })
   await expect(app.locator('.table')).toBeVisible()
   await app.locator('.tag-tabs .view-tab', { hasText: 'Task board' }).click()
@@ -340,4 +343,22 @@ test('search options show the query as a sentence and merge view filters into th
   await expect(pop.locator('.btn', { hasText: 'Merge filters into search' })).toHaveCount(0)
   await app.keyboard.press('Escape')
   await expect(pop).toHaveCount(0)
+})
+
+test('a search page hides its view toolbar until asked and ends its table with an empty row (N68)', async ({ app, server }) => {
+  const view = await openTasks(server, app, false)
+  await server.run('view.set', { node: view, kind: 'table' })
+  await expect(app.locator('.table')).toBeVisible()
+  await expect(app.locator('.view-toolbar')).toHaveCount(0)
+  const rows = await app.locator('.t-row:not(.t-head):not(.t-new)').count()
+  await app.locator('.t-row.t-new').click()
+  await expect.poll(async () => app.locator('.t-row:not(.t-head):not(.t-new)').count()).toBe(rows + 1)
+})
+
+test('tabs name each panel: a page beside Settings reads "page | Settings" (N70); the account menu opens Settings (N66)', async ({ app }) => {
+  const first = await app.locator('.tab.active .tab-title').first().textContent()
+  await app.locator('.topbar [title="Account"]').click()
+  await expect(app.locator('.account-menu .menu-item')).toHaveText(['Workspaces', 'Settings', 'Import content…', 'Browse templates', 'Light theme', 'Keyboard shortcuts', 'Help'])
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
+  await expect(app.locator('.tab.active .tab-title')).toHaveText([first ?? '', 'Settings'])
 })

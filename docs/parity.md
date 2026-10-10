@@ -230,7 +230,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Page with banner and icon | done | Banner picture (P01) or colour band; emoji icon. |
 | Empty state (AI chats) | n/a | AI out of scope. |
 | Templates gallery | n/a | Not built (extras). |
-| Supertags overview | done | Pinned tags as cards and tiles per workspace. |
+| Supertags overview | done | Pinned tags as cards and tiles per workspace; 29 px 600 title, 15 px 400 names, no sidebar fill, tab Tag overview, Browse templates (no gallery yet). |
 
 ## `13-design-principles.md`
 

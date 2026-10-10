@@ -188,7 +188,6 @@ function QuickAdd() {
         <input
           autoFocus
           value={text}
-          placeholder="Add a node to today"
           onChange={(e) => {
             setText(e.target.value)
             send(e.target.value)

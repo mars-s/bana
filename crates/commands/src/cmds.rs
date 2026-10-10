@@ -2151,9 +2151,8 @@ fn view_toggle_display(s: &mut Session, v: &Value) -> CmdResult {
 fn view_toggle_toolbar(s: &mut Session, v: &Value) -> CmdResult {
     let id = view_target(s, v)?;
     let view = s.graph.view_mut(id)?;
-    view.hide_toolbar = !view.hide_toolbar;
-    let hidden = view.hide_toolbar;
-    Ok(json!({"node": id.0, "toolbar": !hidden}))
+    view.show_toolbar = !view.toolbar();
+    Ok(json!({"node": id.0, "toolbar": view.toolbar()}))
 }
 
 fn view_calendar_mode(s: &mut Session, v: &Value) -> CmdResult {

@@ -180,9 +180,9 @@ pub struct ViewDef {
     /// Groups (board columns) the person hid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden_groups: Vec<String>,
-    /// The view toolbar is hidden.
+    /// The view toolbar is shown (hidden until asked, DIFFS N68).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub hide_toolbar: bool,
+    pub show_toolbar: bool,
     /// System fields shown under items (after the display fields).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub system: Vec<SystemField>,
@@ -195,6 +195,13 @@ pub struct ViewDef {
     /// Table column calculations shown under the rows (field, calculation name).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub calcs: Vec<(NodeId, String)>,
+}
+
+impl ViewDef {
+    /// Whether the toolbar shows: when asked, and while filters are set (their chips live there).
+    pub fn toolbar(&self) -> bool {
+        self.show_toolbar || !self.filter.is_empty()
+    }
 }
 
 /// Table column calculations (spec 04 §2, header menu "Calculate").

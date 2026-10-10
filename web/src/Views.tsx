@@ -254,7 +254,7 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
  * the query as a sentence (tags, fields and values tinted), Open query editor, and Merge filters
  * into search when the view has filters (spec 05 §1, §3; 12: Search summary popover; N54). */
 export function SearchOptions({ node, panel, small }: { node: number; panel: string; small?: boolean }) {
-  const qOpen = useStore((s) => !!s.queryOpen[panel])
+  const qOpen = useStore((s) => s.queryOpen[panel] === node)
   const [snap, setSnap] = useState<ViewSnap | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -323,7 +323,7 @@ export function SearchOptions({ node, panel, small }: { node: number; panel: str
 }
 
 export async function toggleQuery(panel: string, node: number, open: boolean) {
-  setState((s) => ({ queryOpen: { ...s.queryOpen, [panel]: open } }))
+  setState((s) => ({ queryOpen: { ...s.queryOpen, [panel]: open ? node : null } }))
   await exec('search.hold', { node, on: open }, panel)
 }
 
@@ -480,7 +480,7 @@ function QueryMenus({ v, panel }: { v: ViewSnap; panel: string }) {
 }
 
 export function QueryBuilder({ v, panel }: { v: ViewSnap; panel: string }) {
-  const open = useStore((s) => !!s.queryOpen[panel])
+  const open = useStore((s) => s.queryOpen[panel] === v.node)
   if (!v.query || !open) return null
   return (
     <div className="query-builder">
@@ -836,8 +836,24 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
           <span className="t-cell" />
         </div>
       )}
-      <div className="t-add">
-        <AddItem v={v} panel={panel} label="+ New item" />
+      {/* The table ends with an empty row: faint bullets in each column; a click adds an item
+          (N68). */}
+      <div
+        className="t-row t-new"
+        style={{ gridTemplateColumns: tmpl }}
+        role="row"
+        title="New item"
+        onClick={() => void exec('view.addItem', { node: v.node, name: '', stay: true }, panel)}
+      >
+        <span className="t-cell t-title">
+          <span className="dot faint" />
+        </span>
+        {v.columns.map((c) => (
+          <span key={c.id} className="t-cell">
+            <span className="dot faint" />
+          </span>
+        ))}
+        <span className="t-cell" />
       </div>
       {menu && <HeaderMenu v={v} panel={panel} col={menu.col} x={menu.x} y={menu.y} close={() => setMenu(null)} />}
     </div>

@@ -51,7 +51,8 @@ test('a custom keybinding runs its command before the default', async ({ app, se
   await expect(app.locator('[role=dialog][aria-label="Quick add"]')).toBeVisible()
   await app.keyboard.press('Escape')
   // Set from Settings > Keybindings.
-  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
   await app.locator('.settings-nav .view-tab', { hasText: 'Keybindings' }).click()
   await expect(app.locator('.custom-keys kbd')).toHaveText('Mod+Shift+H')
   await app.locator('.key-capture').press('Meta+Shift+KeyJ')
@@ -64,7 +65,8 @@ test('a custom keybinding runs its command before the default', async ({ app, se
 })
 
 test('Settings open in a second panel with the sections in order; Escape closes them (N55)', async ({ app }) => {
-  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
   await expect(app.locator('.panel')).toHaveCount(2)
   const settings = app.locator('.panel.settings-panel')
   await expect(settings.locator('.crumbs')).toContainText('User settings')
@@ -79,7 +81,8 @@ test('the theme follows the system appearance until a theme is picked (N56)', as
   await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
   await app.emulateMedia({ colorScheme: 'dark' })
   await expect(app.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await app.locator('.topbar .icon-btn[title="Settings"]').click()
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
   await app.locator('button[aria-label="Use system theme"]').click()
   await app.locator('button[aria-label="Dark theme"]').click()
   await expect(app.locator('html')).toHaveAttribute('data-theme', 'light')
@@ -157,4 +160,18 @@ test('the day title uses Inter at its automatic optical size (N59.7)', async ({ 
   })
   expect(w).toBeGreaterThan(0)
   expect(Math.abs(text - 232.6)).toBeLessThan(4)
+})
+
+test('Supertags page: no sidebar fill, a 600 title, Browse templates; quick add starts with a bare line (N69, N71, N59.38)', async ({ app }) => {
+  await app.locator('.sidebar .side-row', { hasText: 'Supertags' }).click()
+  await expect(app.locator('.supertags')).toBeVisible()
+  await expect(app.locator('.sidebar .side-row.active', { hasText: 'Supertags' })).toHaveCount(0)
+  expect(await app.locator('.panel .title').first().evaluate((e) => getComputedStyle(e).fontWeight)).toBe('600')
+  await expect(app.locator('.head-actions .btn', { hasText: 'Browse templates' })).toBeVisible()
+  await expect(app.locator('.tab.active .tab-title')).toHaveText('Tag overview')
+  await app.locator('.filter-input').blur()
+  await app.keyboard.press('Meta+e')
+  const input = app.locator('.dialog.quick input')
+  await expect(input).toBeVisible()
+  expect(await input.getAttribute('placeholder')).toBeNull()
 })

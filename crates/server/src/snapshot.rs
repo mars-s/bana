@@ -384,7 +384,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "caret": s.caret,
         "anchor": s.anchor,
         "sel": selection(s),
-        "view": {"kind": vdef.kind.name(), "isView": is_view, "toolbar": !vdef.hide_toolbar},
+        "view": {"kind": vdef.kind.name(), "isView": is_view, "toolbar": vdef.toolbar()},
         "related": related,
         "references": references,
         "filteredOut": g.view_filtered_out(zoom),
@@ -646,7 +646,7 @@ pub fn view(s: &Session, params: &Value) -> Value {
     json!({
         "node": node.0,
         "kind": def.kind.name(),
-        "toolbar": !def.hide_toolbar,
+        "toolbar": def.toolbar(),
         "groups": groups,
         "grouped": def.group.is_some(),
         "columns": columns,

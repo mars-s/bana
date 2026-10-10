@@ -102,7 +102,8 @@ export interface State {
   /** Panels showing a supertag's configuration instead of its items. */
   configure: Record<string, boolean>
   /** Panels whose search query builder is open. */
-  queryOpen: Record<string, boolean>
+  /** The search node whose query builder is open, per panel (N64: not another page's view). */
+  queryOpen: Record<string, number | null>
   /** Pages that are not nodes, per panel. */
   special: Record<string, 'settings' | 'recents' | 'help' | undefined>
   /** A description being typed under a line. */

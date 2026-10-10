@@ -44,6 +44,32 @@ test('a board card dragged to another column takes its value', async ({ app, ser
   await expect(app.locator('.board-col', { hasText: 'In progress' }).locator('.card', { hasText: 'Fill with compost' })).toBeVisible()
 })
 
+test('a board card dragged within its column goes where it is dropped; the others slide aside', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'cards' })
+  await server.run('view.group', { node: view, by: 'Status' })
+  for (const name of ['Card two', 'Card three']) await server.run('view.addItem', { node: view, name, field: 'Status', value: 'In progress', stay: true })
+  const col = app.locator('.board-col', { hasText: 'In progress' })
+  const cards = col.locator('.card')
+  await expect(cards).toHaveCount(3)
+  const names = async () => (await cards.locator('.card-body').allTextContents()).map((t) => t.trim())
+  const before = await names()
+  const last = cards.last()
+  const first = cards.first()
+  // Mid-drag: the cards from the slot down are moved aside (a transform), the dragged one dimmed.
+  await last.hover()
+  await app.mouse.down()
+  const box = (await first.boundingBox())!
+  // (The first moves start the drag; the next ones are drag-overs.)
+  await app.mouse.move(box.x + box.width / 2, box.y + 30, { steps: 5 })
+  await app.mouse.move(box.x + box.width / 2, box.y + 4, { steps: 5 })
+  await expect(first).toHaveAttribute('style', /translateY/)
+  await expect(last).toHaveClass(/dragged/)
+  await app.mouse.up()
+  await expect.poll(names).toEqual([before[before.length - 1], ...before.slice(0, -1)])
+  await expect(first).not.toHaveAttribute('style', /translateY/)
+})
+
 test('the calendar shows the month and steps to the next', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'calendar' })

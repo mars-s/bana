@@ -279,6 +279,8 @@ pub fn registry() -> Registry {
             view_json(s, id)
         })
         .params(r#"{"node"?: id, "field": "Created time|Last edited time|Done time|Owner node|Tags|Number of references"}"#),
+        C::new("view.moveItem", "Move item in view", "Views", view_move_item)
+            .params(r#"{"node"?: id, "item": id, "before"?: id, "after"?: id}  (drop place among the view's items; neither: the end)"#),
         C::new("view.toggleGroupHidden", "Hide or show a group", "Views", |s, v| {
             let id = view_target(s, v)?;
             let label = p::req_str(v, "group")?.to_string();
@@ -2275,6 +2277,45 @@ fn set_done(s: &mut Session, v: &Value) -> CmdResult {
 /// A new item that fits a view (spec 05 §1, 03 §2): a child of a plain node; for a search, a node
 /// in the Library carrying the query's supertags and field values; for a supertag page, a node with
 /// that supertag on today's page. The new node opens with the caret in its title.
+/// Drops a view item before or after another (a card dragged within a board column, spec 04 §5,
+/// 14 M19). A view of a node's children moves the child (the outline order is the view's order);
+/// a search or supertag view keeps the order in the view.
+/// spec-gap: a sorted view gives up its sort rules, so the item stays where it was dropped.
+fn view_move_item(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let item = p::node(v, "item")?.ok_or_else(|| CmdError::Params("`item` is required".into()))?;
+    let (anchor, after) = match (p::node(v, "before")?, p::node(v, "after")?) {
+        (Some(b), _) => (Some(b), false),
+        (None, a) => (a, true),
+    };
+    let items = s.graph.view_items(id);
+    if !items.contains(&item) || anchor.is_some_and(|a| !items.contains(&a)) {
+        return Err(CmdError::Params("`item`, `before` and `after` must be items of the view".into()));
+    }
+    if anchor == Some(item) {
+        return view_json(s, id);
+    }
+    let children = !matches!(s.graph.get(id).map(|n| &n.kind), Some(tanacraft_core::Kind::Search(_) | tanacraft_core::Kind::Tag(_)));
+    if children {
+        let kids = s.graph.children(id);
+        let index = anchor.and_then(|a| kids.iter().position(|c| *c == a)).map(|i| i + usize::from(after));
+        s.graph.move_to(item, id, index)?;
+        let view = s.graph.view_mut(id)?;
+        view.sort.clear();
+    } else {
+        // The order shown now (every group in turn), then items the filter hides.
+        let mut order: Vec<NodeId> = s.graph.view_groups(id).into_iter().flat_map(|g| g.items).collect();
+        order.extend(items.iter().filter(|i| !order.contains(i)).copied().collect::<Vec<_>>());
+        order.retain(|i| *i != item);
+        let at = anchor.and_then(|a| order.iter().position(|o| *o == a)).map_or(order.len(), |i| i + usize::from(after));
+        order.insert(at.min(order.len()), item);
+        let view = s.graph.view_mut(id)?;
+        view.sort.clear();
+        view.order = order;
+    }
+    view_json(s, id)
+}
+
 fn view_add_item(s: &mut Session, v: &Value) -> CmdResult {
     let id = view_target(s, v)?;
     let name = p::str(v, "name").unwrap_or("");

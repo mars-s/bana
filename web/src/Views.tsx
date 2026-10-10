@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { call, type FieldRow, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
-import { exec } from './controller'
+import { exec, withBarrier } from './controller'
 import { openInNewPanel, setActivePanel, setState, useStore } from './store'
 import { openPicker, startFieldEdit } from './picker'
 
@@ -767,9 +767,16 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
 
 // ---- cards and board ---------------------------------------------------------------------------
 
-function Card({ it, panel, refs, onDragStart, dragged }: { it: ViewItem; panel: string; refs: Record<string, string>; onDragStart?: (e: React.DragEvent) => void; dragged?: boolean }) {
+function Card({ it, panel, refs, onDragStart, onDragEnd, dragged, shift }: { it: ViewItem; panel: string; refs: Record<string, string>; onDragStart?: (e: React.DragEvent) => void; onDragEnd?: () => void; dragged?: boolean; shift?: number }) {
   return (
-    <div className={`card${dragged ? ' dragged' : ''}`} draggable={!!onDragStart} onDragStart={onDragStart} onDragEnd={(e) => e.currentTarget.classList.remove('dragged')} data-id={it.id}>
+    <div
+      className={`card${dragged ? ' dragged' : ''}`}
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      data-id={it.id}
+      style={shift ? { transform: `translateY(${shift}px)` } : undefined}
+    >
       <div className="card-head">
         <ItemBullet it={it} panel={panel} />
         {it.tags.map((t) => (
@@ -806,9 +813,42 @@ function CardNameEditor({ id, panel, done }: { id: number; panel: string; done: 
   )
 }
 
+/** Where a dragged card would land in a column: the number of other cards above the pointer.
+ * (offsetTop ignores the transforms of cards already sliding aside.) */
+function slotAt(col: HTMLElement, clientY: number): number {
+  const y = clientY - col.getBoundingClientRect().top
+  let i = 0
+  for (const c of col.querySelectorAll<HTMLElement>('.card:not(.dragged)')) if (c.offsetTop + c.offsetHeight / 2 < y) i++
+  return i
+}
+
+/** How far each card of `col` slides (px, by view item id) with the dragged card at `slot`: in its
+ * own column the dimmed card itself moves there as the placeholder and the cards it passes make
+ * room; in another column a gap of its height opens (14 M19). */
+function slideFor(col: HTMLElement, dragId: number, slot: number, h: number): Record<number, number> {
+  const cards = [...col.querySelectorAll<HTMLElement>('.card')]
+  const gap = parseFloat(getComputedStyle(col).rowGap) || 0
+  const own = cards.find((c) => Number(c.dataset.id) === dragId)
+  const order: (HTMLElement | number)[] = cards.filter((c) => c !== own)
+  order.splice(slot, 0, own ?? h)
+  let y = cards[0]?.offsetTop ?? 0
+  const out: Record<number, number> = {}
+  for (const c of order) {
+    if (typeof c === 'number') {
+      y += c
+      continue
+    }
+    out[Number(c.dataset.id)] = y - c.offsetTop
+    y += c.offsetHeight + gap
+  }
+  return out
+}
+
 function Board({ v, panel }: { v: ViewSnap; panel: string }) {
-  const [over, setOver] = useState<string | null>(null)
-  const [dragged, setDragged] = useState<number | null>(null)
+  // The card being dragged (its view item, column and height with the gap below it) and the slot
+  // it would land in: cards from that slot down slide aside to make room (14 M19).
+  const [drag, setDrag] = useState<{ id: number; target: number; col: string; h: number } | null>(null)
+  const [slot, setSlot] = useState<{ col: string; index: number; slide: Record<number, number> } | null>(null)
   const [fresh, setFresh] = useState<number | null>(null)
   const groupField = v.columns.find((c) => v.groups.some((g) => g.items.some((it) => (it.cells[String(c.id)] ?? []).includes(g.label))))
   if (!v.grouped) {
@@ -831,27 +871,44 @@ function Board({ v, panel }: { v: ViewSnap; panel: string }) {
     const id = r?.result?.id
     if (id != null) setFresh(id)
   }
+  const endDrag = () => {
+    setDrag(null)
+    setSlot(null)
+  }
   return (
     <div className="board">
       {v.groups.map((g) => {
         const items = fresh != null ? [...g.items.filter((it) => it.target === fresh), ...g.items.filter((it) => it.target !== fresh)] : g.items
         const label = g.label === 'Not defined' && groupField ? `${groupField.name} not set` : g.label
+        const others = items.filter((it) => it.id !== drag?.id)
+        const open = drag && slot?.col === g.label ? slot.index : null
         return (
           <div
             key={g.label}
-            className={`board-col${over === g.label ? ' over' : ''}`}
+            className={`board-col${open != null ? ' over' : ''}`}
             onDragOver={(e) => {
               e.preventDefault()
-              setOver(g.label)
+              const index = slotAt(e.currentTarget, e.clientY)
+              if (drag && (slot?.col !== g.label || slot.index !== index)) setSlot({ col: g.label, index, slide: slideFor(e.currentTarget, drag.id, index, drag.h) })
             }}
-            onDragLeave={() => setOver(null)}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSlot(null)
+            }}
             onDrop={(e) => {
               e.preventDefault()
-              setOver(null)
-              setDragged(null)
-              const id = Number(e.dataTransfer.getData('text/x-node'))
-              // Dropping a card on a column gives it that column's value (spec 04 §5).
-              if (id && groupField) void exec('field.set', { node: id, field: groupField.id, value: g.label === 'Not defined' ? '' : g.label }, panel)
+              const d = drag
+              const index = slotAt(e.currentTarget, e.clientY)
+              endDrag()
+              if (!d) return
+              // Dropping a card on a column gives it that column's value (spec 04 §5), and it goes
+              // where it was dropped among that column's cards.
+              const anchor = others[index]
+              const last = others[others.length - 1]
+              const place = anchor ? { before: anchor.id } : last ? { after: last.id } : {}
+              void withBarrier(async () => {
+                if (d.col !== g.label && groupField) await exec('field.set', { node: d.target, field: groupField.id, value: g.label === 'Not defined' ? '' : g.label }, panel)
+                await exec('view.moveItem', { node: v.node, item: d.id, ...place }, panel)
+              })
             }}
           >
             <div className="board-head">
@@ -876,11 +933,15 @@ function Board({ v, panel }: { v: ViewSnap; panel: string }) {
                   it={it}
                   panel={panel}
                   refs={v.refs}
-                  dragged={dragged === it.target}
+                  dragged={drag?.id === it.id}
+                  shift={open != null ? slot?.slide[it.id] : 0}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/x-node', String(it.target))
-                    setDragged(it.target)
+                    const el = e.currentTarget as HTMLElement
+                    const gap = parseFloat(getComputedStyle(el.parentElement ?? el).rowGap) || 0
+                    setDrag({ id: it.id, target: it.target, col: g.label, h: el.offsetHeight + gap })
                   }}
+                  onDragEnd={endDrag}
                 />
               ),
             )}

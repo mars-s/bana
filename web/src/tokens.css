@@ -153,6 +153,8 @@
   --toast-pad: 14px;
   --t-toast: 200ms ease-out;
   --t-fade-delayed: 200ms ease 400ms;
+  /* Cards sliding aside for a dragged card (M19). */
+  --t-displace: 200ms ease-in-out;
 
   /* Colour: dark */
   --c-chrome: #232526;

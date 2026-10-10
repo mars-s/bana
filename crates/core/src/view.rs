@@ -173,6 +173,10 @@ pub struct ViewDef {
     /// Table column widths in points (field id; `NodeId(0)` is the title column).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub widths: Vec<(NodeId, f32)>,
+    /// Items in the order the person dragged them to (search and supertag views; a view of a
+    /// node's children moves the children instead). Applies while no sort rule is set.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order: Vec<NodeId>,
     /// Groups (board columns) the person hid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden_groups: Vec<String>,
@@ -300,6 +304,9 @@ impl Graph {
                     .find(|o| o.is_ne())
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
+        } else if !v.order.is_empty() {
+            // Items never dragged keep their own order, after the ones that were.
+            items.sort_by_key(|i| v.order.iter().position(|o| o == i).unwrap_or(usize::MAX));
         }
         let Some(group) = v.group else {
             return vec![Group { label: String::new(), items }];

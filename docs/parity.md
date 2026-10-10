@@ -211,7 +211,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Node page (plain node with fields and nesting) | done | Field rows, guides, nesting. |
 | Supertag page (tag node with views) | done | Tag square, + Create new, help and options by the title; tab strip; views in place. View title row with description: partial. |
 | Table | done | Tag-named first column with a 2 px tag underline, 1 px underlines, fitted title column (150 to 340), fields 128, resizable, header menu, + Add after the last column, sideways scroll. |
-| Board | done | Columns 300 with 30 gaps, headers 35.4, card date lines, + Add at the top of a column, Hide, unset column. Reordering inside a column: missing. |
+| Board | done | Columns 300 with 30 gaps, headers 35.4, card date lines, + Add at the top of a column, Hide, unset column. Reordering inside a column (`view.moveItem`: a node's children move; a search or supertag view keeps its own order; a sorted view drops its sort, spec-gap); during a drag the dimmed card is the placeholder and the others slide 200 ms ease-in-out (M19). |
 | Calendar month | done | As many weeks as the month needs, 3 px bars without fill, today circle, weekends lifted, undated count. |
 | Calendar week | done | Hour grid of the whole day, drag to create, move and resize. |
 | List (grouped outline) | done | Group headers with chevrons. |

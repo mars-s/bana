@@ -1299,3 +1299,37 @@ fn sorting_a_tag_page_keeps_its_table() {
     run(&mut s, "view.filter", json!({"node": tag.0, "query": "NOT DONE"}));
     assert_eq!(s.graph.view_def(tag).kind, tanacraft_core::ViewKind::Table);
 }
+
+#[test]
+fn board_cards_reorder_within_a_column() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let names = |s: &Session, view: NodeId| -> Vec<Vec<String>> {
+        s.graph.view_groups(view).iter().map(|g| g.items.iter().map(|i| s.graph.name(*i).to_string()).collect()).collect()
+    };
+    // A supertag's board: the order is kept in the view; other columns are untouched.
+    let task = s.graph.find_tag("task").unwrap();
+    run(&mut s, "view.set", json!({"node": task.0, "kind": "board"}));
+    let before = names(&s, task);
+    let col = s.graph.view_groups(task).into_iter().find(|g| g.items.len() >= 2).unwrap();
+    let (first, last) = (col.items[0], *col.items.last().unwrap());
+    run(&mut s, "view.moveItem", json!({"node": task.0, "item": last.0, "before": first.0}));
+    let after = names(&s, task);
+    let i = before.iter().position(|g| g.contains(&s.graph.name(first).to_string())).unwrap();
+    let mut want = before[i].clone();
+    let moved = want.pop().unwrap();
+    want.insert(0, moved);
+    assert_eq!(after[i], want);
+    for (j, g) in before.iter().enumerate().filter(|(j, _)| *j != i) {
+        assert_eq!(&after[j], g, "column {j} kept its order");
+    }
+    // After the last card, and undo puts it back.
+    run(&mut s, "view.moveItem", json!({"node": task.0, "item": last.0, "after": col.items[col.items.len() - 2].0}));
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(names(&s, task)[i], after[i]);
+    assert!(s.run("view.moveItem", &json!({"node": task.0, "item": 1, "before": first.0})).is_err(), "not an item");
+    // A node's own board: the children move.
+    let beds = s.graph.search("Raised beds")[0];
+    let kids = s.graph.children(beds).to_vec();
+    run(&mut s, "view.moveItem", json!({"node": beds.0, "item": kids[0].0, "after": kids[1].0}));
+    assert_eq!(&s.graph.children(beds)[..2], &[kids[1], kids[0]]);
+}

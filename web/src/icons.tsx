@@ -285,6 +285,63 @@ const P: Record<string, JSX.Element> = {
       <path d="M4.8 8h6.4" />
     </>
   ),
+  // I-38: an option value's marker (a ring with a dot).
+  option: (
+    <>
+      <circle cx="8" cy="8" r="5.2" />
+      <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // I-41 / P06: calendar sync, a generic calendar with two turning arrows (no brand mark).
+  calendarSync: (
+    <>
+      <rect x="2.2" y="3" width="11.6" height="10.6" rx="2" />
+      <path d="M2.2 6h11.6M5.2 1.8v2.4M10.8 1.8v2.4" />
+      <path d="M5.4 10.4a2.7 2.7 0 0 1 4.6-1.6M10.6 9.2a2.7 2.7 0 0 1-4.6 1.6" />
+      <path d="M10.2 7.4v1.5H8.7M5.8 12.2v-1.5h1.5" />
+    </>
+  ),
+  // I-68: a small robot head (model picker).
+  robot: (
+    <>
+      <rect x="3" y="5" width="10" height="8" rx="2.2" />
+      <path d="M8 5V2.8" />
+      <circle cx="8" cy="2.3" r=".7" fill="currentColor" stroke="none" />
+      <circle cx="6" cy="9" r=".8" fill="currentColor" stroke="none" />
+      <circle cx="10" cy="9" r=".8" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // I-69: send, a paper plane pointing right.
+  send: <path d="M2.5 8 13.5 3l-3.2 10-2.6-4.2L2.5 8Zm5.2.8 5.8-5.8" />,
+  // I-70: chats, two overlapping speech bubbles.
+  chats: (
+    <>
+      <path d="M2.5 4.2c0-.9.7-1.6 1.6-1.6h5c.9 0 1.6.7 1.6 1.6v3c0 .9-.7 1.6-1.6 1.6H6l-2 1.8V8.8a1.6 1.6 0 0 1-1.5-1.6v-3Z" />
+      <path d="M12 6.6h.3c.7 0 1.2.5 1.2 1.2v2.6c0 .7-.5 1.2-1.2 1.2V13l-1.8-1.4H8.2c-.7 0-1.2-.5-1.2-1.2v-.6" />
+    </>
+  ),
+  // I-71: building blocks, a triangle on two squares.
+  blocks: (
+    <>
+      <path d="M8 2.2 10.8 6.8H5.2L8 2.2Z" />
+      <rect x="2.4" y="8.4" width="5" height="5" rx="1" />
+      <rect x="8.6" y="8.4" width="5" height="5" rx="1" />
+    </>
+  ),
+  // I-63: AND group toggle, two stacked overlapping squares.
+  andGroup: (
+    <>
+      <rect x="2.5" y="5.5" width="8" height="8" rx="1.6" />
+      <path d="M5.5 5.5V4.1c0-.9.7-1.6 1.6-1.6h4.8c.9 0 1.6.7 1.6 1.6v4.8c0 .9-.7 1.6-1.6 1.6h-1.4" />
+    </>
+  ),
+  // I-67: search options, a dot in a soft circle.
+  dotCircle: (
+    <>
+      <circle cx="8" cy="8" r="5.5" />
+      <circle cx="8" cy="8" r="2.2" fill="currentColor" stroke="none" />
+    </>
+  ),
 }
 
 export type IconName = keyof typeof P

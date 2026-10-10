@@ -463,13 +463,15 @@ button:focus-visible {
   background: var(--c-hover);
 }
 
+/* P04: the initials avatar, a two-tone neutral circle. */
 .ws-dot {
   display: inline-flex;
   width: var(--bullet);
   height: var(--bullet);
   border-radius: 50%;
-  background: var(--c-pressed);
-  color: var(--c-text);
+  background: var(--c-avatar-inner);
+  box-shadow: inset 0 0 0 1px var(--c-avatar-ring);
+  color: var(--c-avatar-text);
   font-size: var(--fs-meta);
   font-weight: var(--fw-semibold);
   align-items: center;
@@ -3563,4 +3565,8 @@ kbd {
 
 .crumb-tool:hover {
   opacity: 1;
+}
+
+.bullet.option-mark {
+  color: var(--c-muted);
 }

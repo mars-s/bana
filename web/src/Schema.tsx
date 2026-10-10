@@ -186,7 +186,7 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
 
 // ---- configure supertag ----------------------------------------------------------------------------
 
-function Section({ icon, title, help, children }: { icon: 'fieldText' | 'duplicate' | 'check' | 'hash'; title: string; help: string; children: ReactNode }) {
+function Section({ icon, title, help, children }: { icon: 'fieldText' | 'duplicate' | 'check' | 'hash' | 'blocks'; title: string; help: string; children: ReactNode }) {
   const [open, setOpen] = useState(false) // Sections start folded (N59.32).
   return (
     <section className="cfg-card">
@@ -228,7 +228,7 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
           </button>
         ))}
       </div>
-      <Section icon="duplicate" title="Building blocks" help="What this supertag is and builds on.">
+      <Section icon="blocks" title="Building blocks" help="What this supertag is and builds on.">
         <Row label="Base type" help="A built-in meaning (task, meeting, person…).">
           <Select label="Base type" value={d.baseType ?? ''} options={[['', 'None'], ...d.baseTypes.map((b: string) => [b, b[0].toUpperCase() + b.slice(1)] as [string, string])]} onChange={(base) => run('tag.setBaseType', { base: base || null })} />
         </Row>

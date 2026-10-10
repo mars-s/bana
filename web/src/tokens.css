@@ -158,6 +158,9 @@
   --c-pressed: #434444;
   --c-popover: #232526;
   --c-popover-glass: rgba(35, 37, 38, 0.8);
+  --c-avatar-ring: #4b4b4c;
+  --c-avatar-inner: #6e6f6f;
+  --c-avatar-text: #b2b2b3;
   --c-weekend: rgba(255, 255, 255, 0.025);
   --c-tooltip: #2e2f30;
   --c-tooltip-text: #eaeaea;
@@ -266,6 +269,9 @@
   --c-pressed: #f8f8f8;
   --c-popover: #fefefe;
   --c-popover-glass: rgba(254, 254, 254, 0.8);
+  --c-avatar-ring: #dcdddd;
+  --c-avatar-inner: #eaeaea;
+  --c-avatar-text: #535454;
   --c-weekend: rgba(0, 0, 0, 0.02);
   --c-tooltip: #3b3c3d;
   --c-tooltip-text: #f4f4f4;

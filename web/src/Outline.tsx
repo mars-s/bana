@@ -741,9 +741,16 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
               </span>
             ) : (
               <span key={i} className="field-value" onMouseDown={(e) => (e.preventDefault(), edit(i))}>
-                <span className="bullet">
-                  <span className="dot" />
-                </span>
+                {/* An option value shows the option marker (I-38, N59.24); others a bullet. */}
+                {row.type === 'options' && v?.node != null ? (
+                  <span className="bullet option-mark">
+                    <Icon name="option" size={13} />
+                  </span>
+                ) : (
+                  <span className="bullet">
+                    <span className="dot" />
+                  </span>
+                )}
                 <span className="field-text">{v?.text}</span>
               </span>
             ),
@@ -1160,6 +1167,7 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
 const TITLE_TEXT_KEYS = /^Mod\+(Shift\+)?(A|C|V|X|Z|Y|Left|Right|Up|Down|Backspace|Delete)$/
 
 function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolean }) {
+  const wsName = useStore((s) => s.sidebar?.workspaces[0]?.name ?? '')
   const c = page.crumbs
   const shown: ({ id: number; name: string } | null)[] = c.length > 4 ? [c[0], null, ...c.slice(-2)] : c
   return (
@@ -1167,8 +1175,9 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
       <button className="icon-btn crumb-back" title="Back" disabled={!page.canBack} onClick={() => void exec('nav.back', {}, panel)}>
         <Icon name="chevronLeft" size={14} />
       </button>
+      {/* The workspace's 15 px initials avatar (P04; N59.5). */}
       <button className="ws-avatar" title="Workspace: open the Library" onClick={() => void exec('nav.home', {}, panel)}>
-        <Icon name="workspace" size={16} />
+        <span className="ws-dot">{(wsName || 'W').slice(0, 1).toUpperCase()}</span>
       </button>
       {shown.map((x, i) => (
         <span key={i} className="crumb-part">
@@ -1284,7 +1293,7 @@ function HeadActions({ page, panel }: { page: Page; panel: string }) {
       )}
       {search && (
         <button className={`btn icon${qOpen ? ' on' : ''}`} title="Search options (query editor)" onClick={() => void toggleQuery(panel, page.zoom, !qOpen)}>
-          <Icon name="search" size={12} />
+          <Icon name="dotCircle" size={12} />
         </button>
       )}
       <button

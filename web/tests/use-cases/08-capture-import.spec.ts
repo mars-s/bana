@@ -1,0 +1,110 @@
+// Use cases: capture, import, export and keeping data safe (docs/use-cases/08-capture-import.md).
+import { execFileSync } from 'node:child_process'
+import { writeFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { test, expect, missing, works, partial, tree, idOf, library, palette } from './helpers'
+import { pageWith, focus, nameOf } from '../fixtures'
+
+const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'tanacraft-cli')
+
+test('UC-08.01 capture to an Inbox from outside the app and find it there', works('UC-08.01'), async ({ app, server }) => {
+  const r = await server.run('node.capture', { name: 'Idea from the bus: seed bombs' })
+  expect(r.result?.id ?? r.result).toBeTruthy()
+  await palette(app, 'Open capture inbox')
+  await expect(app.locator('.row.node', { hasText: 'Idea from the bus: seed bombs' })).toBeVisible()
+})
+
+test('UC-08.02 paste several lines of text: each becomes a node', works('UC-08.02'), async ({ app, server, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const { page, ids } = await pageWith(server, app, [''])
+  await focus(server, app, ids[0], 0)
+  await app.evaluate(() => navigator.clipboard.writeText('Tomatoes\nBasil\nGarlic'))
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => (await tree(server, page)).children.map((c: any) => c.name)).toEqual(['Tomatoes', 'Basil', 'Garlic'])
+})
+
+test('UC-08.03 paste an indented Markdown list: the nesting is kept', works('UC-08.03'), async ({ app, server, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const { page, ids } = await pageWith(server, app, [''])
+  await focus(server, app, ids[0], 0)
+  await app.evaluate(() => navigator.clipboard.writeText('- Beds\n  - North bed\n  - South bed\n- Paths'))
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => (await tree(server, page)).children.map((c: any) => [c.name, (c.children ?? []).map((k: any) => k.name)])).toEqual([
+    ['Beds', ['North bed', 'South bed']],
+    ['Paths', []],
+  ])
+})
+
+test('UC-08.04 import a Markdown or OPML file (Workflowy, other outliners) from the account menu', works('UC-08.04'), async ({ app, server }) => {
+  await app.locator('.topbar [title="Account"]').click()
+  const chooser = app.waitForEvent('filechooser')
+  await app.locator('.account-menu .menu-item', { hasText: 'Import content' }).click()
+  await (await chooser).setFiles({
+    name: 'plan.opml',
+    mimeType: 'text/x-opml',
+    buffer: Buffer.from('<?xml version="1.0"?><opml version="2.0"><body><outline text="Spring plan"><outline text="Sow peas" /></outline></body></opml>'),
+  })
+  await expect.poll(async () => (await server.rpc('find', { query: 'Sow peas', limit: 5 })).map((h: any) => h.name)).toContain('Sow peas')
+  const md = join(mkdtempSync(join(tmpdir(), 'uc-')), 'notes.md')
+  writeFileSync(md, '# Autumn\n- [ ] Plant bulbs #task\n- Rake\n')
+  await server.run('import.file', { path: md })
+  await expect.poll(async () => (await server.rpc('find', { query: 'Plant bulbs', limit: 5 })).length).toBeGreaterThan(0)
+  const bulbs = await idOf(server, 'Plant bulbs')
+  expect((await tree(server, bulbs)).tags).toContain('task')
+})
+
+test('UC-08.05 export a page as Markdown, OPML or JSON with its fields', works('UC-08.05'), async ({ server }) => {
+  const garden = await idOf(server, 'Community garden')
+  const md = (await server.run('export.markdown', { node: garden })).result
+  expect(JSON.stringify(md)).toContain('Raised beds')
+  expect(JSON.stringify(md)).toMatch(/Status/)
+  const opml = (await server.run('export.opml', { node: garden })).result
+  expect(JSON.stringify(opml)).toContain('<outline')
+  const json = (await server.run('export.json', { node: garden })).result
+  expect(json.fields.Status).toBe('In progress')
+})
+
+test('UC-08.06 everything stays on your computer and survives a crash', works('UC-08.06'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, [''])
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.type('Written offline')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Written offline')
+  await app.waitForTimeout(1500)
+  await server.kill('SIGKILL')
+  await server.restart()
+  await app.reload()
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Written offline')
+})
+
+test('UC-08.07 add notes from a script or the terminal (CLI)', works('UC-08.07'), async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'uc-')), 'g.tanacraft')
+  execFileSync(bin, ['sample', '--out', file])
+  const id = execFileSync(bin, ['--file', file, 'add', 'Order manure', '--today', '--tag', 'task']).toString().trim()
+  expect(Number(id)).toBeGreaterThan(0)
+  execFileSync(bin, ['--file', file, 'capture', 'Call the council'])
+  const found = execFileSync(bin, ['--file', file, 'search', 'manure']).toString()
+  expect(found).toContain('Order manure')
+  expect(execFileSync(bin, ['--file', file, 'export', 'today']).toString()).toContain('Order manure')
+})
+
+test('UC-08.08 paste code: kept as code, inline only (no code block)', partial('UC-08.08'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, [''])
+  await server.run('edit.pasteAsCode', { node: ids[0], caret: 0, text: 'let x = 1' })
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .code`)).toHaveText('let x = 1')
+})
+
+test('UC-08.09 import into the Library by default', works('UC-08.09'), async ({ server }) => {
+  await server.run('import.markdown', { text: '- Bean varieties\n  - Borlotti' })
+  const lib = await library(server)
+  expect((await tree(server, lib)).children.map((c: any) => c.name)).toContain('Bean varieties')
+})
+
+missing('UC-08.10', 'import a Notion, Roam or Logseq export')
+missing('UC-08.11', 'paste Tana Paste text to create tagged nodes, fields and searches at once')
+missing('UC-08.12', 'paste spreadsheet cells as a table')
+missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
+missing('UC-08.14', 'capture from any app with a system-wide shortcut (Global Clipper)')
+missing('UC-08.15', 'browse and install templates from a gallery')
+missing('UC-08.16', 'capture on the phone: app, home screen widgets, share sheet, Siri', 'out-of-scope')
+missing('UC-08.17', 'voice memo on the phone, transcribed and tagged by AI', 'ai')

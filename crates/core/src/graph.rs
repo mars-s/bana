@@ -107,6 +107,8 @@ pub struct Graph {
     store: crate::store::Store,
     /// Nodes changed (or gone) since the store was last written.
     changed: BTreeSet<NodeId>,
+    /// History compaction was considered this session.
+    compacted: bool,
 }
 
 impl Default for Graph {
@@ -140,6 +142,7 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
+            compacted: false,
         };
         let mut root = Node::new(ids.root, "Workspace", None);
         root.children = vec![ids.library, ids.journal, ids.schema, ids.trash];
@@ -1933,6 +1936,11 @@ impl Graph {
     /// Loads a graph, repairing dangling links instead of failing.
     pub fn from_json(text: &str) -> Result<Graph> {
         let file: GraphFile = serde_json::from_str(text).map_err(|e| Error::Format(e.to_string()))?;
+        Graph::from_file(file)
+    }
+
+    /// A graph from a parsed file, repaired (dangling links, loops, wrong kinds).
+    fn from_file(file: GraphFile) -> Result<Graph> {
         if file.format != FORMAT {
             return Err(Error::Format(format!("not a {FORMAT} file")));
         }
@@ -2019,6 +2027,7 @@ impl Graph {
             dirty: false,
             store: crate::store::Store::new(),
             changed: BTreeSet::new(),
+            compacted: false,
         };
         g.rehome_unreachable();
         g.changed = g.nodes.keys().copied().collect();
@@ -2072,6 +2081,15 @@ impl Graph {
     /// Saves atomically (write a temp file, then rename). The file is the Loro document (see
     /// [`crate::store`]); [`Graph::to_json`] stays as an export.
     pub fn save(&mut self, path: &std::path::Path) -> Result<()> {
+        // Once per session, history older than a month is dropped (when that cuts a week or more).
+        // The file before compaction is kept next to it.
+        // ponytail: compaction runs on the saving thread (about a second on 50k nodes, once a week).
+        if !self.compacted {
+            self.compacted = true;
+            if self.compact_history((now_secs() / 86_400) as i64)? && path.exists() {
+                let _ = std::fs::copy(path, path.with_extension("before-compact"));
+            }
+        }
         let bytes = self.to_snapshot()?;
         let tmp = path.with_extension("tmp");
         std::fs::write(&tmp, bytes).map_err(|e| Error::Io(e.to_string()))?;
@@ -2127,6 +2145,19 @@ impl Graph {
             self.changed.extend(changed);
         }
         r
+    }
+
+    /// Notes today's version (once a day), then drops history from before the newest checkpoint
+    /// that is [`KEEP_HISTORY_DAYS`] old, if that cuts at least a week. `today` is days since 1970.
+    pub fn compact_history(&mut self, today: i64) -> Result<bool> {
+        self.flush()?;
+        self.store.checkpoint(today)?;
+        self.store.compact(today - KEEP_HISTORY_DAYS, 7)
+    }
+
+    /// Operations in the document's history.
+    pub fn history_len(&self) -> usize {
+        self.store.ops()
     }
 
     /// The whole graph as a Loro snapshot (what [`Graph::save`] writes).
@@ -2223,8 +2254,7 @@ impl Graph {
             settings: serde_json::from_value(meta.settings).unwrap_or_default(),
             nodes: nodes.values().cloned().collect(),
         };
-        let text = serde_json::to_string(&file).map_err(|e| Error::Format(e.to_string()))?;
-        let mut g = Graph::from_json(&text)?;
+        let mut g = Graph::from_file(file)?;
         // New ids go in this copy's own block (two copies edited apart never collide).
         let in_block = g.nodes.keys().map(|k| k.0).filter(|k| (block..block + (1 << 32)).contains(k)).max();
         g.next_id = in_block.map_or(block + 1, |m| m + 1).max(next);
@@ -2243,6 +2273,9 @@ impl Graph {
 }
 
 const FORMAT: &str = "tanacraft-graph";
+
+/// History newer than this is kept, so copies edited apart for up to a month still merge.
+pub const KEEP_HISTORY_DAYS: i64 = 30;
 
 #[derive(Serialize, Deserialize)]
 struct GraphFile {

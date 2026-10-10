@@ -367,3 +367,55 @@ fn undoing_everything_after_random_merges_stays_sound() {
         }
     }
 }
+
+#[test]
+fn old_history_is_compacted_and_recent_copies_still_merge() {
+    let mut g = sample::sample(today()).unwrap();
+    let lib = g.sys.library;
+    let day0 = 20_000;
+    g.compact_history(day0).unwrap();
+    // A month and more of typing.
+    let n = g.create(lib, None, "").unwrap();
+    let mut text = String::new();
+    for i in 0..3000 {
+        text.push(char::from(b'a' + (i % 26) as u8));
+        g.set_name(n, &text).unwrap();
+        if i % 50 == 0 {
+            g.to_snapshot().unwrap();
+        }
+    }
+    assert!(!g.compact_history(day0 + 10).unwrap(), "nothing is a month old yet");
+    // A copy made on day 35 (after the cut that is coming).
+    g.compact_history(day0 + 35).unwrap();
+    let (mut copy, _) = fork(&mut g);
+    let big = g.to_snapshot().unwrap().len();
+    let ops = g.history_len();
+    assert!(g.compact_history(day0 + 70).unwrap(), "history older than a month is cut");
+    assert!(g.history_len() < ops);
+    let small = g.to_snapshot().unwrap();
+    assert!(small.len() < big, "{} < {big}", small.len());
+    // Nothing of the state is lost, and it loads.
+    let back = Graph::from_snapshot(&small).unwrap();
+    assert_eq!(nodes_json(&back), nodes_json(&g));
+    // A second cut in the same week does nothing.
+    assert!(!g.compact_history(day0 + 72).unwrap());
+    // The copy from day 35 still merges both ways.
+    copy.set_name(n, "from the copy").unwrap();
+    let m = g.create(lib, None, "after the cut").unwrap();
+    sync(&mut g, &mut copy);
+    assert_eq!(copy.name(m), "after the cut");
+    assert_eq!(g.name(n), "from the copy");
+}
+
+#[test]
+fn saving_compacts_and_keeps_the_file_whole() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-compact-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("g.tanacraft");
+    let mut g = sample::sample(today()).unwrap();
+    g.save(&path).unwrap();
+    g.save(&path).unwrap();
+    let back = Graph::load(&path).unwrap();
+    assert_eq!(nodes_json(&back), nodes_json(&g));
+    let _ = std::fs::remove_dir_all(&dir);
+}

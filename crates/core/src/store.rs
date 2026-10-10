@@ -17,7 +17,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use loro::{ExportMode, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer, VersionVector};
+use loro::{ExportMode, Frontiers, LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId, ValueOrContainer, VersionVector};
 use serde_json::{Map, Value, json};
 
 use crate::model::{Node, NodeId};
@@ -106,6 +106,65 @@ impl Store {
     /// Merges another copy's changes in.
     pub fn import(&self, bytes: &[u8]) -> Result<()> {
         self.doc.import(bytes).map(drop).map_err(err)
+    }
+
+    // ---- history: checkpoints and compaction ----------------------------------------------------
+
+    /// The days with a checkpoint, oldest first, and each one's version (as frontiers).
+    fn checkpoints(&self) -> Vec<(i64, Frontiers)> {
+        let root = self.doc.get_map("meta");
+        let list: Vec<(i64, String)> = get_str(&root, "checkpoints").and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        list.into_iter().filter_map(|(d, hex)| Some((d, Frontiers::decode(&from_hex(&hex)?).ok()?))).collect()
+    }
+
+    /// Notes the document's version as of `day` (once a day). Compaction later cuts history at one
+    /// of these, so copies that parted after it still merge.
+    pub fn checkpoint(&mut self, day: i64) -> Result<()> {
+        let mut list = self.checkpoints();
+        if list.last().is_some_and(|(d, _)| *d >= day) {
+            return Ok(());
+        }
+        list.push((day, self.doc.oplog_frontiers()));
+        let out: Vec<(i64, String)> = list.iter().map(|(d, f)| (*d, to_hex(&f.encode()))).collect();
+        self.doc.get_map("meta").insert("checkpoints", json!(out).to_string()).map_err(err)?;
+        self.doc.commit();
+        Ok(())
+    }
+
+    /// Drops the history older than the newest checkpoint from `keep_since` or before (the state
+    /// stays whole). Does nothing unless that cuts at least `min_days` more than the last
+    /// compaction did. Returns whether it compacted.
+    pub fn compact(&mut self, keep_since: i64, min_days: i64) -> Result<bool> {
+        let list = self.checkpoints();
+        let root_day = self.shallow_day(&list);
+        let Some((day, at)) = list.iter().rev().find(|(d, _)| *d <= keep_since).cloned() else { return Ok(false) };
+        if root_day.is_some_and(|r| day < r + min_days) || self.doc.frontiers_to_vv(&at).is_none() {
+            return Ok(false);
+        }
+        let bytes = self.doc.export(ExportMode::shallow_snapshot(&at)).map_err(err)?;
+        let doc = LoroDoc::new();
+        doc.import(&bytes).map_err(err)?;
+        self.tree = doc.get_tree("tree");
+        self.doc = doc;
+        // Checkpoints from before the cut are gone with the history.
+        let keep: Vec<(i64, String)> = list.iter().filter(|(d, _)| *d >= day).map(|(d, f)| (*d, to_hex(&f.encode()))).collect();
+        self.doc.get_map("meta").insert("checkpoints", json!(keep).to_string()).map_err(err)?;
+        self.doc.commit();
+        Ok(true)
+    }
+
+    /// The day of the checkpoint history was last cut at (`None`: never cut).
+    fn shallow_day(&self, list: &[(i64, Frontiers)]) -> Option<i64> {
+        if !self.doc.is_shallow() {
+            return None;
+        }
+        let root = self.doc.shallow_since_frontiers();
+        list.iter().find(|(_, f)| *f == root).map(|(d, _)| *d).or_else(|| list.first().map(|(d, _)| *d))
+    }
+
+    /// Operations held (the history's size).
+    pub fn ops(&self) -> usize {
+        self.doc.len_ops()
     }
 
     // ---- writing ------------------------------------------------------------------------------
@@ -237,7 +296,13 @@ impl Store {
         let m = self.meta_of(t)?;
         set_if(&m, "id", LoroValue::from(n.id.0 as i64))?;
         set_text(&m, "name", &n.name)?;
-        set_text(&m, "description", &n.description)?;
+        // Containers cost load time, so empty parts get none (until they first hold something).
+        if !n.description.is_empty() || m.get("description").is_some() {
+            set_text(&m, "description", &n.description)?;
+        }
+        if n.tags.is_empty() && n.fields.is_empty() && m.get("tags").is_none() && m.get("fields").is_none() {
+            return self.write_props(&m, n);
+        }
         // Tags: tag id -> position.
         let tags = m.ensure_mergeable_map("tags").map_err(err)?;
         let have: Vec<String> = tags.keys().map(|k| k.to_string()).collect();
@@ -261,7 +326,11 @@ impl Store {
             let v = json!({"at": i, "entry": e}).to_string();
             set_if(&fields, &e.field.0.to_string(), LoroValue::from(v))?;
         }
-        // Everything else, one key per property.
+        self.write_props(&m, n)
+    }
+
+    /// Every other property, one key each.
+    fn write_props(&self, m: &LoroMap, n: &Node) -> Result<()> {
         let obj = match serde_json::to_value(n).map_err(err)? {
             Value::Object(o) => o,
             _ => Map::new(),
@@ -273,7 +342,7 @@ impl Store {
             }
         }
         for (k, v) in obj.iter().filter(|(k, _)| !OWN.contains(&k.as_str())) {
-            set_if(&m, &format!("p:{k}"), LoroValue::from(v.to_string()))?;
+            set_if(m, &format!("p:{k}"), LoroValue::from(v.to_string()))?;
         }
         Ok(())
     }
@@ -397,4 +466,12 @@ fn get_str(m: &LoroMap, key: &str) -> Option<String> {
         Some(ValueOrContainer::Value(LoroValue::String(s))) => Some(s.to_string()),
         _ => None,
     }
+}
+
+fn to_hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+fn from_hex(s: &str) -> Option<Vec<u8>> {
+    (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|h| u8::from_str_radix(h, 16).ok())).collect()
 }

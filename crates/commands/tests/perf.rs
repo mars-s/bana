@@ -63,6 +63,14 @@ fn fifty_thousand_nodes_stay_fast() {
         s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}")).len()
     });
     let doc_load = time(1, || Graph::from_snapshot(&doc).unwrap_or_else(|e| panic!("{e}")));
+    // History compaction (once a week at most, on save): checkpoints a month apart.
+    s.graph.compact_history(1000).unwrap_or_else(|e| panic!("{e}"));
+    let t = Instant::now();
+    let cut = s.graph.compact_history(1040).unwrap_or_else(|e| panic!("{e}"));
+    let compact = t.elapsed();
+    assert!(cut);
+    let compacted = s.graph.to_snapshot().unwrap_or_else(|e| panic!("{e}"));
+    let compact_load = time(1, || Graph::from_snapshot(&compacted).unwrap_or_else(|e| panic!("{e}")));
 
     println!("generated {nodes} nodes in {}; {rows} visible rows", ms(build));
     println!("rows (whole expanded outline): {}", ms(rows_t));
@@ -77,6 +85,8 @@ fn fifty_thousand_nodes_stay_fast() {
     println!("first Loro write (all nodes):  {} ({} KB)", ms(first_doc), doc.len() / 1024);
     println!("autosave (type, then save):    {}", ms(doc_save));
     println!("load the Loro document:        {}", ms(doc_load));
+    println!("compact history:               {} ({} KB after)", ms(compact), compacted.len() / 1024);
+    println!("load after compaction:         {}", ms(compact_load));
 
     assert!(nodes >= 50_000);
     // Generous budgets so a debug build passes; release is far under them.

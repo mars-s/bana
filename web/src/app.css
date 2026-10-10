@@ -3953,6 +3953,9 @@ kbd {
   left: auto;
   right: 0;
   width: var(--menu-w);
+  /* Holds the Export submenu. */
+  max-height: none;
+  overflow: visible;
 }
 
 /* The Settings title sits at y 100 (spec 12). */
@@ -4229,4 +4232,13 @@ html.capture body {
   background: transparent;
   color: var(--c-text);
   font: inherit;
+}
+
+/* A locked line's mark (UC-06.35). */
+.lock-mark {
+  display: inline-flex;
+  align-items: center;
+  height: var(--chip-h);
+  margin-top: 2px;
+  color: var(--c-muted);
 }

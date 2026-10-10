@@ -488,6 +488,9 @@ pub struct Node {
     /// Shown as a heading (bigger, bold).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub heading: bool,
+    /// Locked (UC-06.35): its text, tags, fields and children cannot be changed until unlocked.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
     /// Command nodes run on each new child of this node (UC-02.20).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_child: Vec<NodeId>,
@@ -545,6 +548,7 @@ impl Node {
             trashed_from: None,
             view: None,
             heading: false,
+            locked: false,
             on_child: Vec::new(),
             width: None,
             file: None,

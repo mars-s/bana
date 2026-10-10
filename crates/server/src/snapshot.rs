@@ -110,6 +110,7 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
         "hasKids": has_kids,
         "expanded": g.is_expanded(id),
         "heading": n.heading,
+        "locked": n.locked,
         "description": n.description,
         "icon": n.icon,
         "link": is_link_only(&n.name),

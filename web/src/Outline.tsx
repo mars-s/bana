@@ -371,6 +371,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         ref={ta}
         className="editor-input"
         data-node={row.id}
+        readOnly={row.locked}
         value={value}
         rows={1}
         spellCheck={false}
@@ -773,6 +774,11 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
           {row.tags.map((t) => (
             <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} onRemove={() => void exec('tag.remove', { node: row.target, tag: t.id }, panel)} />
           ))}
+          {row.locked && (
+            <span className="lock-mark" title="Locked: unlock it from the node menu to change it">
+              <Icon name="lock" size={12} />
+            </span>
+          )}
           <CommandButtons buttons={row.buttons} node={row.target} panel={panel} />
           {row.progress && (
             <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>

@@ -131,6 +131,77 @@ pub mod base64 {
     }
 }
 
+/// A ZIP archive of `files` (`(path, bytes)`), stored without compression: Markdown exports are
+/// small and every system opens it (UC-08.13).
+pub mod zip {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut crc = !0u32;
+        for b in data {
+            crc ^= u32::from(*b);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            }
+        }
+        !crc
+    }
+
+    pub fn store(files: &[(String, Vec<u8>)]) -> Vec<u8> {
+        let (mut out, mut central) = (Vec::new(), Vec::new());
+        let le16 = |v: &mut Vec<u8>, x: u16| v.extend_from_slice(&x.to_le_bytes());
+        let le32 = |v: &mut Vec<u8>, x: u32| v.extend_from_slice(&x.to_le_bytes());
+        // ponytail: sizes are 32-bit (no ZIP64); an export over 4 GB would need it.
+        let mut count = 0u16;
+        for (name, data) in files.iter().take(usize::from(u16::MAX)) {
+            let (crc, size, offset) = (crc32(data), data.len() as u32, out.len() as u32);
+            let name = name.as_bytes();
+            // Local header: version 2.0, flag 0x800 (UTF-8 names), stored, no time.
+            le32(&mut out, 0x0403_4b50);
+            for x in [20u16, 0x800, 0, 0, 0x21] {
+                le16(&mut out, x);
+            }
+            for x in [crc, size, size] {
+                le32(&mut out, x);
+            }
+            le16(&mut out, name.len() as u16);
+            le16(&mut out, 0);
+            out.extend_from_slice(name);
+            out.extend_from_slice(data);
+            le32(&mut central, 0x0201_4b50);
+            for x in [20u16, 20, 0x800, 0, 0, 0x21] {
+                le16(&mut central, x);
+            }
+            for x in [crc, size, size] {
+                le32(&mut central, x);
+            }
+            for x in [name.len() as u16, 0, 0, 0, 0] {
+                le16(&mut central, x);
+            }
+            le32(&mut central, 0);
+            le32(&mut central, offset);
+            central.extend_from_slice(name);
+            count += 1;
+        }
+        let (at, len) = (out.len() as u32, central.len() as u32);
+        out.extend_from_slice(&central);
+        le32(&mut out, 0x0605_4b50);
+        for x in [0u16, 0, count, count] {
+            le16(&mut out, x);
+        }
+        le32(&mut out, len);
+        le32(&mut out, at);
+        le16(&mut out, 0);
+        out
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn crc_matches_the_standard_check_value() {
+            assert_eq!(super::crc32(b"123456789"), 0xCBF4_3926);
+        }
+    }
+}
+
 /// Loads `path`; when it does not exist yet but an older `graph.json` sits beside it (versions
 /// before the Loro store), that one is loaded instead (and saved to `path` from then on). `None`
 /// when there is nothing to load.

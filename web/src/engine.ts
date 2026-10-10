@@ -322,6 +322,8 @@ export interface NodeRow {
   hasKids: boolean
   expanded: boolean
   heading: boolean
+  /** Locked (UC-06.35): no edits until unlocked. */
+  locked?: boolean
   description: string
   icon: string | null
   link: boolean

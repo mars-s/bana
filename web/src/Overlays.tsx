@@ -693,6 +693,7 @@ function NodeMenu() {
       {kind === 'tag' && <It label={row?.pinned ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />}
       <It label="Add tag" icon="hash" on={pick('tag')} />
       {!fromPage && <It label="Toggle heading" on={run('node.toggleHeading')} />}
+      {!fromPage && <It label={row?.locked ? 'Unlock' : 'Lock'} icon="lock" on={run('node.toggleLock')} />}
       <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
       <It label={done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
       <It label="Show progress bar" on={run('node.toggleProgress')} />

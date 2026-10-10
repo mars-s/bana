@@ -104,10 +104,30 @@ impl Session {
         }
     }
 
+    /// A locked node (UC-06.35) refuses edits: commands that change a node (`node` in their params)
+    /// or add under one (`parent`). Locking itself, folding and reading still work.
+    pub fn check_lock(&self, spec: &crate::CommandSpec, params: &Value) -> Result<(), CmdError> {
+        if !spec.mutates || matches!(spec.id, "node.toggleLock" | "node.expand" | "node.collapse" | "node.toggleExpand") {
+            return Ok(());
+        }
+        let mut hit = Vec::new();
+        if spec.params.contains("\"node\"") {
+            hit.extend(self.targets(params).unwrap_or_default());
+        }
+        if let Ok(Some(p)) = crate::p::node(params, "parent") {
+            hit.push(p);
+        }
+        match hit.into_iter().find(|n| self.graph.locked(*n)) {
+            Some(n) => Err(CmdError::Disabled(format!("“{}” is locked; unlock it to change it", self.graph.text(n)))),
+            None => Ok(()),
+        }
+    }
+
     /// Runs a command by id. A mutating command is one undo step; a failing command leaves the graph
     /// untouched, and so does a panic (last-resort guard, not a licence).
     pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
         let spec = self.registry.get(id).cloned().ok_or_else(|| CmdError::Unknown(id.to_string()))?;
+        self.check_lock(&spec, params)?;
         // Every command is a transaction: "pure" ones can still make built-in structure (today's
         // day node, the inbox). That is not an undo step, but history must learn about it, or a
         // later undo would cut the new day out of its week.

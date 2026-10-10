@@ -326,3 +326,85 @@ pub fn snippet(g: &Graph, id: NodeId, query: &str) -> Option<String> {
         .chain(g.children(id).iter().take(200).map(|c| g.text(*c)))
         .find(|t| q.split_whitespace().all(|w| t.to_lowercase().contains(w)))
 }
+
+/// Every page of workspace `ws` as Markdown files, `(path, text)` (UC-08.13). `shape`:
+/// - `outline`: the Library's pages in `Library/`, day pages in `Daily notes/` (main workspace);
+/// - `tags`: a folder per supertag with one file per tagged node;
+/// - `vault`: as `outline`, each file starting with front matter (tags and fields), for Obsidian.
+///
+/// Inline references are `[[Name]]` links, so a vault's pages link to each other.
+pub fn markdown_files(g: &Graph, ws: NodeId, shape: &str) -> Vec<(String, String)> {
+    let mut files: Vec<(String, String)> = Vec::new();
+    let mut taken = std::collections::HashSet::new();
+    let mut add = |dir: &str, name: &str, text: String| {
+        let base = file_name(name);
+        let mut path = format!("{dir}/{base}.md");
+        let mut n = 2;
+        while !taken.insert(path.to_lowercase()) {
+            path = format!("{dir}/{base} ({n}).md");
+            n += 1;
+        }
+        files.push((path, text));
+    };
+    let page = |id: NodeId, front: bool| {
+        let mut s = String::new();
+        if front {
+            s.push_str(&front_matter(g, id));
+        }
+        s.push_str(&format!("# {}\n\n", inline_refs_as_names(g, g.name(id))));
+        s.push_str(&to_markdown(g, id, true));
+        s
+    };
+    if shape == "tags" {
+        for tag in g.tags().into_iter().filter(|t| g.workspace_of(*t) == ws && *t != g.sys.day_tag) {
+            let dir = format!("#{}", file_name(g.name(tag)));
+            for id in g.tagged(tag).into_iter().filter(|n| !g.in_trash(*n)) {
+                add(&dir, &g.text(id), page(id, false));
+            }
+        }
+        return files;
+    }
+    let front = shape == "vault";
+    for id in g.children(g.workspace_library(ws)) {
+        add("Library", &g.text(*id), page(*id, front));
+    }
+    if ws == g.sys.root {
+        let mut days: Vec<(crate::date::Date, NodeId)> = g
+            .iter()
+            .filter_map(|n| match n.kind {
+                crate::Kind::Day { date } if !g.children(n.id).is_empty() && !g.in_trash(n.id) => Some((date, n.id)),
+                _ => None,
+            })
+            .collect();
+        days.sort();
+        for (date, id) in days {
+            add("Daily notes", &date.to_string(), page(id, front));
+        }
+    }
+    files
+}
+
+/// A file name from a node's text: no path separators or characters systems refuse, at most 80
+/// characters, never empty.
+fn file_name(name: &str) -> String {
+    let clean: String = name.chars().map(|c| if c.is_control() || "/\\:*?\"<>|".contains(c) { ' ' } else { c }).collect();
+    let clean = clean.split_whitespace().collect::<Vec<_>>().join(" ");
+    let clean: String = clean.trim_start_matches('.').chars().take(80).collect();
+    if clean.trim().is_empty() { "Untitled".into() } else { clean.trim().to_string() }
+}
+
+/// YAML front matter: the node's supertags and fields (Obsidian properties).
+fn front_matter(g: &Graph, id: NodeId) -> String {
+    let Some(n) = g.get(id) else { return String::new() };
+    let yaml = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
+    let mut s = String::from("---\n");
+    if !n.tags.is_empty() {
+        let tags: Vec<String> = n.tags.iter().map(|t| yaml(g.name(*t))).collect();
+        s.push_str(&format!("tags: [{}]\n", tags.join(", ")));
+    }
+    for e in &n.fields {
+        s.push_str(&format!("{}: {}\n", yaml(g.name(e.field)), yaml(&entry_text(g, e))));
+    }
+    s.push_str("---\n\n");
+    if s == "---\n---\n\n" { String::new() } else { s }
+}

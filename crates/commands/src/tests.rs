@@ -1012,6 +1012,59 @@ fn inline_references_take_an_alias_or_turn_into_text() {
 }
 
 #[test]
+fn the_whole_workspace_exports_as_markdown_files() {
+    // UC-08.13, on the sample graph.
+    let mut s = Session::with_today(
+        tanacraft_core::sample::sample(tanacraft_core::Date::new(2026, 10, 10).unwrap()).unwrap(),
+        tanacraft_core::Date::new(2026, 10, 10).unwrap(),
+    );
+    let ws = s.graph.sys.root;
+    let files = tanacraft_core::export::markdown_files(&s.graph, ws, "outline");
+    let names: Vec<&str> = files.iter().map(|(p, _)| p.as_str()).collect();
+    assert!(names.iter().any(|p| p.starts_with("Library/") && p.ends_with(".md")), "{names:?}");
+    assert!(names.contains(&"Daily notes/2026-10-10.md"), "{names:?}");
+    let day = &files.iter().find(|(p, _)| p == "Daily notes/2026-10-10.md").unwrap().1;
+    assert!(day.contains("[[Robin Ash]]"), "references are links: {day}");
+    let tags = tanacraft_core::export::markdown_files(&s.graph, ws, "tags");
+    assert!(tags.iter().any(|(p, _)| p == "#task/Build four beds.md"), "{:?}", tags.iter().map(|f| &f.0).collect::<Vec<_>>());
+    let vault = tanacraft_core::export::markdown_files(&s.graph, ws, "vault");
+    assert!(vault.iter().any(|(_, t)| t.starts_with("---\ntags: [")), "front matter");
+    // The command wraps them in a ZIP: local headers, then the directory at the end.
+    let r = run(&mut s, "export.zip", json!({"shape": "outline"}));
+    let zip = tanacraft_core::base64::decode(r["data"].as_str().unwrap()).unwrap();
+    assert_eq!(&zip[..4], b"PK\x03\x04");
+    assert_eq!(&zip[zip.len() - 22..zip.len() - 18], b"PK\x05\x06");
+    assert_eq!(r["files"].as_u64(), Some(files.len() as u64));
+    assert!(s.run("export.zip", &json!({"shape": "nope"})).is_err());
+}
+
+#[test]
+fn a_locked_node_refuses_edits_until_unlocked() {
+    // UC-06.35.
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Signed contract"})), "id");
+    run(&mut s, "node.toggleLock", json!({"node": a.0}));
+    assert!(s.graph.locked(a));
+    for (cmd, p) in [
+        ("node.setName", json!({"node": a.0, "name": "oops"})),
+        ("node.delete", json!({"node": a.0})),
+        ("tag.add", json!({"node": a.0, "tag": "task"})),
+        ("field.add", json!({"node": a.0, "field": "Due", "value": "today"})),
+        ("node.add", json!({"name": "child", "parent": a.0})),
+    ] {
+        assert!(s.run(cmd, &p).is_err(), "{cmd} on a locked node");
+    }
+    assert_eq!(s.graph.name(a), "Signed contract");
+    // Folding still works; a command node cannot get round it either.
+    run(&mut s, "node.toggleExpand", json!({"node": a.0}));
+    run(&mut s, "commandNode.create", json!({"name": "Rename", "steps": ["node.setName {\"name\": \"x\"}"]}));
+    assert!(s.run("commandNode.run", &json!({"command": "Rename", "node": a.0})).is_err());
+    run(&mut s, "node.toggleLock", json!({"node": a.0}));
+    run(&mut s, "node.setName", json!({"node": a.0, "name": "Signed contract v2"}));
+    assert_eq!(s.graph.name(a), "Signed contract v2");
+}
+
+#[test]
 fn counting_words_characters_and_nodes() {
     // UC-06.36.
     let mut s = blank();

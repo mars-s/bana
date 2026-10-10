@@ -84,3 +84,5 @@ The UI is `web/` (Vite + React + TypeScript, plain CSS). It runs inside the Taur
 - Command buttons (UC-06.33): `row.buttons` on node and field rows (`.cmd-btn`), set with `commandNode.button`, configured in Configure supertag and on the field page (Commands).
 - A command result with a `message` string is shown as a toast by `exec` (`node.count`). Inline references are `[[id:N]]` or `[[id:N|alias]]` in both parsers (`format.rs`, `format.ts`); rewrite tokens with `format::map_refs`, never a string replace of `[[id:N]]` (it misses aliases).
 - Node links (`node.link`) are `http://127.0.0.1:PORT/?node=N`: `main.tsx` opens the node and drops the parameter; pasted into a line they become an inline reference.
+- The account menu holds one entry Tana's has not (Export everything as Markdown, UC-08.13); its submenu needs the menu's `overflow: visible`.
+- A locked node (UC-06.35) is refused by `Session::check_lock` for every mutating command with `node` in its params or a locked `parent`; its editor is `readOnly`.

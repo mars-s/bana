@@ -7,6 +7,7 @@ import { closeTab, getState, moveTab, newTab, setState, showToast, switchTab, us
 import { bufferKey, noteClick, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
+import { SubMenu } from './Views'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
 /** What the sidebar button does next, as its accessible name (N75): full, mini, hidden, full. */
@@ -104,6 +105,20 @@ function TopBar() {
   )
 }
 
+/** Downloads the workspace as a ZIP of Markdown files (UC-08.13). */
+async function exportZip(shape: string) {
+  const r = await exec('export.zip', { shape })
+  const z = r?.result
+  if (!z?.data) return
+  const bytes = Uint8Array.from(atob(z.data), (c) => c.charCodeAt(0))
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }))
+  a.download = z.name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+  showToast(`Exported ${z.files} ${z.files === 1 ? 'page' : 'pages'} as Markdown`)
+}
+
 /** The account menu under the person icon (N66): what a local app has of Tana's list. */
 function AccountMenu() {
   const [open, setOpen] = useState(false)
@@ -143,6 +158,12 @@ function AccountMenu() {
           {item('Workspaces', () => setState({ overlay: { kind: 'workspaces' } }))}
           {item('Settings', () => runUiCommand('ui.settings'))}
           {item('Import content…', () => file.current?.click())}
+          {/* Everything as Markdown files in a ZIP (UC-08.13). */}
+          <SubMenu label="Export everything as Markdown" icon={false}>
+            {item('By page', () => void exportZip('outline'))}
+            {item('By supertag', () => void exportZip('tags'))}
+            {item('As an Obsidian vault', () => void exportZip('vault'))}
+          </SubMenu>
           {item('Browse templates', () => showToast('There is no template gallery in this local app yet'))}
           <div className="menu-sep" />
           {item(theme === 'dark' ? 'Light theme' : 'Dark theme', () => runUiCommand('ui.toggleTheme'))}

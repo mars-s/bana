@@ -70,10 +70,11 @@ Scenarios: `web/tests/use-cases/08-capture-import.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/copy-paste-and-export (Pasting from Google Sheets)
 - **TanaCraft:** WORKS. Tab-separated lines with a header row: the first column names the nodes, the others become fields (new ones are made); View as Table shows them as columns. Values are plain text.
 
-### UC-08.13 Whole-workspace Markdown ZIP: MISSING
+### UC-08.13 Whole-workspace Markdown ZIP: WORKS
 - **Story:** Export everything as folders of Markdown (outline, by supertag, or a vault for Obsidian).
+- **Steps:** Account menu, Export everything as Markdown: By page, By supertag, or As an Obsidian vault (or `tanacraft-cli export --zip OUT --shape vault`).
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 33-36: three shapes for Markdown export)
-- **TanaCraft:** MISSING (per-node Markdown export only).
+- **TanaCraft:** WORKS (`export.zip`). By page: `Library/` and `Daily notes/`; by supertag: a `#tag/` folder per supertag; vault: by page with tags and fields as front matter. Inline references are `[[Name]]` links. The ZIP is stored, not compressed. The browser download is tested; the desktop window's download was not tried.
 
 ### UC-08.14 Capture from any app: WORKS
 - **Story:** In another app I press a key, type a thought, and go back to what I was doing.

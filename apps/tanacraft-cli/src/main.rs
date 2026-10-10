@@ -19,6 +19,8 @@ commands:
   capture TEXT [--tag TAG]          add a node to the capture inbox; prints its id
   import FILE|FOLDER [--parent NODE]  import Markdown, OPML, Roam JSON, Tana Paste, or a Notion or Logseq export folder (default: into the Library)
   export [NODE] [--format md|json|opml]  export a subtree (default: Markdown of Home)
+  export --zip OUT [--shape outline|tags|vault]
+                                    every page as Markdown files in a ZIP (by page, by supertag, or an Obsidian vault)
   search QUERY                      find nodes
   tags                              list supertags with their fields
   run --cmd 'ID={json}' ...         run commands in order, then save
@@ -173,6 +175,13 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
         "export" => {
             let format = take_opt(&mut args, "--format").unwrap_or_else(|| "md".into());
             let mut s = open(&file)?;
+            if let Some(out) = take_opt(&mut args, "--zip") {
+                let shape = take_opt(&mut args, "--shape").unwrap_or_else(|| "outline".into());
+                let r = s.run("export.zip", &json!({"shape": shape})).map_err(cmd_err)?;
+                let zip = tanacraft_core::base64::decode(r["data"].as_str().unwrap_or_default()).ok_or("bad export")?;
+                std::fs::write(&out, zip).map_err(|e| format!("{out}: {e}"))?;
+                return Ok(format!("{} files in {out}", r["files"]));
+            }
             let id = node_arg(&mut s, args.first())?;
             match format.as_str() {
                 "md" | "markdown" => Ok(tanacraft_core::export::to_markdown(&s.graph, id, args.is_empty()).trim_end().to_string()),

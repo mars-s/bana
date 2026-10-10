@@ -1,6 +1,6 @@
 // Use cases: capture, import, export and keeping data safe (docs/use-cases/08-capture-import.md).
 import { execFileSync } from 'node:child_process'
-import { writeFileSync, mkdtempSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdtempSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree, idOf, library, palette } from './helpers'
@@ -140,7 +140,20 @@ test('UC-08.12 paste spreadsheet cells as nodes with fields, shown as a table', 
   await server.run('view.addColumn', { node: page, field: 'Sow' })
   await expect(app.locator('.t-row', { hasText: 'Kale' })).toContainText('April')
 })
-missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
+test('UC-08.13 export a whole workspace as a ZIP of Markdown files (by page, by supertag, a vault)', works('UC-08.13'), async ({ app }) => {
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item.has-sub', { hasText: 'Export everything as Markdown' }).hover()
+  const [download] = await Promise.all([app.waitForEvent('download'), app.locator('.account-menu .submenu .menu-item', { hasText: 'As an Obsidian vault' }).click()])
+  expect(download.suggestedFilename()).toMatch(/vault 2026-10-10\.zip$/)
+  const zip = readFileSync(await download.path())
+  // Stored entries: names and Markdown are readable in the archive itself.
+  const text = zip.toString('utf8')
+  expect(zip.subarray(0, 2).toString()).toBe('PK')
+  expect(text).toContain('Library/Community garden.md')
+  expect(text).toContain('Daily notes/2026-10-10.md')
+  expect(text).toContain('tags: ["project"]')
+  expect(text).toContain('[[Robin Ash]]')
+})
 // UC-08.14: Cmd+Shift+E in any app shows the desktop app's capture window, which loads this page
 // at #capture (the shortcut and window are checked by Rust tests in apps/tanacraft-desktop). Here:
 // that page is Quick add alone, saves each line to today and closes on Escape.

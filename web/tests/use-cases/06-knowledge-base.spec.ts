@@ -402,7 +402,27 @@ test('UC-06.34 merge duplicate nodes, supertags or fields into one', works('UC-0
   await app.locator('.menu.picker .menu-item', { hasText: /task$/ }).first().click()
   await expect.poll(async () => (await tree(server, a)).tags).toEqual(['task'])
 })
-missing('UC-06.35', 'lock a node so it cannot be edited')
+test('UC-06.35 lock a node so it cannot be edited', works('UC-06.35'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Signed lease terms', 'Notes'], 'Lease')
+  await app.locator(`.row.node[data-id="${ids[0]}"] .bullet`).click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Lock' }).click()
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .lock-mark`)).toBeVisible()
+  // Typing and Enter do nothing to it; the engine says why.
+  await focus(server, app, ids[0], 18)
+  await app.keyboard.type(' changed')
+  await app.keyboard.press('Enter')
+  await expect(app.locator('.toast').last()).toContainText('locked')
+  expect(await nameOf(server, ids[0])).toBe('Signed lease terms')
+  expect((await tree(server, ids[0])).children ?? []).toEqual([])
+  // Unlocked, it edits again.
+  await app.locator(`.row.node[data-id="${ids[0]}"] .bullet`).click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Unlock' }).click()
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .lock-mark`)).toHaveCount(0)
+  await app.locator(`.row.node[data-id="${ids[0]}"] .editor-input`).click()
+  await app.keyboard.press('End')
+  await app.keyboard.type(' v2')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Signed lease terms v2')
+})
 test('UC-06.36 count words, characters and nodes of a page or selection', works('UC-06.36'), async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['The shed needs a new roof', 'and gutters'], 'Shed')
   await palette(app, 'Count words')

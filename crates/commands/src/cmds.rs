@@ -316,6 +316,14 @@ pub fn registry() -> Registry {
         C::new("node.joinNext", "Join with the next node", "Node", join_next).key("Delete").params(r#"{"node"?: id}"#),
         C::new("node.paste", "Paste as nodes", "Node", paste).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.toggleHeading", "Toggle heading", "Node", toggle_heading).params(r#"{"node"?: id}"#),
+        // UC-06.35: a locked node cannot be edited by accident.
+        C::new("node.toggleLock", "Lock or unlock", "Node", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let on = p::bool(v, "on").unwrap_or(!s.graph.locked(id));
+            s.graph.set_locked(id, on)?;
+            Ok(json!({"node": id.0, "locked": on}))
+        })
+        .params(r#"{"node"?: id, "on"?: bool}"#),
         C::new("node.insert", "Insert node", "Node", insert).key("Shift+Enter").params(r#"{"node"?: id}"#),
         C::new("node.quickAdd", "Quick add to today", "Node", quick_add).params(r#"{"name": string, "tag"?: string}"#),
         // Inline formatting (marks in the text; see core::format).
@@ -729,6 +737,21 @@ pub fn registry() -> Registry {
             Ok(json!({"markdown": export::to_markdown(&s.graph, node_or_zoom(s, v)?, false)}))
         })
         .params(r#"{"node"?: id}"#)
+        .pure(),
+        // UC-08.13: the whole workspace as Markdown files in a ZIP.
+        C::new("export.zip", "Export everything as Markdown (ZIP)", "Export", |s, v| {
+            let shape = p::str(v, "shape").unwrap_or("outline");
+            if !["outline", "tags", "vault"].contains(&shape) {
+                return Err(CmdError::Params("`shape`: outline, tags or vault".into()));
+            }
+            let ws = here_workspace(s, v);
+            let files: Vec<(String, Vec<u8>)> =
+                export::markdown_files(&s.graph, ws, shape).into_iter().map(|(p, t)| (p, t.into_bytes())).collect();
+            let zip = tanacraft_core::zip::store(&files);
+            let name = format!("{} {} {}.zip", s.graph.name(ws).trim(), shape, s.today);
+            Ok(json!({"name": name, "files": files.len(), "data": tanacraft_core::base64::encode(&zip)}))
+        })
+        .params(r#"{"shape"?: "outline" | "tags" | "vault"}  (the workspace you are in; `data` is the ZIP in base64)"#)
         .pure(),
         C::new("export.json", "Export as JSON", "Export", |s, v| Ok(export::to_json_tree(&s.graph, node_or_zoom(s, v)?)))
             .params(r#"{"node"?: id}"#)
@@ -2296,6 +2319,7 @@ pub(crate) fn run_command_node(s: &mut Session, v: &Value) -> CmdResult {
             .get(id)
             .filter(|c| !c.id.starts_with("commandNode.") && !c.id.starts_with("file.") && !c.id.starts_with("edit."))
             .ok_or_else(|| CmdError::Params(format!("step {}: `{id}` cannot run in a command node", i + 1)))?;
+        s.check_lock(spec, &params)?;
         (spec.run)(s, &params).map_err(|e| CmdError::Failed(format!("step {} ({id}): {e}", i + 1)))?;
         ran.push(id.to_string());
     }

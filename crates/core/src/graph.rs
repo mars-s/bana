@@ -1061,6 +1061,18 @@ impl Graph {
         Ok(())
     }
 
+    /// Locks or unlocks a node (UC-06.35).
+    pub fn set_locked(&mut self, id: NodeId, on: bool) -> Result<()> {
+        let target = self.resolve(id);
+        self.node_mut(target)?.locked = on;
+        Ok(())
+    }
+
+    /// Whether `id` (or the node it references) is locked.
+    pub fn locked(&self, id: NodeId) -> bool {
+        self.get(self.resolve(id)).is_some_and(|n| n.locked)
+    }
+
     pub fn set_heading(&mut self, id: NodeId, on: bool) -> Result<()> {
         let target = self.resolve(id);
         self.node_mut(target)?.heading = on;

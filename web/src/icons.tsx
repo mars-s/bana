@@ -273,6 +273,12 @@ const P: Record<string, JSX.Element> = {
     </>
   ),
   pin: <path d="M6 2.8h4l-.6 3.8 2.1 2.1H4.5l2.1-2.1L6 2.8ZM8 8.7v4.5" />,
+  lock: (
+    <>
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" />
+    </>
+  ),
   noColor: (
     <>
       <circle cx="8" cy="8" r="5.6" />

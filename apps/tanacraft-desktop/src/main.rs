@@ -30,40 +30,65 @@ fn rpc(method: String, params: Value, shared: tauri::State<'_, Arc<Shared>>, app
     out
 }
 
-/// The native menu bar: (title, [(label, command id, accelerator)]). Clipboard and select-all are
-/// the system's own items so text editing works as everywhere else.
+/// The native menu bar (spec 00 §7, DIFFS N75): (title, [(label, command id, accelerator)]). An
+/// empty label is a separator. Clipboard, select-all, minimize, zoom and full screen are the
+/// system's own items so they work as everywhere else; `window.*` ids are handled here.
 type MenuItems = &'static [(&'static str, &'static str, &'static str)];
 const MENUS: &[(&str, MenuItems)] = &[
-    ("Edit", &[("Undo", "edit.undo", "CmdOrCtrl+Z"), ("Redo", "edit.redo", "CmdOrCtrl+Shift+Z")]),
     (
-        "Go",
+        "Edit",
         &[
+            ("Undo", "edit.undo", "CmdOrCtrl+Z"),
+            ("Redo", "edit.redo", "CmdOrCtrl+Shift+Z"),
+            ("", "", ""),
+            ("Cut", "", ""),
+            ("Copy", "", ""),
+            ("Paste", "", ""),
+            ("Select All", "", ""),
+            ("", "", ""),
+            ("Find…", "ui.searchOpen", "CmdOrCtrl+S"),
             ("Command line…", "ui.commandLine", "CmdOrCtrl+K"),
-            ("Search and open…", "ui.searchOpen", "CmdOrCtrl+S"),
             ("Quick add", "ui.quickAdd", "CmdOrCtrl+E"),
-            ("Today", "nav.today", ""),
-            ("Back", "nav.back", "CmdOrCtrl+["),
-            ("Forward", "nav.forward", "CmdOrCtrl+]"),
-            ("Recents", "ui.recents", ""),
         ],
     ),
     (
         "View",
         &[
+            ("Reload", "window.reload", "CmdOrCtrl+R"),
+            ("", "", ""),
+            ("Actual Size", "window.zoomReset", "CmdOrCtrl+0"),
+            ("Zoom In", "window.zoomIn", "CmdOrCtrl+="),
+            ("Zoom Out", "window.zoomOut", "CmdOrCtrl+-"),
+            ("", "", ""),
+            ("Toggle Full Screen", "", ""),
+            ("", "", ""),
             ("Toggle sidebar", "ui.toggleSidebar", "CmdOrCtrl+\\"),
             ("Switch light or dark theme", "ui.toggleTheme", ""),
-            ("Keyboard shortcuts", "ui.shortcuts", "CmdOrCtrl+/"),
         ],
     ),
     (
+        "History",
+        &[
+            ("Back", "nav.back", "CmdOrCtrl+["),
+            ("Forward", "nav.forward", "CmdOrCtrl+]"),
+            ("", "", ""),
+            ("Today", "nav.today", ""),
+            ("Recents", "ui.recents", ""),
+        ],
+    ),
+    ("Options", &[("Customize Keybindings…", "ui.settings", ""), ("Settings…", "ui.settings", "CmdOrCtrl+,")]),
+    (
         "Window",
         &[
+            ("Minimize", "", ""),
+            ("Zoom", "", ""),
+            ("", "", ""),
             ("New tab", "ui.newTab", "CmdOrCtrl+T"),
             ("Close tab", "ui.closeTab", "CmdOrCtrl+W"),
             ("Open in new panel", "ui.openInPanel", "CmdOrCtrl+M"),
         ],
     ),
-    ("Help", &[("Help", "ui.help", "")]),
+    ("Help", &[("Help", "ui.help", ""), ("Keyboard shortcuts", "ui.shortcuts", "CmdOrCtrl+/")]),
 ];
 
 fn menu_bar(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -76,9 +101,10 @@ fn menu_bar(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wr
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
-            &MenuItem::with_id(app, "ui.settings", "Settings…", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::quit(app, None)?,
         ],
@@ -87,24 +113,51 @@ fn menu_bar(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wr
     for (title, items) in MENUS {
         let sub = Submenu::new(app, *title, true)?;
         for (label, id, accel) in *items {
-            let accel = (!accel.is_empty()).then_some(*accel);
-            sub.append(&MenuItem::with_id(app, *id, *label, true, accel)?)?;
-        }
-        if *title == "Edit" {
-            sub.append(&PredefinedMenuItem::separator(app)?)?;
-            sub.append(&PredefinedMenuItem::cut(app, None)?)?;
-            sub.append(&PredefinedMenuItem::copy(app, None)?)?;
-            sub.append(&PredefinedMenuItem::paste(app, None)?)?;
-            sub.append(&PredefinedMenuItem::select_all(app, None)?)?;
-        }
-        if *title == "Window" {
-            sub.append(&PredefinedMenuItem::separator(app)?)?;
-            sub.append(&PredefinedMenuItem::minimize(app, None)?)?;
-            sub.append(&PredefinedMenuItem::fullscreen(app, None)?)?;
+            match (*label, *id) {
+                ("", _) => sub.append(&PredefinedMenuItem::separator(app)?)?,
+                ("Cut", "") => sub.append(&PredefinedMenuItem::cut(app, None)?)?,
+                ("Copy", "") => sub.append(&PredefinedMenuItem::copy(app, None)?)?,
+                ("Paste", "") => sub.append(&PredefinedMenuItem::paste(app, None)?)?,
+                ("Select All", "") => sub.append(&PredefinedMenuItem::select_all(app, None)?)?,
+                ("Minimize", "") => sub.append(&PredefinedMenuItem::minimize(app, None)?)?,
+                ("Zoom", "") => sub.append(&PredefinedMenuItem::maximize(app, None)?)?,
+                ("Toggle Full Screen", "") => sub.append(&PredefinedMenuItem::fullscreen(app, None)?)?,
+                _ => {
+                    let accel = (!accel.is_empty()).then_some(*accel);
+                    // Two items may run one command (Settings): menu ids must be unique.
+                    let item_id = format!("{id}#{label}");
+                    sub.append(&MenuItem::with_id(app, item_id, *label, true, accel)?)?
+                }
+            }
         }
         menu.append(&sub)?;
     }
     Ok(menu)
+}
+
+/// Page zoom of the window (View > Actual Size, Zoom In, Zoom Out).
+static ZOOM: std::sync::Mutex<f64> = std::sync::Mutex::new(1.0);
+
+/// A `window.*` menu item: reload or zoom the web view. Other ids go to the UI.
+fn window_action(app: &tauri::AppHandle, id: &str) -> bool {
+    let Some(w) = app.get_webview_window("main") else { return false };
+    let zoom = |f: &dyn Fn(f64) -> f64| {
+        if let Ok(mut z) = ZOOM.lock() {
+            *z = f(*z).clamp(0.5, 3.0);
+            let _ = w.set_zoom(*z);
+        }
+    };
+    match id {
+        // The write-ahead log keeps whatever was still on its way (see engine.ts).
+        "window.reload" => {
+            let _ = w.eval("location.reload()");
+        }
+        "window.zoomReset" => zoom(&|_| 1.0),
+        "window.zoomIn" => zoom(&|z| z + 0.1),
+        "window.zoomOut" => zoom(&|z| z - 0.1),
+        _ => return false,
+    }
+    true
 }
 
 fn main() {
@@ -152,7 +205,10 @@ fn run() -> Result<(), String> {
         })
         // Every menu item runs a command: the UI gets its id (spec 00 §7).
         .on_menu_event(|app, event| {
-            let _ = app.emit("menu", event.id().0.clone());
+            let id = event.id().0.split('#').next().unwrap_or_default().to_string();
+            if !window_action(app, &id) {
+                let _ = app.emit("menu", id);
+            }
         })
         .build(tauri::generate_context!())
         .map_err(|e| e.to_string())?;
@@ -166,4 +222,26 @@ fn run() -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MENUS;
+
+    #[test]
+    fn menu_bar_follows_the_spec_and_every_item_runs_a_known_command() {
+        // Spec 00 §7: (app menu), Edit, View, History, Options, Window, Help.
+        let titles: Vec<&str> = MENUS.iter().map(|(t, _)| *t).collect();
+        assert_eq!(titles, ["Edit", "View", "History", "Options", "Window", "Help"]);
+        let session = tanacraft_commands::Session::new(tanacraft_core::Graph::new());
+        let known = session.registry.describe().to_string();
+        for (_, items) in MENUS {
+            for (label, id, _) in *items {
+                if id.is_empty() || id.starts_with("ui.") || id.starts_with("window.") {
+                    continue;
+                }
+                assert!(known.contains(&format!("\"{id}\"")), "{label}: unknown command {id}");
+            }
+        }
+    }
 }

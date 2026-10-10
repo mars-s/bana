@@ -188,3 +188,13 @@ test('Settings layout as spec 12: title y 100, nav box from x 898.5, options fro
   expect(Math.abs((await r('.setting-label')).x - 1139.3)).toBeLessThan(1.5)
   await expect(p.locator('.setting').first().locator('.setting-icon')).toBeVisible()
 })
+
+test('the sidebar button is named for what it does next; the account button reads Settings (N75)', async ({ app }) => {
+  await expect(app.getByRole('button', { name: 'Show mini sidebar' })).toBeVisible()
+  await app.getByRole('button', { name: 'Show mini sidebar' }).click()
+  await expect(app.getByRole('button', { name: 'Hide sidebar' })).toBeVisible()
+  await app.getByRole('button', { name: 'Hide sidebar' }).click()
+  await app.getByRole('button', { name: 'Show sidebar' }).click()
+  await expect(app.getByRole('button', { name: 'Show mini sidebar' })).toBeVisible()
+  await expect(app.locator('.topbar').getByRole('button', { name: 'Settings' })).toBeVisible()
+})

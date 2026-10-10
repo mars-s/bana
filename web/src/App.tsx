@@ -9,6 +9,9 @@ import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
+/** What the sidebar button does next, as its accessible name (N75): full, mini, hidden, full. */
+const SIDEBAR_NEXT = ['Show mini sidebar', 'Hide sidebar', 'Show sidebar']
+
 function TopBar() {
   const tabs = useStore((s) => s.tabs)
   const tab = useStore((s) => s.tab)
@@ -22,10 +25,11 @@ function TopBar() {
     if (sp) return SPECIAL[sp]
     return pages[p]?.kind === 'schema' ? 'Tag overview' : (pages[p]?.title ?? '')
   }
+  const sidebarMode = useStore((s) => s.sidebarMode)
   return (
     <header className="topbar" data-tauri-drag-region>
       <div className="topbar-left">
-        <button className="icon-btn" title="Sidebar (full, mini, hidden)" onClick={() => runUiCommand('ui.toggleSidebar')}>
+        <button className="icon-btn" title="Sidebar (full, mini, hidden)" aria-label={SIDEBAR_NEXT[sidebarMode]} onClick={() => runUiCommand('ui.toggleSidebar')}>
           <Icon name="sidebar" size={14} />
         </button>
         <button className="icon-btn" title="Back" disabled={!page?.canBack} onClick={() => void exec('nav.back')}>
@@ -110,7 +114,7 @@ function AccountMenu() {
   )
   return (
     <span className="menu-anchor" ref={ref}>
-      <button className={`icon-btn${open ? ' on' : ''}`} title="Account" onClick={() => setOpen((o) => !o)}>
+      <button className={`icon-btn${open ? ' on' : ''}`} title="Account" aria-label="Settings" onClick={() => setOpen((o) => !o)}>
         <Icon name="user" size={14} />
       </button>
       {/* A Markdown or OPML file read here and imported by the engine (spec 07). */}

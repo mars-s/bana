@@ -21,7 +21,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.11 | Undo a deletion days later. | Cmd+Shift+Backspace; Trash; Restore from the menu. | The line is back where it was. | WORKS | workspaces (Trash) |
 | UC-06.12 | Who changed this and when. | Show edit log. | Created and edited entries. | WORKS (one local user) | nodes-and-references |
 | UC-06.13 | Pages with an emoji and a banner. | Hover the title, Icon, Banner. | Icon by the title; banner on top. | PARTIAL: banners are colours or one shipped picture, no own image | nodes-and-references (Banners and Icons) |
-| UC-06.14 | A wiki with a menu of sections. | View as Side menu, Tabs or List; click an item. | The item's content beside the menu. | PARTIAL: every navigation view opens the item in a second panel; side menu and tabs do not show it in place | views (Navigation views) |
+| UC-06.14 | A wiki with a menu of sections. | View as Side menu, Tabs or List; click an item. | The item's content beside the menu. | WORKS: side menu and tabs show the picked item's outline in place; a list opens it beside | views (Navigation views) |
 | UC-06.15 | Find any note by its words. | Cmd+S, type, Enter. | The node opens. | WORKS | sidebar (Global Search) |
 | UC-06.16 | Get back to what I was just working on. | Sidebar, Recents. | Recently opened pages. | WORKS | sidebar (Recents) |
 | UC-06.17 | Keep key pages one click away. | Pin or unpin in sidebar. | The page under Pinned. | WORKS | sidebar (Pinned nodes) |
@@ -48,9 +48,10 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 |---|---|---|---|---|---|
 | UC-06.29 | A precise query with OR and NOT. | Query builder with nested groups. | Only matching nodes. | WORKS | search-nodes (Query builder) |
 | UC-06.30 | A table of notes with my own columns. | Table view, add a column, type a cell. | The field is set on the row's node. | WORKS | views (Table view) |
-| UC-06.31 | Groups I can fold. | Group by a field; fold a group. | A folded group hides its rows. | PARTIAL: board columns hide, outline and list group headers do not fold | views (Group); changelog 2026 wk 37-39 |
+| UC-06.31 | Groups I can fold. | Group by a field; fold a group. | A folded group hides its rows. | WORKS: table and list group headers fold (`view.toggleGroupFolded`), board columns hide; an outline view does not group | views (Group); changelog 2026 wk 37-39 |
 | UC-06.32 | Light or dark. | Switch theme. | The theme changes. | WORKS | account-settings |
 | UC-06.34 | Merge duplicates. | Node menu Merge into…; Configure supertag or a field page, Merge into…. | Children, tags, values and every reference move to the kept one; the other goes to the trash. | WORKS | nodes-and-references (Merging duplicate nodes) |
+| UC-06.44 | Content width per page. | The panel's width button: Medium or Full width. | The page uses the column or the whole panel; kept per page. | WORKS | views (Content widths) |
 | UC-06.43 | Rolling periods in searches. | `Due:"this week"`, `Due:"NEXT 14 DAYS"`, `LAST 7 DAYS`, next or last week or month, this year. | Results follow today. | WORKS (no FOR RELATIVE DATE; on day pages PARENT is the day, UC-01.15) | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
 | UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: listed by name in the command line ("Run …") and run on events (UC-02.20); no buttons on tags or fields, no node filter | command-nodes |
 
@@ -66,5 +67,4 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.40 | A Part of tree searched with COMPONENTS REC. | fields (Part of) |
 | UC-06.41 | Regular expressions in searches. | search-nodes (regular expressions) |
 | UC-06.42 | Search inside one node from the search box (Tab). | sidebar (Global Search) |
-| UC-06.44 | Content width per page (Medium, Full). The panel button has no action. | views (Content widths) |
 | UC-06.45 | Strikethrough. | nodes-and-references (Formatting text) |

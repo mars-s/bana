@@ -2,7 +2,7 @@
 // the view toolbar. Outline views stay in the outline (Outline.tsx). Everything here reads the
 // engine's `view` snapshot and runs commands; nothing is stored here.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { call, type FieldRow, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
@@ -33,6 +33,8 @@ export interface ViewSnap {
   groups: { label: string; count: number; items: ViewItem[] }[]
   grouped: boolean
   columns: ViewColumn[]
+  /** Groups folded to their header (UC-06.31). */
+  foldedGroups?: string[]
   /** "+ Add" > Suggested: fields the items use or their supertags define, not shown yet (N46). */
   suggested?: { id: number; name: string }[]
   titleWidth: number | null
@@ -514,7 +516,7 @@ export function QueryBuilder({ v, panel }: { v: ViewSnap; panel: string }) {
 
 // ---- pieces shared by the views ----------------------------------------------------------------
 
-function ItemTitle({ it, panel, refs, chips = true, compact = false }: { it: ViewItem; panel: string; refs: Record<string, string>; chips?: boolean; compact?: boolean }) {
+function ItemTitle({ it, panel, refs, chips = true, compact = false, opens = true }: { it: ViewItem; panel: string; refs: Record<string, string>; chips?: boolean; compact?: boolean; opens?: boolean }) {
   return (
     <span className="item-title">
       {it.done !== null && (
@@ -522,7 +524,7 @@ function ItemTitle({ it, panel, refs, chips = true, compact = false }: { it: Vie
           {it.done && <Icon name="check" size={11} />}
         </span>
       )}
-      <span className={`item-name${it.done ? ' done' : ''}`} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
+      <span className={`item-name${it.done ? ' done' : ''}`} onClick={opens ? () => void exec('nav.open', { node: it.target }, panel) : undefined}>
         {it.name ? <RichText text={it.name} refs={refs} /> : <span className="faint">Untitled</span>}
       </span>
       {chips &&
@@ -796,8 +798,8 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
       </div>
       {v.groups.map((g) => (
         <div key={g.label} className="t-group">
-          {v.grouped && <div className="group-head">{g.label || 'No value'}</div>}
-          {g.items.map((it) => (
+          {v.grouped && <GroupHead v={v} panel={panel} label={g.label} count={g.items.length} />}
+          {!v.foldedGroups?.includes(g.label) && g.items.map((it) => (
             <div key={it.id} className="t-row" style={{ gridTemplateColumns: tmpl }} role="row" data-id={it.id}>
               <span className="t-cell t-title">
                 <ItemBullet it={it} panel={panel} />
@@ -1067,28 +1069,82 @@ function Board({ v, panel }: { v: ViewSnap; panel: string }) {
 
 // ---- list, side menu, tabs (navigation views) --------------------------------------------------
 
+/** A group's header in a table or list: a click folds it to the header (UC-06.31). */
+function GroupHead({ v, panel, label, count }: { v: ViewSnap; panel: string; label: string; count: number }) {
+  const folded = !!v.foldedGroups?.includes(label)
+  return (
+    <button className={`group-head${folded ? ' folded' : ''}`} aria-expanded={!folded} onClick={() => void exec('view.toggleGroupFolded', { node: v.node, group: label }, panel)}>
+      <Icon name={folded ? 'chevronRight' : 'chevronDown'} size={10} />
+      {label || 'No value'}
+      {folded && <span className="group-count">{count}</span>}
+    </button>
+  )
+}
+
 function Navigation({ v, panel }: { v: ViewSnap; panel: string }) {
   const items = v.groups.flatMap((g) => g.items)
   const sel = items.find((i) => i.target === v.selected) ?? items[0]
+  // A side menu or tabs view shows the picked item in place; a list opens it beside (UC-06.14).
+  const inPlace = v.kind === 'side_menu' || v.kind === 'tabs'
+  const row = (it: ViewItem) => (
+    <div
+      key={it.id}
+      className={`nav-item${inPlace && sel?.id === it.id ? ' active' : ''}`}
+      onClick={() => void (inPlace ? exec('view.selectItem', { node: v.node, item: it.target }, panel) : openInNewPanel(it.target))}
+      title={inPlace ? 'Show here' : 'Open beside'}
+    >
+      <ItemBullet it={it} panel={panel} />
+      {/* The row decides what a click does (in place or beside), not the name. */}
+      <ItemTitle it={it} panel={panel} refs={v.refs} chips={v.kind !== 'tabs'} opens={false} />
+    </div>
+  )
   return (
     <div className={`nav-view ${v.kind}`}>
       <div className="nav-items">
-        {items.map((it) => (
-          <div
-            key={it.id}
-            className={`nav-item${sel?.id === it.id ? ' active' : ''}`}
-            onClick={() => void openInNewPanel(it.target)}
-            title="Open beside"
-          >
-            <ItemBullet it={it} panel={panel} />
-            <ItemTitle it={it} panel={panel} refs={v.refs} chips={v.kind !== 'tabs'} />
-          </div>
-        ))}
+        {v.grouped && !inPlace
+          ? v.groups.map((g) => (
+              <Fragment key={g.label}>
+                <GroupHead v={v} panel={panel} label={g.label} count={g.items.length} />
+                {!v.foldedGroups?.includes(g.label) && g.items.map(row)}
+              </Fragment>
+            ))
+          : items.map(row)}
         <div className="nav-add">
           <AddItem v={v} panel={panel} />
         </div>
       </div>
+      {inPlace && sel && <NavContent key={sel.target} item={sel.target} panel={panel} />}
     </div>
+  )
+}
+
+/** The picked item's outline, shown beside the side menu or under the tabs (UC-06.14). */
+function NavContent({ item, panel }: { item: number; panel: string }) {
+  const [tree, setTree] = useState<Json>(null)
+  const version = useStore((s) => s.pages[panel]?.version)
+  useEffect(() => {
+    void call('run', { command: 'graph.inspect', params: { node: item } }).then((r) => setTree(r?.result ?? null))
+  }, [item, version])
+  if (!tree) return null
+  const kids = (t: Json, depth: number): ReactNode =>
+    (t.children ?? []).map((c: Json) => (
+      <Fragment key={c.id}>
+        <div className="nav-content-row" style={{ paddingLeft: `calc(${depth} * var(--indent))` }} onClick={() => void exec('nav.open', { node: c.ref ?? c.id }, panel)}>
+          <span className="bullet">
+            <span className="dot" />
+          </span>
+          {c.name}
+        </div>
+        {depth < 6 && kids(c, depth + 1)}
+      </Fragment>
+    ))
+  return (
+    <section className="nav-content" aria-label={tree.name}>
+      <h2 className="nav-content-title" onClick={() => void exec('nav.open', { node: item }, panel)} title="Open">
+        {tree.name}
+      </h2>
+      {(tree.children ?? []).length ? kids(tree, 0) : <p className="muted">Nothing in it yet</p>}
+    </section>
   )
 }
 

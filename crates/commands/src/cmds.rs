@@ -128,6 +128,12 @@ pub fn registry() -> Registry {
             Ok(json!({"node": id.0, "banner": color}))
         })
         .params(r#"{"node"?: id, "color": string}  (a colour name, #rrggbb or picture:orbit; empty removes it)"#),
+        C::new("node.setWidth", "Content width", "Node", |s, v| {
+            let id = s.graph.resolve(p::node(v, "node")?.unwrap_or(s.zoom));
+            s.graph.set_width(id, p::req_str(v, "width")?)?;
+            Ok(json!({"node": id.0, "width": p::req_str(v, "width")?}))
+        })
+        .params(r#"{"node"?: id, "width": "medium" | "full"}  (default: the open page)"#),
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.tanaPaste", "Import Tana Paste", "File", import_tana_paste).params(
@@ -380,6 +386,29 @@ pub fn registry() -> Registry {
             view_json(s, id)
         })
         .params(r#"{"node"?: id, "group": string}"#),
+        // UC-06.31: a group folds to its header (tables and lists).
+        C::new("view.toggleGroupFolded", "Fold or unfold a group", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let label = p::req_str(v, "group")?.to_string();
+            let view = s.graph.view_mut(id)?;
+            if view.folded_groups.contains(&label) {
+                view.folded_groups.retain(|g| *g != label);
+            } else {
+                view.folded_groups.push(label);
+            }
+            view_json(s, id)
+        })
+        .params(r#"{"node"?: id, "group": string}"#),
+        // UC-06.14: the item a side menu or tabs view shows in place.
+        C::new("view.selectItem", "Show an item in a side menu or tabs view", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            let item = p::node(v, "item")?.ok_or_else(|| CmdError::Params("`item` is required".into()))?;
+            s.graph.node(item)?;
+            s.nav_selected.insert(id, s.graph.resolve(item));
+            Ok(json!({"node": id.0, "item": item.0}))
+        })
+        .params(r#"{"node"?: id, "item": id}"#)
+        .pure(),
         C::new("view.setColumnWidth", "Resize table column", "Views", |s, v| {
             let id = view_target(s, v)?;
             let col = match v.get("field") {

@@ -180,6 +180,9 @@ pub struct ViewDef {
     /// Groups (board columns) the person hid.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hidden_groups: Vec<String>,
+    /// Groups folded to their header in tables and lists (UC-06.31).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub folded_groups: Vec<String>,
     /// The view toolbar is shown (hidden until asked, DIFFS N68).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub show_toolbar: bool,

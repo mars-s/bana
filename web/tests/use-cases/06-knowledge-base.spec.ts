@@ -148,16 +148,20 @@ test('UC-06.13 give a page an emoji icon and a banner', partial('UC-06.13'), asy
   // Gap: banners are colours or one shipped picture; no upload of your own image.
 })
 
-test('UC-06.14 a wiki: a page shown as side menu, tabs or list; the picked item opens beside it', partial('UC-06.14'), async ({ app, server }) => {
-  const { page } = await pageWith(server, app, ['Onboarding', 'Tools', 'Contacts'], 'Wiki')
-  for (const kind of ['side_menu', 'tabs', 'list'] as const) {
+test('UC-06.14 a wiki: side menu and tabs show the picked item in place; a list opens it beside', works('UC-06.14'), async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['Onboarding', 'Tools', 'Contacts'], 'Wiki')
+  await server.run('node.add', { name: 'Hammer', parent: ids[1] })
+  for (const kind of ['side_menu', 'tabs'] as const) {
     await server.run('view.set', { node: page, kind })
     await expect(app.locator(`.nav-view.${kind} .nav-item`)).toHaveCount(3)
+    await app.locator(`.nav-view.${kind} .nav-item`, { hasText: 'Tools' }).click()
+    await expect(app.locator('.nav-content')).toContainText('Hammer')
+    await expect(app.locator('.panel')).toHaveCount(1)
   }
+  await server.run('view.set', { node: page, kind: 'list' })
   await app.locator('.nav-view.list .nav-item', { hasText: 'Tools' }).click()
   await expect(app.locator('.panel')).toHaveCount(2)
   await expect(app.locator('.panel').nth(1).locator('.title-input, .title').first()).toContainText('Tools')
-  // Gap: side menu and tabs also open the item in a second panel instead of showing it in place.
 })
 
 test('UC-06.15 Cmd+S finds any node by its words and opens it', works('UC-06.15'), async ({ app }) => {
@@ -313,7 +317,7 @@ test('UC-06.30 a table: add a column and type in a cell', works('UC-06.30'), asy
   await expect.poll(() => fieldOf(server, id, 'Price')).toBe('3')
 })
 
-test('UC-06.31 group an outline by supertag; hide a board column', partial('UC-06.31'), async ({ app, server }) => {
+test('UC-06.31 group a view; fold a group; hide a board column', works('UC-06.31'), async ({ app, server }) => {
   const s = await idOf(server, 'Open tasks')
   await server.run('view.set', { node: s, kind: 'cards' })
   await server.run('view.group', { node: s, by: 'Status' })
@@ -321,7 +325,17 @@ test('UC-06.31 group an outline by supertag; hide a board column', partial('UC-0
   await expect(app.locator('.board-col', { hasText: 'In progress' })).toBeVisible()
   await app.locator('.board-col', { hasText: 'In progress' }).locator('.board-hide').click()
   await expect(app.locator('.board-col', { hasText: 'In progress' }).locator('.card')).toHaveCount(0)
-  // Gap: group headers in outline and list views do not fold (Tana's collapsible groups).
+  // A table's group folds to its header and opens again.
+  await server.run('view.set', { node: s, kind: 'table' })
+  const head = app.locator('.group-head', { hasText: 'Not started' })
+  await expect(head).toBeVisible()
+  const rows = async () => app.locator('.t-row[data-id]').count()
+  const before = await rows()
+  await head.click()
+  await expect.poll(rows).toBeLessThan(before)
+  await expect(head).toHaveAttribute('aria-expanded', 'false')
+  await head.click()
+  await expect.poll(rows).toBe(before)
 })
 
 test('UC-06.32 switch light and dark theme', works('UC-06.32'), async ({ app }) => {
@@ -383,5 +397,16 @@ test('UC-06.43 rolling periods in searches: this week, NEXT 14 DAYS', works('UC-
   await expect(app.locator('.row.node', { hasText: 'Fill with compost' })).toBeVisible()
   await expect(app.locator('.row.node', { hasText: 'Build four beds' })).toBeVisible()
 })
-missing('UC-06.44', 'content width per page (medium or full) from the panel button')
+test('UC-06.44 content width per page: medium or full from the panel button', works('UC-06.44'), async ({ app, server }) => {
+  const { page } = await pageWith(server, app, ['A long line that wants room'], 'Wide page')
+  const before = (await app.locator('.page-main').first().boundingBox())!.width
+  await app.locator('.crumb-tool[title="Content width"]').click()
+  await app.locator('.width-menu .menu-item', { hasText: 'Full width' }).click()
+  await expect.poll(async () => (await app.locator('.page-main').first().boundingBox())!.width).toBeGreaterThan(before + 100)
+  expect((await server.rpc('page', {})).width).toBe('full')
+  // Another page keeps the medium column.
+  await server.run('nav.today')
+  await expect.poll(async () => (await app.locator('.page-main').first().boundingBox())!.width).toBeLessThan(before + 1)
+  void page
+})
 missing('UC-06.45', 'strikethrough text')

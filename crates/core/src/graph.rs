@@ -1503,6 +1503,17 @@ impl Graph {
         Ok(())
     }
 
+    /// A page's content width: `medium` (the column) or `full` (UC-06.44).
+    pub fn set_width(&mut self, id: NodeId, width: &str) -> Result<()> {
+        let w = match width {
+            "medium" => None,
+            "full" => Some("full".to_string()),
+            other => return Err(Error::Invalid(format!("width `{other}`: medium or full"))),
+        };
+        self.node_mut(id)?.width = w;
+        Ok(())
+    }
+
     /// "Convert to supertag": a plain node becomes a supertag (its children become template
     /// content). It moves to the Schema and a reference stays where it was.
     pub fn convert_to_tag(&mut self, id: NodeId, color: &str) -> Result<NodeId> {

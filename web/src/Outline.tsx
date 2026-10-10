@@ -1299,11 +1299,43 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
           <Icon name="close" size={14} />
         </button>
       ) : (
-        <button className="crumb-tool" title="Content width">
-          <Icon name="width" size={12} />
-        </button>
+        <WidthMenu page={page} panel={panel} />
       )}
     </div>
+  )
+}
+
+/** Content width (UC-06.44): the medium column or the full panel, kept per page. */
+function WidthMenu({ page, panel }: { page: Page; panel: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    window.addEventListener('mousedown', off)
+    return () => window.removeEventListener('mousedown', off)
+  }, [open])
+  const pick = (width: 'medium' | 'full') => (e: RME) => {
+    e.preventDefault()
+    setOpen(false)
+    void exec('node.setWidth', { node: page.target, width }, panel)
+  }
+  return (
+    <span className="menu-anchor width-menu" ref={ref}>
+      <button className="crumb-tool" title="Content width" onClick={() => setOpen((o) => !o)}>
+        <Icon name="width" size={12} />
+      </button>
+      {open && (
+        <div className="menu pop" role="menu">
+          {(['medium', 'full'] as const).map((w) => (
+            <div key={w} className={`menu-item${(page.width ?? 'medium') === w ? ' checked' : ''}`} onMouseDown={pick(w)}>
+              <span className="menu-icon">{(page.width ?? 'medium') === w && <Icon name="check" size={12} />}</span>
+              <span className="grow">{w === 'medium' ? 'Medium' : 'Full width'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -1712,7 +1744,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         {page.banner && <Banner banner={page.banner} />}
         {/* A tagged page gets its first tag's colour washed behind the header (N59.23). */}
         {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
-        <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}${configuring || fieldPage ? ' schema-col' : ''}`}>
+        <div className={`page${wide ? ' with-side' : ''}${(layout && layout.kind !== 'list') || page.width === 'full' ? ' full' : ''}${configuring || fieldPage ? ' schema-col' : ''}`}>
           <div className="page-main">
             <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}${page.kind === 'schema' ? ' schema-head' : ''}`}>
               {/* Not in a Configure supertag panel: its header starts with the title (N59.32). */}

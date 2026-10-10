@@ -1857,6 +1857,13 @@ kbd {
 .group-head {
   display: flex;
   align-items: center;
+  gap: var(--q1-5);
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
   margin: var(--q6) 0 var(--q2);
   font-weight: var(--fw-semibold);
   line-height: 17.25px;
@@ -4005,4 +4012,52 @@ kbd {
 
 .ring-fill {
   stroke: var(--c-done);
+}
+
+/* The content width menu opens to the left of its button (UC-06.44). */
+.width-menu .menu.pop {
+  left: auto;
+  right: 0;
+}
+
+/* A folded group shows how many items it holds (UC-06.31). */
+.group-count {
+  color: var(--c-muted);
+  font-weight: var(--fw-regular);
+}
+
+/* A side menu or tabs view shows the picked item in place (UC-06.14). */
+.nav-view.side_menu {
+  display: flex;
+  gap: var(--q8);
+  align-items: flex-start;
+}
+
+.nav-view.side_menu .nav-items {
+  flex: none;
+  width: var(--nav-menu-w);
+}
+
+.nav-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-view.tabs .nav-content {
+  margin-top: var(--q4);
+}
+
+.nav-content-title {
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  margin: 0 0 var(--q2);
+  cursor: pointer;
+}
+
+.nav-content-row {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  min-height: var(--row-h);
+  cursor: pointer;
 }

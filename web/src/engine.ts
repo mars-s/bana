@@ -380,6 +380,8 @@ export interface Page {
   fieldType?: string | null
   icon: string | null
   banner: string | null
+  /** Content width (UC-06.44). */
+  width?: 'medium' | 'full'
   description: string
   tags: Chip[]
   crumbs: { id: number; name: string }[]

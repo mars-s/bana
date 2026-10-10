@@ -484,6 +484,9 @@ pub struct Node {
     /// Command nodes run on each new child of this node (UC-02.20).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_child: Vec<NodeId>,
+    /// The page's content width: `full` across the panel; absent is the medium column (UC-06.44).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<String>,
     /// Page decorations: an icon (a short text, usually one emoji) and a banner colour.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
@@ -533,6 +536,7 @@ impl Node {
             view: None,
             heading: false,
             on_child: Vec::new(),
+            width: None,
             icon: None,
             banner: None,
             pinned: false,

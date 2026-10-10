@@ -189,6 +189,9 @@ pub enum AutoInit {
     AncestorDay,
     /// The value of the nearest ancestor that has this field.
     AncestorValue,
+    /// A random node with the field's source supertag (options from supertag fields; journal
+    /// prompts, UC-01.09).
+    RandomNode,
 }
 
 /// The value types a field can hold (public docs: Plain, Options, Date, Number, URL, Email, Checkbox,

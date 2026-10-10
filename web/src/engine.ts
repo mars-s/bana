@@ -36,7 +36,14 @@ class HttpTransport implements Transport {
     } catch {
       throw new Offline('engine unreachable')
     }
-    return r.json()
+    try {
+      return await r.json()
+    } catch (e) {
+      // An engine killed while answering cuts the body off (N77, a network error, not bad JSON):
+      // the edit stays first in line and goes again; the engine runs a logged edit once.
+      if (e instanceof TypeError) throw new Offline('engine went away mid-answer')
+      throw e
+    }
   }
   watch(cb: (v: number) => void) {
     let since = 0

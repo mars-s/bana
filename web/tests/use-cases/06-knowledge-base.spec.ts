@@ -461,7 +461,19 @@ test('UC-06.38 type : and a word to pick an emoji', works('UC-06.38'), async ({ 
   await expect.poll(() => nameOf(server, ids[0])).toBe('Ship it 🚀 at 10:30, Note: done')
 })
 missing('UC-06.39', 'code blocks with a language and Mermaid diagrams')
-missing('UC-06.40', 'a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)')
+test('UC-06.40 a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)', works('UC-06.40'), async ({ app, server }) => {
+  await server.run('field.create', { name: 'Part of', type: 'options_from_tag' })
+  await server.run('field.setSourceTag', { field: 'Part of', tag: 'area' })
+  const { ids } = await pageWith(server, app, ['House', 'Kitchen', 'Sink', 'Shed'], 'Places')
+  for (const id of ids) await server.run('tag.add', { node: id, tag: 'area' })
+  await server.run('field.set', { node: ids[1], field: 'Part of', value: 'House' })
+  await server.run('field.set', { node: ids[2], field: 'Part of', value: 'Kitchen' })
+  const q = (await server.run('search.create', { query: `COMPONENTS:${ids[0]}`, name: 'In the house' })).result.id
+  await server.run('nav.open', { node: q })
+  await expect(app.locator('.row.node', { hasText: 'Kitchen' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Sink' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Shed' })).toHaveCount(0)
+})
 test('UC-06.41 search with a regular expression', works('UC-06.41'), async ({ app, server }) => {
   const s = (await server.run('search.create', { query: '#task /^(build|fill) /i', name: 'Bed work' })).result.id
   await server.run('nav.open', { node: s })

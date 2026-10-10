@@ -706,7 +706,7 @@ pub fn registry() -> Registry {
             .params(r#"{"field": name | id, "mode": "never|when_empty|when_not_empty|when_default|always"}"#),
         C::new("field.setRange", "Number range", "Field", field_set_range).params(r#"{"field": name | id, "min"?: number, "max"?: number}"#),
         C::new("field.setAutoInit", "Auto-initialize", "Field", field_set_auto_init)
-            .params(r#"{"field": name | id, "mode": "none|current_date|ancestor_day|ancestor_value"}"#),
+            .params(r#"{"field": name | id, "mode": "none|current_date|ancestor_day|ancestor_value|random_node"}  (random_node: a random node with the field's source supertag)"#),
         C::new("field.setDefault", "Default value", "Field", field_set_default).params(r#"{"field": name | id, "value": string}  (empty clears)"#),
         C::new("field.setSourceTag", "Options from supertag", "Field", field_set_source_tag).params(r#"{"field": name | id, "tag": name | id}"#),
         C::new("field.addOption", "Add option", "Field", field_add_option).params(r#"{"field": name | id, "option": string}"#),
@@ -3185,6 +3185,7 @@ fn field_set_auto_init(s: &mut Session, v: &Value) -> CmdResult {
         "current_date" => Some(AutoInit::CurrentDate),
         "ancestor_day" => Some(AutoInit::AncestorDay),
         "ancestor_value" => Some(AutoInit::AncestorValue),
+        "random_node" => Some(AutoInit::RandomNode),
         other => return Err(CmdError::Params(format!("unknown auto-initialize mode `{other}`"))),
     };
     s.graph.field_def_mut(f)?.auto_init = mode;

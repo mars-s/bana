@@ -30,21 +30,21 @@ Everything here comes from Tana's public pages, written in our own words:
 
 | File | Area | Works | Partial | Missing | Out of scope | AI |
 |---|---|---|---|---|---|---|
-| [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 12 | 2 | 2 | 0 | 0 |
+| [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 13 | 2 | 1 | 0 | 0 |
 | [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 19 | 1 | 0 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 9 | 0 | 0 | 2 | 0 |
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 7 | 1 | 1 | 0 | 1 |
-| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 41 | 2 | 2 | 0 | 0 |
+| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 42 | 2 | 1 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 4 | 1 | 4 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 14 | 1 | 0 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **118** | **10** | **15** | **14** | **24** |
+| **Total (181)** | | **120** | **10** | **13** | **14** | **24** |
 
-Out of the 143 use cases that need neither AI nor a cloud or mobile service, 128 work fully or in
-part (118 + 10) and 15 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 130 work fully or in
+part (120 + 10) and 13 are missing.
 
 ## Top 15 gaps by user value
 
@@ -80,8 +80,8 @@ strikethrough (UC-06.45), counting words (UC-06.36), regular expressions in sear
 searching inside one node from the search box (UC-06.42), node links that open from other apps
 (UC-07.10), spreadsheet cells pasted as nodes with fields (UC-08.12), aliases on inline references
 (UC-06.37), reading one in place with Shift+click (UC-05.09) the whole workspace as a ZIP of
-Markdown files (UC-08.13), locked nodes (UC-06.35), emoji after `:` (UC-06.38) and a templates
-gallery (UC-08.15).
+Markdown files (UC-08.13), locked nodes (UC-06.35), emoji after `:` (UC-06.38), a templates
+gallery (UC-08.15), journal prompts (UC-01.09) and Part of searches (UC-06.40).
 
 Smaller defects found on the way, all fixed since: the Content width button sets Medium or Full
 width per page (UC-06.44); side menu and tabs views show the item in place (UC-06.14); table and

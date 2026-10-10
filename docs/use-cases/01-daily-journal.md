@@ -60,12 +60,12 @@ with an optional `#day` template. Scenarios: `web/tests/use-cases/01-daily-journ
 - **Source:** https://outliner.tana.inc/learn/features/dates-and-calendar-nodes
 - **TanaCraft:** WORKS. Typing `@` and a date in words (today, tomorrow, next friday, last monday, in 3 days, next month, Nov 21, 21 November 2027, Nov 21 to 30) offers that date first in the menu; Enter turns the words into a link to the day page (a range links both days, UC-01.08b). The Insert date command links today. Week or month dates in text are not read.
 
-### UC-01.09 Journal prompts: MISSING
+### UC-01.09 Journal prompts: WORKS
 - **Story:** My `#journal` entry should offer three random prompts from my prompt list.
-- **Steps:** A field set to auto-initialize to random nodes with a supertag.
+- **Steps:** A field with options from `#prompt`, Auto-initialize "To a random node with the supertag" (field page), on `#journal`.
 - **Expected:** New entries get random prompts.
 - **Source:** https://outliner.tana.inc/learn/features/fields (Auto-initialize to random node)
-- **TanaCraft:** MISSING (auto-initialize offers current date, ancestor day and ancestor value).
+- **TanaCraft:** WORKS (`field.setAutoInit {mode: "random_node"}`): one random prompt per entry.
 
 ### UC-01.10 Habit check-off: PARTIAL
 - **Story:** I tick my habits each day and want to see how often I did them.

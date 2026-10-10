@@ -1740,6 +1740,14 @@ impl Graph {
                 _ => None,
             }),
             AutoInit::AncestorValue => self.ancestors(node).iter().rev().find_map(|a| self.get(*a).and_then(|n| n.field_value(field)).cloned()),
+            AutoInit::RandomNode => {
+                let pool: Vec<NodeId> = match self.field_def(field).and_then(|d| d.source_tag) {
+                    Some(t) => self.tagged(t).into_iter().filter(|n| *n != node && !self.in_trash(*n)).collect(),
+                    None => Vec::new(),
+                };
+                let roll = u64::from_str_radix(&crate::random_hex()[..12], 16).unwrap_or(0);
+                pool.get((roll % pool.len().max(1) as u64) as usize).map(|n| FieldValue::Node(*n))
+            }
         };
         if value.is_some() {
             self.set_field(node, field, value)?;

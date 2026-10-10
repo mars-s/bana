@@ -845,6 +845,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
                 Some(tanacraft_core::AutoInit::CurrentDate) => "current_date",
                 Some(tanacraft_core::AutoInit::AncestorDay) => "ancestor_day",
                 Some(tanacraft_core::AutoInit::AncestorValue) => "ancestor_value",
+                Some(tanacraft_core::AutoInit::RandomNode) => "random_node",
                 None => "none",
             },
             "default": d.default.as_ref().map(|v| export::display_value(g, v)),

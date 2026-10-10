@@ -824,3 +824,23 @@ fn markdown_export_has_descriptions_and_fields_in_place() {
     let md = crate::export::to_markdown(&g, page, false);
     assert_eq!(md, "- Page\n  about the page\n  - a\n  - Prio:: High\n  - b\n");
 }
+
+#[test]
+fn components_rec_follows_part_of_at_any_depth() {
+    // UC-06.40.
+    let mut g = garden();
+    let lib = g.sys.library;
+    let house = g.create(lib, None, "House").unwrap();
+    let kitchen = g.create(lib, None, "Kitchen").unwrap();
+    let sink = g.create(lib, None, "Sink").unwrap();
+    let other = g.create(lib, None, "Shed").unwrap();
+    let part = g.create_field("Part of", crate::FieldType::OptionsFromTag).unwrap();
+    g.set_field(kitchen, part, Some(crate::FieldValue::Node(house))).unwrap();
+    g.set_field(sink, part, Some(crate::FieldValue::Node(kitchen))).unwrap();
+    let q = Query::parse(&g, &format!("COMPONENTS:{house}")).unwrap();
+    let mut found = q.run(&g, NodeId(0));
+    found.sort();
+    assert_eq!(found, vec![kitchen, sink]);
+    assert!(!q.matches(&g, other));
+    assert_eq!(Query::parse(&g, &q.describe(&g)).unwrap(), q);
+}

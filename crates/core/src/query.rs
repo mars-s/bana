@@ -18,6 +18,7 @@
 //! | `WORKSPACE:42` | in workspace 42 (the main one is the root) |
 //! | `SCOPE:PARENT`, `SCOPE:GRANDPARENT` | inside the search node's parent (grandparent) |
 //! | `CHILD:42` | a direct child of node 42 |
+//! | `COMPONENTS:42` | part of node 42 through "Part of" fields, at any depth (COMPONENTS REC) |
 //! | `SIBLING:"Name"` | has a sibling with that text |
 //! | `IS:COMMAND` | command nodes |
 //! | `Effort>2`, `Due<2026-10-20`, `Due<today` | number or date comparison |
@@ -144,6 +145,10 @@ pub enum ClauseKind {
     },
     /// A direct child of the node (CHILD OF).
     ChildOf {
+        node: NodeId,
+    },
+    /// Part of the node through "Part of" field values, at any depth (COMPONENTS REC, UC-06.40).
+    ComponentsOf {
         node: NodeId,
     },
     /// Has a sibling with this text (SIBLING NAMED).
@@ -275,6 +280,7 @@ impl Query {
                     ClauseKind::InWorkspace { ws } => format!("WORKSPACE:{ws}"),
                     ClauseKind::Scope { up } => format!("SCOPE:{}", if *up > 1 { "GRANDPARENT" } else { "PARENT" }),
                     ClauseKind::ChildOf { node } => format!("CHILD:{node}"),
+                    ClauseKind::ComponentsOf { node } => format!("COMPONENTS:{node}"),
                     ClauseKind::Sibling { name } => format!("SIBLING:{}", quote(name)),
                     ClauseKind::CreatedWithin { days } => format!("CREATED:{days}"),
                     ClauseKind::EditedWithin { days } => format!("EDITED:{days}"),
@@ -342,6 +348,7 @@ impl Query {
                 ClauseKind::DoneWithin { days } => out.push(t(&format!("{not}done in the last {days} days"))),
                 ClauseKind::Under { node } => out.extend([t(&format!("{not}under ")), tok(g.name(*node).to_string())]),
                 ClauseKind::ChildOf { node } => out.extend([t(&format!("{not}child of ")), tok(g.name(*node).to_string())]),
+                ClauseKind::ComponentsOf { node } => out.extend([t(&format!("{not}part of ")), tok(g.name(*node).to_string())]),
                 ClauseKind::LinksTo { node } => out.extend([t(&format!("{not}linking to ")), tok(g.name(*node).to_string())]),
                 ClauseKind::InWorkspace { ws } => out.extend([t(&format!("{not}in workspace ")), tok(g.name(*ws).to_string())]),
                 ClauseKind::Sibling { name } => out.extend([t(&format!("{not}with a sibling named ")), tok(format!("\"{name}\""))]),
@@ -515,6 +522,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         // Unbound (outside a running search) a scope has nothing to be inside.
         ClauseKind::Scope { .. } => false,
         ClauseKind::ChildOf { node } => g.parent(id) == Some(*node),
+        ClauseKind::ComponentsOf { node } => part_of(g, id, *node),
         ClauseKind::Sibling { name } => {
             g.parent(id).is_some_and(|p| g.children(p).iter().any(|c| *c != id && g.text(*c).trim().eq_ignore_ascii_case(name.trim())))
         }
@@ -736,6 +744,11 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
                 other => Err(Error::Invalid(format!("SCOPE:{other}: use SCOPE:PARENT or SCOPE:GRANDPARENT"))),
             };
         }
+        ("COMPONENTS", ':') => {
+            let node: NodeId = value.trim_end_matches(" REC").parse().map_err(Error::Invalid)?;
+            g.node(node)?;
+            return Ok(ClauseKind::ComponentsOf { node });
+        }
         ("CHILD", ':') => {
             let node: NodeId = value.parse().map_err(Error::Invalid)?;
             g.node(node)?;
@@ -781,4 +794,25 @@ fn quote(s: &str) -> String {
     let plain = !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '@'));
     let keyword = matches!(s, "AND" | "OR" | "NOT" | "DONE" | "TODO");
     if plain && !keyword { s.to_string() } else { format!("\"{}\"", s.replace('"', "'")) }
+}
+
+/// Whether `id` is part of `whole` through "Part of" field values, at any depth (UC-06.40).
+fn part_of(g: &Graph, id: NodeId, whole: NodeId) -> bool {
+    let Some(field) = g.find_field("Part of") else { return false };
+    let mut at = vec![id];
+    let mut seen = std::collections::HashSet::new();
+    while let Some(n) = at.pop() {
+        if !seen.insert(n) || seen.len() > 10_000 {
+            continue;
+        }
+        for v in g.get(n).map(|x| x.field_values(field)).unwrap_or_default() {
+            if let FieldValue::Node(p) = v {
+                if *p == whole {
+                    return true;
+                }
+                at.push(*p);
+            }
+        }
+    }
+    false
 }

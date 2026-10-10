@@ -1094,6 +1094,35 @@ fn pasted_markdown_tasks_become_checkboxes() {
 }
 
 #[test]
+fn a_field_can_start_with_a_random_node_of_a_supertag() {
+    // UC-01.09: journal prompts.
+    let mut s = blank();
+    run(&mut s, "tag.create", json!({"name": "prompt"}));
+    let prompts: Vec<NodeId> = ["What went well?", "What did I learn?", "Who helped me?"]
+        .iter()
+        .map(|n| {
+            let p = id(&run(&mut s, "node.add", json!({"name": n})), "id");
+            run(&mut s, "tag.add", json!({"node": p.0, "tag": "prompt"}));
+            p
+        })
+        .collect();
+    run(&mut s, "field.create", json!({"name": "Prompt", "type": "options_from_tag"}));
+    run(&mut s, "field.setSourceTag", json!({"field": "Prompt", "tag": "prompt"}));
+    run(&mut s, "field.setAutoInit", json!({"field": "Prompt", "mode": "random_node"}));
+    run(&mut s, "tag.create", json!({"name": "journal"}));
+    run(&mut s, "tag.addField", json!({"tag": "journal", "field": "Prompt"}));
+    let field = s.graph.find_field("Prompt").unwrap();
+    for _ in 0..5 {
+        let e = id(&run(&mut s, "node.add", json!({"name": "entry"})), "id");
+        run(&mut s, "tag.add", json!({"node": e.0, "tag": "journal"}));
+        match s.graph.get(e).unwrap().field_value(field) {
+            Some(tanacraft_core::FieldValue::Node(p)) => assert!(prompts.contains(p)),
+            other => panic!("no prompt: {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn counting_words_characters_and_nodes() {
     // UC-06.36.
     let mut s = blank();

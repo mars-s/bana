@@ -215,6 +215,7 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
             ['current_date', 'To the current date'],
             ['ancestor_day', 'To the day it is under'],
             ['ancestor_value', 'From the nearest ancestor with this field'],
+            ...(d.type === 'options_from_tag' ? [['random_node', 'To a random node with the supertag'] as [string, string]] : []),
           ]}
           onChange={(mode) => run('field.setAutoInit', { mode })}
         />

@@ -151,7 +151,27 @@ test('UC-01.13 week start and 12/24-hour time are settings; calendar views follo
   await expect(app.locator('.date-picker .dp-day').first()).toHaveText('27')
 })
 
-missing('UC-01.09', 'journal prompts: a field that auto-fills with a random node of a supertag')
+test('UC-01.09 journal prompts: a field that auto-fills with a random node of a supertag', works('UC-01.09'), async ({ app, server }) => {
+  const lib = (await server.rpc('sidebar')).workspaces[0].library
+  for (const n of ['What went well?', 'What did I learn?']) {
+    const p = (await server.run('node.add', { name: n, parent: lib })).result.id
+    await server.run('tag.add', { node: p, tag: 'prompt' })
+  }
+  await server.run('field.create', { name: 'Prompt', type: 'options_from_tag' })
+  await server.run('field.setSourceTag', { field: 'Prompt', tag: 'prompt' })
+  // The field page offers the rule for a field with options from a supertag.
+  const field = (await server.run('graph.search', { query: 'Prompt' })).result.find((h: any) => h.line === 'Prompt').id
+  await server.run('nav.open', { node: field })
+  await app.locator('select[aria-label="Auto-initialize"]').selectOption('random_node')
+  await expect.poll(async () => (await server.rpc('schema', { node: field })).autoInit).toBe('random_node')
+  await server.run('tag.create', { name: 'journal' })
+  await server.run('tag.addField', { tag: 'journal', field: 'Prompt' })
+  const day = (await server.run('nav.today')).result.zoom
+  const e = (await server.run('node.add', { name: 'Evening entry', parent: day })).result.id
+  await server.run('tag.add', { node: e, tag: 'journal' })
+  await server.run('node.expand', { node: e })
+  await expect(app.locator('.row.field', { hasText: 'Prompt' })).toContainText(/What went well\?|What did I learn\?/)
+})
 test('UC-01.12 Add to day (Remind me): a reference of the node on the chosen day', works('UC-01.12'), async ({ app, server }) => {
   const day = (await server.run('nav.today')).result.zoom
   const id = (await server.run('node.add', { name: 'Read the soil article', parent: day })).result.id

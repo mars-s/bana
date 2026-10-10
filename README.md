@@ -95,7 +95,9 @@ encrypted, through a small relay you run on your own Cloudflare account (free pl
 Durable Object). Pair the phone by scanning a QR code from **Settings, Sync, Add a device**.
 Edits from the other device show up live without moving your caret, typing in one line on both
 keeps both, and a phone away for weeks catches up. The relay sees only ciphertext and routing data;
-[docs/sync.md](docs/sync.md) says what it can and cannot see. Set it up with
+[docs/sync.md](docs/sync.md) says what it can and cannot see. An optional **Bana ID** signs
+new devices in with a passkey instead of a code (no passwords; a printable recovery code for when
+every passkey is lost): [docs/bana-id.md](docs/bana-id.md). Set it up with
 `cloudflare/sync/wizard.sh` (it also shows how to put the iPhone app on your own phone).
 
 <p><img src="docs/images/web/sync-add-device.png" width="600" alt="Settings, Sync: synced with one device, Add a device showing a QR code and the pairing code"></p>

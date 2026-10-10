@@ -223,17 +223,23 @@ step "No subdomain yet? Pick one there first (it is free)."
 open_url "https://dash.cloudflare.com/?to=/:account/workers-and-pages"
 ask WORKERS_SUBDOMAIN "Your workers.dev subdomain (e.g. avi):"
 RELAY_URL="https://bana-sync.${WORKERS_SUBDOMAIN}.workers.dev"
+# Bana ID's passkeys belong to this exact host (the relying party, RP_ID in wrangler.jsonc).
+RP_ID="bana-sync.${WORKERS_SUBDOMAIN}.workers.dev"
 write_env WORKERS_SUBDOMAIN "$WORKERS_SUBDOMAIN"
 write_env RELAY_URL "$RELAY_URL"
+write_env RP_ID "$RP_ID"
 pause "Press Enter to continue"
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "Cloudflare: deploy the relay (free plan)"
 say "This deploys the Worker 'bana-sync' with its Durable Object class (SQLite storage)."
-say "It has no secrets and no settings: there is nothing to configure in the dashboard."
+say "It has no secrets. One setting: the Bana ID domain (RP_ID), set here to $RP_ID."
+say "Passkeys for Bana ID (docs/bana-id.md) are tied to that exact host for good: renaming"
+say "your workers.dev subdomain or this Worker later breaks every passkey already made"
+say "(the recovery code still gets you back in). Choose the subdomain before anyone signs up."
 note "It will answer at $RELAY_URL"
 confirm "Deploy the relay to your Cloudflare account now?" || { warn "Stopped before deploying."; exit 1; }
-npx wrangler deploy
+npx wrangler deploy --var "RP_ID:$RP_ID"
 say "Checking the relay answers…"
 CODE=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -247,8 +253,10 @@ pause "Press Enter to continue"
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Your Mac: turn sync on"
 say "Start the Bana desktop app if it is not running. Then either:"
-step "In the app: account menu (top right) → Settings → Sync → paste $RELAY_URL"
-step "into 'Relay address' → Set up sync. The status turns to Synced."
+step "In the app: account menu (top right) → Profile and Bana ID → Relay: $RELAY_URL"
+step "→ Create Bana ID. Your browser makes a passkey; keep the recovery code it shows."
+step "Or without a Bana ID: Settings → Sync → paste $RELAY_URL into 'Relay address' →"
+step "Set up sync. Either way the status turns to Synced."
 say ""
 if [[ -s "$BANA_HOME_DIR/token" ]] && confirm "Or shall this wizard turn it on through the running app's local API (port $LOCAL_PORT)?"; then
   OUT=$(curl -s -X POST "http://127.0.0.1:$LOCAL_PORT/rpc" -H "Authorization: Bearer $(cat "$BANA_HOME_DIR/token")" \
@@ -289,6 +297,9 @@ pause "Press Enter once Bana opens on the iPhone"
 
 # ── 6 ─────────────────────────────────────────────────────────────────────
 stage "Pair the iPhone"
+step "With a Bana ID: on the iPhone, Manage → your profile → relay $RELAY_URL → Sign in"
+step "with a passkey (it is in your iCloud Keychain if the Mac's browser saved it there)."
+say "Or with a code:"
 step "On the Mac: Settings → Sync → Add a device. A QR code and a code appear."
 step "On the iPhone: Manage (bottom bar) → Sync → Scan the code, and point it at the screen."
 step "Or copy the code on the Mac, send it to yourself privately (AirDrop, Notes) and paste it."
@@ -308,5 +319,5 @@ say "set it up again, which makes a new key."
 pause "Press Enter to finish"
 
 finish
-note "Relay: $RELAY_URL (Workers free plan)"
+note "Relay: $RELAY_URL (Workers free plan); Bana ID domain: $RP_ID"
 note "Docs: docs/sync.md. Run this wizard again any time; it remembers your subdomain."

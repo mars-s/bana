@@ -1835,8 +1835,25 @@ kbd {
 }
 
 .t-head {
-  min-height: 27.1px;
+  min-height: var(--t-head-h);
   color: var(--c-muted);
+  font-weight: var(--fw-ui);
+}
+
+/* Each header has a 1 px underline in its colour; the tag column's is 2 px in the tag colour. */
+.t-head .t-cell[role='columnheader'] {
+  box-shadow: inset 0 -1px 0 var(--tag, var(--c-divider));
+}
+
+.t-head .t-cell.t-tag {
+  box-shadow: inset 0 -2px 0 var(--tag);
+  color: var(--c-text);
+}
+
+.tag-square.small {
+  width: var(--tag-square-small);
+  height: var(--tag-square-small);
+  font-size: var(--fs-meta);
 }
 
 .t-head .t-cell {
@@ -1905,10 +1922,11 @@ kbd {
   margin-bottom: var(--q3);
 }
 
+/* Cards 300 wide with 30 between (spec 04 §3; N59.39). */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--q3);
+  grid-template-columns: repeat(auto-fill, var(--board-col-w));
+  gap: var(--q8);
 }
 
 .board {
@@ -1945,7 +1963,7 @@ kbd {
 
 .board-col {
   flex: none;
-  width: 300px;
+  width: var(--board-col-w);
   display: flex;
   flex-direction: column;
   gap: var(--q3);
@@ -1960,8 +1978,9 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--q2);
-  min-height: 35.4px;
+  min-height: var(--board-head-h);
   padding: var(--q2) 0;
+  line-height: var(--lh-dense);
 }
 
 .board-name {

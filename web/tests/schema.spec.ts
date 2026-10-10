@@ -31,8 +31,12 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   await expect(app.locator('.panel').nth(0).locator('.configure')).toHaveCount(0)
   await app.locator('.swatch[title="green"]').click()
   await expect.poll(async () => (await inspectSchema(server, id)).color).toBe('green')
+  // Sections start folded; a click on a header opens it.
+  await expect(app.locator('button[aria-label="Show a checkbox"]')).toHaveCount(0)
+  await app.locator('.cfg-card-head', { hasText: 'Building blocks' }).click()
   await app.locator('button[aria-label="Show a checkbox"]').click()
   await expect.poll(async () => (await inspectSchema(server, id)).checkbox).toBe(true)
+  await app.locator('.cfg-card-head', { hasText: 'Content template' }).click()
   await app.locator('.cfg-fields .ghost-btn').click()
   await expect(app.locator('.menu.picker')).toBeVisible()
   await app.keyboard.type('Impact')

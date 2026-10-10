@@ -187,7 +187,7 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
 // ---- configure supertag ----------------------------------------------------------------------------
 
 function Section({ icon, title, help, children }: { icon: 'fieldText' | 'duplicate' | 'check' | 'hash'; title: string; help: string; children: ReactNode }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false) // Sections start folded (N59.32).
   return (
     <section className="cfg-card">
       <button className="cfg-card-head" onClick={() => setOpen((o) => !o)}>

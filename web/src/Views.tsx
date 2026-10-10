@@ -641,12 +641,21 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
       }}
     />
   )
+  // The first column is named after the supertag every item has (spec 12: Table, N59.17).
+  const all = v.groups.flatMap((g) => g.items)
+  const tag = all[0]?.tags.find((t) => t.name !== 'day' && all.every((it) => it.tags.some((x) => x.id === t.id)))
   return (
     <div className="table-scroll">
-    <div className="table" role="table">
+    <div className="table" role="table" style={tag ? tagStyle(tag.color) : undefined}>
       <div className="t-row t-head" style={{ gridTemplateColumns: tmpl }} role="row">
-        <span className="t-cell" role="columnheader">
-          Name
+        <span className={`t-cell${tag ? ' t-tag' : ''}`} role="columnheader">
+          {tag ? (
+            <>
+              <span className="tag-square small">#</span> {tag.name[0].toUpperCase() + tag.name.slice(1)}
+            </>
+          ) : (
+            'Name'
+          )}
           {grip('title')}
         </span>
         {v.columns.map((c) => (
@@ -770,7 +779,7 @@ function Card({ it, panel, refs, onDragStart, dragged }: { it: ViewItem; panel: 
       <div className="card-body">
         <ItemTitle it={it} panel={panel} refs={refs} chips={false} />
       </div>
-      {it.line && <div className="card-foot">{it.line}</div>}
+      {(it.line || it.dates[0]) && <div className="card-foot">{it.line || shortWhen(it.dates[0], it.time)}</div>}
     </div>
   )
 }
@@ -1011,6 +1020,12 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const weekdayOf = (d: string) => WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]
 const isWeekend = (d: string) => [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())
+
+/** "Sat, 17 Oct, 10:30 → 13:00": a card's date line (N59.26). */
+function shortWhen(d: string, time: [number, number] | null): string {
+  const day = `${weekdayOf(d)}, ${Number(d.slice(8))} ${MONTHS[Number(d.slice(5, 7)) - 1].slice(0, 3)}`
+  return time ? `${day}, ${hm(time[0])} → ${hm(time[1])}` : day
+}
 
 /** "October 10th, 2026" (the day view's title, N50). */
 function longDay(d: string): string {

@@ -103,7 +103,8 @@ test('UC-10.04 the API only listens on this computer and asks local tools for th
   // no hosted (remote) MCP.
 })
 
-missing('UC-10.05', 'hosted (remote) MCP server reachable from cloud agents', 'out-of-scope')
+// UC-10.05 (remote MCP for claude.ai and ChatGPT) is tested in cloudflare/test.mjs: the Worker on
+// local workerd, signed in, passing MCP to a real engine (docs/mcp.md).
 missing('UC-10.06', 'two-way sync with Google Calendar or Outlook (events, contacts)', 'out-of-scope')
 missing('UC-10.07', 'Readwise highlights synced into #book and #highlight nodes')
 missing('UC-10.08', 'a command node that calls a web API (Make API request)')

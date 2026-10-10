@@ -39,12 +39,12 @@ Everything here comes from Tana's public pages, written in our own words:
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 2 | 2 | 5 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 1 | 4 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
-| [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
+| [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **95** | **14** | **33** | **15** | **24** |
+| **Total (181)** | | **95** | **15** | **33** | **14** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 109 work fully or in
-part (95 + 14) and 33 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 110 work fully or in
+part (95 + 15) and 33 are missing.
 
 ## Top 15 gaps by user value
 

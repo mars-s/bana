@@ -3,7 +3,8 @@
 //! `tanacraft [FILE] [--sample] [--serve PORT]`
 //! - FILE: the graph file (default `~/TanaCraft/graph.tanacraft`). Autosaves within a second; saves on quit.
 //! - `--sample`: start from the built-in sample graph (not saved unless FILE is given).
-//! - `--serve PORT`: also serve the same engine over HTTP on 127.0.0.1 (agents, a browser window).
+//! - `--serve PORT`: the port of the engine's HTTP API on 127.0.0.1 (default 8787, else any free
+//!   port): a browser window, agents, MCP at `/mcp`, the remote connector's tunnel.
 //!
 //! The UI talks to the engine through one command, `rpc(method, params)`, the same surface as
 //! `POST /rpc` of `tanacraft-cli serve`; a `changed` event tells it to read again.
@@ -183,9 +184,14 @@ fn run() -> Result<(), String> {
     let session = tanacraft_server::open_session(file, sample, None)?;
     let shared = Shared::new(Host::new(session));
     shared.spawn_autosave();
-    // The same engine over HTTP on 127.0.0.1 (any free port unless --serve PORT), announced in
+    // The same engine over HTTP on 127.0.0.1, announced in
     // the live file beside the graph so MCP and the CLI work on the running app (UC-10.11).
-    let listener = tanacraft_server::http::bind(serve.unwrap_or(0))?;
+    // Port 8787 by default, so a tunnel (the remote MCP connector, docs/mcp.md) has a fixed
+    // place to reach; any free port when it is taken.
+    let listener = match serve {
+        Some(p) => tanacraft_server::http::bind(p)?,
+        None => tanacraft_server::http::bind(8787).or_else(|_| tanacraft_server::http::bind(0))?,
+    };
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let live = tanacraft_server::http::announce(&shared, port, None);
     {

@@ -1,0 +1,20 @@
+{
+  "name": "tanacraft-remote-mcp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test.mjs",
+    "typecheck": "wrangler types >/dev/null && tsc --noEmit",
+    "dry-run": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.144.0"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.1"
+  }
+}

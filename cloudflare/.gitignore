@@ -1,0 +1,8 @@
+node_modules/
+.test-worker.mjs
+.wrangler/
+.dev.vars
+worker-configuration.d.ts
+wrangler.deploy.jsonc
+tunnel.yml
+.wizard.env

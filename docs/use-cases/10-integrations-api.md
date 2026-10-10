@@ -25,11 +25,11 @@ Scenarios: `web/tests/use-cases/10-integrations-api.spec.ts`.
 ### UC-10.04 Access control for the API: PARTIAL
 - **Story:** Only tools I allow can write to my graph.
 - **Source:** https://outliner.tana.inc/learn/features/input-api (API tokens)
-- **TanaCraft:** PARTIAL. The API listens on 127.0.0.1 only; requests from outside the app's own pages must send the running app's token, written to the live file beside the graph (`graph.tanacraft.live`, this user only). No tokens per workspace to create and revoke (UC-10.09).
+- **TanaCraft:** PARTIAL. The API listens on 127.0.0.1 only; requests from outside the app's own pages must send the install's local token (`~/TanaCraft/token`, this user only). No tokens per workspace to create and revoke (UC-10.09).
 
-### UC-10.05 Hosted MCP: OUT OF SCOPE candidate (cloud)
+### UC-10.05 Remote MCP for cloud assistants: PARTIAL
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 23-30: Remote MCP)
-- **TanaCraft:** not built.
+- **TanaCraft:** PARTIAL. `cloudflare/` is a remote connector for claude.ai and ChatGPT: a Worker that signs you in with GitHub (one account) and passes MCP to the app on your Mac through a Cloudflare Tunnel. Tested end to end locally (`cloudflare/test.mjs`); you deploy it with `cloudflare/wizard.sh` (docs/mcp.md). It works only while the Mac is awake and the app open: no notes in the cloud.
 
 ### UC-10.06 Calendar sync: OUT OF SCOPE candidate (cloud)
 - **Source:** https://outliner.tana.inc/learn/features/calendar-integration

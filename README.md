@@ -153,10 +153,12 @@ tanacraft-cli serve --port 8787                         # web UI + JSON API (POS
 ```
 
 MCP works on the running app: the desktop app and `serve` write `graph.tanacraft.live` beside the
-graph (port and a token, readable by you only), and `tanacraft-mcp` finds it, so an assistant's
-edits show in the open window at once, in a window of its own (your page and caret stay put).
-With no app running it edits the file. Scripts calling `POST /rpc` send
-`Authorization: Bearer <token>` from that file.
+graph (its port), and `tanacraft-mcp` finds it and sends the install's local token
+(`~/TanaCraft/token`), so an assistant's edits show in the open window at once, in a window of its
+own. With no app running it edits the file. The app also serves MCP over streamable HTTP at
+`POST /mcp`, and `cloudflare/` holds a remote connector for claude.ai and ChatGPT (a Worker with
+GitHub sign-in and a Cloudflare Tunnel to the Mac; you set it up with `cloudflare/wizard.sh`).
+Everything is in [docs/mcp.md](docs/mcp.md).
 
 ## Architecture
 

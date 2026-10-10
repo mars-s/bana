@@ -131,7 +131,7 @@ function Sidebar() {
     )
   }
   return (
-    <aside className={`sidebar${mode === 1 ? ' mini' : ''}`} data-panel-for={active}>
+    <aside className="sidebar" data-panel-for={active}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
       {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
       {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}

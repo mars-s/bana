@@ -39,8 +39,8 @@ struct AccessoryItem {
 /// merge with the line above. It takes the keyboard when the engine says the caret is in it.
 struct LineEditor: UIViewRepresentable {
     let text: String
-    /// Shown while not editing (inline references as names); nil: same as `text`.
-    let display: String?
+    /// While not editing, the text is drawn formatted (marks applied, references as these names).
+    let refs: [String: String]
     let focused: Bool
     let caret: Int
     var size: CGFloat = Phone.body
@@ -72,18 +72,23 @@ struct LineEditor: UIViewRepresentable {
         c.parent = self
         v.backspaceAtStart = actions.backspaceAtStart
         let w = weight ?? Fonts.textWeight(v.traitCollection)
-        var attrs: [NSAttributedString.Key: Any] = [.font: Fonts.ui(size, w), .foregroundColor: color]
-        if strike && !v.isFirstResponder {
-            attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: Fonts.ui(size, w), .foregroundColor: color]
         v.typingAttributes = attrs
-        let want = v.isFirstResponder ? text : (display ?? text)
+        v.plain = NSAttributedString(string: text, attributes: attrs)
         // Never type over the line being composed (marked text) or edited: the engine already has it.
-        if v.markedTextRange == nil, v.text != want || v.lastAttrs != attrs.description {
-            let sel = v.selectedRange
-            v.attributedText = NSAttributedString(string: want, attributes: attrs)
+        if v.markedTextRange == nil {
+            if v.isFirstResponder {
+                if v.text != text || v.lastAttrs != attrs.description {
+                    let sel = v.selectedRange
+                    v.attributedText = v.plain
+                    v.selectedRange = NSRange(location: min(sel.location, text.utf16.count), length: 0)
+                }
+            } else {
+                let shown = NSMutableAttributedString(attributedString: Format.styled(text, refs: refs, size: size, weight: w, color: color))
+                if strike { shown.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: NSRange(location: 0, length: shown.length)) }
+                if !(v.attributedText?.isEqual(to: shown) ?? false) { v.attributedText = shown }
+            }
             v.lastAttrs = attrs.description
-            if v.isFirstResponder { v.selectedRange = NSRange(location: min(sel.location, want.utf16.count), length: 0) }
         }
         v.setAccessory(actions.accessory)
         if focused && !v.isFirstResponder {
@@ -111,10 +116,12 @@ struct LineEditor: UIViewRepresentable {
 
         func textViewDidBeginEditing(_ v: UITextView) {
             guard let p = parent else { return }
-            // Switch from the shown text (names for references) to the stored one.
-            if v.text != p.text {
-                v.text = p.text
-                v.selectedRange = NSRange(location: v.text.utf16.count, length: 0)
+            // Switch from the formatted text to the stored one (marks and reference tokens).
+            if let lv = v as? LineTextView, let plain = lv.plain {
+                let same = v.text == p.text
+                let sel = v.selectedRange
+                v.attributedText = plain
+                v.selectedRange = same ? sel : NSRange(location: v.text.utf16.count, length: 0)
             }
             LineTextView.current = v as? LineTextView
             if !placing && !p.focused {
@@ -166,6 +173,8 @@ final class LineTextView: UITextView {
     static weak var current: LineTextView?
     var backspaceAtStart: () -> Void = {}
     var lastAttrs = ""
+    /// The stored text with plain attributes (what editing shows).
+    var plain: NSAttributedString?
     private var accessoryIds: [String] = []
     private var accessoryActions: [() -> Void] = []
 
@@ -187,24 +196,45 @@ final class LineTextView: UITextView {
             inputAccessoryView = nil
             return
         }
-        let bar = UIToolbar(frame: CGRect(x: 0, y: 0, width: 320, height: 44))
-        var buttons: [UIBarButtonItem] = []
+        // A row of plain 44 pt buttons that scrolls sideways when it does not fit.
+        let bar = UIInputView(frame: CGRect(x: 0, y: 0, width: 320, height: 48), inputViewStyle: .keyboard)
+        let scroll = UIScrollView()
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
         for (i, it) in items.enumerated() {
-            let b = UIBarButtonItem(image: UIImage(systemName: it.symbol), style: .plain, target: self, action: #selector(tapAccessory(_:)))
+            var cfg = UIButton.Configuration.plain()
+            cfg.image = UIImage(systemName: it.symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 17))
+            cfg.baseForegroundColor = .label
+            let b = UIButton(configuration: cfg)
             b.tag = i
             b.accessibilityIdentifier = "kb.\(it.id)"
             b.accessibilityLabel = it.label
-            buttons.append(b)
-            buttons.append(UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil))
+            b.addTarget(self, action: #selector(tapAccessory(_:)), for: .touchUpInside)
+            b.widthAnchor.constraint(equalToConstant: 44).isActive = true
+            stack.addArrangedSubview(b)
         }
-        buttons.removeLast()
-        bar.items = buttons
-        bar.sizeToFit()
+        bar.addSubview(scroll)
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: bar.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            stack.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
+        ])
         inputAccessoryView = bar
         if isFirstResponder { reloadInputViews() }
     }
 
-    @objc private func tapAccessory(_ b: UIBarButtonItem) {
+    @objc private func tapAccessory(_ b: UIButton) {
         if accessoryActions.indices.contains(b.tag) { accessoryActions[b.tag]() }
     }
 }

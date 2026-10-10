@@ -75,7 +75,7 @@ struct SearchSheet: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text(store.shown(r.title)).foregroundStyle(T.cText)
+                            Text(AttributedString(Format.styled(r.title, refs: store.page?.refs ?? [:], size: Phone.body, weight: 400, color: UIColor(T.cText))))
                             ChipRow(tags: r.tags)
                         }
                         if !r.path.isEmpty {
@@ -88,7 +88,7 @@ struct SearchSheet: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search nodes")
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", action: close) } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close", action: close).accessibilityIdentifier("sheet.close") } }
         }
     }
 }

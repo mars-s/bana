@@ -43,7 +43,7 @@ struct PageView: View {
                 }
                 if page.titleEditable {
                     LineEditor(
-                        text: page.name, display: nil, focused: false, caret: 0,
+                        text: page.name, refs: page.refs, focused: false, caret: 0,
                         size: T.fsTitle, weight: T.fwTitle, color: .label, identifier: "title",
                         actions: LineActions(
                             changed: { name, caret in store.run("node.setName", ["node": page.zoom, "name": name, "caret": caret]) },
@@ -172,7 +172,7 @@ struct RowView: View {
             }
             LineEditor(
                 text: name,
-                display: store.shown(name),
+                refs: page.refs,
                 focused: focused,
                 caret: page.caret,
                 weight: row.heading == true ? T.fwSemibold : nil,
@@ -333,9 +333,7 @@ struct ViewItems: View {
                         }
                         Button { store.run("nav.open", ["node": it.id]) } label: {
                             HStack {
-                                Text(store.shown(it.name))
-                                    .font(Fonts.font(Phone.body, Fonts.textWeight(scheme)))
-                                    .foregroundStyle(it.done == true ? T.cMuted : T.cText)
+                                Text(AttributedString(Format.styled(it.name, refs: page.refs, size: Phone.body, weight: Fonts.textWeight(scheme), color: UIColor(it.done == true ? T.cMuted : T.cText))))
                                     .strikethrough(it.done == true)
                                     .multilineTextAlignment(.leading)
                                 Spacer(minLength: 0)

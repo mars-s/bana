@@ -2,7 +2,7 @@ import XCTest
 
 /// Core flows on the simulator. Each test starts from a fresh graph file (`-reset YES`) with the
 /// date fixed to 2026-10-10; `sample` starts it from the built-in sample graph.
-final class TanaCraftUITests: XCTestCase {
+class UITestCase: XCTestCase {
     var app: XCUIApplication!
 
     override func setUp() {
@@ -57,6 +57,9 @@ final class TanaCraftUITests: XCTestCase {
         app.typeText(text)
     }
 
+}
+
+final class TanaCraftUITests: UITestCase {
     // MARK: editing
 
     func testTypeReturnIndentCollapse() {
@@ -142,6 +145,20 @@ final class TanaCraftUITests: XCTestCase {
         XCTAssertTrue(hit.waitForExistence(timeout: 3))
         hit.tap()
         waitTitle("Order cedar boards")
+    }
+
+    /// Inline marks are hidden while a line is not being edited, and come back to edit.
+    func testFormattedLineShowsWithoutMarks() {
+        launch(sample: true)
+        app.buttons["nav.search"].tap()
+        app.searchFields.firstMatch.tap()
+        app.searchFields.firstMatch.typeText("Reading notes")
+        app.buttons.matching(identifier: "search.result").firstMatch.tap()
+        waitTitle("Reading notes")
+        let shown = line("Mulch keeps moisture in and weeds out, most of the time")
+        XCTAssertTrue(shown.waitForExistence(timeout: 3))
+        shown.tap()
+        XCTAssertTrue(line("Mulch keeps **moisture** in and ==weeds== out, *most* of the time").waitForExistence(timeout: 3))
     }
 
     func testQuickCapture() {

@@ -38,7 +38,8 @@ the CLI and MCP is hostile: validate ids, clamp indexes, bound recursion.
 | `apps/tanacraft-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
 | `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `tanacraft-cli serve` |
 | `apps/tanacraft-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |
-| `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots` |
+| `xtask` | `cargo xtask ci`, `cargo xtask web` (build + Playwright), `cargo xtask shots`, `cargo xtask connector` |
+| `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT: Worker, tests, setup wizard (docs/mcp.md) |
 | `legacy/egui` | The old egui front end: **reference only, not built**. Its tests are the porting checklist (`legacy/egui/README.md`); last working version is tag `egui-final` |
 
 **Everything is a command**: new behaviour = a `CommandSpec` in `crates/commands/src/cmds.rs` + a

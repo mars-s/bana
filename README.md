@@ -171,7 +171,8 @@ Everything is in [docs/mcp.md](docs/mcp.md).
 | `apps/tanacraft-desktop` | The desktop app: Tauri 2 around the `Host` |
 | `web/` | The UI (React + TypeScript); runs in the desktop app or a browser |
 | `apps/tanacraft-cli` | Command line, including `serve` |
-| `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity` |
+| `xtask` | `cargo xtask ci`, `cargo xtask web`, `cargo xtask shots`, `cargo xtask parity`, `cargo xtask connector` |
+| `cloudflare/` | The remote MCP connector for claude.ai and ChatGPT (docs/mcp.md) |
 | `legacy/egui` | The old egui front end, reference only and not built (tag `egui-final`) |
 
 The UI holds no data: it runs commands and draws snapshots of the engine.

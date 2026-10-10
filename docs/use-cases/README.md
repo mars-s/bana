@@ -66,8 +66,7 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
    the live file beside the graph and works on it live.
 7. ~~**Tag a whole selection** (UC-02.15).~~ Done: # Tag and Add tag tag every selected line.
 8. ~~**Automation** (UC-02.20, UC-06.33).~~ Done: commands on events, command nodes by name in the
-   command line; buttons on tags and fields remain. Commands on events (tag added, checked, child added) and
-   command nodes as buttons and in the web command line.
+   command line; buttons on tags and fields remain.
 9. **Publish a page** (UC-07.08). A read-only web page or article; a local static export would
    cover most of it.
 10. ~~**Rolling dates in searches** (UC-06.43).~~ Done: this week, NEXT 14 DAYS, LAST 7 DAYS and more.

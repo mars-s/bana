@@ -473,6 +473,9 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             .map(|t| {
                 let mut v = item(t, g.name(t).to_string());
                 v["color"] = json!(g.tag_def(t).map(|d| d.color.clone()).unwrap_or_default());
+                // The "#" menu shows each tag's description and workspace (DIFFS N62).
+                v["description"] = json!(g.get(t).map(|n| n.description.clone()).unwrap_or_default());
+                v["workspace"] = json!(g.name(g.workspace_of(t)));
                 v
             })
             .collect(),
@@ -513,12 +516,14 @@ pub fn choices(s: &Session, params: &Value) -> Value {
                 _ => Vec::new(),
             }
         }
-        "slash" => ["Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "Command line"]
+        // spec-gap: Image / file and Start live transcription are left out (no file store, no voice).
+        "slash" => ["Paste", "Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "More commands"]
             .into_iter()
             .filter(|l| l.to_lowercase().contains(&q))
             .map(|l| json!({"id": 0, "label": l}))
             .collect(),
-        "inlineRef" | "moveTo" if q.is_empty() => {
+        // "@" opens on the recently opened nodes (DIFFS N62).
+        "inlineRef" | "moveTo" | "reference" if q.is_empty() => {
             s.recents.iter().copied().filter(|r| *r != node && g.get(*r).is_some()).take(8).map(|n| item(n, line(n))).collect()
         }
         "inlineRef" => g.fuzzy(&q, 10).into_iter().filter(|n| *n != node).map(|n| item(n, line(n))).collect(),
@@ -531,11 +536,19 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             v.extend(g.fuzzy(&q, 10).into_iter().filter(|n| !g.is_ancestor_or_self(node, *n)).map(|n| item(n, line(n))));
             v
         }
-        "reference" if q.is_empty() => Vec::new(),
         "reference" => g.search(&q).into_iter().filter(|n| *n != node).take(10).map(|n| item(n, line(n))).collect(),
         _ => Vec::new(),
     };
     out.truncate(10);
+    // Node rows show where the node lives (the "@" menu's breadcrumb line, DIFFS N62).
+    if matches!(mode, "reference" | "inlineRef" | "moveTo") {
+        for v in out.iter_mut() {
+            if let Some(n) = v["id"].as_u64().map(NodeId) {
+                let path: Vec<String> = g.ancestors(n).into_iter().filter(|a| *a != g.sys.root && *a != n).map(|a| page_title(s, a)).collect();
+                v["path"] = json!(path.join(" / "));
+            }
+        }
+    }
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
     if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));

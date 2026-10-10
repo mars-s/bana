@@ -29,6 +29,8 @@ export interface PickerState {
   query: string
   field?: number
   index?: number
+  /** A field picked from "/" Field ▸ <type> is given that type when it is new. */
+  fieldType?: string
   x: number
   y: number
   items: PickItem[]
@@ -43,6 +45,12 @@ export interface PickItem {
   label?: string
   color?: string
   create?: string
+  /** A supertag's description and workspace ("#" menu), a node's path ("@" menu). */
+  description?: string
+  workspace?: string
+  path?: string
+  /** "/" Field ▸ <type>: the new field gets this type. */
+  fieldType?: string
 }
 
 /** A field value being typed: owner node, field, which value (the count adds one). */

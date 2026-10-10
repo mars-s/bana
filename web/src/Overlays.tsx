@@ -342,13 +342,47 @@ const PICK_TITLES: Record<string, string> = {
   sourceTag: 'Options from supertag',
 }
 
+/** "/" items: icon and shortcut (spec 02 §11; DIFFS N62). */
+const SLASH: Record<string, { icon: IconName | string; key?: string }> = {
+  Paste: { icon: 'copy', key: '⌘V' },
+  'Search node': { icon: 'search' },
+  Field: { icon: 'field' },
+  Reference: { icon: '@', key: '@' },
+  Heading: { icon: 'H', key: '!' },
+  Checkbox: { icon: 'checkCircle', key: '⌘⏎' },
+  Checklist: { icon: 'fieldCheck' },
+  'More commands': { icon: 'more', key: '⌘K' },
+}
+const FIELD_TYPES: [string, string][] = [['plain', 'Plain'], ['options', 'Options'], ['options_from_tag', 'Options from supertag'], ['date', 'Date'], ['number', 'Number'], ['user', 'User'], ['url', 'Url'], ['email', 'E-Mail'], ['checkbox', 'Checkbox']]
+
+function SlashIcon({ icon }: { icon: string }) {
+  return icon.length <= 1 ? <span className="menu-glyph">{icon}</span> : <Icon name={icon as IconName} size={12} />
+}
+
 function Picker() {
   const p = useStore((s) => s.picker)
+  const ref = useRef<HTMLDivElement>(null)
+  const [above, setAbove] = useState(false)
+  const [fieldSub, setFieldSub] = useState(false)
+  // Near the bottom of the window the menu opens above the line (spec 02 §11).
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect()
+    if (!r || !p) return setAbove(false)
+    if (!above && r.bottom > window.innerHeight - 8 && p.y - r.height > 8) setAbove(true)
+  })
+  useEffect(() => {
+    setAbove(false)
+    setFieldSub(false)
+  }, [p?.mode, p?.node])
   if (!p) return null
-  const left = Math.min(p.x, window.innerWidth - 260)
+  const width = p.mode === 'tag' ? 500 : p.mode === 'slash' ? 210 : 260
+  const left = Math.min(p.x, window.innerWidth - width - 8)
+  const nodes = p.mode === 'reference' || p.mode === 'inlineRef'
+  const head = p.mode === 'tag' ? 'Add supertag' : nodes && !p.query ? 'Recently opened' : null
+  const top = above ? p.y - (ref.current?.getBoundingClientRect().height ?? 0) - 26 : p.y + 4
   return (
-    <div className="menu picker" style={{ left, top: p.y + 4 }} role="listbox" aria-label={PICK_TITLES[p.mode]}>
-      <div className="menu-label">{PICK_TITLES[p.mode]}</div>
+    <div ref={ref} className={`menu picker mode-${p.mode}`} style={{ left, top }} role="listbox" aria-label={PICK_TITLES[p.mode]}>
+      {head ? <div className="menu-caps">{head}</div> : p.mode !== 'slash' && <div className="menu-label">{PICK_TITLES[p.mode]}</div>}
       {p.at < 0 && p.mode !== 'choice' && (
         // Opened from a menu or button: the query is typed here.
         <input
@@ -370,20 +404,26 @@ function Picker() {
             ? `Create and apply #${it.create}`
             : `Create "${it.create}"`
           : (it.label ?? '')
+        const slash = p.mode === 'slash' ? SLASH[label] : undefined
         return (
           <div
             key={i}
             role="option"
             aria-selected={i === p.sel}
-            className={`menu-item${i === p.sel ? ' sel' : ''}`}
-            onMouseEnter={() => setState({ picker: { ...p, sel: i } })}
+            className={`menu-item${i === p.sel ? ' sel' : ''}${it.description || it.path ? ' two-line' : ''}`}
+            onMouseEnter={() => {
+              setState({ picker: { ...p, sel: i } })
+              setFieldSub(label === 'Field' && p.mode === 'slash')
+            }}
             onMouseDown={(e) => {
               e.preventDefault()
               void applyPick(it, 'enter')
             }}
           >
             <span className="menu-icon">
-              {p.mode === 'tag' && !it.create ? (
+              {slash ? (
+                <SlashIcon icon={slash.icon} />
+              ) : p.mode === 'tag' && !it.create ? (
                 <span className="side-hash" style={tagStyle(it.color ?? 'grey')}>
                   #
                 </span>
@@ -393,7 +433,31 @@ function Picker() {
                 <Icon name="field" size={12} />
               ) : null}
             </span>
-            <span className="grow">{label}</span>
+            <span className="grow">
+              {it.path && <span className="pick-path">{it.path}</span>}
+              {label}
+              {it.description && <span className="pick-desc">{it.description}</span>}
+            </span>
+            {it.workspace && <span className="pick-ws">{it.workspace}</span>}
+            {slash?.key && <kbd>{slash.key}</kbd>}
+            {slash && label === 'Field' && <Icon name="chevronRight" size={10} />}
+            {slash && label === 'Field' && fieldSub && (
+              <div className="menu submenu picker-sub">
+                {FIELD_TYPES.map(([type, name]) => (
+                  <div
+                    key={type}
+                    className="menu-item"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      void applyPick({ ...it, fieldType: type }, 'enter')
+                    }}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}

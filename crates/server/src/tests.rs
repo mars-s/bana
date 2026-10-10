@@ -123,3 +123,26 @@ fn each_window_has_its_own_page_and_caret() {
     assert_eq!(h.handle("page", &json!({"window": "B", "panel": "p2"}))["zoom"], json!(one));
     assert_eq!(h.handle("page", &json!({"window": "A", "panel": "p2"}))["zoom"], json!(two));
 }
+
+#[test]
+fn pickers_show_descriptions_recents_and_the_slash_set() {
+    let mut h = host();
+    let tags = h.handle("choices", &json!({"mode": "tag", "query": "task"}));
+    let t = &tags["items"][0];
+    assert_eq!(t["label"], json!("task"));
+    assert!(t["workspace"].is_string() && t["description"].is_string());
+    // "@" before anything is typed: recently opened nodes, with their paths.
+    let lib = h.session.graph.sys.library;
+    h.handle("run", &json!({"command": "nav.open", "params": {"node": lib.0}}));
+    h.handle("run", &json!({"command": "nav.today", "params": {}}));
+    let refs = h.handle("choices", &json!({"mode": "reference", "query": ""}));
+    assert!(!refs["items"].as_array().unwrap().is_empty());
+    assert!(refs["items"][0]["path"].is_string());
+    let slash: Vec<String> = h.handle("choices", &json!({"mode": "slash", "query": ""}))["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["label"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(slash, ["Paste", "Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "More commands"]);
+}

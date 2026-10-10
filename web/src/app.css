@@ -3754,3 +3754,64 @@ kbd {
 .page.schema-col .configure {
   margin-top: 0;
 }
+
+/* The "#", "@" and "/" menus (DIFFS N62; spec 02 §11). */
+.menu.picker.mode-tag {
+  width: var(--pick-tag-w);
+  max-height: var(--pick-tag-max-h);
+  overflow-y: auto;
+  border-radius: var(--r-md);
+}
+
+.menu.picker.mode-slash {
+  width: var(--menu-w);
+  overflow: visible;
+}
+
+.menu.picker .menu-item.sel {
+  background: var(--c-active-item);
+  color: var(--c-on-accent);
+}
+
+.menu.picker .menu-item.sel .menu-icon,
+.menu.picker .menu-item.sel .pick-desc,
+.menu.picker .menu-item.sel .pick-path,
+.menu.picker .menu-item.sel .pick-ws,
+.menu.picker .menu-item.sel kbd {
+  color: inherit;
+}
+
+.menu-item.two-line .grow {
+  display: flex;
+  flex-direction: column;
+}
+
+.pick-desc,
+.pick-path {
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  color: var(--c-muted);
+}
+
+.pick-path {
+  order: -1;
+  font-size: var(--fs-meta);
+}
+
+.pick-ws {
+  margin-left: var(--q2);
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.menu-glyph {
+  width: 12px;
+  text-align: center;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+}
+
+.picker-sub {
+  left: calc(100% + var(--q1-5) - var(--submenu-overlap));
+  top: 0;
+}

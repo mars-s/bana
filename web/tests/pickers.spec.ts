@@ -261,3 +261,34 @@ test('a field name typed after > and then a reload shows as the field (N26)', as
   expect(hits.filter((h: any) => String(h.name).includes('>'))).toEqual([])
   void page
 })
+
+test('the #, @ and / menus: Add supertag with workspaces, recently opened, slash with icons, keys and field types (N62)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['one', ''], 'Menus')
+  await focus(server, app, ids[1], 0)
+  await app.keyboard.type('#')
+  const menu = app.locator('.menu.picker')
+  await expect(menu.locator('.menu-caps')).toHaveText(/add supertag/i)
+  expect(Math.round((await menu.boundingBox())!.width)).toBe(500)
+  await expect(menu.locator('.menu-item', { hasText: 'task' }).locator('.pick-ws')).toHaveText('Workspace')
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Backspace')
+  // "@": recently opened nodes at once, each with its path.
+  await app.keyboard.type('@')
+  await expect(menu.locator('.menu-caps')).toHaveText(/recently opened/i)
+  await expect(menu.locator('.menu-item').first()).toBeVisible()
+  await app.keyboard.press('Escape')
+  await app.keyboard.press('Backspace')
+  // "/": 210 wide with icons and shortcuts; Field ▸ Number makes a number field.
+  await app.keyboard.type('/')
+  expect(Math.round((await menu.boundingBox())!.width)).toBe(210)
+  await expect(menu.locator('.menu-item .grow')).toHaveText(['Paste', 'Search node', 'Field', 'Reference', 'Heading', 'Checkbox', 'Checklist', 'More commands'])
+  await expect(menu.locator('.menu-item', { hasText: 'More commands' }).locator('kbd')).toHaveText('⌘K')
+  await menu.locator('.menu-item', { hasText: 'Field' }).hover()
+  await menu.locator('.picker-sub .menu-item', { hasText: /^Number$/ }).click()
+  await expect(app.locator('.menu.picker.mode-field')).toBeVisible()
+  await app.keyboard.type('Score')
+  await app.keyboard.press('Tab')
+  await expect(app.locator('.row.field .field-name', { hasText: 'Score' })).toBeVisible()
+  await expect.poll(async () => (await server.rpc('schema', { node: (await server.rpc('find', { query: 'Score', limit: 5 })).find((h: any) => h.name === 'Score').id })).type).toBe('number')
+  void page
+})

@@ -7,7 +7,7 @@
 import { call } from './engine'
 import { type KeyInfo, isTextKey, shortcut } from './keys'
 import { type PickItem, type PickerState, getState, scheduleRefresh, setState } from './store'
-import { exec, holdKeysForEditor, setGhost, withBarrier, runUiCommand } from './controller'
+import { exec, holdKeysForEditor, pasteInto, setGhost, withBarrier, runUiCommand } from './controller'
 import { charLen } from './format'
 
 let fetchSeq = 0
@@ -213,6 +213,8 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         if (prev && prev.k === 'node') params.after = prev.id
         const r = await exec('field.add', params, panel)
         const fid: number | null = r?.result?.field ?? null
+        // "/" Field ▸ <type>: a field made just now gets that type.
+        if (fid != null && item.create && p.fieldType) await exec('field.setType', { field: fid, type: p.fieldType }, panel)
         if (how === 'enter') {
           // The empty line stays, just below the new field row (spec 02 §3).
           await call('run', { command: 'node.setName', params: { node: p.node, name: '', caret: 0 }, panel })
@@ -236,11 +238,15 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         await cutQuery(p)
         const label = item.label
         const pos = { panel, node: p.node, at: 0, x: p.x, y: p.y }
-        if (label === 'Field') {
+        if (label === 'Paste') {
+          // The clipboard goes into the line as if pasted there.
+          const text = await navigator.clipboard?.readText().catch(() => '')
+          if (text && !pasteInto(panel, p.node, '', text)) await call('run', { command: 'node.setName', params: { node: p.node, name: text.replace(/\n/g, ' '), caret: text.length }, panel })
+        } else if (label === 'Field') {
           await call('run', { command: 'node.setName', params: { node: p.node, name: '>', caret: 1 }, panel })
           const page = getState().pages[panel]
           const row = page?.rows.items.find((r) => r.k === 'node' && r.id === p.node) as { parent: number | null } | undefined
-          if (row?.parent != null) openPicker({ ...pos, mode: 'field', owner: row.parent })
+          if (row?.parent != null) openPicker({ ...pos, mode: 'field', owner: row.parent, fieldType: item.fieldType })
         } else if (label === 'Reference') {
           await call('run', { command: 'node.setName', params: { node: p.node, name: '@', caret: 1 }, panel })
           openPicker({ ...pos, mode: 'reference' })
@@ -252,7 +258,7 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
           // The engine leaves the caret at the start of "New checklist" (N58).
           await exec('node.insertChecklist', { node: p.node }, panel)
           break
-        } else runUiCommand('ui.commandLine')
+        } else if (label === 'More commands') runUiCommand('ui.commandLine')
         await exec('focus.set', { node: p.node, caret: 1e9 }, panel)
         break
       }

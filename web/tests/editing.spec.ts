@@ -205,3 +205,30 @@ test('keys typed while Up goes into the title land there in order, and Down leav
   await expect.poll(() => nameOf(server, page)).toBe('Titles')
   await expect.poll(() => nameOf(server, ids[0])).toBe('xone')
 })
+
+test('typing with nothing focused puts the caret back in the line edited last and types nothing (N61)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['first', 'second', 'third'])
+  await focus(server, app, ids[1], 6)
+  await app.keyboard.type('X')
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.row.selected')).toHaveCount(1)
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.row.selected')).toHaveCount(0)
+  // A click on an empty part of the panel.
+  const panel = (await app.locator('.panel').first().boundingBox())!
+  await app.mouse.click(panel.x + panel.width / 2, panel.y + panel.height - 40)
+  await app.keyboard.type('QZ')
+  await expect(app.locator(`.editor-input[data-node="${ids[1]}"]`)).toBeFocused()
+  await app.waitForTimeout(200)
+  expect([await nameOf(server, ids[0]), await nameOf(server, ids[1]), await nameOf(server, ids[2])]).toEqual(['first', 'secondX', 'third'])
+  // Typing goes on from there.
+  await app.keyboard.type('Y')
+  await expect.poll(() => nameOf(server, ids[1])).toBe('secondXY')
+  // After a reload too.
+  await app.keyboard.press('Escape')
+  await app.reload()
+  await expect(app.locator('.panel .title-input')).toBeVisible()
+  await app.keyboard.type('Q')
+  await expect(app.locator(`.editor-input[data-node="${ids[1]}"]`)).toBeFocused()
+  expect(await nameOf(server, ids[0])).toBe('first')
+})

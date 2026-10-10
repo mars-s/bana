@@ -44,6 +44,7 @@ const titles = new Map<string, TitleHandle>()
 
 export function registerEditor(h: EditorHandle) {
   editor = h
+  swallowing = false
   // A caret somewhere else means the field row is no longer selected.
   if (getState().fieldSel) setState({ fieldSel: null })
   if (waitingEditor) {
@@ -107,8 +108,12 @@ const buffer: KeyInfo[] = []
 /** The caret last told to the engine, per node. */
 let synced: { node: number; caret: number } | null = null
 
+/** The line this window typed in last (N61). */
+let lastEdited: number | null = null
+
 export function noteSynced(node: number, caret: number) {
   synced = { node, caret }
+  lastEdited = node
 }
 
 /** Runs a command that may move the caret; keys typed meanwhile wait and are replayed after. */
@@ -191,8 +196,12 @@ function drain() {
   }
 }
 
+/** The caret is being put back after typing with nothing focused (N61): text keys are dropped. */
+let swallowing = false
+
 /** Keeps a key for later (a command is still moving the caret). */
 export function bufferKey(k: KeyInfo) {
+  if (swallowing && isTextKey(k)) return
   buffer.push(k)
   keepBufferedKeys()
 }
@@ -274,6 +283,11 @@ const ghosts = new Map<string, { node: number; atStart: boolean }>()
 
 export function setGhost(panel: string, node: number, atStart: boolean) {
   ghosts.set(panel, { node, atStart })
+}
+
+/** A click outside the outline: typing no longer goes on in the last line (N61). */
+export function clearGhosts() {
+  ghosts.clear()
 }
 
 /** Whether keys with nowhere else to go may land in the panel's outline: its rows are drawn and
@@ -437,11 +451,22 @@ export function handleKey(k: KeyInfo): boolean {
   if (isTextKey(k) && k.key !== ' ' && outlineHasKeyboard(s.activePanel)) {
     const rows = nodeRows(p)
     const g = ghosts.get(s.activePanel)
-    const target = (g && rows.find((r) => r.id === g.node)) || rows[0]
-    if (!target) return false
-    const atStart = g?.node === target.id && g.atStart
-    requeue(k)
-    void exec('focus.set', { node: target.id, caret: atStart ? 0 : charLen(target.name) })
+    const target = g && rows.find((r) => r.id === g.node)
+    if (target) {
+      requeue(k)
+      void exec('focus.set', { node: target.id, caret: g.atStart ? 0 : charLen(target.name) })
+      return true
+    }
+    // After a click elsewhere or a reload: the caret goes back to the line edited last, and the
+    // key itself is not typed, so it never lands in a line the person did not pick (N61).
+    // (After a reload, the line the engine saw edited last; edit times are whole seconds.)
+    const last = rows.find((r) => r.id === lastEdited) ?? rows.filter((r) => !r.ref).reduce<NodeRow | undefined>((a, r) => (!a || r.edited >= a.edited ? r : a), undefined)
+    if (last) {
+      // Text keys pressed until that line's editor is drawn are dropped as well.
+      swallowing = true
+      window.setTimeout(() => (swallowing = false), 1000)
+      void exec('focus.set', { node: last.id, caret: charLen(last.name) })
+    }
     return true
   }
   const cmd = registryCommand(sc)

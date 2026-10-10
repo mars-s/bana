@@ -60,7 +60,8 @@ The UI is `web/` (Vite + React + TypeScript, plain CSS). It runs inside the Taur
 - Playwright `testIgnore`/`testMatch` regexes match the whole path: anchor them (`[/\\](shots|measure)\.spec\.ts$`), or `zz.spec.ts` also hides `fuzz.spec.ts`.
 - The `app` fixture fails a test on any error thrown in the page.
 - Measure layout with `pnpm exec playwright test --project=measure` (prints element boxes in 1x points) and compare with `../tanacraft-spec/12-screens-visual.md`; sample spec colours with a darkest/lightest-pixel script.
-- Inter Variable from `@fontsource-variable/inter/opsz.css` (optical size axis): body widths match the spec at the automatic size; titles use `--opsz-title` (20) to match the spec's title widths.
+- Inter Variable from `@fontsource-variable/inter/opsz.css` (optical size axis): body and title widths match the spec at the automatic size (`font-optical-sizing: auto`); never pin `opsz` (a pinned 20 made headings 4 % wide, N59.7).
+- Typing with nothing focused (after a click elsewhere or a reload) puts the caret back in the line edited last and types nothing (N61); only an Escape-cleared selection (N27, N34) lets typing go on in that line.
 - Keys only reach an editor the person can see: a caret or selection in rows the panel does not show (a table, board or calendar view, a configure panel) takes no keys (`outlineVisible`), and typing with the keyboard on a button goes nowhere (N35). The fuzz test "typed keys land only in a visibly focused editor" checks it.
 - Commands that move the caret inside the same line (format marks, joins) hand their text and caret to the editor at once (`adopt`); do not make every refresh re-place the caret, it races with typing (seen as picker flakes under load).
 - Run the pickers and editing specs with `--repeat-each=4 --workers=4` after touching the key path: some races only show under load.

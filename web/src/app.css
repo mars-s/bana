@@ -654,8 +654,9 @@ button:focus-visible {
 
 .title {
   margin: 0;
-  /* Optical size tuned so title widths match the spec's (12: title 242.7 wide). */
-  font-variation-settings: 'opsz' var(--opsz-title);
+  /* Inter picks its optical size from the font size, so a 29 px title uses the tighter display
+     cut (DIFFS N59.7: Tana's "Today, Sat, 10 Oct" is 232.6 wide). */
+  font-optical-sizing: auto;
   font-size: var(--fs-title);
   line-height: var(--lh-title);
   font-weight: var(--fw-title);

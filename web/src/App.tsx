@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { DragHint, Panel, tagStyle } from './Outline'
 import { closeTab, getState, moveTab, newTab, setState, switchTab, useStore } from './store'
-import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
+import { bufferKey, clearGhosts, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
@@ -403,8 +403,9 @@ export function App() {
       if (handleKey(k)) e.preventDefault()
     }
     // A click anywhere lets go of a selected field row.
-    const onDown = () => {
+    const onDown = (e: MouseEvent) => {
       if (getState().fieldSel) setState({ fieldSel: null })
+      if (!(e.target as HTMLElement | null)?.closest?.('.row')) clearGhosts()
     }
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('mousedown', onDown, true)

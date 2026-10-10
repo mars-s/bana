@@ -146,3 +146,15 @@ test('dialogs and submenus sit where spec 12 puts them', async ({ app }) => {
   await app.waitForTimeout(300)
   expect(Math.round((await app.locator('.dialog.quick').boundingBox())!.y)).toBe(368)
 })
+
+test('the day title uses Inter at its automatic optical size (N59.7)', async ({ app }) => {
+  // Tana's "Today, Sat, 10 Oct" at 29 px 550 is 232.6 wide.
+  const w = (await app.locator('.panel .title').first().boundingBox())!.width
+  const text = await app.locator('.panel .title').first().evaluate((e) => {
+    const r = document.createRange()
+    r.selectNodeContents(e)
+    return r.getBoundingClientRect().width
+  })
+  expect(w).toBeGreaterThan(0)
+  expect(Math.abs(text - 232.6)).toBeLessThan(4)
+})

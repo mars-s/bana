@@ -198,6 +198,10 @@ graph (its port), and `bana-mcp` finds it and sends the install's local token
 own. With no app running it edits the file. The app also serves MCP over streamable HTTP at
 `POST /mcp`, and `cloudflare/` holds a remote connector for claude.ai and ChatGPT (a Worker with
 GitHub sign-in and a Cloudflare Tunnel to the Mac; you set it up with `cloudflare/wizard.sh`).
+Assistants get tiers: they read and write notes, but permanent deletes, locks, files on disk,
+settings, workspaces and command nodes are refused unless you allow them by hand in
+`~/Bana/agents.json`; what an assistant changes carries its name, and the Agent notebook template
+adds supertags and searches for agent workflows (an inbox, proposals, agent activity by day).
 Everything is in [docs/mcp.md](docs/mcp.md).
 
 ## Architecture

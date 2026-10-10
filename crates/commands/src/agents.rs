@@ -12,10 +12,12 @@
 //! ```
 //!
 //! Names are what clients say they are. A **scoped agent token** (`agent-tokens.json` beside
-//! it, made by `bana agent-token create`, never by a command) fixes the name and the allow list
-//! for whoever holds it: `agents.json` does not apply to it, and a self-named client that takes
-//! a token's name is recorded as "NAME (unverified)". Only scoped tokens that list `mirror.*`
-//! may run the mirror commands.
+//! it, made by `bana agent-token create`, never by a command) fixes the name for whoever holds it
+//! and is a strict whitelist: it runs only its `allow` patterns, plus the commands that change
+//! nothing when it has `read` (never undo or redo); everything else is refused (rule
+//! `not in token allow list`), and the Never list applies on top whatever it lists. `agents.json`
+//! does not apply to it, and a self-named client that takes a token's name is recorded as
+//! "NAME (unverified)". Only scoped tokens that list `mirror.*` may run the mirror commands.
 //!
 //! Undo and redo from an assistant take back only its own last step: when the step on top was
 //! made by someone else (the person, another assistant) they are refused.
@@ -49,8 +51,11 @@ pub const NEVER: &[&str] = &[
 pub struct Agent {
     pub name: String,
     pub allow: Vec<String>,
-    /// Came with a scoped agent token: the name is checked, not self-reported.
+    /// Came with a scoped agent token: the name is checked, not self-reported, and only `allow`
+    /// (plus reads, with `read`) may run.
     pub scoped: bool,
+    /// A scoped token's `--read`: the commands that change nothing may run too.
+    pub read: bool,
 }
 
 impl Agent {
@@ -64,7 +69,7 @@ impl Agent {
         allow.extend(list(&cfg["clients"][name.as_str()]));
         let taken = read_tokens(&file.with_file_name(TOKENS)).iter().any(|t| t["name"].as_str() == Some(name.as_str()));
         let name = if taken { format!("{name} (unverified)") } else { name };
-        Agent { name, allow, scoped: false }
+        Agent { name, allow, scoped: false, read: false }
     }
 
     /// The scoped agent whose token is `token`, from the tokens file `file`.
@@ -93,7 +98,7 @@ pub const TOKENS: &str = "agent-tokens.json";
 
 fn from_entry(entry: &Value) -> Agent {
     let allow = entry["allow"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
-    Agent { name: clean_name(entry["name"].as_str().unwrap_or_default()), allow, scoped: true }
+    Agent { name: clean_name(entry["name"].as_str().unwrap_or_default()), allow, scoped: true, read: entry["read"].as_bool() == Some(true) }
 }
 
 fn read_tokens(file: &Path) -> Vec<Value> {
@@ -101,23 +106,37 @@ fn read_tokens(file: &Path) -> Vec<Value> {
     v["tokens"].as_array().cloned().unwrap_or_default()
 }
 
-/// Makes (or replaces) the scoped agent token `name` with `allow` in the tokens file `file`
-/// (readable by this user only) and returns the new token. For the person (the CLI) only.
-pub fn create_token(file: &Path, name: &str, allow: &[String]) -> std::io::Result<String> {
+/// Makes (or replaces) the scoped agent token `name` with `allow` (and the reads, with `read`) in
+/// the tokens file `file` (readable by this user only) and returns the new token. For the person
+/// (the CLI) only. A pattern that matches no command, or only commands on the Never list, is
+/// refused.
+pub fn create_token(file: &Path, name: &str, allow: &[String], read: bool) -> Result<String, String> {
+    let reg = crate::cmds::registry();
+    for a in allow {
+        let probe = Agent { allow: vec![a.clone()], ..Agent::default() };
+        let hits: Vec<&CommandSpec> = reg.specs.iter().filter(|c| probe.allows(c.id)).collect();
+        if hits.is_empty() {
+            return Err(format!("`{a}` matches no command (see `bana commands`)"));
+        }
+        if let Some(r) = hits.iter().all(|c| rule(c).is_some()).then(|| hits.iter().find_map(|c| rule(c))).flatten() {
+            return Err(format!("`{a}` is on the Never list (rule `{r}`): no assistant may run it, whatever its token says"));
+        }
+    }
     let name = clean_name(name);
     let token = format!("{}{}", bana_core::random_hex(), bana_core::random_hex());
     let mut all = read_tokens(file);
     all.retain(|e| e["name"].as_str() != Some(name.as_str()));
-    all.push(serde_json::json!({"name": name, "token": token, "allow": allow}));
+    all.push(serde_json::json!({"name": name, "token": token, "allow": allow, "read": read}));
+    let err = |e: std::io::Error| format!("{}: {e}", file.display());
     if let Some(dir) = file.parent() {
-        std::fs::create_dir_all(dir)?;
+        std::fs::create_dir_all(dir).map_err(err)?;
     }
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
     let body = serde_json::to_vec_pretty(&serde_json::json!({"tokens": all})).unwrap_or_default();
-    std::io::Write::write_all(&mut opts.open(file)?, &body)?;
+    std::io::Write::write_all(&mut opts.open(file).map_err(err)?, &body).map_err(err)?;
     Ok(token)
 }
 
@@ -146,6 +165,16 @@ fn allowed(agent: &Agent, spec: &CommandSpec) -> bool {
 /// Refuses `spec` with `params` for `agent`: a Never rule, or a change to a command node.
 pub(crate) fn check(s: &Session, agent: &Agent, spec: &CommandSpec, params: &Value) -> Result<(), CmdError> {
     let refuse = |rule: &str| CmdError::Refused { command: spec.id.to_string(), rule: rule.to_string() };
+    // A scoped token: the Never list whatever it lists, then only its own list (and reads).
+    if agent.scoped {
+        if let Some(r) = rule(spec) {
+            return Err(refuse(&r));
+        }
+        let read = agent.read && !spec.mutates && !matches!(spec.id, "edit.undo" | "edit.redo");
+        if !read && !allowed(agent, spec) {
+            return Err(refuse("not in token allow list"));
+        }
+    }
     if let Some(r) = rule(spec)
         && !allowed(agent, spec)
     {

@@ -45,6 +45,7 @@ The Never list:
 | files on disk | `file.*` (open, save to a path, attach, read), `import.folder`, `import.file` |
 | settings and workspaces | `settings.*`, `workspace.*` |
 | command nodes and triggers | `commandNode.create`, `commandNode.on`, `commandNode.button`, `commandNode.run`, and any edit of a command node or its steps (rule `command nodes`) |
+| not on the token | for a scoped agent token, anything it does not list (rule `not in token allow list`) |
 | undoing others | `edit.undo` and `edit.redo` when the step is not the assistant's own (rule `not its own change`; `agents.json` cannot loosen this) |
 | mirrors | `mirror.*` (rule `mirror.*`), except for a scoped agent token that lists it (see Mirrors below) |
 
@@ -58,7 +59,8 @@ names the command and the rule:
 refused: assistants may not run `trash.empty` (rule `trash.empty`). The person can do it in the app, or allow it by hand in agents.json in the Bana data folder
 ```
 
-The rule is one of the ids or patterns above, `destructive`, `command nodes` or `not its own change`.
+The rule is one of the ids or patterns above, `destructive`, `command nodes`, `not its own change`
+or `not in token allow list`.
 
 ### The opt-out file
 
@@ -92,20 +94,30 @@ The local token lets any tool name itself. For an assistant or integration you w
 make it a token of its own, in Terminal (no command or assistant can do this):
 
 ```sh
-bana agent-token create NAME [--allow PATTERN]...
-bana agent-token create mirror-sync --allow 'mirror.*'
+bana agent-token create NAME [--read] [--allow PATTERN]...
+bana agent-token create mirror-sync --allow 'mirror.*' --allow graph.search
+bana agent-token create reader --read
 ```
 
 It prints the token and keeps it in `agent-tokens.json` in the data folder (readable by you only),
 with its name and allowances. Making a token with the same name again replaces it; to revoke one,
-delete its entry from the file.
+delete its entry from the file. A pattern that matches no command, or only commands on the Never
+list (`node.hardDelete`, `file.*`, `settings.set`, ...), is refused when you make the token.
 
 A request to `POST /mcp` with `Authorization: Bearer <that token>`:
 
 - is always named `NAME`: the `X-Bana-Agent` header and `clientInfo` are ignored;
-- meets the same tiers as any assistant, loosened only by its own `--allow` patterns, not by
-  `agents.json`;
+- runs **only** what the token lists: its `--allow` patterns, plus, with `--read`, every command
+  that changes nothing (searches, inspect, view, export; not undo or redo). Everything else,
+  ordinary writes included, is refused with rule `not in token allow list`. A read it needs must
+  be listed too (`--allow graph.search`) unless it has `--read`;
+- never runs the Never list, whatever it lists (`--allow 'node.*'` still cannot hard delete);
+- ignores `agents.json`;
 - works on `/mcp` only (the JSON API at `/rpc` answers 401).
+
+The MCP tools map to commands: `search` is `graph.search`, `inspect` is `graph.inspect`, `view`
+is `graph.view`, `export_markdown` is `export.markdown`, `add_node` is `graph.tags`, `node.add`
+and `tag.add`.
 
 A client on the local token that calls itself by a token's name is recorded as
 `NAME (unverified)`. Requests with the local token keep the policy above.

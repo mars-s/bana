@@ -375,7 +375,7 @@ fn a_scoped_agent_token_fixes_who_is_asking_and_what_it_may_do() {
     // agents.json loosens things for a client named "sync"; the scoped token must not get that.
     std::fs::write(&h.agents_file, r#"{"allow": ["trash.empty"], "clients": {"sync": ["node.toggleLock"]}}"#).unwrap();
     let tokens = dir.join(bana_commands::agents::TOKENS);
-    let scoped = bana_commands::agents::create_token(&tokens, "sync", &["mirror.*".into()]).unwrap();
+    let scoped = bana_commands::agents::create_token(&tokens, "sync", &["mirror.*".into()], false).unwrap();
     let parent = h.session.zoom;
     let general = "g".repeat(32);
     let shared = http::Shared::with_token(h, general.clone());
@@ -403,6 +403,14 @@ fn a_scoped_agent_token_fixes_who_is_asking_and_what_it_may_do() {
         assert_eq!(host.session.graph.get(n).unwrap().by.as_deref(), Some("sync"));
         assert!(host.session.graph.locked(n));
     }
+    // A strict whitelist: no ordinary writes or unlisted reads, over /mcp too.
+    for (command, params) in [("node.add", json!({"name": "x"})), ("graph.search", json!({"query": "garlic"}))] {
+        let r = exec(&scoped, command, params);
+        assert!(r["content"][0]["text"].as_str().unwrap().contains("(rule `not in token allow list`)"), "{command}: {r}");
+    }
+    let reader = bana_commands::agents::create_token(&tokens, "reader", &[], true).unwrap();
+    assert_eq!(exec(&reader, "graph.search", json!({"query": "garlic"}))["isError"], false);
+    assert_eq!(exec(&reader, "node.add", json!({"name": "x"}))["isError"], true);
     // Only its own allowances: not agents.json's (global or for its name).
     for command in ["trash.empty", "node.toggleLock"] {
         let r = exec(&scoped, command, json!({"node": n.0}));

@@ -1782,7 +1782,7 @@ fn view_filters_merge_into_the_search() {
 }
 
 fn as_agent(s: &mut Session, name: &str, allow: &[&str], id: &str, v: Value) -> Result<Value, crate::CmdError> {
-    s.agent = Some(crate::agents::Agent { name: name.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped: false });
+    s.agent = Some(crate::agents::Agent { name: name.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped: false, read: false });
     let r = s.run(id, &v);
     s.agent = None;
     r
@@ -1840,7 +1840,7 @@ fn assistants_never_run_the_never_list_and_the_person_still_can() {
     assert_eq!(crate::agents::Agent::load("claude", &file).allow, vec!["node.toggleLock"]);
     assert_eq!(
         crate::agents::Agent::load(" \u{7}", &dir.join("none.json")),
-        crate::agents::Agent { name: "assistant".into(), allow: vec![], scoped: false }
+        crate::agents::Agent { name: "assistant".into(), allow: vec![], scoped: false, read: false }
     );
     s.agent = Some(gw);
     s.run("node.toggleLock", &json!({"node": a.0})).unwrap();
@@ -1953,15 +1953,15 @@ fn scoped_agent_tokens_fix_the_name_and_the_allowances() {
     let dir = std::env::temp_dir().join(format!("bana-agent-tokens-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let file = dir.join(crate::agents::TOKENS);
-    let t = crate::agents::create_token(&file, "mirror-sync", &["mirror.*".into()]).unwrap();
+    let t = crate::agents::create_token(&file, "mirror-sync", &["mirror.*".into()], false).unwrap();
     assert!(t.len() >= 32);
     let a = crate::agents::Agent::from_token(&t, &file).unwrap();
-    assert_eq!(a, crate::agents::Agent { name: "mirror-sync".into(), allow: vec!["mirror.*".into()], scoped: true });
+    assert_eq!(a, crate::agents::Agent { name: "mirror-sync".into(), allow: vec!["mirror.*".into()], scoped: true, read: false });
     assert_eq!(crate::agents::Agent::scoped("mirror-sync", &file), Some(a));
     assert!(crate::agents::Agent::from_token("nope", &file).is_none());
     assert!(crate::agents::Agent::from_token("", &file).is_none());
     // Making it again replaces it (the old token stops working).
-    let t2 = crate::agents::create_token(&file, "mirror-sync", &[]).unwrap();
+    let t2 = crate::agents::create_token(&file, "mirror-sync", &[], false).unwrap();
     assert!(crate::agents::Agent::from_token(&t, &file).is_none());
     assert_eq!(crate::agents::Agent::from_token(&t2, &file).unwrap().allow, Vec::<String>::new());
     #[cfg(unix)]
@@ -1979,7 +1979,7 @@ fn mirror_upsert_keeps_locked_mirrors_in_step_without_unlocking() {
     let things = id(&run(&mut s, "node.add", json!({"name": "Things"})), "id");
     let mirror = ["mirror.*"];
     let up = |s: &mut Session, who: &str, allow: &[&str], scoped: bool, p: Value| {
-        s.agent = Some(crate::agents::Agent { name: who.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped });
+        s.agent = Some(crate::agents::Agent { name: who.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped, read: false });
         let r = s.run("mirror.upsert", &p);
         s.agent = None;
         r
@@ -2013,7 +2013,7 @@ fn mirror_upsert_keeps_locked_mirrors_in_step_without_unlocking() {
     ] {
         assert!(s.run(cmd, &p).is_err(), "{cmd} by the person");
         assert!(as_agent(&mut s, "claude", &[], cmd, p.clone()).is_err(), "{cmd} by an assistant");
-        s.agent = Some(crate::agents::Agent { name: "sync".into(), allow: vec!["mirror.*".into()], scoped: true });
+        s.agent = Some(crate::agents::Agent { name: "sync".into(), allow: vec!["mirror.*".into()], scoped: true, read: false });
         assert!(s.run(cmd, &p).is_err(), "{cmd} by the mirror agent");
         s.agent = None;
     }
@@ -2045,7 +2045,7 @@ fn mirror_upsert_keeps_locked_mirrors_in_step_without_unlocking() {
         .unwrap();
     let m = id(&r2, "node");
     let gone = |s: &mut Session, who: &str, scoped: bool, present: Value| {
-        s.agent = Some(crate::agents::Agent { name: who.into(), allow: vec!["mirror.*".into()], scoped });
+        s.agent = Some(crate::agents::Agent { name: who.into(), allow: vec!["mirror.*".into()], scoped, read: false });
         let r = s.run("mirror.markGone", &json!({"tag": "thing", "key": "Things ID", "present": present, "parent": things.0}));
         s.agent = None;
         r
@@ -2072,4 +2072,50 @@ fn mirror_upsert_keeps_locked_mirrors_in_step_without_unlocking() {
     let e = up(&mut s, "sync", &mirror, true, json!({"tag": "thing", "key": "Things ID", "id": "T-3", "parent": cmd.0})).unwrap_err();
     assert_eq!(e, crate::CmdError::Refused { command: "mirror.upsert".into(), rule: "command nodes".into() });
     let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn a_scoped_token_runs_only_its_allow_list() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Plain note"})), "id");
+    let as_token = |s: &mut Session, allow: &[&str], read: bool, cmd: &str, p: Value| {
+        s.agent = Some(crate::agents::Agent { name: "tok".into(), allow: allow.iter().map(|x| x.to_string()).collect(), scoped: true, read });
+        let r = s.run(cmd, &p);
+        s.agent = None;
+        r
+    };
+    let not_listed = |cmd: &str| crate::CmdError::Refused { command: cmd.into(), rule: "not in token allow list".into() };
+    // A mirror.* token: no ordinary writes, no reads it did not list.
+    for (cmd, p) in [
+        ("node.add", json!({"name": "x"})),
+        ("field.set", json!({"node": a.0, "field": "Status", "value": "open"})),
+        ("node.setName", json!({"node": a.0, "name": "x"})),
+        ("graph.search", json!({"query": "Plain"})),
+    ] {
+        assert_eq!(as_token(&mut s, &["mirror.*"], false, cmd, p).unwrap_err(), not_listed(cmd));
+    }
+    // A listed read runs.
+    assert!(as_token(&mut s, &["mirror.*", "graph.search"], false, "graph.search", json!({"query": "Plain"})).is_ok());
+    // --read: every command that changes nothing, but no writes and no undo.
+    assert!(as_token(&mut s, &[], true, "graph.search", json!({"query": "Plain"})).is_ok());
+    assert!(as_token(&mut s, &[], true, "graph.inspect", json!({"node": a.0})).is_ok());
+    assert_eq!(as_token(&mut s, &[], true, "node.add", json!({"name": "x"})).unwrap_err(), not_listed("node.add"));
+    assert_eq!(as_token(&mut s, &[], true, "edit.undo", json!({})).unwrap_err(), not_listed("edit.undo"));
+    // The Never list applies on top of whatever it lists.
+    let e = as_token(&mut s, &["node.*", "trash.empty"], true, "node.hardDelete", json!({"node": a.0})).unwrap_err();
+    assert_eq!(e, crate::CmdError::Refused { command: "node.hardDelete".into(), rule: "node.hardDelete".into() });
+    assert!(as_token(&mut s, &["trash.empty"], false, "trash.empty", json!({})).is_err());
+    assert!(as_token(&mut s, &[], true, "settings.get", json!({})).is_err());
+    assert_eq!(s.graph.name(a), "Plain note");
+    // Create time: Never patterns and patterns that match nothing are refused.
+    let file = std::env::temp_dir().join(format!("bana-token-whitelist-{}", std::process::id())).join(crate::agents::TOKENS);
+    for bad in ["node.hardDelete", "trash.empty", "file.*", "settings.set", "workspace.*", "commandNode.run", "view.deleteColumn"] {
+        let e = crate::agents::create_token(&file, "x", &[bad.to_string()], false).unwrap_err();
+        assert!(e.contains("Never list"), "{bad}: {e}");
+    }
+    assert!(crate::agents::create_token(&file, "x", &["nope.typo".into()], false).unwrap_err().contains("matches no command"));
+    assert!(!file.exists(), "nothing written");
+    let t = crate::agents::create_token(&file, "reader", &["graph.search".into()], true).unwrap();
+    let r = crate::agents::Agent::from_token(&t, &file).unwrap();
+    assert!(r.read && r.scoped && r.allow == ["graph.search"]);
 }

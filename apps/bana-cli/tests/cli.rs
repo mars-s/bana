@@ -49,12 +49,16 @@ fn agent_token_create_writes_a_scoped_token_to_the_data_folder() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let f = dir.join("graph.bana");
-    let (ok, token) = cli(&f, &["agent-token", "create", "mirror-sync", "--allow", "mirror.*", "--allow", "node.toggleLock"]);
+    let (ok, token) = cli(&f, &["agent-token", "create", "mirror-sync", "--read", "--allow", "mirror.*", "--allow", "graph.search"]);
     assert!(ok, "{token}");
     let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("agent-tokens.json")).unwrap()).unwrap();
     let entry = &saved["tokens"][0];
     assert_eq!((entry["name"].as_str(), entry["token"].as_str()), (Some("mirror-sync"), Some(token.trim())));
-    assert_eq!(entry["allow"], serde_json::json!(["mirror.*", "node.toggleLock"]));
+    assert_eq!(entry["allow"], serde_json::json!(["mirror.*", "graph.search"]));
+    assert_eq!(entry["read"], true);
+    // A Never pattern is refused when the token is made.
+    let (ok, out) = cli(&f, &["agent-token", "create", "bad", "--allow", "node.toggleLock"]);
+    assert!(!ok && out.contains("Never list"), "{out}");
     assert!(!cli(&f, &["agent-token", "create"]).0);
     assert!(!cli(&f, &["agent-token", "list"]).0);
     let _ = std::fs::remove_dir_all(&dir);

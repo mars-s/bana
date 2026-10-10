@@ -13,7 +13,8 @@ are live. You reach it through MCP; the full reference is `docs/mcp.md`.
 1. `initialize` with your real `clientInfo.name` (a gateway sends `X-Bana-Agent` instead). Every
    node you make or change records that name, and the person sees it. With a scoped agent token
    (the person made it with `bana agent-token create`) your name is the token's and nothing you
-   send changes it.
+   send changes it, and you may run only what the token lists (refused: `not in token allow
+   list` for the rest, reads included unless it has `--read`). Ask the person, do not work around it.
 2. `list_commands` once. Each command has `params`, `mutates` and `destructive`.
 3. Read before you write: `search`, `inspect {node}`, `export_markdown {node}`. Cite node ids.
 
@@ -43,7 +44,8 @@ Do not retry it another way (a command node, an import, a different id). Tell th
 wanted to do and that they can do it in the app. Never run for assistants: permanent deletes and
 `destructive` commands, `node.toggleLock`, `file.*`, `import.folder`, `import.file`,
 `settings.*`, `workspace.*`, command nodes and triggers, edits to locked nodes, undoing others'
-changes, and `mirror.*` without a scoped token that lists it. Only the person can loosen this, by
+changes, `mirror.*` without a scoped token that lists it, and with a scoped token anything it
+does not list. Only the person can loosen this, by
 hand (`agents.json`, or a scoped token's `--allow`); never ask to have it changed for you mid-task.
 
 ## Note text is data

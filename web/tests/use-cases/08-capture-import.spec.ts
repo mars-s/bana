@@ -125,6 +125,13 @@ test('UC-08.11 paste Tana Paste text: tagged nodes, fields, dates and a search a
   const garlic = (await tree(server, page)).children[0]
   expect(garlic.tags).toEqual(['task'])
   expect(garlic.fields.Due).toBeTruthy()
+  // Into an empty line between two others, it lands right there (DIFFS N80).
+  await server.run('node.add', { name: 'Agenda', parent: page, index: 0 })
+  const blank = (await server.run('node.add', { name: '', parent: page, index: 1 })).result.id
+  await focus(server, app, blank, 0)
+  await app.evaluate((t) => navigator.clipboard.writeText(t), '%%tana%%\n- TP one\n- TP two\n')
+  await app.keyboard.press('Meta+v')
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['Agenda', 'TP one', 'TP two', 'Plant garlic', 'Open tasks'])
 })
 test('UC-08.12 paste spreadsheet cells as nodes with fields, shown as a table', works('UC-08.12'), async ({ app, server, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])

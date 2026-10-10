@@ -149,7 +149,7 @@ pub fn registry() -> Registry {
         C::new("import.markdown", "Import Markdown", "File", import_markdown)
             .params(r#"{"text": string, "parent"?: id}  (bullets nest by indent; # headings, - [ ] / - [x] checkboxes, #tags, `Field:: value` lines, [[Name]] links)"#),
         C::new("import.tanaPaste", "Import Tana Paste", "File", import_tana_paste).params(
-            r#"{"text": string, "parent"?: id}  (%%tana%% then - bullets: #tag, #[[two words]], Field:: value, [[Field]]:: with value bullets, [[Name]], [[date:2026-10-12]], [ ] / [x], !! heading, %%search%% with the query below, %%view:table%%)"#,
+            r#"{"text": string, "parent"?: id, "index"?: number}  (index: where under the parent the top nodes go, default the end; %%tana%% then - bullets: #tag, #[[two words]], Field:: value, [[Field]]:: with value bullets, [[Name]], [[date:2026-10-12]], [ ] / [x], !! heading, %%search%% with the query below, %%view:table%%)"#,
         ),
         C::new("import.opml", "Import OPML", "File", import_opml)
         .params(r#"{"text": string, "parent"?: id}  (outlines from other outliners; text and _note, `Field:: value` lines, [[Name]] links)"#),
@@ -1279,6 +1279,7 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
     let text = p::req_str(v, "text")?;
     let root = p::node(v, "parent")?.unwrap_or(s.graph.sys.library);
     s.graph.node(root)?;
+    let before: Vec<NodeId> = s.graph.children(root).to_vec();
     let mut stack: Vec<(usize, Open)> = Vec::new();
     // (parent, index, name, query parts, view) of each search, made at the end.
     type Pending = (NodeId, usize, String, Vec<String>, Option<String>);
@@ -1357,6 +1358,13 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
         made += 1;
     }
     let linked = import_links(s, root)?;
+    // At the caret (N80): the new top nodes move to `index`, in order.
+    if let Some(index) = p::usize(v, "index") {
+        let new: Vec<NodeId> = s.graph.children(root).iter().copied().filter(|c| !before.contains(c)).collect();
+        for (i, n) in new.into_iter().enumerate() {
+            s.graph.move_to(n, root, Some(index + i))?;
+        }
+    }
     Ok(json!({"parent": root.0, "created": made, "linked": linked}))
 }
 

@@ -591,8 +591,10 @@ export function pasteInto(panel: string, node: number, lineText: string, text: s
   if (text.trimStart().startsWith('%%tana%%')) {
     const page = getState().pages[panel]
     const row = page?.rows.items.find((r) => r.k === 'node' && r.id === node) as NodeRow | undefined
+    // At the caret (N80): after the line, or in its place when it is empty.
+    const index = row?.index != null ? row.index + (lineText === '' ? 0 : 1) : undefined
     void withBarrier(async () => {
-      await exec('import.tanaPaste', { text, parent: row?.parent ?? page?.zoom }, panel)
+      await exec('import.tanaPaste', { text, parent: row?.parent ?? page?.zoom, ...(index != null ? { index } : {}) }, panel)
       if (lineText === '') await exec('node.delete', { node, force: true }, panel)
     })
     return true
@@ -645,6 +647,13 @@ function selectionKey(k: KeyInfo, sc: string, p: Page): boolean {
       if (r) void exec('focus.set', { node: r.id, caret: up ? 1e9 : 0 })
       return true
     }
+  }
+  // `#` on several selected lines tags them all (N81); on one line it is typed, as text is.
+  if (k.key === '#' && p.sel.length > 1) {
+    const rows = nodeRows(p).filter((r) => p.sel.includes(r.id))
+    const el = document.querySelector(`[data-panel="${panel}"] .row.node[data-id="${head}"]`)?.getBoundingClientRect()
+    openPicker({ mode: 'tag', panel, node: rows[rows.length - 1]?.target ?? head, nodes: rows.map((r) => r.target), at: -1, x: el?.left ?? 200, y: el?.bottom ?? 200 })
+    return true
   }
   if (isTextKey(k)) {
     // Typing on a selected line goes into it (N27): at its end.

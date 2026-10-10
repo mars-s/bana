@@ -177,6 +177,17 @@ test('UC-02.15 tag several selected lines at once', works('UC-02.15'), async ({ 
   await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('task')
   await app.keyboard.press('Enter')
   await expect.poll(async () => Promise.all(ids.map(async (id) => (await tree(server, id)).tags ?? []))).toEqual([['task'], ['task'], []])
+  // `#` on the selection does the same (DIFFS N81), and types nothing into a line.
+  await focus(server, app, ids[1], 0)
+  await app.keyboard.press('Shift+ArrowDown')
+  await app.keyboard.press('Shift+ArrowDown')
+  await expect(app.locator('.row.selected')).toHaveCount(2)
+  await app.keyboard.type('#')
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type('chore')
+  await app.keyboard.press('Enter')
+  await expect.poll(async () => Promise.all(ids.map(async (id) => (await tree(server, id)).tags ?? []))).toEqual([['task'], ['task', 'chore'], ['chore']])
+  expect(await Promise.all(ids.map((id) => nameOf(server, id)))).toEqual(['Rake leaves', 'Turn compost', 'Mulch beds'])
 })
 
 test('UC-02.16 process an inbox into a move target (GTD style)', works('UC-02.16'), async ({ app, server }) => {

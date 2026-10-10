@@ -270,42 +270,48 @@ button:focus-visible {
   gap: var(--q1);
 }
 
-.sidebar.mini .side-row,
-.sidebar.mini .side-ws-head {
+/* Pinned and Workspaces flyouts from the mini rail (spec 07 §1). */
+.flyout {
+  position: fixed;
+  left: calc(var(--sidebar-mini-w) + var(--q1));
+  z-index: 45;
+  width: var(--flyout-w);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--q1-5);
+  background: var(--c-popover);
+  border-radius: var(--r-menu);
+  box-shadow: var(--shadow-float), 0 0 0 1px var(--c-outline);
+}
+
+.flyout-empty {
+  margin: var(--q2);
+  color: var(--c-muted);
+  font-size: var(--fs-label);
+}
+
+.sidebar.mini > .side-row {
+  width: var(--icon-btn);
   height: var(--icon-btn);
   margin-bottom: var(--q1);
   padding: 0;
   justify-content: center;
 }
 
-.sidebar.mini .side-ws-items {
+.sidebar.mini > .side-row .side-label {
   display: none;
-}
-
-.sidebar.mini .side-label,
-.sidebar.mini .side-head,
-.sidebar.mini .side-foot,
-.sidebar.mini .side-ws-head .icon-btn {
-  display: none;
-}
-
-.sidebar.mini .side-row,
-.sidebar.mini .side-actions .btn {
-  width: var(--icon-btn);
-  padding: 0;
-  justify-content: center;
 }
 
 .sidebar.mini .side-actions {
   flex-direction: column;
 }
 
-.sidebar.mini > * {
+.sidebar.mini > :not(.flyout) {
   opacity: 0.35;
   transition: opacity 50ms linear 100ms;
 }
 
-.sidebar.mini:hover > * {
+.sidebar.mini:hover > :not(.flyout) {
   opacity: 1;
 }
 

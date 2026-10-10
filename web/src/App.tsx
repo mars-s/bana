@@ -1,6 +1,6 @@
 // The window: top bar (sidebar button, history, tabs, right cluster), sidebar and panels.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { Panel, tagStyle } from './Outline'
 import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
@@ -77,7 +77,7 @@ function TopBar() {
   )
 }
 
-function SideRow({ icon, label, onClick, active, pin, children }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; pin?: boolean; children?: React.ReactNode }) {
+function SideRow({ icon, label, onClick, active, pin, children }: { icon: React.ReactNode; label: string; onClick: (e: React.MouseEvent) => void; active?: boolean; pin?: boolean; children?: React.ReactNode }) {
   return (
     <div className={`side-row${active ? ' active' : ''}${pin ? ' pin' : ''}`} onClick={onClick} role="button" title={label}>
       <span className="side-icon">{icon}</span>
@@ -149,6 +149,61 @@ function WorkspaceRows({ ws, several, zoom, journal, showDaily }: { ws: SidebarD
   )
 }
 
+/** The mini rail: one column of icon buttons (spec 07 §1, 12: Mini rail). Pinned and Workspaces
+ * open a flyout to the right with the same lists the full sidebar shows. */
+function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: (k: string) => boolean }) {
+  const [fly, setFly] = useState<{ what: 'pinned' | 'workspaces'; top: number } | null>(null)
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!fly) return
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setFly(null)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setFly(null))
+    window.addEventListener('mousedown', off)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', off)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [fly])
+  const toggle = (what: 'pinned' | 'workspaces') => (e: React.MouseEvent) => {
+    const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
+    setFly((f) => (f?.what === what ? null : { what, top }))
+  }
+  // Clicking an item inside the flyout opens it and closes the flyout.
+  const closeAfter = () => setTimeout(() => setFly(null), 0)
+  return (
+    <aside className="sidebar mini" ref={ref}>
+      <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
+      {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" onClick={() => void exec('nav.supertags')} />}
+      <SideRow icon={<Icon name="search" size={14} />} label="Search and open" onClick={() => runUiCommand('ui.searchOpen')} />
+      {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}
+      <SideRow icon={<Icon name="compose" size={14} />} label="Create new" onClick={() => void exec('node.createNew')} />
+      <SideRow icon={<Icon name="pin" size={14} />} label="Pinned" active={fly?.what === 'pinned'} onClick={toggle('pinned')} />
+      <SideRow icon={<Icon name="workspace" size={14} />} label="Workspaces" active={fly?.what === 'workspaces'} onClick={toggle('workspaces')} />
+      {fly && (
+        <div className="flyout" style={{ top: fly.top }} role="menu" aria-label={fly.what === 'pinned' ? 'Pinned' : 'Workspaces'} onClick={(e) => (e.target as HTMLElement).closest('.side-row') && closeAfter()}>
+          {fly.what === 'pinned' ? (
+            sb.pinned.length ? (
+              sb.pinned.map((it) => <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />)
+            ) : (
+              <p className="flyout-empty">Nothing pinned yet</p>
+            )
+          ) : (
+            <>
+              {sb.workspaces.map((ws) => (
+                <WorkspaceRows key={ws.id} ws={ws} several={sb.workspaces.length > 1} zoom={zoom} journal={sb.journal} showDaily={shows('daily_notes')} />
+              ))}
+              <div className="side-foot" onClick={() => (setFly(null), setState({ overlay: { kind: 'workspaces' } }))} role="button">
+                Manage workspaces
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </aside>
+  )
+}
+
 function Sidebar() {
   const sb = useStore((s) => s.sidebar)
   const mode = useStore((s) => s.sidebarMode)
@@ -157,20 +212,7 @@ function Sidebar() {
   if (!sb || mode === 2) return null
   const zoom = page?.zoom
   const shows = (k: string) => !sb.hidden.includes(k)
-  if (mode === 1) {
-    // The mini rail: one column of icon buttons (12: Mini rail).
-    return (
-      <aside className="sidebar mini">
-        <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
-        <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" onClick={() => void exec('nav.supertags')} />
-        <SideRow icon={<Icon name="search" size={14} />} label="Search and open" onClick={() => runUiCommand('ui.searchOpen')} />
-        <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />
-        <SideRow icon={<Icon name="compose" size={14} />} label="Create new" onClick={() => void exec('node.createNew')} />
-        <SideRow icon={<Icon name="pin" size={14} />} label="Pinned" onClick={() => setState({ sidebarMode: 0 })} />
-        <SideRow icon={<Icon name="home" size={14} />} label="Library" onClick={() => void exec('nav.home')} />
-      </aside>
-    )
-  }
+  if (mode === 1) return <MiniRail sb={sb} zoom={zoom} shows={shows} />
   return (
     <aside className="sidebar" data-panel-for={active}>
       <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />

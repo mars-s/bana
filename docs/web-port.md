@@ -72,7 +72,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | settings pages, recents, help | works (shot) | |
 | every_menu_bar_entry_runs_a_known_command | works (desktop app menu) | |
 | diffs_n6_n14 workspaces side by side, workspace rename | ported (create, folded rows), works (rename) | `menus.spec.ts` |
-| content width, panel split, mini sidebar flyouts | todo (mini sidebar works) | |
+| content width, panel split, mini sidebar flyouts | ported (flyouts), works (width, split) | `shell.spec.ts` |
 | ctrl_shift_page_keys_move_the_tab, custom keybindings | todo | |
 | configure supertag panel, field definition page | ported (Configure opens a second panel; node menu too) | `schema.spec.ts` |
 | reference counter, warn on editing a referenced node, url embeds | todo | |

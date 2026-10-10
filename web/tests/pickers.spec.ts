@@ -259,6 +259,9 @@ test('a field name typed after > and then a reload shows as the field (N26)', as
   // One field in the graph, no stray line.
   const hits = (await server.run('graph.search', { query: 'Fresh9' })).result ?? []
   expect(hits.filter((h: any) => String(h.name).includes('>'))).toEqual([])
+  // Where it was typed: the row after "x" (N76).
+  const order = await app.locator('.row.node .text, .row.field .field-name').allTextContents()
+  expect(order.indexOf('Fresh9')).toBe(order.indexOf('x') + 1)
   void page
 })
 

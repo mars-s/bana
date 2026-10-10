@@ -146,3 +146,53 @@ fn pickers_show_descriptions_recents_and_the_slash_set() {
         .collect();
     assert_eq!(slash, ["Paste", "Search node", "Field", "Reference", "Heading", "Checkbox", "Checklist", "More commands"]);
 }
+
+#[test]
+fn a_field_name_typed_after_a_line_stays_below_it_when_committed() {
+    // DIFFS N76: "x", Enter, `>`, "Fresh9", reload: the field row stays after "x".
+    let mut h = host();
+    let page = h.handle("run", &json!({"command": "node.add", "params": {"name": "N76"}}))["result"]["id"].as_u64().unwrap();
+    let x = h.handle("run", &json!({"command": "node.add", "params": {"name": "x", "parent": page}}))["result"]["id"].as_u64().unwrap();
+    let line = h.handle("run", &json!({"command": "node.add", "params": {"name": "", "parent": page}}))["result"]["id"].as_u64().unwrap();
+    h.handle("fieldDraft", &json!({"owner": page, "line": line, "name": "Fresh9"}));
+    assert_eq!(h.handle("fieldDraft", &json!({"commit": true}))["ok"], json!(true));
+    let g = &h.session.graph;
+    let f = g.find_field("Fresh9").unwrap();
+    let entry = g.get(tanacraft_core::NodeId(page)).unwrap().fields.iter().find(|e| e.field == f).unwrap();
+    assert_eq!(entry.after, Some(tanacraft_core::NodeId(x)));
+    assert!(!g.children(tanacraft_core::NodeId(page)).contains(&tanacraft_core::NodeId(line)));
+}
+
+#[test]
+fn keys_typed_at_the_end_of_a_line_another_window_splits_follow_the_end() {
+    // DIFFS N74: B's caret is at the end of "Pick a date"; A presses Enter after "Pick".
+    let mut h = host();
+    h.handle("page", &json!({"window": "A"}));
+    let page = h.session.zoom.0;
+    let line = h.handle("run", &json!({"window": "A", "command": "node.add", "params": {"name": "Pick a date", "parent": page}}))["result"]["id"]
+        .as_u64()
+        .unwrap();
+    let name = |h: &Host, n: u64| h.session.graph.name(tanacraft_core::NodeId(n)).to_string();
+    h.handle("run", &json!({"window": "B", "command": "focus.set", "params": {"node": line, "caret": 11}}));
+    h.handle("run", &json!({"window": "A", "command": "node.enter", "params": {"node": line, "caret": 4}}));
+    let second = h.handle("page", &json!({"window": "A"}))["focus"].as_u64().unwrap();
+    assert_eq!((name(&h, line), name(&h, second)), ("Pick".to_string(), " a date".to_string()));
+    let b = h.handle("page", &json!({"window": "B"}));
+    assert_eq!((b["focus"].as_u64(), b["caret"].as_u64()), (Some(second), Some(7)), "B's caret moved with the end");
+    // B's keys sent before it saw the split (from the old text) go on at the end too.
+    h.handle(
+        "run",
+        &json!({"window": "B", "command": "node.setName", "params": {"node": line, "name": "Pick a date123", "base": "Pick a date", "caret": 14}}),
+    );
+    assert_eq!((name(&h, line), name(&h, second)), ("Pick".to_string(), " a date123".to_string()));
+    // A caret before the split point stays in the first half.
+    h.handle(
+        "run",
+        &json!({"window": "B", "command": "node.setName", "params": {"node": line, "name": "XPick a date", "base": "Pick a date", "caret": 1}}),
+    );
+    assert_eq!(name(&h, line), "XPick");
+    // Enter at the end of a line moves no text: later typing in it stays there.
+    h.handle("run", &json!({"window": "A", "command": "node.enter", "params": {"node": line, "caret": 5}}));
+    h.handle("run", &json!({"window": "B", "command": "node.setName", "params": {"node": line, "name": "XPick!", "base": "XPick", "caret": 6}}));
+    assert_eq!(name(&h, line), "XPick!");
+}

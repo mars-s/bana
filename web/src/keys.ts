@@ -10,6 +10,8 @@ export interface KeyInfo {
   ctrlKey: boolean
   altKey: boolean
   shiftKey: boolean
+  /** Not a key: a click on a line made while keys were waiting; it runs in its turn (N72). */
+  click?: { panel: string; node: number; caret: number }
 }
 
 export function keyInfo(e: KeyboardEvent | React.KeyboardEvent): KeyInfo {

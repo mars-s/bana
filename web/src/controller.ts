@@ -199,6 +199,10 @@ function drain() {
     // A key leaves the buffer and becomes a logged edit in the same task (see keepBufferedKeys).
     while (buffer.length && barrier === 0) {
       const k = buffer.shift()!
+      if (k.click) {
+        void exec('focus.set', { node: k.click.node, caret: k.click.caret }, k.click.panel)
+        continue
+      }
       // A page title with the keyboard (and no line caret) takes the key as if typed there.
       const title = editor ? undefined : [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))
       if (title && !getState().overlay) title.key(k)
@@ -717,6 +721,8 @@ function editorKey(k: KeyInfo, sc: string, p: Page, ed: EditorHandle): boolean {
 
 /** A click on a line's text: the caret goes there at once, then the engine follows. */
 export function focusLine(panel: string, node: number, caret: number) {
+  // Keys pressed before the click (an Escape) still go first: the click waits its turn.
+  if (inBarrier()) return bufferKey({ key: '', code: '', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, click: { panel, node, caret } })
   void exec('focus.set', { node, caret }, panel)
 }
 

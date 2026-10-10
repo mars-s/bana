@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use tanacraft_commands::{NavState, Session};
+use tanacraft_core::NodeId;
 
 /// Panels are named by the front end (`"t1p0"`); this one exists from the start.
 pub const MAIN_PANEL: &str = "main";
@@ -46,6 +47,9 @@ pub struct Host {
     draft: Option<(u64, u64, String)>,
     /// The window typing that field name (only it commits the draft).
     draft_window: Option<String>,
+    /// Recent splits (line, new line, the text before, where): another window typing at the end of
+    /// a line that was split goes on in the second half (DIFFS N74).
+    splits: Vec<(NodeId, NodeId, String, usize)>,
 }
 
 impl Host {
@@ -62,6 +66,7 @@ impl Host {
             draft: None,
             draft_window: None,
             primary: None,
+            splits: Vec::new(),
         }
     }
 
@@ -111,8 +116,13 @@ impl Host {
                 // text the other one wrote since (`base` is what this window started from).
                 let mut p = p;
                 if id == "node.setName" {
+                    follow_split(&self.session, &self.splits, &mut p);
                     rebase_name(&self.session, &mut p);
                 }
+                let split_from = (id == "node.enter")
+                    .then(|| tanacraft_commands::p::node(&p, "node").ok().flatten().or(self.session.focus))
+                    .flatten()
+                    .map(|n| (n, self.session.graph.name(n).to_string()));
                 // (Per window: two windows' clocks and queues are independent.)
                 if let (Some(rev), "node.setName" | "field.set") = (params.get("rev").and_then(Value::as_u64), id) {
                     let client = params.get("wal").and_then(|w| w.get(0)).and_then(Value::as_str).unwrap_or_default();
@@ -126,6 +136,9 @@ impl Host {
                     self.revs.insert(key, rev);
                 }
                 let r = self.session.run(id, &p);
+                if let (Some((line, before)), Ok(_)) = (split_from, &r) {
+                    self.note_split(line, before);
+                }
                 self.version += 1;
                 self.note_change();
                 match r {
@@ -180,10 +193,7 @@ impl Host {
                 if self.session.graph.get(tanacraft_core::NodeId(line)).is_none() {
                     return json!({"ok": true});
                 }
-                let r = self
-                    .session
-                    .run("field.add", &json!({"node": owner, "field": name}))
-                    .and_then(|_| self.session.run("node.delete", &json!({"node": line, "force": true})));
+                let r = self.draft_to_field(owner, line, &name);
                 self.version += 1;
                 self.note_change();
                 match r {
@@ -243,6 +253,43 @@ impl Host {
         }
     }
 
+    /// `line` (whose text was `before`) was just split and the caret is in the new second half:
+    /// other windows' carets past the split point move with the text they were in (DIFFS N74).
+    fn note_split(&mut self, line: NodeId, before: String) {
+        let g = &self.session.graph;
+        let head = g.name(line);
+        let Some(new) = self.session.focus.filter(|n| *n != line) else { return };
+        let at = head.chars().count();
+        // Only a real split: text on both sides (Enter at the end or the start moves no text).
+        if at == 0 || at >= before.chars().count() || !before.starts_with(head) || before.chars().skip(at).collect::<String>() != g.name(new) {
+            return;
+        }
+        for nav in self.panels.values_mut() {
+            if nav.focus == Some(line) && nav.caret > at {
+                nav.focus = Some(new);
+                nav.caret -= at;
+                nav.anchor = nav.caret;
+            }
+        }
+        self.splits.push((line, new, before, at));
+        if self.splits.len() > 16 {
+            self.splits.remove(0);
+        }
+    }
+
+    /// The line a field name is being typed in becomes that field, in the line's place among the
+    /// owner's children (after the line above it; DIFFS N76).
+    fn draft_to_field(&mut self, owner: u64, line: u64, name: &str) -> Result<Value, tanacraft_commands::CmdError> {
+        let kids = self.session.graph.children(tanacraft_core::NodeId(owner));
+        let above = kids.iter().position(|c| c.0 == line).and_then(|i| i.checked_sub(1)).and_then(|i| kids.get(i)).map(|c| c.0);
+        let mut add = json!({"node": owner, "field": name});
+        if let Some(a) = above {
+            add["after"] = json!(a);
+        }
+        self.session.run("field.add", &add)?;
+        self.session.run("node.delete", &json!({"node": line, "force": true}))
+    }
+
     /// Writes the file now when there are unsaved changes.
     pub fn save(&mut self) -> Result<(), String> {
         self.dirty_since = None;
@@ -257,10 +304,7 @@ impl Host {
             // The file gets the field the name is turning into; the live graph stays as it is.
             let live = self.session.graph.clone();
             let mut state = (self.session.focus, self.session.caret, self.session.anchor, self.session.sel);
-            let r = self
-                .session
-                .run("field.add", &json!({"node": owner, "field": name}))
-                .and_then(|_| self.session.run("node.delete", &json!({"node": line, "force": true})));
+            let r = self.draft_to_field(owner, line, &name);
             let saved = if r.is_ok() { self.session.graph.save(&path).map_err(|e| e.to_string()) } else { Ok(()) };
             self.session.graph = live;
             (self.session.focus, self.session.caret, self.session.anchor, self.session.sel) = std::mem::take(&mut state);
@@ -309,6 +353,28 @@ mod tests;
 /// `p` renames a line from `base` (what the window had) to `name`; when the line changed since
 /// (another window typed in it), the window's own change is moved over that one: one edit each
 /// side, the other window's text stays, and the caret moves with this window's edit.
+/// A rename that started from a line's text before another window split it, and that changes
+/// only text past the split point, goes to the second half (DIFFS N74).
+fn follow_split(s: &Session, splits: &[(NodeId, NodeId, String, usize)], p: &mut Value) {
+    let (Some(base), Some(mine)) = (p.get("base").and_then(Value::as_str), p.get("name").and_then(Value::as_str)) else { return };
+    let Some(node) = tanacraft_commands::p::node(p, "node").ok().flatten() else { return };
+    let Some((_, new, _, at)) = splits.iter().rev().find(|(line, new, before, _)| *line == node && before == base && s.graph.get(*new).is_some())
+    else {
+        return;
+    };
+    let (b, m): (Vec<char>, Vec<char>) = (base.chars().collect(), mine.chars().collect());
+    let (start, _, _) = splice(&b, &m);
+    if start < *at || m.len() < *at || m[..*at] != b[..*at] {
+        return;
+    }
+    p["node"] = json!(new.0);
+    p["base"] = json!(b[*at..].iter().collect::<String>());
+    p["name"] = json!(m[*at..].iter().collect::<String>());
+    if let Some(c) = p.get("caret").and_then(Value::as_u64) {
+        p["caret"] = json!(c.saturating_sub(*at as u64));
+    }
+}
+
 fn rebase_name(s: &Session, p: &mut Value) {
     let (Some(base), Some(mine)) = (p.get("base").and_then(Value::as_str), p.get("name").and_then(Value::as_str)) else { return };
     let Some(node) = tanacraft_commands::p::node(p, "node").ok().flatten() else { return };

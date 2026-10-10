@@ -13,7 +13,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 |---|---|---|
 | random_keys_never_crash_the_ui | ported | `fuzz.spec.ts` random keys (no page error, every character kept) |
 | random_keys_on_long_pages_never_lose_text | ported | `fuzz.spec.ts` long page in a small window, scrolled away mid-edit |
-| quitting_at_a_random_point_keeps_typed_text | ported | `fuzz.spec.ts` reload at a random point; force-kill of the engine after autosave |
+| quitting_at_a_random_point_keeps_typed_text | ported | `fuzz.spec.ts` reload at a random point; force-kill of the engine after autosave; `offline.spec.ts` engine killed and restarted mid-typing |
 | damaged_files_draw_in_every_view | ported | `damaged.spec.ts` (the engine side is `crates/commands/tests/fuzz.rs`) |
 | 50k-node frame test (perf.rs) | ported | `perf.spec.ts` 51,550 rows: scroll, click far down, type |
 
@@ -70,7 +70,7 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | diffs_p2 supertags overview | works (shot) | `shots.spec.ts` |
 | diffs_p3 tag page breadcrumb reads Schema | works (shot) | |
 | settings pages, recents, help | works (shot) | |
-| every_menu_bar_entry_runs_a_known_command | works (desktop app menu) | |
+| every_menu_bar_entry_runs_a_known_command | ported (Rust test in the desktop app) | `apps/tanacraft-desktop` `menu_bar_follows_the_spec...` |
 | diffs_n6_n14 workspaces side by side, workspace rename | ported (create, folded rows), works (rename) | `menus.spec.ts` |
 | content width, panel split, mini sidebar flyouts | ported (flyouts), works (width, split) | `shell.spec.ts` |
 | ctrl_shift_page_keys_move_the_tab, custom keybindings | ported (keys and drag; bindings saved with the graph, set in Settings) | `shell.spec.ts` |

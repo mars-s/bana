@@ -11,20 +11,25 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 ## Summary
 
-`cargo xtask parity` after round 9: 403 spec items (sections and screenshots); rows done 344,
+`cargo xtask parity` after round 10: 403 spec items (sections and screenshots); rows done 344,
 partial 27, missing 8, n/a 10.
 
-Round 9 (`DIFFS N60` to `N71` and the N59 list) is answered in the git log. Items kept as they
-are, with the reason:
+Round 10 (`DIFFS N72` to `N76`, the open N46, N61, N65, N69 and N59 items) is answered in the
+git log: offline notice and a queue that waits for the engine (N73), click right of a line (N72),
+keys typed with nothing focused dropped also after a click or reload (N61), Suggested in the table
++ Add menu (N46), the field typed after a line keeping its place (N76), carets following a split
+made in another window (N74), the menu bar of spec 00 §7 (N75), the page menu, Supertags header,
+Workspaces button, table column, date cell picker, month chip text and Configure header (N65,
+N69, N59.9, 18, 21, 28, 32). Items kept as they are, with the reason:
 
-- N59.4 credits and N59.9 "Workspaces ▾" on the day toolbar: no billing, and what the menu filters
-  is not in the spec.
-- N59.10 the sidebar button's fill in mini mode: spec 11 §4 gives top bar icons a hover fill, and
-  the pointer rests on the button after the click.
-- N59.18 the table's first column: it fits its titles (150 to 340); the sample's titles are longer
-  than those in the compared table.
-- N46 "Suggested" fields in + Add: AI in spec 04.
+- N59.4 credits: no billing.
+- N59.9 what Tana's "Workspaces ▾" filters is not in the spec; ours opens a workspace's Library or
+  Manage workspaces (`spec-gap`).
 - N62 "/" Image / file and Start live transcription: no file store, no voice.
+- N65 AI chat and Publish in the page menu, N75 Check for Updates, Quit and Keep Windows, Toggle
+  Developer Tools, Spellchecker, Local API and meeting items: out of scope or no such feature.
+- N59.21 a date cell opened for typing shows the cell's display text ("Mon, 12 Oct"); picking a day
+  writes the date.
 
 ## `00-overview.md`
 
@@ -36,7 +41,7 @@ are, with the reason:
 | 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
 | 5. Visual language | done | Web UI: every colour, size and duration a token in `web/src/tokens.css` from DESIGN.md and spec 10; dark and light tuned separately (weight 375 / 400), Inter Variable, tag-tinted chips, guide lines, halos, selection fill behind the text, following the system appearance. |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Recents, Search and open, Create new, pinned, workspace items, Inbox, Help, Settings. No AI chats. |
-| 7. Native menu bar | done | macOS menu bar (muda): app menu (About, Settings, Hide, Quit with save), Edit (Undo, Redo, Select all, Find, Command line, Quick add), View (actual size, zoom in/out, sidebar, theme, content width, full screen), History (Back, Forward, Today, Recents), Options, Window (minimize, tabs, panels), Help. Every item runs a command (`MENU_BAR`, tested); only Quit takes its key from the menu so typing and the clipboard stay with the window. No updater, spellchecker toggle, local API or meeting items. Round 5: every item shows its key; Edit has Cut, Copy, Paste and Paste and match style; Window has Zoom and Bring all to front; a key the menu takes is replayed as that key (DIFFS N25). Tested. |
+| 7. Native menu bar | done | Tauri menu bar (round 10, N75): app menu (About, Hide, Hide Others, Show All, Quit with save), Edit (Undo, Redo, Cut, Copy, Paste, Select All, Find, Command line, Quick add), View (Reload, Actual Size, Zoom In, Zoom Out, Full Screen, sidebar, theme), History (Back, Forward, Today, Recents), Options (Customize Keybindings, Settings), Window (Minimize, Zoom, tabs, panels), Help (Help, Keyboard shortcuts). Every item runs a command (`MENU_BAR`, tested); only Quit takes its key from the menu so typing and the clipboard stay with the window. No updater, spellchecker toggle, local API or meeting items. Round 5: every item shows its key; Edit has Cut, Copy, Paste and Paste and match style; Window has Zoom and Bring all to front; a key the menu takes is replayed as that key (DIFFS N25). Tested. |
 | 8. Global overlays | done | Command line (Cmd+K), Search and open (Cmd+S, Cmd+T), Quick add (Cmd+E), context menus, shortcut sheet. |
 
 ## `01-data-model.md`

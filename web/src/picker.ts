@@ -161,6 +161,12 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
   if (p.mode === 'field') void call('fieldDraft', {})
   const panel = p.panel
   await withBarrier(async () => {
+    // "@tomorrow", "@next friday": the typed words become a link to that day (UC-01.08).
+    if (item.date && (p.mode === 'inlineRef' || p.mode === 'reference')) {
+      const caret = await cutQuery(p, '')
+      await exec('edit.insertDate', { node: p.node, caret, date: item.date }, panel)
+      return
+    }
     switch (p.mode) {
       case 'tag': {
         // From the line (`#`): the typed text leaves the line. From a menu: nothing to cut.

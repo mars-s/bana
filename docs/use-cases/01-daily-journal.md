@@ -53,12 +53,12 @@ with an optional `#day` template. Scenarios: `web/tests/use-cases/01-daily-journ
 - **Source:** https://outliner.tana.inc/learn/features/dates-and-calendar-nodes
 - **TanaCraft:** WORKS for date fields. An inline date link inside text did not show in the day's references when probed.
 
-### UC-01.08 Put a date in a line: PARTIAL
+### UC-01.08 Put a date in a line: WORKS
 - **Story:** I type "call the plumber @tomorrow" and want a real date link.
 - **Steps:** Type @ and a date in words (today, next friday, Nov 21 to Nov 30).
 - **Expected:** A date object linked to its day page.
 - **Source:** https://outliner.tana.inc/learn/features/dates-and-calendar-nodes
-- **TanaCraft:** PARTIAL. The Insert date command puts a link to today's page in the line. Missing (UC-01.08b): @ with natural-language dates, date ranges and week or month dates in text.
+- **TanaCraft:** WORKS. Typing `@` and a date in words (today, tomorrow, next friday, last monday, in 3 days, next month, Nov 21, 21 November 2027, Nov 21 to 30) offers that date first in the menu; Enter turns the words into a link to the day page (a range links both days, UC-01.08b). The Insert date command links today. Week or month dates in text are not read.
 
 ### UC-01.09 Journal prompts: MISSING
 - **Story:** My `#journal` entry should offer three random prompts from my prompt list.

@@ -30,7 +30,7 @@ Everything here comes from Tana's public pages, written in our own words:
 
 | File | Area | Works | Partial | Missing | Out of scope | AI |
 |---|---|---|---|---|---|---|
-| [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 9 | 3 | 4 | 0 | 0 |
+| [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 11 | 2 | 3 | 0 | 0 |
 | [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 14 | 2 | 4 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
@@ -41,10 +41,10 @@ Everything here comes from Tana's public pages, written in our own words:
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **84** | **16** | **42** | **15** | **24** |
+| **Total (181)** | | **86** | **15** | **41** | **15** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 100 work fully or in
-part (84 + 16) and 42 are missing.
+Out of the 142 use cases that need neither AI nor a cloud or mobile service, 101 work fully or in
+part (86 + 15) and 41 are missing.
 
 ## Top 15 gaps by user value
 
@@ -56,7 +56,7 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
    the page related content shows on, and a day stands for its date. "Tasks due this day",
    "meetings of the day", "this person's meetings" all fail because PARENT is not bound to the
    day page or the tagged node. One engine fix unlocks Tana's most copied dashboards.
-3. **Dates typed in words** (UC-01.08b). `@tomorrow`, `@next friday`, `@Nov 21 to Nov 30` in any
+3. ~~**Dates typed in words** (UC-01.08b).~~ Done: `@` reads dates and ranges in words. `@tomorrow`, `@next friday`, `@Nov 21 to Nov 30` in any
    line; today only a command inserts today's link.
 4. **Moving in from Tana and others** (UC-08.11, UC-08.10). Tana Paste, and Notion, Roam and
    Logseq imports. Tana Paste matters most: it is how Tana users and AI tools write structure.

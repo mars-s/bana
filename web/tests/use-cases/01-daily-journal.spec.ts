@@ -71,16 +71,34 @@ test('UC-01.07 a node dated by a field shows in that day\'s references', works('
   await expect(app.locator('.references .reference-row', { hasText: 'Build four beds' })).toBeVisible()
 })
 
-test('UC-01.08 put a date in a line (Insert date command); no natural-language @dates', partial('UC-01.08'), async ({ app, server }) => {
+test('UC-01.08 put a date in a line (Insert date command)', works('UC-01.08'), async ({ app, server }) => {
   const day = (await server.run('nav.today')).result.zoom
   const id = (await server.run('node.add', { name: 'Plant garlic ', parent: day })).result.id
   await server.run('focus.set', { node: id, caret: 13 })
   await expect(app.locator(`.editor-input[data-node="${id}"]`)).toBeFocused()
   await palette(app, 'Insert date')
   await expect.poll(async () => (await server.run('graph.inspect', { node: id })).result.name).toMatch(/Plant garlic \S+/)
-  // Gap: typing "@next friday" offers no date; @ only searches nodes.
 })
-missing('UC-01.08b', 'type @today or @next friday to link a date in natural language')
+
+test('UC-01.08b type @next friday or @Nov 21 to 30 and the words become date links', works('UC-01.08b'), async ({ app, server }) => {
+  const day = (await server.run('nav.today')).result.zoom
+  const id = (await server.run('node.add', { name: 'Call the plumber', parent: day })).result.id
+  await server.run('focus.set', { node: id, caret: 16 })
+  await expect(app.locator(`.editor-input[data-node="${id}"]`)).toBeFocused()
+  await app.keyboard.type(' @next friday')
+  await expect(app.locator('.menu.picker .menu-item').first()).toContainText('Fri, 16 Oct')
+  await app.keyboard.press('Enter')
+  await app.keyboard.type(' ok')
+  const name = async () => (await server.run('graph.inspect', { node: id })).result.name as string
+  await expect.poll(name).toMatch(/^Call the plumber \[\[id:\d+\]\] ok$/)
+  const target = Number(/id:(\d+)/.exec(await name())![1])
+  expect((await server.run('graph.inspect', { node: target })).result.name).toBe('Fri, 16 Oct')
+  // A range links both days.
+  await app.keyboard.type(' @Nov 21 to 30')
+  await expect(app.locator('.menu.picker .menu-item').first()).toContainText('Sat, 21 Nov to Mon, 30 Nov')
+  await app.keyboard.press('Enter')
+  await expect.poll(name).toMatch(/ok \[\[id:\d+\]\] to \[\[id:\d+\]\]$/)
+})
 
 test('UC-01.10 habit check-off: tick a habit each day and count what was done recently', partial('UC-01.10'), async ({ app, server }) => {
   const day = (await server.run('nav.today')).result.zoom

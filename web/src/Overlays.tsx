@@ -441,6 +441,8 @@ function Picker() {
                 </span>
               ) : it.create ? (
                 <Icon name="plus" size={12} />
+              ) : it.date ? (
+                <Icon name="calendar" size={12} />
               ) : p.mode === 'field' ? (
                 <Icon name="field" size={12} />
               ) : null}

@@ -29,14 +29,28 @@ pub fn registry() -> Registry {
         C::new("node.duplicate", "Duplicate", "Node", duplicate).key("Mod+Shift+D").params(r#"{"node"?: id}"#),
         C::new("node.createNew", "Create new", "Node", create_new).key("Mod+N / Ctrl+N"),
         C::new("edit.insertDate", "Insert date", "Edit", |s, v| {
-            let d = match p::str(v, "date") {
-                Some(t) => Date::parse(t).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?,
-                None => s.today,
+            // In words too (UC-01.08): "next friday", "Nov 21 to Nov 30" links both days.
+            let (d, end) = match p::str(v, "date") {
+                Some(t) => Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?,
+                None => (s.today, None),
             };
-            let day = s.graph.day(d)?;
-            insert_text(s, v, &tanacraft_core::format::ref_token(day.0))
+            let mut text = tanacraft_core::format::ref_token(s.graph.day(d)?.0);
+            if let Some(e) = end {
+                text = format!("{text} to {}", tanacraft_core::format::ref_token(s.graph.day(e)?.0));
+            }
+            insert_text(s, v, &text)
         })
-        .params(r#"{"node"?: id, "caret"?: number, "date"?: "YYYY-MM-DD | today | ..."}  (an inline link to the day)"#),
+        .params(r#"{"node"?: id, "caret"?: number, "date"?: "YYYY-MM-DD | tomorrow | next friday | Nov 21 to Nov 30 ..."}  (an inline link to the day)"#),
+        C::new("date.parse", "Read a date in words", "Edit", |s, v| {
+            let t = p::req_str(v, "text")?;
+            let (d, end) = Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?;
+            Ok(json!({"date": d.to_string(), "end": end.map(|e| e.to_string()), "label": match end {
+                Some(e) => format!("{} to {}", d.day_title(), e.day_title()),
+                None => d.day_title(),
+            }}))
+        })
+        .params(r#"{"text": string}"#)
+        .pure(),
         C::new("edit.insertNow", "Insert current date and time", "Edit", |s, v| {
             let day = s.graph.day(s.today)?;
             let text = format!("{} {}", tanacraft_core::format::ref_token(day.0), tanacraft_core::fmt_hm(Date::now_minutes()));

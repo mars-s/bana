@@ -94,6 +94,88 @@ impl Date {
         format!("{wd}, {} {mon}", self.day)
     }
 
+    /// A date (or a range of days) in words, relative to `today` (UC-01.08): `today`, `tomorrow`,
+    /// `yesterday`, `friday` / `next friday` (the coming one), `last friday`, `next week`, `next
+    /// month`, `in 3 days`, `in 2 weeks`, `Nov 21`, `21 November 2027`, `2026-11-21`, and any two
+    /// of them joined by `to` or ` - ` (`Nov 21 to Nov 30`, `Nov 21 to 30`).
+    pub fn from_words(text: &str, today: Date) -> Option<(Date, Option<Date>)> {
+        let t = text.trim().to_lowercase();
+        if let Some((a, b)) = t.split_once(" to ").or_else(|| t.split_once(" - ")) {
+            let start = Date::one_from_words(a, today)?;
+            // "Nov 21 to 30": the end takes the start's month and year.
+            let end = match b.trim().parse::<u8>() {
+                Ok(d) => Date::new(start.year, start.month, d)?,
+                Err(_) => Date::one_from_words(b, today)?,
+            };
+            return (end > start).then_some((start, Some(end)));
+        }
+        Date::one_from_words(&t, today).map(|d| (d, None))
+    }
+
+    fn one_from_words(t: &str, today: Date) -> Option<Date> {
+        let t = t.trim();
+        match t {
+            "today" | "now" => return Some(today),
+            "tomorrow" => return Some(today.add_days(1)),
+            "yesterday" => return Some(today.add_days(-1)),
+            "next week" => return Some(today.add_days(7)),
+            "last week" => return Some(today.add_days(-7)),
+            "next month" | "last month" => {
+                let (y, m) = if t == "next month" {
+                    if today.month == 12 { (today.year + 1, 1) } else { (today.year, today.month + 1) }
+                } else if today.month == 1 {
+                    (today.year - 1, 12)
+                } else {
+                    (today.year, today.month - 1)
+                };
+                return Date::new(y, m, today.day.min(days_in_month(y, m)));
+            }
+            _ => {}
+        }
+        let words: Vec<&str> = t.split_whitespace().collect();
+        let weekday = |w: &str| WEEKDAY_NAMES.iter().position(|n| w.len() >= 3 && n.starts_with(w));
+        match words.as_slice() {
+            [w] | ["next" | "this" | "on", w] if weekday(w).is_some() => {
+                let want = weekday(w)? as i64;
+                let ahead = (want - today.weekday() as i64).rem_euclid(7);
+                return Some(today.add_days(if ahead == 0 { 7 } else { ahead }));
+            }
+            ["last", w] if weekday(w).is_some() => {
+                let want = weekday(w)? as i64;
+                let back = (today.weekday() as i64 - want).rem_euclid(7);
+                return Some(today.add_days(-(if back == 0 { 7 } else { back })));
+            }
+            ["in", n, unit] => {
+                let n: i64 = n.parse().ok()?;
+                let days = match unit.trim_end_matches('s') {
+                    "day" => n,
+                    "week" => n * 7,
+                    _ => return None,
+                };
+                return Some(today.add_days(days));
+            }
+            _ => {}
+        }
+        if let Some(d) = Date::parse(t).filter(|_| t.contains('-')) {
+            return Some(d);
+        }
+        // Month and day in either order, an optional year; without a year, this year.
+        let month = |w: &str| MONTH_NAMES.iter().position(|n| w.len() >= 3 && n.starts_with(w.trim_end_matches('.'))).map(|i| i as u8 + 1);
+        let num = |w: &str| w.trim_end_matches(|c: char| c.is_alphabetic() || c == ',').parse::<i64>().ok();
+        let (m, d, y) = match words.as_slice() {
+            [a, b] => match (month(a), num(b), num(a), month(b)) {
+                (Some(m), Some(d), _, _) | (_, _, Some(d), Some(m)) => (m, d, None),
+                _ => return None,
+            },
+            [a, b, c] => match (month(a), num(b), num(a), month(b), num(c)) {
+                (Some(m), Some(d), _, _, Some(y)) | (_, _, Some(d), Some(m), Some(y)) => (m, d, Some(y)),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        Date::new(i32::try_from(y.unwrap_or(i64::from(today.year))).ok()?, m, u8::try_from(d).ok()?)
+    }
+
     /// Parses `YYYY-MM-DD`, `today`, `yesterday`, `tomorrow`.
     pub fn parse(s: &str) -> Option<Date> {
         let s = s.trim();
@@ -110,6 +192,10 @@ impl Date {
         Date::new(y, m, d)
     }
 }
+
+const WEEKDAY_NAMES: [&str; 7] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+const MONTH_NAMES: [&str; 12] =
+    ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
 fn days_in_month(y: i32, m: u8) -> u8 {
     match m {
@@ -142,6 +228,31 @@ impl TryFrom<String> for Date {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dates_in_words() {
+        // UC-01.08: today is Sat, 10 Oct 2026.
+        let today = Date::new(2026, 10, 10).unwrap();
+        let d = |t: &str| Date::from_words(t, today).map(|(a, b)| (a.to_string(), b.map(|b| b.to_string())));
+        let one = |t: &str| d(t).map(|(a, _)| a);
+        assert_eq!(one("tomorrow").as_deref(), Some("2026-10-11"));
+        assert_eq!(one("Yesterday").as_deref(), Some("2026-10-09"));
+        assert_eq!(one("next friday").as_deref(), Some("2026-10-16"));
+        assert_eq!(one("fri").as_deref(), Some("2026-10-16"));
+        assert_eq!(one("saturday").as_deref(), Some("2026-10-17"), "today's weekday means next week's");
+        assert_eq!(one("last monday").as_deref(), Some("2026-10-05"));
+        assert_eq!(one("in 3 days").as_deref(), Some("2026-10-13"));
+        assert_eq!(one("in 2 weeks").as_deref(), Some("2026-10-24"));
+        assert_eq!(one("next month").as_deref(), Some("2026-11-10"));
+        assert_eq!(one("Nov 21").as_deref(), Some("2026-11-21"));
+        assert_eq!(one("21 november 2027").as_deref(), Some("2027-11-21"));
+        assert_eq!(one("2026-12-01").as_deref(), Some("2026-12-01"));
+        assert_eq!(d("Nov 21 to Nov 30"), Some(("2026-11-21".into(), Some("2026-11-30".into()))));
+        assert_eq!(d("Nov 21 to 30"), Some(("2026-11-21".into(), Some("2026-11-30".into()))));
+        for no in ["", "garden", "nov", "Nov 31", "in many days", "Nov 30 to Nov 21", "friday the 13th please"] {
+            assert_eq!(d(no), None, "{no}");
+        }
+    }
 
     #[test]
     fn round_trip_and_weekday() {

@@ -540,6 +540,17 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         _ => Vec::new(),
     };
     out.truncate(10);
+    // "@" with a date in words offers that date first (UC-01.08): "@next friday", "@Nov 21 to 30".
+    if matches!(mode, "reference" | "inlineRef")
+        && let Some((d, end)) = tanacraft_core::Date::from_words(raw, s.today)
+    {
+        let label = match end {
+            Some(e) => format!("{} to {}", d.day_title(), e.day_title()),
+            None => d.day_title(),
+        };
+        out.insert(0, json!({"date": raw.trim(), "label": label}));
+        out.truncate(10);
+    }
     // Node rows show where the node lives (the "@" menu's breadcrumb line, DIFFS N62).
     if matches!(mode, "reference" | "inlineRef" | "moveTo" | "source") {
         for v in out.iter_mut() {

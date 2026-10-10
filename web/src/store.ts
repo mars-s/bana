@@ -53,6 +53,8 @@ export interface PickItem {
   path?: string
   /** "/" Field ▸ <type>: the new field gets this type. */
   fieldType?: string
+  /** "@" with a date in words: the text to read as a date (UC-01.08). */
+  date?: string
 }
 
 /** A field value being typed: owner node, field, which value (the count adds one). */

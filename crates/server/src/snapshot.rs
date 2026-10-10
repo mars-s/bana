@@ -643,7 +643,9 @@ pub fn view(s: &Session, params: &Value) -> Value {
         Some(d) => d.views.iter().filter(|v| g.get(**v).is_some()).map(|v| json!({"id": v.0, "name": g.name(*v)})).collect(),
         None => Vec::new(),
     };
+    let suggested: Vec<Value> = g.view_suggested_fields(node).into_iter().map(|f| json!({"id": f.0, "name": g.name(f)})).collect();
     json!({
+        "suggested": suggested,
         "node": node.0,
         "kind": def.kind.name(),
         "toolbar": def.toolbar(),

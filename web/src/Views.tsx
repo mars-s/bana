@@ -33,6 +33,8 @@ export interface ViewSnap {
   groups: { label: string; count: number; items: ViewItem[] }[]
   grouped: boolean
   columns: ViewColumn[]
+  /** "+ Add" > Suggested: fields the items use or their supertags define, not shown yet (N46). */
+  suggested?: { id: number; name: string }[]
   titleWidth: number | null
   sorted: boolean
   filtered: boolean
@@ -770,6 +772,16 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
                 >
                   Add new field
                 </Item>
+                {!!v.suggested?.length && (
+                  <>
+                    <div className="menu-caps">Suggested</div>
+                    {v.suggested.map((f) => (
+                      <Item key={f.id} icon="fieldText" onPick={() => (close(), void exec('view.addColumn', { node: v.node, field: f.id }, panel))}>
+                        {f.name}
+                      </Item>
+                    ))}
+                  </>
+                )}
                 <SubMenu label="System fields">
                   {['Created time', 'Last edited time', 'Done time', 'Owner node', 'Tags'].map((f) => (
                     <Item key={f} onPick={() => (close(), void exec('view.toggleSystemField', { node: v.node, field: f }, panel))}>

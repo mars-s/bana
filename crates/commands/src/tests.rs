@@ -890,6 +890,30 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn table_suggests_fields_its_items_use_and_their_tags_define() {
+    // DIFFS N46: "+ Add" > Suggested lists fields not shown yet (no AI).
+    let mut s = blank();
+    let list = id(&run(&mut s, "node.add", json!({"name": "Costs"})), "id");
+    let a = id(&run(&mut s, "node.add", json!({"name": "a", "parent": list.0})), "id");
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Price", "value": "3"}));
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Shop", "value": "Corner"}));
+    let b = id(&run(&mut s, "node.add", json!({"name": "b", "parent": list.0})), "id");
+    run(&mut s, "tag.add", json!({"node": b.0, "tag": "purchase"}));
+    let tag = s.graph.find_tag("purchase").unwrap();
+    run(&mut s, "tag.addField", json!({"tag": tag.0, "field": "Receipt"}));
+    run(&mut s, "view.set", json!({"node": list.0, "kind": "table"}));
+    run(&mut s, "view.addColumn", json!({"node": list.0, "field": "Price"}));
+    run(&mut s, "view.removeColumn", json!({"node": list.0, "field": "Shop"}));
+    run(&mut s, "view.removeColumn", json!({"node": list.0, "field": "Receipt"}));
+    let names = |s: &mut Session| -> Vec<String> {
+        run(s, "view.suggestedFields", json!({"node": list.0})).as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap().to_string()).collect()
+    };
+    assert_eq!(names(&mut s), ["Shop", "Receipt"]);
+    run(&mut s, "view.addColumn", json!({"node": list.0, "field": "Shop"}));
+    assert_eq!(names(&mut s), ["Receipt"]);
+}
+
+#[test]
 fn table_header_menu_moves_calculates_hides_and_deletes_columns() {
     // Spec 04 §2 header context menu (`163-table-header-menu.jpg`).
     let mut s = blank();

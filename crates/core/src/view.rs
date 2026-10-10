@@ -433,6 +433,29 @@ impl Graph {
         out
     }
 
+    /// Fields a table could show next ("+ Add" > Suggested, DIFFS N46): the ones its items use or
+    /// their supertags define (and a supertag's own template), not shown as columns yet.
+    pub fn view_suggested_fields(&self, id: NodeId) -> Vec<NodeId> {
+        let cols = self.view_columns(id);
+        let mut out: Vec<NodeId> = if self.tag_def(id).is_some() { self.template_fields(id) } else { Vec::new() };
+        for i in self.view_items(id).iter().take(500) {
+            let Some(n) = self.get(self.resolve(*i)) else { continue };
+            out.extend(n.fields.iter().map(|f| f.field));
+            for t in &n.tags {
+                out.extend(self.template_fields(*t));
+            }
+        }
+        let mut seen = Vec::new();
+        out.retain(|f| {
+            !cols.contains(f) && self.field_def(*f).is_some() && !seen.contains(f) && {
+                seen.push(*f);
+                true
+            }
+        });
+        out.truncate(8);
+        out
+    }
+
     /// The date field a calendar view uses.
     pub fn calendar_field(&self, id: NodeId) -> Option<NodeId> {
         if let Some(f) = self.view_def(id).date_field {

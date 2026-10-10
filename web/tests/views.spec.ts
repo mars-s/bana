@@ -236,6 +236,20 @@ test('dragging a header edge resizes the column; + Add offers new and system fie
   await expect(app.locator('.menu.picker .menu-item', { hasText: /^Status$/ })).toHaveCount(0)
 })
 
+test('+ Add has a Suggested group with fields the items use that are not shown (N46)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'table' })
+  await server.run('view.removeColumn', { node: view, field: 'Status' })
+  await expect(app.locator('.t-head .t-cell', { hasText: 'Status' })).toHaveCount(0)
+  await app.locator('.t-head .tool', { hasText: '+ Add' }).click()
+  const menu = app.locator('.menu.pop')
+  await expect(menu.locator('.menu-caps', { hasText: 'Suggested' })).toBeVisible()
+  // Order: Add new field, Suggested, System fields.
+  await expect(menu.locator('.menu-item, .menu-caps').first()).toContainText('Add new field')
+  await menu.locator('.menu-item', { hasText: /^Status$/ }).click()
+  await expect(app.locator('.t-head .t-cell', { hasText: 'Status' })).toBeVisible()
+})
+
 test('the view toolbar: text filter, filter chips with x, sort rules; no Group in a table (N48, N54)', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'table' })

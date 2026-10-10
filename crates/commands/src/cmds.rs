@@ -317,6 +317,13 @@ pub fn registry() -> Registry {
         C::new("view.group", "Group by", "Views", view_group).params(r#"{"node"?: id, "by": "none|tags|done|owner|created|edited|<field>"}"#),
         C::new("view.filter", "Filter", "Views", view_filter).params(r#"{"node"?: id, "query": string}  (empty clears)"#),
         C::new("view.addColumn", "Add column", "Views", view_add_column).params(r#"{"node"?: id, "field": name | id, "type"?: string}"#),
+        // "+ Add" > Suggested (DIFFS N46): fields the items use or their supertags define, not shown.
+        C::new("view.suggestedFields", "Suggested columns", "Views", |s, v| {
+            let id = view_target(s, v)?;
+            Ok(Value::Array(s.graph.view_suggested_fields(id).into_iter().map(|f| json!({"id": f.0, "name": s.graph.name(f)})).collect()))
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
         C::new("view.removeColumn", "Remove column", "Views", view_remove_column).params(r#"{"node"?: id, "field": name | id}"#),
         // The table header menu (spec 04 §2, `163`).
         C::new("view.moveColumn", "Move column", "Views", |s, v| {

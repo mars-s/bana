@@ -66,7 +66,7 @@ test('command line, query builder, quick add, two panels', async ({ app, server 
   await server.run('nav.open', { node: id })
   await server.run('view.set', { node: id, kind: 'table' })
   await app.locator('.table').waitFor()
-  await app.locator('.view-toolbar .tool[title^="Search conditions"]').click()
+  await app.locator('.head-actions .btn[title^="Search options"]').click()
   await app.locator('.query-builder').waitFor()
   await app.screenshot(shot('query-builder'))
   await app.locator('.q-foot .btn', { hasText: 'Done' }).click()

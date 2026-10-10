@@ -36,6 +36,9 @@ export interface ViewSnap {
   titleWidth: number | null
   sorted: boolean
   filtered: boolean
+  sorts?: { by: string; label: string; desc: boolean }[]
+  filters?: string[]
+  system?: string[]
   filteredOut: number
   dateField: { id: number; name: string } | null
   calendar: { year: number; month: number; mode: 'month' | 'week' | 'day'; today: string; weekStart: string; weekdays: string[] }
@@ -97,15 +100,38 @@ function Item({ children, onPick, checked, icon }: { children: ReactNode; onPick
 
 // ---- toolbar -----------------------------------------------------------------------------------
 
+/** The view toolbar (spec 04, 12: Table; N48): quick text filter, view, display, sort, group,
+ * active filter chips, filter. */
 function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
   const run = (c: string, p: Json) => void exec(c, { node: v.node, ...p }, panel)
-  const qOpen = useStore((s) => !!s.queryOpen[panel])
+  const [quick, setQuick] = useState<string | null>(null)
+  const [tags, setTags] = useState<TagInfo[]>([])
+  useEffect(() => {
+    void call('run', { command: 'graph.tags', params: {} }).then((r) => setTags(Array.isArray(r?.result) ? r.result : []))
+  }, [v.node])
+  const sortChoices: [string, string][] = [['name', 'Name'], ['created', 'Created time'], ['edited', 'Last edited time'], ['done', 'Done'], ...v.columns.map((c): [string, string] => [String(c.id), c.name])]
   return (
     <div className="view-toolbar">
-      {v.query && (
-        <button className={`tool${qOpen ? ' active' : ''}`} title="Search conditions (query builder)" onClick={() => void toggleQuery(panel, v.node, !qOpen)}>
+      {quick === null ? (
+        <button className="tool" title="Filter by text" onClick={() => setQuick('')}>
           <Icon name="search" size={14} />
         </button>
+      ) : (
+        <input
+          className="tool-search"
+          autoFocus
+          placeholder="Filter by text"
+          value={quick}
+          onChange={(e) => setQuick(e.target.value)}
+          onBlur={() => !quick && setQuick(null)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter' && quick.trim()) {
+              run('view.addFilter', { clause: quick.trim() })
+              setQuick(null)
+            } else if (e.key === 'Escape') setQuick(null)
+          }}
+        />
       )}
       <MenuButton icon={KINDS.find((k) => k.kind === v.kind)?.icon ?? 'list'} title="View as">
         {(close) =>
@@ -117,61 +143,100 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
         }
       </MenuButton>
       <MenuButton icon="sliders" title="Display fields">
-        {(close) =>
-          v.columns.length ? (
-            v.columns.map((c) => (
+        {(close) => (
+          <>
+            {v.columns.map((c) => (
               <Item key={c.id} checked onPick={() => (close(), run('view.toggleDisplay', { field: c.id }))}>
                 {c.name}
               </Item>
-            ))
-          ) : (
-            <div className="menu-empty">No fields on these items yet</div>
-          )
-        }
+            ))}
+            <div className="menu-caps">System fields</div>
+            {['Created time', 'Last edited time', 'Done time', 'Owner node', 'Tags', 'Number of references'].map((f) => (
+              <Item key={f} checked={(v.system ?? []).includes(f)} onPick={() => (close(), run('view.toggleSystemField', { field: f }))}>
+                {f}
+              </Item>
+            ))}
+          </>
+        )}
       </MenuButton>
       <MenuButton icon="sort" title="Sort by" active={v.sorted}>
         {(close) => (
           <>
-            {[['name', 'Name'], ['created', 'Created time'], ['edited', 'Last edited time'], ['done', 'Done']].map(([by, label]) => (
-              <Item key={by} onPick={() => (close(), run('view.sort', { by }))}>
-                {label}
-              </Item>
+            {(v.sorts ?? []).map((r, i) => (
+              <div key={i} className="menu-item sort-rule">
+                <span className="menu-icon" />
+                <span className="grow">{r.label}</span>
+                <button className="ghost-btn" onMouseDown={(e) => (e.preventDefault(), close(), void exec('view.removeSort', { node: v.node, index: i }, panel).then(() => run('view.addSort', { by: r.by, desc: !r.desc })))}>
+                  {r.desc ? 'Descending' : 'Ascending'}
+                </button>
+                <button className="q-x" title="Remove" onMouseDown={(e) => (e.preventDefault(), close(), run('view.removeSort', { index: i }))}>
+                  <Icon name="close" size={10} />
+                </button>
+              </div>
             ))}
-            {v.columns.map((c) => (
-              <Item key={c.id} onPick={() => (close(), run('view.sort', { by: String(c.id) }))}>
-                {c.name}
-              </Item>
-            ))}
-            <div className="menu-sep" />
-            <Item onPick={() => (close(), run('view.sort', { by: 'none' }))}>No sorting</Item>
+            <SubMenu label="+ Add sort">
+              {sortChoices.map(([by, label]) => (
+                <Item key={by} onPick={() => (close(), run('view.addSort', { by }))}>
+                  {label}
+                </Item>
+              ))}
+            </SubMenu>
+            {v.sorted && <Item onPick={() => (close(), run('view.sort', { by: 'none' }))}>Reset</Item>}
           </>
         )}
       </MenuButton>
-      <MenuButton icon="group" title="Group by" active={v.grouped}>
-        {(close) => (
-          <>
-            {[['tags', 'Tags'], ['done', 'Done'], ['owner', 'Owner node'], ['created', 'Created day']].map(([by, label]) => (
-              <Item key={by} onPick={() => (close(), run('view.group', { by }))}>
-                {label}
-              </Item>
-            ))}
-            {v.columns.map((c) => (
-              <Item key={c.id} onPick={() => (close(), run('view.group', { by: String(c.id) }))}>
-                {c.name}
-              </Item>
-            ))}
-            <div className="menu-sep" />
-            <Item onPick={() => (close(), run('view.group', { by: 'none' }))}>No grouping</Item>
-          </>
-        )}
-      </MenuButton>
+      {v.kind !== 'table' && (
+        <MenuButton icon="group" title="Group by" active={v.grouped}>
+          {(close) => (
+            <>
+              {[['tags', 'Tags'], ['done', 'Done'], ['owner', 'Owner node'], ['created', 'Created day']].map(([by, label]) => (
+                <Item key={by} onPick={() => (close(), run('view.group', { by }))}>
+                  {label}
+                </Item>
+              ))}
+              {v.columns.map((c) => (
+                <Item key={c.id} onPick={() => (close(), run('view.group', { by: String(c.id) }))}>
+                  {c.name}
+                </Item>
+              ))}
+              <div className="menu-sep" />
+              <Item onPick={() => (close(), run('view.group', { by: 'none' }))}>No grouping</Item>
+            </>
+          )}
+        </MenuButton>
+      )}
+      {(v.filters ?? []).map((f, i) => (
+        <span key={i} className="filter-chip">
+          {f.replace(/^Search for nodes /, '')}
+          <button title="Remove filter" onClick={() => run('view.removeFilter', { index: i })}>
+            <Icon name="close" size={10} />
+          </button>
+        </span>
+      ))}
       <MenuButton icon="funnel" title="Filter" active={v.filtered}>
         {(close) => (
           <>
-            <Item onPick={() => (close(), run('view.filter', { query: 'NOT DONE' }))}>Not done</Item>
-            <Item onPick={() => (close(), run('view.filter', { query: 'DONE' }))}>Done</Item>
-            <div className="menu-sep" />
-            <Item onPick={() => (close(), run('view.filter', { query: '' }))}>No filter</Item>
+            <Item onPick={() => (close(), run('view.addFilter', { clause: 'NOT DONE' }))}>Not done</Item>
+            <Item onPick={() => (close(), run('view.addFilter', { clause: 'DONE' }))}>Done</Item>
+            <SubMenu label="Tags">
+              {tags.map((t) => (
+                <Item key={t.id} onPick={() => (close(), run('view.addFilter', { clause: `#"${t.name}"` }))}>
+                  {`#${t.name}`}
+                </Item>
+              ))}
+            </SubMenu>
+            {v.columns.map((c) => (
+              <SubMenu key={c.id} label={c.name}>
+                <Item onPick={() => (close(), run('view.addFilter', { clause: `"${c.name}":*` }))}>Set</Item>
+                <Item onPick={() => (close(), run('view.addFilter', { clause: `"${c.name}":NOTSET` }))}>Not set</Item>
+              </SubMenu>
+            ))}
+            {v.filtered && (
+              <>
+                <div className="menu-sep" />
+                <Item onPick={() => (close(), run('view.filter', { query: '' }))}>Clear filters</Item>
+              </>
+            )}
           </>
         )}
       </MenuButton>

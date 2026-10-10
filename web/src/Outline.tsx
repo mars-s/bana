@@ -10,7 +10,7 @@ import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
-import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
+import { QueryBuilder, ViewBody, ViewToolbar, toggleQuery } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
@@ -1094,11 +1094,24 @@ function Decorate({ page, panel }: { page: Page; panel: string }) {
 }
 
 function HeadActions({ page, panel }: { page: Page; panel: string }) {
+  const qOpen = useStore((s) => !!s.queryOpen[panel])
+  const search = page.kind === 'search'
   return (
     <div className="head-actions">
       <button className="btn icon" title="AI (not available)">
         <Icon name="sparkle" size={12} />
       </button>
+      {/* A search node's page: add an item that matches, and the search options (N54). */}
+      {search && (
+        <button className="btn icon" title="Add an item that matches" onClick={() => void exec('view.addItem', { node: page.zoom, name: '' }, panel)}>
+          <Icon name="plus" size={12} />
+        </button>
+      )}
+      {search && (
+        <button className={`btn icon${qOpen ? ' on' : ''}`} title="Search options (query editor)" onClick={() => void toggleQuery(panel, page.zoom, !qOpen)}>
+          <Icon name="search" size={12} />
+        </button>
+      )}
       <button
         className="btn icon"
         title="Options"

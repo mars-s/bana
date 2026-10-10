@@ -616,6 +616,20 @@ pub fn view(s: &Session, params: &Value) -> Value {
         "titleWidth": g.column_width(node, NodeId(0)),
         "sorted": !def.sort.is_empty(),
         "filtered": !def.filter.is_empty(),
+        // The rules behind the toolbar (N48): sort rules in order, filter conditions as chips.
+        "sorts": def.sort.iter().map(|r| {
+            let (by, label) = match r.by {
+                tanacraft_core::SortBy::Name => ("name".to_string(), "Name".to_string()),
+                tanacraft_core::SortBy::Created => ("created".into(), "Created time".into()),
+                tanacraft_core::SortBy::Edited => ("edited".into(), "Last edited time".into()),
+                tanacraft_core::SortBy::Done => ("done".into(), "Done".into()),
+                tanacraft_core::SortBy::DoneTime => ("done_time".into(), "Done time".into()),
+                tanacraft_core::SortBy::Field(f) => (f.0.to_string(), g.name(f).to_string()),
+            };
+            json!({"by": by, "label": label, "desc": r.desc})
+        }).collect::<Vec<_>>(),
+        "filters": def.filter.clauses.iter().map(|c| tanacraft_core::query::Query { any: false, clauses: vec![c.clone()] }.describe(g)).collect::<Vec<_>>(),
+        "system": def.system.iter().map(|f| f.label()).collect::<Vec<_>>(),
         "filteredOut": g.view_filtered_out(node),
         "hiddenGroups": def.hidden_groups,
         "dateField": date_field.map(|f| json!({"id": f.0, "name": g.name(f)})),

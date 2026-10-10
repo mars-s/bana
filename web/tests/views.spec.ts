@@ -130,7 +130,7 @@ test('the table header menu calculates, moves and hides a column', async ({ app,
 test('+ OR in the query builder never sends typing into a result row (N35)', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'table' })
-  await app.locator('.view-toolbar .tool[title^="Search conditions"]').click()
+  await app.locator('.head-actions .btn[title^="Search options"]').click()
   await app.locator('.q-add .btn', { hasText: '+ OR' }).click()
   // The new group's input has the keyboard.
   await expect(app.locator('.query-builder .q-group .q-group .q-input')).toBeFocused()
@@ -147,7 +147,7 @@ test('+ OR in the query builder never sends typing into a result row (N35)', asy
 test('the query builder has its menus, Learn more and a corner close button (N43)', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'table' })
-  await app.locator('.view-toolbar .tool[title^="Search conditions"]').click()
+  await app.locator('.head-actions .btn[title^="Search options"]').click()
   const qb = app.locator('.query-builder')
   for (const label of ['+ Supertag', 'Tag fields ▾', 'Field values ▾', 'System fields ▾', 'Tag types ▾', 'Search operators ▾']) await expect(qb.getByText(label, { exact: true })).toBeVisible()
   await expect(qb.locator('.q-learn')).toHaveText('Learn more')
@@ -197,4 +197,24 @@ test('dragging a header edge resizes the column; + Add offers new and system fie
   await expect(app.locator('.menu.picker')).toBeVisible()
   // Columns already shown are not offered again.
   await expect(app.locator('.menu.picker .menu-item', { hasText: /^Status$/ })).toHaveCount(0)
+})
+
+test('the view toolbar: text filter, filter chips with x, sort rules; no Group in a table (N48, N54)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'table' })
+  await expect(app.locator('.view-toolbar .tool[title="Group by"]')).toHaveCount(0)
+  await expect(app.locator('.head-actions .btn[title="Add an item that matches"]')).toBeVisible()
+  await app.locator('.view-toolbar .tool[title="Filter by text"]').click()
+  await app.keyboard.type('compost')
+  await app.keyboard.press('Enter')
+  await expect(app.locator('.filter-chip')).toContainText('compost')
+  await expect(app.locator('.t-row[data-id]')).toHaveCount(2)
+  await app.locator('.filter-chip button').click()
+  await expect(app.locator('.filter-chip')).toHaveCount(0)
+  await expect(app.locator('.t-row[data-id]')).toHaveCount(3)
+  await app.locator('.view-toolbar .tool[title="Sort by"]').click()
+  await app.locator('.menu.pop .menu-item', { hasText: '+ Add sort' }).hover()
+  await app.locator('.menu.pop .submenu .menu-item', { hasText: 'Name' }).click()
+  await app.locator('.view-toolbar .tool[title="Sort by"]').click()
+  await expect(app.locator('.menu.pop .sort-rule', { hasText: 'Name' })).toContainText('Ascending')
 })

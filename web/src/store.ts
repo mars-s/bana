@@ -77,6 +77,7 @@ export interface State {
   overlay: Overlay | null
   commands: CommandInfo[]
   toast: string | null
+  toastLeaving: boolean
   /** Bumped when the caret should be put where the engine says (after a command, not typing). */
   caretEpoch: number
   /** Bumped to scroll the focused line back into view (a key came while it was scrolled away). */
@@ -132,6 +133,7 @@ let state: State = {
   overlay: null,
   commands: [],
   toast: null,
+  toastLeaving: false,
   caretEpoch: 0,
   focusScroll: 0,
   activePanel: 'main',
@@ -248,10 +250,16 @@ export async function refresh() {
 }
 
 let toastTimer = 0
+/** Toasts stay 5.35 s, then collapse in place over 300 ms (motion M8). */
+const TOAST_MS = 5350
+const TOAST_EXIT_MS = 300
 export function showToast(msg: string) {
-  setState({ toast: msg })
+  setState({ toast: msg, toastLeaving: false })
   clearTimeout(toastTimer)
-  toastTimer = window.setTimeout(() => setState({ toast: null }), 3500)
+  toastTimer = window.setTimeout(() => {
+    setState({ toastLeaving: true })
+    toastTimer = window.setTimeout(() => setState({ toast: null, toastLeaving: false }), TOAST_EXIT_MS)
+  }, TOAST_MS)
 }
 
 export async function start() {

@@ -931,7 +931,10 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
   const dow = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7
   const sundayFirst = c.weekdays[0]?.startsWith('Sun')
   const start = addDays(first, -(sundayFirst ? (dow + 1) % 7 : dow))
-  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i))
+  // As many weeks as the month needs (five for October 2026; N59.27).
+  const inMonth = new Date(Date.UTC(c.year, c.month, 0)).getUTCDate()
+  const lead = sundayFirst ? (dow + 1) % 7 : dow
+  const days = Array.from({ length: Math.ceil((lead + inMonth) / 7) * 7 }, (_, i) => addDays(start, i))
   // Week and day views step on their own (the engine keeps the month).
   const span = c.mode === 'day' ? [addDays(c.today, offset)] : Array.from({ length: 7 }, (_, i) => addDays(c.weekStart, offset + i))
   const title = c.mode === 'month' ? `${MONTHS[c.month - 1]} ${c.year}` : c.mode === 'week' ? `Week ${isoWeek(span[0])}, ${span[0].slice(0, 4)}` : longDay(span[0])
@@ -974,7 +977,7 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
           return (
             <div
               key={d}
-              className={`cal-cell${out ? ' out' : ''}`}
+              className={`cal-cell${out ? ' out' : ''}${isWeekend(d) ? ' weekend' : ''}`}
               onDragOver={(e) => e.dataTransfer.types.includes('text/x-cal') && e.preventDefault()}
               onDrop={(e) => {
                 // An event dropped on another day moves there, keeping its time (spec 04 §7).
@@ -1007,6 +1010,7 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
 /** Week and day: an all-day strip over an hour grid (spec 04 §10; 12: Calendar week). */
 const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const weekdayOf = (d: string) => WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]
+const isWeekend = (d: string) => [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())
 
 /** "October 10th, 2026" (the day view's title, N50). */
 function longDay(d: string): string {
@@ -1084,7 +1088,7 @@ function TimeGrid({ v, days, byDay, today, panel }: { v: ViewSnap; days: string[
           {days.map((d) => (
             <div
               key={d}
-              className="tg-col"
+              className={`tg-col${isWeekend(d) ? ' weekend' : ''}`}
               data-day={d}
               onDragOver={(e) => e.dataTransfer.types.includes('text/x-cal') && e.preventDefault()}
               onDrop={(e) => {

@@ -1539,16 +1539,28 @@ kbd {
   position: fixed;
   right: var(--q4);
   top: 55px;
-  max-width: 320px;
+  width: var(--toast-w);
+  max-width: calc(100vw - 2 * var(--q4));
+  max-height: var(--toast-max-h);
+  overflow: hidden;
   background: var(--c-popover);
   box-shadow: var(--shadow-float), 0 0 0 1px var(--c-divider);
   border-radius: var(--r-xl);
-  padding: var(--q4);
+  padding: var(--toast-pad);
   font-size: var(--fs-dense);
   line-height: var(--lh-dense);
   color: var(--c-secondary);
   z-index: 60;
   animation: toast-in var(--t-toast);
+  transition: max-height var(--t-toast-exit), width var(--t-toast-exit), padding var(--t-toast-exit);
+}
+
+/* Exit: it collapses in place, staying opaque (M8). */
+.toast.leaving {
+  max-height: 0;
+  width: var(--toast-w-exit);
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 @keyframes fade-in {
@@ -2130,7 +2142,24 @@ kbd {
   font-weight: var(--fw-bold);
 }
 
-.cal-event {
+/* Month event: no fill, a 3 px bar in the tag colour, 12 px 500 (N59.28). */
+.cal-grid .cal-event {
+  display: flex;
+  align-items: center;
+  gap: var(--q1);
+  min-height: var(--cal-event-h);
+  padding: 0 var(--q1);
+  border-radius: 2px;
+  border-left: 3px solid var(--tag, var(--c-muted));
+  background: none;
+  color: var(--tag, var(--c-text));
+  font-size: var(--fs-label);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+/* Week and day grid events keep a tinted fill. */
+.cal-event:not(.cal-grid .cal-event) {
   display: flex;
   align-items: center;
   gap: var(--q1);
@@ -2141,9 +2170,13 @@ kbd {
   background: var(--tag-t1, var(--c-raised));
   color: var(--tag, var(--c-text));
   font-size: var(--fs-label);
-  font-weight: var(--fw-medium);
   cursor: pointer;
-  overflow: hidden;
+}
+
+/* Weekends are lifted a little (N59.30). */
+.cal-cell.weekend,
+.tg-col.weekend {
+  background-color: var(--c-weekend);
 }
 
 .cal-event-name {
@@ -3351,4 +3384,29 @@ kbd {
 .row.empty-child {
   cursor: text;
   position: relative;
+}
+
+.side-spacer {
+  height: var(--sidebar-row-h);
+}
+
+/* Headings use Inter's contextual alternates and the tailed l (N59.7). */
+.title,
+.title-input,
+.section-title,
+.cal-title,
+.view-title {
+  font-feature-settings: 'calt', 'cv05';
+}
+
+/* Light theme: the day page's title is muted (N59.8). */
+:root[data-theme='light'] .title-row.day .title-input,
+:root[data-theme='light'] .title-row.day .title {
+  color: var(--c-muted);
+}
+
+/* The search button's icon brightens on hover (N59.11). */
+.side-actions .btn.icon:hover {
+  color: var(--c-strong);
+  font-weight: var(--fw-button);
 }

@@ -1375,7 +1375,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
           <div className="page-main">
             <div ref={head} className="page-head">
               {page.titleEditable && <Decorate page={page} panel={panel} />}
-              <div className="title-row">
+              <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}
                 {page.kind === 'tag' && (
                   <span className="tag-square title" style={tagStyle(page.tagColor ?? 'grey')}>

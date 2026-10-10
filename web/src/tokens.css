@@ -62,6 +62,7 @@
   --filter-chip-h: 26.6px;
   --board-min-h: 60vh;
   --tg-hour: 45px;
+  --cal-event-h: 18.8px;
   --tg-gutter: 50.5px;
   --tg-event-min: 22px;
   --tg-body-max: calc(100vh - 330px);
@@ -130,6 +131,11 @@
   --t-sidebar: 200ms cubic-bezier(0.45, 0, 0.55, 1);
   --t-sidebar-back: 225ms cubic-bezier(0.4, -0.15, 0.4, 1);
   --t-handle: 150ms ease;
+  --t-toast-exit: 300ms ease-in-out;
+  --toast-w: 254px;
+  --toast-w-exit: 238px;
+  --toast-max-h: 200px;
+  --toast-pad: 14px;
   --t-toast: 200ms ease-out;
   --t-fade-delayed: 200ms ease 400ms;
 
@@ -142,6 +148,7 @@
   --c-pressed: #434444;
   --c-popover: #232526;
   --c-popover-glass: rgba(35, 37, 38, 0.8);
+  --c-weekend: rgba(255, 255, 255, 0.025);
   --c-tooltip: #2e2f30;
   --c-tooltip-text: #eaeaea;
   --c-divider: #2e2f30;
@@ -249,6 +256,7 @@
   --c-pressed: #f8f8f8;
   --c-popover: #fefefe;
   --c-popover-glass: rgba(254, 254, 254, 0.8);
+  --c-weekend: rgba(0, 0, 0, 0.02);
   --c-tooltip: #3b3c3d;
   --c-tooltip-text: #f4f4f4;
   --c-divider: #efefef;

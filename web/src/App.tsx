@@ -255,9 +255,11 @@ function Sidebar() {
   return (
     <aside className={`sidebar${mode === 2 ? ' hidden' : ''}`} data-panel-for={active} style={width && mode === 0 ? { width } : undefined} aria-hidden={mode === 2}>
       {mode === 0 && <SidebarGrip />}
-      <SideRow icon={<TodayIcon day={sb.today} />} label="Today" active={page?.kind === 'day' && page.title.startsWith('Today')} onClick={() => void exec('nav.today')} />
+      <SideRow icon={<TodayIcon day={sb.today} />} label="Today" onClick={() => void exec('nav.today')} />
       {shows('supertags') && <SideRow icon={<Icon name="hash" size={14} />} label="Supertags" active={zoom === sb.schema} onClick={() => void exec('nav.supertags')} />}
       {shows('recents') && <SideRow icon={<Icon name="clock" size={14} />} label="Recents" onClick={() => runUiCommand('ui.recents')} />}
+      {/* Where Tana has AI chats (out of scope): the space is kept so everything below sits right. */}
+      <div className="side-spacer" aria-hidden />
       <div className="side-actions">
         <button className="btn create" onClick={() => void exec('node.createNew')}>
           <Icon name="compose" size={14} />
@@ -269,11 +271,12 @@ function Sidebar() {
       </div>
       {sb.pinned.length > 0 && <div className="side-head">Pinned</div>}
       {sb.pinned.map((it) => (
-        <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />
+        <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} onClick={() => void exec('nav.open', { node: it.id })} />
       ))}
-      {sb.workspaces.length > 1 && <div className="side-head">Workspaces</div>}
+      {/* Workspaces: a heading and one folding row each (N59.3). */}
+      <div className="side-head">Workspaces</div>
       {sb.workspaces.map((ws) => (
-        <WorkspaceRows key={ws.id} ws={ws} several={sb.workspaces.length > 1} zoom={zoom} journal={sb.journal} showDaily={shows('daily_notes')} />
+        <WorkspaceRows key={ws.id} ws={ws} several zoom={zoom} journal={sb.journal} showDaily={shows('daily_notes')} />
       ))}
       <div className="side-foot" onClick={() => setState({ overlay: { kind: 'workspaces' } })} role="button">
         Manage workspaces
@@ -319,8 +322,9 @@ function PanelGrip({ left, right }: { left: string; right: string }) {
 
 function Toast() {
   const t = useStore((s) => s.toast)
+  const leaving = useStore((s) => s.toastLeaving)
   return t ? (
-    <div className="toast" role="status">
+    <div className={`toast${leaving ? ' leaving' : ''}`} role="status">
       <Icon name="info" size={20} className="toast-icon" />
       <span>{t}</span>
     </div>

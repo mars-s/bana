@@ -18,6 +18,7 @@ test('the mini rail opens Pinned and Workspaces flyouts; an item opens and the f
   // Workspaces: the workspace's entries and Manage workspaces; clicking elsewhere closes it.
   await app.locator('.sidebar.mini .rail > .side-row[title="Workspaces"]').click()
   const ws = app.locator('.flyout[aria-label="Workspaces"]')
+  await ws.locator('.side-ws-head').click()
   await expect(ws.locator('.side-row', { hasText: 'Library' })).toBeVisible()
   await expect(ws.locator('.side-foot')).toHaveText('Manage workspaces')
   await app.locator('.panel').click({ position: { x: 400, y: 600 } })
@@ -29,6 +30,7 @@ test('Ctrl+Shift+PageUp/PageDown and dragging move tabs', async ({ app }) => {
   await expect(app.locator('.tab')).toHaveCount(2)
   const titles = () => app.locator('.tab').allTextContents()
   await app.keyboard.press('Meta+1')
+  await app.locator('.sidebar .side-ws-head').first().click()
   await app.locator('.sidebar .side-row', { hasText: 'Library' }).click()
   await expect(app.locator('.tab').first()).toContainText('Library')
   await app.keyboard.press('Control+Shift+PageDown')

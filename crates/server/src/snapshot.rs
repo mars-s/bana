@@ -144,7 +144,7 @@ fn field_row(g: &Graph, owner: NodeId, e: &tanacraft_core::FieldEntry, depth: us
         .collect();
     let empty = values.iter().all(|v| export::display_value(g, v).is_empty());
     let typed_text = matches!(def.field_type, FieldType::Number | FieldType::Date | FieldType::Checkbox);
-    let invalid = values.iter().any(|v| !v.is_valid() || (typed_text && matches!(v, FieldValue::Text(_))));
+    let invalid = values.iter().any(|v| !v.is_valid() || (typed_text && matches!(v, FieldValue::Text(_))) || g.out_of_range(e.field, v));
     // Fields that come from the owner's supertags sit in a soft box; free-standing ones do not.
     let boxed = g.get(owner).is_some_and(|n| n.tags.iter().any(|t| g.template_fields(*t).contains(&e.field)));
     json!({
@@ -431,6 +431,8 @@ pub fn sidebar(s: &Session) -> Value {
         "todayDate": s.today.to_string(),
         "zoom": s.zoom.0,
         "pinned": pinned,
+        // The week's first day for date pickers (UC-01.13).
+        "weekStart": if g.settings.week_starts_sunday { "sunday" } else { "monday" },
         // Command nodes, listed by name in the command line (UC-06.33).
         "commandNodes": g.command_nodes().into_iter().map(|c| json!({"id": c.0, "name": g.name(c)})).collect::<Vec<_>>(),
         "workspaces": workspaces,
@@ -544,6 +546,14 @@ pub fn choices(s: &Session, params: &Value) -> Value {
                 .filter(|n| g.name(*n).to_lowercase().contains(&q))
                 .map(|n| item(n, g.name(n).to_string()))
                 .collect();
+            // Every other workspace's Library, found by the workspace's name (UC-07.03).
+            for ws in g.workspaces().into_iter().filter(|w| *w != g.sys.root) {
+                let lib = g.workspace_library(ws);
+                let label = format!("{} / Library", g.name(ws));
+                if label.to_lowercase().contains(&q) && !g.is_ancestor_or_self(node, lib) {
+                    v.push(item(lib, label));
+                }
+            }
             v.extend(g.fuzzy(&q, 10).into_iter().filter(|n| !g.is_ancestor_or_self(node, *n)).map(|n| item(n, line(n))));
             v
         }

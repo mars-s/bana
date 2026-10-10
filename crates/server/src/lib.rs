@@ -341,9 +341,15 @@ pub fn open_session(file: Option<std::path::PathBuf>, sample: bool, today: Optio
             (tanacraft_core::load_or_migrate(&p).map_err(|e| e.to_string())?.unwrap_or_default(), Some(p))
         }
     };
+    let fresh_sample = sample && file.as_ref().is_some_and(|f| !f.exists());
     let mut s = Session::with_today(graph, today);
     s.path = path;
     let _ = s.run("nav.today", &json!({}));
+    // A sample for a new file is written at once, so the file (and the CLI or MCP on it) has it
+    // before the first edit.
+    if fresh_sample {
+        s.run("file.save", &json!({})).map_err(|e| e.to_string())?;
+    }
     Ok(s)
 }
 

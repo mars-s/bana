@@ -93,7 +93,7 @@ with an optional `#day` template. Scenarios: `web/tests/use-cases/01-daily-journ
 - **Steps:** Settings, Date and time: First day of the week, Time format.
 - **Expected:** Calendars and date pickers start on that day; times show as chosen.
 - **Source:** https://outliner.tana.inc/learn/features/dates-and-calendar-nodes
-- **TanaCraft:** PARTIAL. Both settings save and calendar views start on Sunday; the date picker still starts on Monday. No per-workspace time zone.
+- **TanaCraft:** PARTIAL. Both settings save; calendar views and the date picker start on the chosen day. No per-workspace time zone.
 
 ### UC-01.14 Daily notes in a second workspace: MISSING
 - **Story:** My club workspace should have its own day pages.

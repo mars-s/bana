@@ -35,16 +35,16 @@ Everything here comes from Tana's public pages, written in our own words:
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 5 | 1 | 3 | 0 | 1 |
-| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 29 | 6 | 10 | 0 | 0 |
-| [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 2 | 2 | 5 | 2 | 0 |
+| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 30 | 5 | 10 | 0 | 0 |
+| [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 3 | 1 | 5 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 1 | 4 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **96** | **15** | **32** | **14** | **24** |
+| **Total (181)** | | **98** | **13** | **32** | **14** | **24** |
 
 Out of the 143 use cases that need neither AI nor a cloud or mobile service, 111 work fully or in
-part (96 + 15) and 32 are missing.
+part (98 + 13) and 32 are missing.
 
 ## Top 15 gaps by user value
 
@@ -74,11 +74,11 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 15. **Capture from anywhere** (UC-08.14). A system-wide quick capture in the desktop app.
 
 Smaller defects found on the way (worth a ticket each): the Content width button has no action
-(UC-06.44); the date picker ignores the Sunday week start that calendar views follow (UC-01.13);
-Move to cannot reach another workspace (UC-07.03); a number outside its range is refused rather
-than kept with a warning (UC-06.25); side menu and tabs views open the item in a second panel
-instead of in place (UC-06.14); outline and list group headers do not fold (UC-06.31); with
-`serve --sample --file`, the sample reaches the file only after the first edit.
+(UC-06.44); side menu and tabs views open the item in a second panel instead of in place
+(UC-06.14); outline and list group headers do not fold (UC-06.31). Fixed since: the date picker
+follows the Sunday week start (UC-01.13), Move to reaches other workspaces (UC-07.03), a number
+outside its range is kept with a warning (UC-06.25), and `serve --sample --file` writes the sample
+at once.
 
 ## AI-dependent features (decision open)
 

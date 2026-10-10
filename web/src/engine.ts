@@ -427,6 +427,8 @@ export interface Sidebar {
   urlEmbeds: boolean
   recents: { id: number; name: string; kind: string }[]
   commandNodes?: { id: number; name: string }[]
+  /** "monday" or "sunday" (Settings, Date and time). */
+  weekStart?: string
 }
 
 export interface CommandInfo {

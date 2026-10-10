@@ -242,3 +242,15 @@ fn mcp_over_streamable_http_needs_the_token_and_runs_the_tools() {
     // The rest of the API still refuses a foreign Host (DNS rebinding).
     assert!(http(port, "POST", "/rpc", &tunnel, r#"{"method":"version"}"#).0.contains("403"));
 }
+
+#[test]
+fn a_sample_for_a_new_file_is_written_at_once() {
+    let dir = std::env::temp_dir().join(format!("tanacraft-sample-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("graph.tanacraft");
+    let _ = std::fs::remove_file(&file);
+    open_session(Some(file.clone()), true, Date::new(2026, 10, 10)).unwrap();
+    assert!(file.exists(), "the sample is on disk before any edit");
+    let g = tanacraft_core::Graph::load(&file).unwrap();
+    assert!(g.find_tag("task").is_some());
+}

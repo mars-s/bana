@@ -1770,13 +1770,7 @@ impl Graph {
             }
             (ty, _) => FieldValue::parse(ty, text).map_err(Error::Invalid)?,
         };
-        if let FieldValue::Number(x) = value
-            && (def.min.is_some_and(|m| x < m) || def.max.is_some_and(|m| x > m))
-        {
-            let range =
-                format!("{} to {}", def.min.map(|m| m.to_string()).unwrap_or("any".into()), def.max.map(|m| m.to_string()).unwrap_or("any".into()));
-            return Err(Error::Invalid(format!("{x} is outside the allowed range ({range})")));
-        }
+        // A number outside the field's range is kept and shown with a warning (UC-06.25).
         if let FieldValue::Choice(c) = &value
             && !def.no_auto_collect
             && !self.field_options(field).iter().any(|o| o == c)
@@ -2069,6 +2063,14 @@ impl Graph {
         let next: String =
             chars[..at].iter().copied().chain(crate::format::ref_token(target.0).chars()).chain(chars[at + len..].iter().copied()).collect();
         self.set_name(node, &next)
+    }
+
+    /// Whether `v` breaks field `field`'s number range (shown with a warning, UC-06.25).
+    pub fn out_of_range(&self, field: NodeId, v: &FieldValue) -> bool {
+        match (self.field_def(field), v) {
+            (Some(d), FieldValue::Number(x)) => d.min.is_some_and(|m| *x < m) || d.max.is_some_and(|m| *x > m),
+            _ => false,
+        }
     }
 
     /// What related content `related` shows on `page`: a search runs for that page (its PARENT is

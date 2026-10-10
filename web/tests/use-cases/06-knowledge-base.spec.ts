@@ -251,11 +251,13 @@ test('UC-06.24 optional fields wait behind a + button until needed', works('UC-0
   await expect(app.getByText('Allergies').first()).toBeVisible()
 })
 
-test('UC-06.25 field types check values: a number outside its range is refused (Tana keeps it with a warning)', partial('UC-06.25'), async ({ server }) => {
+test('UC-06.25 field types check values: a number outside its range is kept with a warning', works('UC-06.25'), async ({ app, server }) => {
   await server.run('field.setRange', { field: 'Effort (hours)', min: 0, max: 40 })
   const id = await idOf(server, 'Build four beds')
-  expect((await server.run('field.set', { node: id, field: 'Effort (hours)', value: '99' })).error).toMatch(/range/)
-  expect(await fieldOf(server, id, 'Effort (hours)')).toBe('6')
+  expect((await server.run('field.set', { node: id, field: 'Effort (hours)', value: '99' })).error).toBeUndefined()
+  expect(await fieldOf(server, id, 'Effort (hours)')).toBe('99')
+  await server.run('nav.open', { node: id })
+  await expect(app.locator('.row.field', { hasText: 'Effort (hours)' }).locator('.field-warn')).toBeVisible()
 })
 
 test('UC-06.26 hide a template field while it is empty', works('UC-06.26'), async ({ app, server }) => {

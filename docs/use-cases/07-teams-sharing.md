@@ -15,12 +15,12 @@ pages to the web. TanaCraft is local and single-user so far. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/workspaces
 - **TanaCraft:** WORKS.
 
-### UC-07.03 Move a draft into another workspace: PARTIAL
+### UC-07.03 Move a draft into another workspace: WORKS
 - **Story:** I draft privately, then move the note into the shared workspace.
 - **Steps:** Select the line, Move to, pick the other workspace.
 - **Expected:** The node and its children now belong to that workspace.
 - **Source:** https://outliner.tana.inc/learn/features/workspaces (Moving nodes between workspaces)
-- **TanaCraft:** PARTIAL. The engine moves it (CLI, MCP, API), but the Move to menu finds nothing in other workspaces.
+- **TanaCraft:** WORKS. Move to lists every workspace's Library by the workspace's name.
 
 ### UC-07.04 Two people (or windows) in one note: PARTIAL
 - **Story:** Two of us type in the same meeting note at once.

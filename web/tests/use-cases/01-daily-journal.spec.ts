@@ -132,7 +132,13 @@ test('UC-01.13 week start and 12/24-hour time are settings; calendar views follo
   await expect.poll(async () => (await server.run('settings.get')).result.week_start).toBe('sunday')
   await expect.poll(async () => (await server.run('settings.get')).result.time_format).toBe('12h')
   await expect(app.locator('.cal-dow').first()).toContainText('Sun')
-  // Gap: the date picker still starts its weeks on Monday.
+  // The date picker starts its weeks on Sunday too.
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.panel')).toHaveCount(1)
+  await server.run('nav.today')
+  await app.locator('.day-nav .btn[title="Go to date"]').click()
+  await expect(app.locator('.date-picker .dp-dow').first()).toHaveText('S')
+  await expect(app.locator('.date-picker .dp-day').first()).toHaveText('27')
 })
 
 missing('UC-01.09', 'journal prompts: a field that auto-fills with a random node of a supertag')

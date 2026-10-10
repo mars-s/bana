@@ -796,7 +796,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
           )}
         </span>
         {(row.missing || row.invalid) && (
-          <span className="field-warn" title={row.invalid ? 'Not a valid value for this field type' : 'Required'}>
+          <span className="field-warn" title={row.invalid ? 'Not a valid value for this field (its type or range)' : 'Required'}>
             ?
           </span>
         )}
@@ -942,6 +942,7 @@ function isoWeekOf(iso: string): number {
  * end time, Add end for a range of days, OK. */
 function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pick', openAtStart }: { value: string; onPick: (v: string) => void; title?: string; className?: string; openAtStart?: boolean }) {
   const today = useStore((s) => s.sidebar?.todayDate) ?? new Date().toISOString().slice(0, 10)
+  const weekStart = useStore((s) => s.sidebar?.weekStart)
   const [open, setOpen] = useState(false)
   const parsed = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?:-(\d{2}:\d{2}))?)?(?:\/(\d{4}-\d{2}-\d{2}))?/.exec(value.trim())
   const [day, setDay] = useState<string | null>(null)
@@ -973,7 +974,9 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
   }, [])
   const [y, m] = ym
   const first = isoOf(y, m || 1, 1)
-  const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7
+  // Weeks start on Monday, or on Sunday when Settings say so (UC-01.13).
+  const sunday = weekStart === 'sunday'
+  const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + (sunday ? 0 : 6)) % 7
   const inMonth = new Date(Date.UTC(y, m, 0)).getUTCDate()
   const cells = Array.from({ length: Math.ceil((lead + inMonth) / 7) * 7 }, (_, i) => {
     const d = new Date(Date.UTC(y, m - 1, 1 - lead + i))
@@ -1010,14 +1013,14 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
           </div>
           <div className="dp-grid">
             <span />
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+            {(sunday ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S']).map((d, i) => (
               <span key={i} className="dp-dow">
                 {d}
               </span>
             ))}
             {cells.map((d, i) => (
               <Fragment key={d}>
-                {i % 7 === 0 && <span className="dp-week">W{isoWeekOf(d)}</span>}
+                {i % 7 === 0 && <span className="dp-week">W{isoWeekOf(sunday ? cells[i + 1] ?? d : d)}</span>}
                 <button
                   className={`dp-day${d.slice(5, 7) !== pad2(m) ? ' out' : ''}${d === today ? ' today' : ''}${d === day || d === end ? ' sel' : ''}${day && end && d > day && d < end ? ' range' : ''}`}
                   onClick={() => {

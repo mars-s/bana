@@ -21,7 +21,7 @@ test('UC-07.02 rename a workspace', works('UC-07.02'), async ({ app, server }) =
   await expect(app.locator('.sidebar').getByText('Home garden')).toBeVisible()
 })
 
-test('UC-07.03 move a draft from the private workspace into another one (engine only; Move to cannot find other workspaces)', partial('UC-07.03'), async ({ app, server }) => {
+test('UC-07.03 move a draft from the private workspace into another one with Move to', works('UC-07.03'), async ({ app, server }) => {
   await server.run('workspace.create', { name: 'Club' })
   const club = (await server.rpc('sidebar')).workspaces[1]
   const { ids } = await pageWith(server, app, ['Rules for the shed'])
@@ -29,10 +29,8 @@ test('UC-07.03 move a draft from the private workspace into another one (engine 
   await app.keyboard.press('Escape')
   await app.locator('.sel-toolbar button', { hasText: 'Move' }).click()
   await app.keyboard.type('Club')
-  // Gap: the Move to menu lists nothing from the other workspace.
-  await expect(app.locator('.menu.picker')).toContainText('Nothing matches')
-  await app.keyboard.press('Escape')
-  await server.run('node.move', { node: ids[0], parent: club.library })
+  await expect(app.locator('.menu.picker .menu-item').first()).toContainText('Club / Library')
+  await app.keyboard.press('Enter')
   await expect.poll(async () => (await tree(server, club.library)).children?.map((c: any) => c.name)).toContain('Rules for the shed')
 })
 

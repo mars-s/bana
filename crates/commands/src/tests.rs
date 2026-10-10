@@ -507,7 +507,10 @@ fn configuration_commands() {
     let rating = s.graph.find_field("Rating").unwrap();
     assert_eq!(n.field_value(rating), Some(&tanacraft_core::FieldValue::Number(3.0)));
     assert_eq!(s.graph.name(s.graph.children(b)[0]), "Quotes");
-    assert!(s.run("field.set", &json!({"node": b.0, "field": "Rating", "value": "9"})).is_err(), "out of range");
+    // Out of range is kept and flagged (UC-06.25); back in range for the export below.
+    assert!(s.run("field.set", &json!({"node": b.0, "field": "Rating", "value": "9"})).is_ok());
+    assert!(s.graph.out_of_range(rating, &tanacraft_core::FieldValue::Number(9.0)));
+    run(&mut s, "field.set", json!({"node": b.0, "field": "Rating", "value": "3"}));
     run(&mut s, "node.toggleDone", json!({"node": b.0}));
     assert_eq!(export_md(&mut s, b), "- [x] Dune #book\n  - Rating:: 3\n  - Shelf:: Read\n  - Quotes\n");
     assert!(s.graph.pinned().contains(&s.graph.find_tag("book").unwrap()));

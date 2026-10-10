@@ -521,8 +521,11 @@ fn supertag_configuration_behaviours() {
     let effort = g.find_field("Effort (hours)").unwrap();
     g.field_def_mut(effort).unwrap().min = Some(0.0);
     g.field_def_mut(effort).unwrap().max = Some(40.0);
-    assert!(g.set_field_text(t, effort, "41").is_err());
+    // Out of range is kept and flagged (UC-06.25).
+    assert!(g.set_field_text(t, effort, "41").is_ok());
+    assert!(g.out_of_range(effort, &FieldValue::Number(41.0)));
     assert!(g.set_field_text(t, effort, "8").is_ok());
+    assert!(!g.out_of_range(effort, &FieldValue::Number(8.0)));
     // Views, pins, usage.
     assert_eq!(g.tag_def(task).unwrap().views.len(), 2);
     assert_eq!(g.view_items(g.tag_def(task).unwrap().views[0]).len(), g.tagged(task).len());

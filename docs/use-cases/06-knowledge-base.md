@@ -37,7 +37,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.22 | Turn a list I made into a reusable type. | Convert to supertag. | A supertag; children become its template. | WORKS | supertags |
 | UC-06.23 | A "design task" is a task with extra fields. | Extend `#task`. | The new tag has the task's fields and checkbox. | WORKS | supertags (Extend) |
 | UC-06.24 | Rarely used fields out of the way. | Optional fields on the supertag. | Offered by a button, not shown as rows. | WORKS | supertags (Optional fields) |
-| UC-06.25 | A number field stays in its range. | Field min and max. | A warning on a value outside the range. | PARTIAL: the value is refused instead of kept with a warning | fields (Number) |
+| UC-06.25 | A number field stays in its range. | Field min and max. | A warning on a value outside the range. | WORKS: kept, with the warning mark on the field row | fields (Number) |
 | UC-06.26 | Template fields only when filled. | Hide field: when empty. | Hidden until it has a value. | WORKS | fields (Hide field) |
 | UC-06.27 | A field with several values. | Add values to one field. | All values shown. | WORKS | fields |
 | UC-06.28 | See every type I have defined. | Sidebar, Supertags; click one. | The tag page with its nodes. | WORKS | supertags (The supertag page) |

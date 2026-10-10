@@ -3817,6 +3817,7 @@ dependencies = [
  "serde_json",
  "tanacraft-commands",
  "tanacraft-core",
+ "tanacraft-server",
 ]
 
 [[package]]

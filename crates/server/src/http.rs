@@ -6,7 +6,9 @@
 //! - Anything else is a file from the web UI's build folder (`index.html` for `/`).
 //!
 //! It listens on 127.0.0.1 only and refuses requests from pages on other origins, so a web site
-//! open in the same browser cannot reach the notes.
+//! open in the same browser cannot reach the notes. A `POST /rpc` that comes from no page (an MCP
+//! server, the CLI, a script) must carry the server's token (`Authorization: Bearer <token>`),
+//! which [`announce`] writes beside the graph file for local tools to find.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -24,11 +26,25 @@ const MAX_BODY: usize = 32 * 1024 * 1024;
 pub struct Shared {
     pub host: Mutex<Host>,
     pub changed: Condvar,
+    /// What a request from outside a browser page must send.
+    pub token: String,
+}
+
+/// A fresh random token (std's per-process random hash keys, twice).
+fn new_token() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let part = || {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default());
+        h.write_u32(std::process::id());
+        h.finish()
+    };
+    format!("{:016x}{:016x}", part(), part())
 }
 
 impl Shared {
     pub fn new(host: Host) -> Arc<Shared> {
-        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new() })
+        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new(), token: new_token() })
     }
 
     /// Runs one request (or an array of them) and wakes event waiters.
@@ -64,10 +80,36 @@ impl Shared {
     }
 }
 
+/// Binds 127.0.0.1:`port` (0: any free port); the port is `listener.local_addr()`.
+pub fn bind(port: u16) -> Result<TcpListener, String> {
+    TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("port {port}: {e}"))
+}
+
+/// Writes the live file beside the graph (see [`tanacraft_core::live_file`]) so MCP and the CLI
+/// reach this running engine. Readable by this user only. Returns its path (to remove on exit).
+/// `graph`: where to announce when the session has no file of its own (an in-memory graph served
+/// for a named file, as tests do).
+pub fn announce(shared: &Shared, port: u16, graph: Option<&Path>) -> Option<PathBuf> {
+    let graph = shared.host.lock().ok()?.session.path.clone().or_else(|| graph.map(Path::to_path_buf))?;
+    let path = tanacraft_core::live_file(&graph);
+    let body = json!({"port": port, "token": shared.token, "pid": std::process::id()}).to_string();
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+    let mut f = opts.open(&path).ok()?;
+    f.write_all(body.as_bytes()).ok()?;
+    Some(path)
+}
+
 /// Serves until the process ends. `web` is the built web UI (`web/dist`). Call
 /// [`Shared::spawn_autosave`] once as well.
 pub fn serve(shared: Arc<Shared>, port: u16, web: PathBuf) -> Result<(), String> {
-    let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| format!("port {port}: {e}"))?;
+    serve_on(shared, bind(port)?, web)
+}
+
+/// [`serve`] on a listener already bound (after [`announce`]).
+pub fn serve_on(shared: Arc<Shared>, listener: TcpListener, web: PathBuf) -> Result<(), String> {
     for stream in listener.incoming().flatten() {
         let shared = Arc::clone(&shared);
         let web = web.clone();
@@ -87,6 +129,8 @@ struct Request {
     origin: Option<String>,
     /// The Host header (checked against DNS rebinding).
     host: Option<String>,
+    /// `Authorization: Bearer <token>`.
+    token: Option<String>,
     body: Vec<u8>,
 }
 
@@ -103,6 +147,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
     let mut len = 0usize;
     let mut origin = None;
     let mut host = None;
+    let mut token = None;
     for _ in 0..200 {
         let mut h = String::new();
         if r.read_line(&mut h).map_err(|e| e.to_string())? == 0 || h.trim().is_empty() {
@@ -113,6 +158,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
                 "content-length" => len = v.trim().parse().unwrap_or(0),
                 "origin" => origin = Some(v.trim().to_string()),
                 "host" => host = Some(v.trim().to_string()),
+                "authorization" => token = v.trim().strip_prefix("Bearer ").map(str::to_string),
                 _ => {}
             }
         }
@@ -122,7 +168,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
     }
     let mut body = vec![0; len];
     r.read_exact(&mut body).map_err(|e| e.to_string())?;
-    Ok(Some(Request { method, path, query, origin, host, body }))
+    Ok(Some(Request { method, path, query, origin, host, token, body }))
 }
 
 /// Pages on this machine's own server (any port: the Vite dev server too) and the Tauri app.
@@ -135,7 +181,7 @@ pub(crate) fn origin_ok(origin: Option<&str>) -> bool {
 
 fn respond(mut s: &TcpStream, status: &str, ctype: &str, origin: Option<&str>, body: &[u8]) -> Result<(), String> {
     let cors = match origin.filter(|o| origin_ok(Some(o))) {
-        Some(o) => format!("Access-Control-Allow-Origin: {o}\r\nAccess-Control-Allow-Headers: content-type\r\nVary: Origin\r\n"),
+        Some(o) => format!("Access-Control-Allow-Origin: {o}\r\nAccess-Control-Allow-Headers: content-type, authorization\r\nVary: Origin\r\n"),
         None => String::new(),
     };
     let head = format!(
@@ -154,6 +200,11 @@ fn connection(shared: &Shared, stream: TcpStream, web: &Path) -> Result<(), Stri
     }
     match (req.method.as_str(), req.path.as_str()) {
         ("OPTIONS", _) => respond(&stream, "204 No Content", "text/plain", origin, b""),
+        // Not from a page: only a local tool that read the token may edit (N/A for the browser UI,
+        // whose requests carry its origin).
+        ("POST", "/rpc") if origin.is_none() && req.token.as_deref() != Some(shared.token.as_str()) => {
+            respond(&stream, "401 Unauthorized", "application/json", None, br#"{"error":"send the token from the live file beside the graph"}"#)
+        }
         ("POST", "/rpc") => {
             let out = match serde_json::from_slice::<Value>(&req.body) {
                 Ok(v) => shared.handle(&v),

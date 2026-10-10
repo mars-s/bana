@@ -33,6 +33,15 @@ pub fn default_graph_path() -> std::path::PathBuf {
     home.join(PRODUCT_NAME).join("graph.tanacraft")
 }
 
+/// Where a running app (desktop or `serve`) says how to reach its engine for `graph`: a JSON file
+/// `{"port", "token", "pid"}` beside the graph. MCP and the CLI use it to work on the live app
+/// instead of the file.
+pub fn live_file(graph: &std::path::Path) -> std::path::PathBuf {
+    let mut name = graph.file_name().unwrap_or_default().to_os_string();
+    name.push(".live");
+    graph.with_file_name(name)
+}
+
 /// Loads `path`; when it does not exist yet but an older `graph.json` sits beside it (versions
 /// before the Loro store), that one is loaded instead (and saved to `path` from then on). `None`
 /// when there is nothing to load.

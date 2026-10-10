@@ -183,21 +183,43 @@ fn run() -> Result<(), String> {
     let session = tanacraft_server::open_session(file, sample, None)?;
     let shared = Shared::new(Host::new(session));
     shared.spawn_autosave();
-    if let Some(port) = serve {
+    // The same engine over HTTP on 127.0.0.1 (any free port unless --serve PORT), announced in
+    // the live file beside the graph so MCP and the CLI work on the running app (UC-10.11).
+    let listener = tanacraft_server::http::bind(serve.unwrap_or(0))?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    let live = tanacraft_server::http::announce(&shared, port, None);
+    {
         let s = Arc::clone(&shared);
         let web = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../web/dist");
         std::thread::spawn(move || {
-            if let Err(e) = tanacraft_server::http::serve(s, port, web) {
+            if let Err(e) = tanacraft_server::http::serve_on(s, listener, web) {
                 eprintln!("serve: {e}");
             }
         });
     }
     let on_exit = Arc::clone(&shared);
+    let watched = Arc::clone(&shared);
     let app = tauri::Builder::default()
         .manage(shared)
         .invoke_handler(tauri::generate_handler![rpc])
-        .setup(|app| {
+        .setup(move |app| {
             app.set_menu(menu_bar(app.handle())?)?;
+            // Edits that come over HTTP (MCP, the CLI, a browser window) redraw the app too.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let mut seen = watched.host.lock().map(|h| h.version).unwrap_or(0);
+                loop {
+                    let Ok(guard) = watched.host.lock() else { return };
+                    let Ok((h, _)) = watched.changed.wait_timeout_while(guard, std::time::Duration::from_secs(30), |h| h.version <= seen) else {
+                        return;
+                    };
+                    if h.version > seen {
+                        seen = h.version;
+                        drop(h);
+                        let _ = handle.emit("changed", seen);
+                    }
+                }
+            });
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_focus();
             }
@@ -214,11 +236,15 @@ fn run() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     app.run(move |_, event| {
         // Quitting writes everything (the UI has sent every keystroke already).
-        if let tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } = event
-            && let Ok(mut h) = on_exit.host.lock()
-            && let Err(e) = h.save()
-        {
-            eprintln!("{}: could not save: {e}", tanacraft_core::PRODUCT_NAME);
+        if let tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } = event {
+            if let Ok(mut h) = on_exit.host.lock()
+                && let Err(e) = h.save()
+            {
+                eprintln!("{}: could not save: {e}", tanacraft_core::PRODUCT_NAME);
+            }
+            if let (tauri::RunEvent::Exit, Some(l)) = (&event, &live) {
+                let _ = std::fs::remove_file(l);
+            }
         }
     });
     Ok(())

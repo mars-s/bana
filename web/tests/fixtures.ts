@@ -3,7 +3,7 @@
 
 import { test as base, expect, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -33,6 +33,15 @@ function portFree(port: number): Promise<boolean> {
   })
 }
 
+/** The token a running engine wrote beside its graph (local tools must send it, UC-10.11). */
+export function liveToken(file: string): string {
+  try {
+    return JSON.parse(readFileSync(`${file}.live`, 'utf8')).token ?? ''
+  } catch {
+    return ''
+  }
+}
+
 async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
@@ -40,7 +49,7 @@ async function startServer(file: string, port: number, args: string[]): Promise<
   for (let i = 0; i < 400; i++) {
     if (proc.exitCode !== null) throw new Error(`server on ${port} exited (port taken?)`)
     try {
-      const r = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', body: '{"method":"version"}' })
+      const r = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', body: '{"method":"version"}', headers: { authorization: `Bearer ${liveToken(file)}` } })
       if (r.ok) return proc
     } catch {
       /* not up yet */
@@ -76,7 +85,7 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
         await done
       },
       async rpc(method, params = {}) {
-        const r = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', body: JSON.stringify({ method, params }) })
+        const r = await fetch(`http://127.0.0.1:${port}/rpc`, { method: 'POST', body: JSON.stringify({ method, params }), headers: { authorization: `Bearer ${liveToken(file)}` } })
         return r.json()
       },
       async run(command, params = {}) {

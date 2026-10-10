@@ -24,7 +24,8 @@ commands:
   run --cmd 'ID={json}' ...         run commands in order, then save
   commands                          list every command (id, shortcut, params)
   sample [--out FILE]               write the sample graph
-  mcp [--connect HOST:PORT]         MCP server on stdio
+  mcp [--connect HOST:PORT --token T]  MCP server on stdio, on the running app that has the file
+                                    open (found by its live file), else on the file
   serve [--port PORT] [--sample | --large N] [--web DIR] [--today YYYY-MM-DD]
                                     serve the web UI and its JSON API on 127.0.0.1 (default port 8787);
                                     --sample without --file keeps the sample in memory only
@@ -228,9 +229,11 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             Ok(format!("wrote {PRODUCT_NAME} sample graph to {}", out.display()))
         }
         "mcp" => {
+            // The running app that has the file open, else the file (UC-10.11).
+            let token = take_opt(&mut args, "--token");
             let backend = match take_opt(&mut args, "--connect") {
-                Some(addr) => tanacraft_mcp::Backend::connect(&addr)?,
-                None => tanacraft_mcp::Backend::Local(Box::new(open(&file)?)),
+                Some(addr) => tanacraft_mcp::Backend::connect(&addr, token)?,
+                None => tanacraft_mcp::Backend::open(&file)?,
             };
             let stdin = std::io::stdin();
             tanacraft_mcp::Server::new(backend).serve(stdin.lock(), std::io::stdout().lock()).map_err(|e| e.to_string())?;
@@ -249,12 +252,20 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
                     s.run("nav.home", &json!({})).map_err(cmd_err)?;
                     s
                 }
-                None => tanacraft_server::open_session(explicit_file.then_some(file), sample_mode, today)?,
+                None => tanacraft_server::open_session(explicit_file.then(|| file.clone()), sample_mode, today)?,
             };
             let shared = tanacraft_server::http::Shared::new(tanacraft_server::Host::new(session));
             shared.spawn_autosave();
-            eprintln!("{PRODUCT_NAME}: serving http://127.0.0.1:{port}/ (web UI from {})", web.display());
-            tanacraft_server::http::serve(shared, port, web)?;
+            let listener = tanacraft_server::http::bind(port)?;
+            let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+            // MCP and the CLI find this running engine through the live file (UC-10.11).
+            match tanacraft_server::http::announce(&shared, port, explicit_file.then_some(file.as_path())) {
+                Some(live) => {
+                    eprintln!("{PRODUCT_NAME}: serving http://127.0.0.1:{port}/ (web UI from {}; live file {})", web.display(), live.display())
+                }
+                None => eprintln!("{PRODUCT_NAME}: serving http://127.0.0.1:{port}/ (web UI from {}; token {})", web.display(), shared.token),
+            }
+            tanacraft_server::http::serve_on(shared, listener, web)?;
             Ok(String::new())
         }
         other => Err(format!("unknown command `{other}`\n\n{USAGE}")),

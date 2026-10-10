@@ -39,12 +39,12 @@ Everything here comes from Tana's public pages, written in our own words:
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 2 | 2 | 5 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 8 | 1 | 6 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
-| [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 2 | 2 | 4 | 3 | 0 |
+| [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **79** | **18** | **45** | **15** | **24** |
+| **Total (181)** | | **81** | **17** | **44** | **15** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 97 work fully or in
-part (79 + 18) and 45 are missing.
+Out of the 142 use cases that need neither AI nor a cloud or mobile service, 98 work fully or in
+part (81 + 17) and 44 are missing.
 
 ## Top 15 gaps by user value
 
@@ -60,8 +60,8 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 4. **Moving in from Tana and others** (UC-08.11, UC-08.10). Tana Paste, and Notion, Roam and
    Logseq imports. Tana Paste matters most: it is how Tana users and AI tools write structure.
 5. **Files on nodes** (UC-05.08). Images and PDFs dropped on a node, with previews.
-6. **MCP on the running app** (UC-10.11, UC-10.01). Today an assistant can only write while the
-   app is closed; `mcp --connect` targets a port nothing opens.
+6. ~~**MCP on the running app** (UC-10.11, UC-10.01).~~ Done: MCP finds the running app through
+   the live file beside the graph and works on it live.
 7. **Tag a whole selection** (UC-02.15). Only one of the selected lines gets the tag.
 8. **Automation** (UC-02.20, UC-06.33). Commands on events (tag added, checked, child added) and
    command nodes as buttons and in the web command line.

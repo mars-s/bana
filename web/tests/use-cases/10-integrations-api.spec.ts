@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree } from './helpers'
-import { pageWith } from '../fixtures'
+import { pageWith, liveToken } from '../fixtures'
 
 const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'tanacraft-cli')
 
@@ -27,11 +27,8 @@ function mcp(file: string) {
   }
 }
 
-test('UC-10.01 an AI assistant (Claude, Cursor, Codex) adds a task through MCP; the app shows it next time it opens the file', partial('UC-10.01'), async ({ app, server }) => {
-  // Gap: MCP works on the graph file, not on the running app: `mcp --connect` has no app port to
-  // talk to since the web UI, so the app is closed while the assistant writes.
-  await app.waitForTimeout(1200)
-  await server.kill('SIGTERM')
+test('UC-10.01 an AI assistant (Claude, Cursor, Codex) adds a task through MCP; it shows in the open app', works('UC-10.01'), async ({ app, server }) => {
+  // MCP finds the running engine through the live file beside the graph and works on it (UC-10.11).
   const c = mcp(server.file)
   const init = await c.call('initialize', { protocolVersion: '2025-03-26' })
   expect(init.result.serverInfo.name).toBe('tanacraft')
@@ -43,10 +40,30 @@ test('UC-10.01 an AI assistant (Claude, Cursor, Codex) adds a task through MCP; 
   const md = await c.call('tools/call', { name: 'export_markdown', arguments: {} })
   expect(JSON.stringify(md.result)).toContain('Prune the apple tree')
   c.close()
-  await server.restart()
-  await app.reload()
+  // No reload: the open window shows it.
   await expect(app.locator('.row.node', { hasText: 'Prune the apple tree' })).toBeVisible()
   await expect(app.locator('.row.node', { hasText: 'Prune the apple tree' }).locator('.chip')).toContainText('task')
+})
+
+test('UC-10.11 MCP works on the running app; on the file only when no app has it open', works('UC-10.11'), async ({ app, server }) => {
+  const { page } = await pageWith(server, app, ['Raised beds'], 'Live plan')
+  const c = mcp(server.file)
+  await c.call('initialize', {})
+  await c.call('tools/call', { name: 'add_node', arguments: { name: 'Water the beds', parent: page } })
+  c.close()
+  await expect(app.locator('.row.node', { hasText: 'Water the beds' })).toBeVisible()
+  // The person's page and caret stay where they were (MCP has its own window).
+  await expect(app.locator('.panel .title-input')).toHaveValue('Live plan')
+  // With the app gone, MCP edits the file itself.
+  await app.waitForTimeout(1200)
+  await server.kill('SIGTERM')
+  const f = mcp(server.file)
+  await f.call('initialize', {})
+  const r = await f.call('tools/call', { name: 'add_node', arguments: { name: 'Offline note', parent: page } })
+  expect(r.result.isError ?? false).toBe(false)
+  f.close()
+  await server.restart()
+  expect((await tree(server, page)).children.map((x: any) => x.name)).toContain('Offline note')
 })
 
 test('UC-10.02 an AI assistant reads a page as Markdown through MCP', works('UC-10.02'), async ({ app, server }) => {
@@ -65,20 +82,25 @@ test('UC-10.02 an AI assistant reads a page as Markdown through MCP', works('UC-
 
 test('UC-10.03 a script posts to the local JSON API and the node appears live', works('UC-10.03'), async ({ app, server }) => {
   const today = (await server.run('nav.today')).result.zoom
+  const headers = { authorization: `Bearer ${liveToken(server.file)}` }
   const res = await fetch(`http://127.0.0.1:${server.port}/rpc`, {
     method: 'POST',
+    headers,
     body: JSON.stringify({ method: 'run', params: { command: 'node.add', params: { name: 'From my script', parent: today } } }),
   })
   const id = (await res.json()).result.id
-  await fetch(`http://127.0.0.1:${server.port}/rpc`, { method: 'POST', body: JSON.stringify({ method: 'run', params: { command: 'field.add', params: { node: id, field: 'Source', value: 'cron job' } } }) })
+  await fetch(`http://127.0.0.1:${server.port}/rpc`, { method: 'POST', headers, body: JSON.stringify({ method: 'run', params: { command: 'field.add', params: { node: id, field: 'Source', value: 'cron job' } } }) })
   await expect(app.locator('.row.node', { hasText: 'From my script' })).toBeVisible()
   expect((await tree(server, id)).fields.Source).toBe('cron job')
 })
 
-test('UC-10.04 the API only listens on this computer (no tokens, no remote access)', partial('UC-10.04'), async ({ server }) => {
-  const r = await fetch(`http://127.0.0.1:${server.port}/rpc`, { method: 'POST', body: '{"method":"version"}' })
+test('UC-10.04 the API only listens on this computer and asks local tools for the token', partial('UC-10.04'), async ({ server }) => {
+  const without = await fetch(`http://127.0.0.1:${server.port}/rpc`, { method: 'POST', body: '{"method":"version"}' })
+  expect(without.status).toBe(401)
+  const r = await fetch(`http://127.0.0.1:${server.port}/rpc`, { method: 'POST', body: '{"method":"version"}', headers: { authorization: `Bearer ${liveToken(server.file)}` } })
   expect(r.ok).toBe(true)
-  // Gap: no API tokens per workspace and no hosted (remote) MCP; anything on this machine can call it.
+  // Gap: one token per running app (in the live file beside the graph), not tokens per workspace;
+  // no hosted (remote) MCP.
 })
 
 missing('UC-10.05', 'hosted (remote) MCP server reachable from cloud agents', 'out-of-scope')
@@ -87,4 +109,3 @@ missing('UC-10.07', 'Readwise highlights synced into #book and #highlight nodes'
 missing('UC-10.08', 'a command node that calls a web API (Make API request)')
 missing('UC-10.09', 'API tokens per workspace that can be created and revoked')
 missing('UC-10.10', 'GitHub, Linear, Jira, Slack, HubSpot and Pipedrive connections', 'out-of-scope')
-missing('UC-10.11', 'an MCP client works on the running app live (mcp --connect to the app)')

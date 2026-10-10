@@ -148,9 +148,15 @@ tanacraft-cli import notes.md                           # a Markdown outline int
 tanacraft-cli run --cmd 'field.set={"node":46,"field":"Due","value":"2026-10-20 09:00-10:00"}'
 tanacraft-cli export today                              # Markdown outline
 tanacraft-cli export 2 --format json                    # JSON tree of the Library
-tanacraft-mcp --file graph.tanacraft                      # MCP server on stdio (headless)
+tanacraft-mcp --file graph.tanacraft                    # MCP server on stdio: the running app, else the file
 tanacraft-cli serve --port 8787                         # web UI + JSON API (POST /rpc) on 127.0.0.1
 ```
+
+MCP works on the running app: the desktop app and `serve` write `graph.tanacraft.live` beside the
+graph (port and a token, readable by you only), and `tanacraft-mcp` finds it, so an assistant's
+edits show in the open window at once, in a window of its own (your page and caret stay put).
+With no app running it edits the file. Scripts calling `POST /rpc` send
+`Authorization: Bearer <token>` from that file.
 
 ## Architecture
 

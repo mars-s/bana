@@ -2,12 +2,12 @@
 
 Scenarios: `web/tests/use-cases/10-integrations-api.spec.ts`.
 
-### UC-10.01 An AI assistant writes through MCP: PARTIAL
+### UC-10.01 An AI assistant writes through MCP: WORKS
 - **Story:** Claude, Cursor or Codex adds tasks and reads pages in my graph.
 - **Steps:** Point the client at `tanacraft-cli --file graph.tanacraft mcp`; call `add_node`, `execute`, `export_markdown`.
 - **Expected:** The node appears in the app.
 - **Source:** https://outliner.tana.inc/learn/features/local-api-mcp
-- **TanaCraft:** PARTIAL. MCP works on the graph file, so the app must be closed while it writes; the node shows when the app opens again. `mcp --connect` has no app port to connect to (UC-10.11).
+- **TanaCraft:** WORKS. MCP works on the running app (UC-10.11); the node shows in the open window at once.
 
 ### UC-10.02 An AI assistant reads a page: WORKS
 - **Steps:** `export_markdown` on a node.
@@ -25,7 +25,7 @@ Scenarios: `web/tests/use-cases/10-integrations-api.spec.ts`.
 ### UC-10.04 Access control for the API: PARTIAL
 - **Story:** Only tools I allow can write to my graph.
 - **Source:** https://outliner.tana.inc/learn/features/input-api (API tokens)
-- **TanaCraft:** PARTIAL. The API listens on 127.0.0.1 only; there are no tokens (UC-10.09).
+- **TanaCraft:** PARTIAL. The API listens on 127.0.0.1 only; requests from outside the app's own pages must send the running app's token, written to the live file beside the graph (`graph.tanacraft.live`, this user only). No tokens per workspace to create and revoke (UC-10.09).
 
 ### UC-10.05 Hosted MCP: OUT OF SCOPE candidate (cloud)
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 23-30: Remote MCP)
@@ -51,7 +51,7 @@ Scenarios: `web/tests/use-cases/10-integrations-api.spec.ts`.
 - **Source:** https://tana.inc/integrations
 - **TanaCraft:** not built.
 
-### UC-10.11 MCP on the running app: MISSING
+### UC-10.11 MCP on the running app: WORKS
 - **Story:** My assistant adds a task and I watch it appear in the open app.
 - **Source:** https://outliner.tana.inc/learn/features/local-api-mcp (the desktop app hosts the local server)
-- **TanaCraft:** MISSING. The desktop app and `serve` have no MCP endpoint; the CLI's `mcp --connect` targets a port nothing opens.
+- **TanaCraft:** WORKS. The desktop app and `tanacraft-cli serve` serve their engine on 127.0.0.1 and write a live file beside the graph (port, token). `tanacraft-mcp` and `tanacraft-cli mcp` find it and drive the running engine in a window of their own (the person's page and caret stay put); with no app running they work on the file. `--connect HOST:PORT --token T` names one directly.

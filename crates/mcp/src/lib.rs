@@ -1,11 +1,15 @@
 //! TanaCraft's MCP server (Model Context Protocol, JSON-RPC 2.0, one message per line on stdio).
 //!
-//! Two backends: [`Backend::Local`] edits a graph file in-process (saved after every change);
-//! [`Backend::Remote`] drives a running app through its control channel (`tanacraft --control PORT`).
+//! Two backends: [`Backend::Live`] drives the running app (desktop or `tanacraft-cli serve`) over
+//! its localhost HTTP API, with the token from the live file beside the graph, so the open window
+//! shows every change at once; [`Backend::Local`] edits the graph file in-process (saved after
+//! every change), only when no app has it open. [`Backend::open`] picks.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, Read, Write};
 use std::net::TcpStream;
+use std::path::Path;
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use tanacraft_commands::Session;
@@ -21,15 +25,78 @@ execute field.set {node, field:\"Due\", value:\"2026-10-12\"}, view to check, ex
 
 pub enum Backend {
     Local(Box<Session>),
-    Remote { reader: BufReader<TcpStream>, writer: TcpStream },
+    /// A running engine at 127.0.0.1:`port`.
+    Live {
+        port: u16,
+        token: String,
+    },
 }
 
 impl Backend {
-    /// Connects to a running app's control channel (`host:port`).
-    pub fn connect(addr: &str) -> Result<Backend, String> {
-        let writer = TcpStream::connect(addr).map_err(|e| format!("connect {addr}: {e}"))?;
-        let reader = BufReader::new(writer.try_clone().map_err(|e| e.to_string())?);
-        Ok(Backend::Remote { reader, writer })
+    /// The running app that has `graph` open (its live file answers), else the file itself.
+    pub fn open(graph: &Path) -> Result<Backend, String> {
+        if let Some(live) = Backend::find_live(graph) {
+            return Ok(live);
+        }
+        let g = tanacraft_core::load_or_migrate(graph).map_err(|e| e.to_string())?.unwrap_or_default();
+        if let Some(dir) = graph.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let mut s = Session::new(g);
+        s.path = Some(graph.to_path_buf());
+        Ok(Backend::Local(Box::new(s)))
+    }
+
+    /// The running app announced beside `graph`, if it answers.
+    pub fn find_live(graph: &Path) -> Option<Backend> {
+        let v: Value = serde_json::from_slice(&std::fs::read(tanacraft_core::live_file(graph)).ok()?).ok()?;
+        let port = u16::try_from(v.get("port")?.as_u64()?).ok()?;
+        let token = v.get("token")?.as_str()?.to_string();
+        let mut b = Backend::Live { port, token };
+        b.post(&json!({"method": "version"})).ok()?;
+        Some(b)
+    }
+
+    /// `host:port` (127.0.0.1 only) with a token (`--token`, or the live file of the default graph).
+    pub fn connect(addr: &str, token: Option<String>) -> Result<Backend, String> {
+        let port = addr.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()).ok_or(format!("connect {addr}: no port"))?;
+        let token = match token {
+            Some(t) => t,
+            None => {
+                let v: Value = std::fs::read(tanacraft_core::live_file(&tanacraft_core::default_graph_path()))
+                    .ok()
+                    .and_then(|b| serde_json::from_slice(&b).ok())
+                    .ok_or("no token: pass --token (it is in the live file beside the graph)")?;
+                v["token"].as_str().unwrap_or_default().to_string()
+            }
+        };
+        let mut b = Backend::Live { port, token };
+        b.post(&json!({"method": "version"}))?;
+        Ok(b)
+    }
+
+    /// One request to the live engine (its own window, so the person's page and caret stay put).
+    fn post(&mut self, req: &Value) -> Result<Value, String> {
+        let Backend::Live { port, token } = self else { return Err("not connected".into()) };
+        let mut req = req.clone();
+        req["params"]["window"] = json!("mcp");
+        let body = req.to_string();
+        let mut s = TcpStream::connect(("127.0.0.1", *port)).map_err(|e| format!("the app on port {port}: {e}"))?;
+        s.set_read_timeout(Some(Duration::from_secs(60))).map_err(|e| e.to_string())?;
+        write!(
+            s,
+            "POST /rpc HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nAuthorization: Bearer {token}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        s.read_to_end(&mut out).map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&out);
+        let (head, body) = text.split_once("\r\n\r\n").ok_or("bad reply from the app")?;
+        if !head.starts_with("HTTP/1.1 200") {
+            return Err(format!("the app refused: {}", head.lines().next().unwrap_or_default()));
+        }
+        serde_json::from_str(body).map_err(|e| format!("bad reply: {e}"))
     }
 
     /// Runs a command by id.
@@ -46,26 +113,20 @@ impl Backend {
                 }
                 Ok(r)
             }
-            Backend::Remote { .. } => self.remote("command", json!({"command": command, "params": params})),
+            Backend::Live { .. } => {
+                let v = self.post(&json!({"method": "run", "params": {"command": command, "params": params}}))?;
+                match v.get("error") {
+                    Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
+                    None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
+                }
+            }
         }
     }
 
     pub fn commands(&mut self) -> Result<Value, String> {
         match self {
             Backend::Local(s) => Ok(s.registry.describe()),
-            Backend::Remote { .. } => self.remote("commands", json!({})),
-        }
-    }
-
-    fn remote(&mut self, method: &str, params: Value) -> Result<Value, String> {
-        let Backend::Remote { reader, writer } = self else { return Err("not connected".into()) };
-        writeln!(writer, "{}", json!({"method": method, "params": params})).map_err(|e| e.to_string())?;
-        let mut line = String::new();
-        reader.read_line(&mut line).map_err(|e| e.to_string())?;
-        let v: Value = serde_json::from_str(&line).map_err(|e| format!("bad reply: {e}"))?;
-        match v.get("error") {
-            Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
-            None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
+            Backend::Live { .. } => self.post(&json!({"method": "commands", "params": {}})),
         }
     }
 }
@@ -210,6 +271,31 @@ mod tests {
 
     fn call(s: &mut Server, msg: Value) -> Value {
         s.handle_line(&msg.to_string()).unwrap()
+    }
+
+    #[test]
+    fn a_running_engine_is_found_through_its_live_file_and_edited_live() {
+        // UC-10.11: the app announces port and token beside the graph; MCP works on it.
+        let dir = std::env::temp_dir().join(format!("tanacraft-live-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("graph.tanacraft");
+        let today = Date::new(2026, 10, 10).unwrap();
+        let mut session = Session::with_today(sample::sample(today).unwrap(), today);
+        session.path = Some(file.clone());
+        let shared = tanacraft_server::http::Shared::new(tanacraft_server::Host::new(session));
+        let listener = tanacraft_server::http::bind(0).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tanacraft_server::http::announce(&shared, port, None).unwrap();
+        let s2 = std::sync::Arc::clone(&shared);
+        std::thread::spawn(move || tanacraft_server::http::serve_on(s2, listener, dir.clone()));
+        let mut b = Backend::open(&file).unwrap();
+        assert!(matches!(b, Backend::Live { .. }));
+        let r = b.run("node.add", json!({"name": "From MCP"})).unwrap();
+        let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+        assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From MCP");
+        // A wrong token is refused.
+        let mut bad = Backend::Live { port, token: "nope".into() };
+        assert!(bad.run("graph.view", json!({})).is_err());
     }
 
     #[test]

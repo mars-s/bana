@@ -88,5 +88,5 @@ Status: **ported** (a Playwright test covers it), **works** (behaves, no web tes
 | query_builder (nested groups, Run once, Done, Cmd+Shift+O) | ported | `views.spec.ts` |
 | table_header_renames_the_field_in_place, header menu | ported (click the name; right-click for type, calculate, sort, move, hide, delete) | `views.spec.ts` |
 | list_view_opens_the_selected_item_in_the_next_panel | works (opens a new panel) | |
-| calendar week and day grid | ported (no drag to create or resize yet) | `views.spec.ts` |
+| calendar week and day grid, drag to create and resize | ported (month and week drag, drag out a new event, stretch its end) | `views.spec.ts` |
 | lanes drag, week page schedule, new results flash | todo | |

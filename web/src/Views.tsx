@@ -934,7 +934,7 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(start, i))
   // Week and day views step on their own (the engine keeps the month).
   const span = c.mode === 'day' ? [addDays(c.today, offset)] : Array.from({ length: 7 }, (_, i) => addDays(c.weekStart, offset + i))
-  const title = c.mode === 'month' ? `${MONTHS[c.month - 1]} ${c.year}` : c.mode === 'week' ? `Week ${isoWeek(span[0])}, ${span[0].slice(0, 4)}` : span[0]
+  const title = c.mode === 'month' ? `${MONTHS[c.month - 1]} ${c.year}` : c.mode === 'week' ? `Week ${isoWeek(span[0])}, ${span[0].slice(0, 4)}` : longDay(span[0])
   const step = (dir: number) => {
     if (c.mode === 'month') void exec('view.month', { step: dir }, panel)
     else setOffset((o) => o + dir * (c.mode === 'week' ? 7 : 1))
@@ -961,7 +961,7 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
           <Icon name="chevronRight" size={14} />
         </button>
       </div>
-      {c.mode !== 'month' && <TimeGrid days={span} byDay={byDay} weekdays={c.weekdays} today={c.today} panel={panel} />}
+      {c.mode !== 'month' && <TimeGrid v={v} days={span} byDay={byDay} today={c.today} panel={panel} />}
       {c.mode === 'month' && <div className="cal-grid">
         {c.weekdays.map((d) => (
           <div key={d} className="cal-dow">
@@ -972,7 +972,16 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
           const day = Number(d.slice(8))
           const out = c.mode === 'month' && Number(d.slice(5, 7)) !== c.month
           return (
-            <div key={d} className={`cal-cell${out ? ' out' : ''}`}>
+            <div
+              key={d}
+              className={`cal-cell${out ? ' out' : ''}`}
+              onDragOver={(e) => e.dataTransfer.types.includes('text/x-cal') && e.preventDefault()}
+              onDrop={(e) => {
+                // An event dropped on another day moves there, keeping its time (spec 04 §7).
+                const it = dropped(e)
+                if (it) setWhen(v, panel, it.node, d, it.time)
+              }}
+            >
               {i % 7 === 0 && <span className="cal-week">W{isoWeek(d)}</span>}
               <span className={`cal-day${d === c.today ? ' today' : ''}`} onClick={() => void exec('nav.day', { date: d }, panel)}>
                 {day}
@@ -980,7 +989,7 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
               {(byDay.get(d) ?? []).slice(0, 4).map((it) => {
                 const tag = it.tags.find((t) => t.name !== 'day')
                 return (
-                  <div key={it.id} className="cal-event" style={tag ? tagStyle(tag.color) : undefined} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
+                  <div key={it.id} className="cal-event" draggable onDragStart={(e) => dragItem(e, it)} style={tag ? tagStyle(tag.color) : undefined} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
                     {it.done !== null && <span className={`checkbox compact${it.done ? ' on' : ''}`}>{it.done && <Icon name="check" size={9} />}</span>}
                     <span className="cal-event-name">{it.name || 'Untitled'}</span>
                   </div>
@@ -996,27 +1005,65 @@ function Calendar({ v, panel }: { v: ViewSnap; panel: string }) {
 }
 
 /** Week and day: an all-day strip over an hour grid (spec 04 §10; 12: Calendar week). */
-function TimeGrid({ days, byDay, weekdays, today, panel }: { days: string[]; byDay: Map<string, ViewItem[]>; weekdays: string[]; today: string; panel: string }) {
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const weekdayOf = (d: string) => WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]
+
+/** "October 10th, 2026" (the day view's title, N50). */
+function longDay(d: string): string {
+  const n = Number(d.slice(8))
+  const th = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'
+  return `${MONTHS[Number(d.slice(5, 7)) - 1]} ${n}${th}, ${d.slice(0, 4)}`
+}
+
+/** Minutes from the top of an hour column, to a quarter hour. */
+function minuteAt(e: { clientY: number }, col: HTMLElement): number {
+  const y = e.clientY - col.getBoundingClientRect().top
+  const hourH = parseFloat(getComputedStyle(col).getPropertyValue('--tg-hour-h')) || 45
+  return Math.max(0, Math.min(24 * 60, Math.round(((y / hourH) * 60) / 15) * 15))
+}
+
+function TimeGrid({ v, days, byDay, today, panel }: { v: ViewSnap; days: string[]; byDay: Map<string, ViewItem[]>; today: string; panel: string }) {
   const grid = useRef<HTMLDivElement>(null)
+  // Dragging on empty grid makes a new event (a span, then its name); dragging an event's lower
+  // edge changes its end (spec 04 §7, N50).
+  const [span, setSpan] = useState<{ day: string; a: number; b: number; naming: boolean } | null>(null)
+  const [resize, setResize] = useState<{ node: number; day: string; a: number; b: number } | null>(null)
+  const [name, setName] = useState('')
   useEffect(() => {
     // Start the view at 08:00.
-    if (grid.current) grid.current.scrollTop = 8 * 45
+    if (grid.current) grid.current.scrollTop = 8 * (parseFloat(getComputedStyle(grid.current).getPropertyValue('--tg-hour-h')) || 45)
   }, [])
   const hours = Array.from({ length: 24 }, (_, h) => h)
+  const cols = `var(--tg-gutter) repeat(${days.length}, minmax(0, 1fr))`
+  const create = () => {
+    if (!span || !name.trim()) return setSpan(null)
+    const value = `${span.day} ${hm(Math.min(span.a, span.b))}-${hm(Math.max(span.a, span.b))}`
+    void exec('view.addItem', { node: v.node, name: name.trim(), stay: true, ...(v.dateField ? { field: v.dateField.id, value } : {}) }, panel)
+    setSpan(null)
+    setName('')
+  }
   return (
     <div className="tg">
-      <div className="tg-head" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+      <div className="tg-head" style={{ gridTemplateColumns: cols }}>
         <span className="tg-week">W{isoWeek(days[0])}</span>
-        {days.map((d, i) => (
+        {days.map((d) => (
           <span key={d} className={`tg-day${d === today ? ' today' : ''}`}>
-            {weekdays[i % 7] ?? ''} {d.slice(8)}/{d.slice(5, 7)}
+            {weekdayOf(d)} {d.slice(8)}/{d.slice(5, 7)}
           </span>
         ))}
       </div>
-      <div className="tg-allday" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+      <div className="tg-allday" style={{ gridTemplateColumns: cols }}>
         <span />
         {days.map((d) => (
-          <span key={d} className="tg-cell">
+          <span
+            key={d}
+            className="tg-cell"
+            onDragOver={(e) => e.dataTransfer.types.includes('text/x-cal') && e.preventDefault()}
+            onDrop={(e) => {
+              const it = dropped(e)
+              if (it) setWhen(v, panel, it.node, d, null)
+            }}
+          >
             {(byDay.get(d) ?? [])
               .filter((it) => !it.time)
               .map((it) => (
@@ -1026,7 +1073,7 @@ function TimeGrid({ days, byDay, weekdays, today, panel }: { days: string[]; byD
         ))}
       </div>
       <div className="tg-body" ref={grid}>
-        <div className="tg-hours" style={{ gridTemplateColumns: `50.5px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <div className="tg-hours" style={{ gridTemplateColumns: cols }}>
           <div className="tg-gutter">
             {hours.map((h) => (
               <span key={h} className="tg-hour">
@@ -1035,17 +1082,91 @@ function TimeGrid({ days, byDay, weekdays, today, panel }: { days: string[]; byD
             ))}
           </div>
           {days.map((d) => (
-            <div key={d} className="tg-col">
+            <div
+              key={d}
+              className="tg-col"
+              data-day={d}
+              onDragOver={(e) => e.dataTransfer.types.includes('text/x-cal') && e.preventDefault()}
+              onDrop={(e) => {
+                // Dropped on an hour: starts there, keeping its length (an hour for all-day items).
+                const it = dropped(e)
+                if (!it) return
+                const a = minuteAt(e, e.currentTarget)
+                const len = it.time ? it.time[1] - it.time[0] : 60
+                setWhen(v, panel, it.node, d, [a, a + len])
+              }}
+              onPointerDown={(e) => {
+                if (e.target !== e.currentTarget || e.button !== 0) return
+                e.preventDefault()
+                const col = e.currentTarget
+                const a = minuteAt(e, col)
+                setSpan({ day: d, a, b: a + 30, naming: false })
+                const move = (ev: PointerEvent) => setSpan((sp) => (sp ? { ...sp, b: Math.max(minuteAt(ev, col), sp.a + 15) } : sp))
+                const up = () => {
+                  window.removeEventListener('pointermove', move)
+                  window.removeEventListener('pointerup', up)
+                  setSpan((sp) => (sp ? { ...sp, naming: true } : sp))
+                }
+                window.addEventListener('pointermove', move)
+                window.addEventListener('pointerup', up)
+              }}
+            >
               {(byDay.get(d) ?? [])
                 .filter((it) => it.time)
                 .map((it) => {
-                  const [a, b] = it.time!
+                  const [a, b0] = it.time!
+                  const b = resize?.node === it.target && resize.day === d ? resize.b : b0
                   return (
-                    <div key={it.id} className="tg-event-wrap" style={{ top: (a / 60) * 45, height: Math.max(22, ((b - a) / 60) * 45) }}>
+                    <div key={it.id} className="tg-event-wrap" style={{ top: `calc(${a / 60} * var(--tg-hour-h))`, height: `max(var(--tg-event-min), calc(${(b - a) / 60} * var(--tg-hour-h)))` }}>
                       <EventChip it={it} panel={panel} time={`${hm(a)} → ${hm(b)}`} />
+                      <span
+                        className="tg-resize"
+                        title="Drag to change the end"
+                        onPointerDown={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const col = (e.currentTarget.closest('.tg-col') as HTMLElement) ?? e.currentTarget
+                          let end = b0
+                          const move = (ev: PointerEvent) => {
+                            end = Math.max(a + 15, minuteAt(ev, col))
+                            setResize({ node: it.target, day: d, a, b: end })
+                          }
+                          const up = () => {
+                            window.removeEventListener('pointermove', move)
+                            window.removeEventListener('pointerup', up)
+                            setResize(null)
+                            if (end !== b0) setWhen(v, panel, it.target, d, [a, end])
+                          }
+                          window.addEventListener('pointermove', move)
+                          window.addEventListener('pointerup', up)
+                        }}
+                      />
                     </div>
                   )
                 })}
+              {span?.day === d && (
+                <div className="tg-new" style={{ top: `calc(${Math.min(span.a, span.b) / 60} * var(--tg-hour-h))`, height: `calc(${Math.abs(span.b - span.a) / 60} * var(--tg-hour-h))` }}>
+                  {span.naming ? (
+                    <input
+                      className="tg-new-input"
+                      autoFocus
+                      placeholder="New event"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => {
+                        e.stopPropagation()
+                        if (e.key === 'Enter') create()
+                        else if (e.key === 'Escape') (setSpan(null), setName(''))
+                      }}
+                      onBlur={create}
+                    />
+                  ) : (
+                    <span className="tg-new-time">
+                      {hm(Math.min(span.a, span.b))} → {hm(Math.max(span.a, span.b))}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1056,10 +1177,30 @@ function TimeGrid({ days, byDay, weekdays, today, panel }: { days: string[]; byD
 
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
+/** Puts an item on a day (and a time span, in minutes) through the calendar's date field. */
+function setWhen(v: ViewSnap, panel: string, node: number, day: string, time: [number, number] | null) {
+  if (!v.dateField) return
+  const value = time ? `${day} ${hm(time[0])}-${hm(Math.min(time[1], 24 * 60 - 1))}` : day
+  void exec('field.set', { node, field: v.dateField.id, value }, panel)
+}
+
+function dragItem(e: React.DragEvent, it: ViewItem) {
+  e.dataTransfer.setData('text/x-cal', JSON.stringify({ node: it.target, time: it.time }))
+  e.dataTransfer.effectAllowed = 'move'
+}
+
+function dropped(e: React.DragEvent): { node: number; time: [number, number] | null } | null {
+  try {
+    return JSON.parse(e.dataTransfer.getData('text/x-cal'))
+  } catch {
+    return null
+  }
+}
+
 function EventChip({ it, panel, time }: { it: ViewItem; panel: string; time?: string }) {
   const tag = it.tags.find((t) => t.name !== 'day')
   return (
-    <div className="cal-event" style={tag ? tagStyle(tag.color) : undefined} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
+    <div className="cal-event" draggable onDragStart={(e) => dragItem(e, it)} style={tag ? tagStyle(tag.color) : undefined} onClick={() => void exec('nav.open', { node: it.target }, panel)}>
       <span className="cal-event-name">{it.name || 'Untitled'}</span>
       {time && <span className="cal-event-time">{time}</span>}
     </div>

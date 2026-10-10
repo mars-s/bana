@@ -237,3 +237,43 @@ test('board column + Add makes a card at the top with its name typed in place; a
   await col.locator('.card', { hasText: 'Water seedlings' }).dragTo(target, { targetPosition: { x: 100, y: box.height - 20 } })
   await expect(target.locator('.card', { hasText: 'Water seedlings' })).toBeVisible()
 })
+
+test('calendar by pointer: move an event, drag out a new one, stretch its end; the day view reads the date (N50)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'calendar' })
+  // Month: Build four beds (Thu 15 Oct) dropped on the 16th.
+  const ev = app.locator('.cal-event', { hasText: 'Build four beds' })
+  const cell16 = app.locator('.cal-cell:not(.out)').filter({ has: app.locator('.cal-day', { hasText: /^16$/ }) })
+  await ev.dragTo(cell16)
+  await expect(cell16.locator('.cal-event', { hasText: 'Build four beds' })).toBeVisible()
+  // Week of the 12th: drag 10:00 to 11:00 on Monday, name it.
+  await app.locator('.seg', { hasText: 'Week' }).click()
+  await app.locator('.cal-head .icon-btn[title="Next"]').click()
+  const col = app.locator('.tg-col').first()
+  await col.scrollIntoViewIfNeeded()
+  const box = (await col.boundingBox())!
+  const hourH = 45
+  const scroll = await app.locator('.tg-body').evaluate((el) => el.scrollTop)
+  const y = (m: number) => box.y + (m / 60) * hourH - 0 * scroll
+  await app.mouse.move(box.x + 20, y(10 * 60) + 2)
+  await app.mouse.down()
+  await app.mouse.move(box.x + 20, y(11 * 60) + 2, { steps: 4 })
+  await app.mouse.up()
+  await expect(app.locator('.tg-new-input')).toBeFocused()
+  await app.keyboard.type('Call the council')
+  await app.keyboard.press('Enter')
+  const made = app.locator('.tg-event-wrap', { hasText: 'Call the council' })
+  await expect(made).toContainText('10:00 → 11:00')
+  // Stretch its end to 12:00.
+  const r = (await made.locator('.tg-resize').boundingBox())!
+  await app.mouse.move(r.x + 10, r.y + 1)
+  await app.mouse.down()
+  await app.mouse.move(r.x + 10, r.y + hourH + 1, { steps: 4 })
+  await app.mouse.up()
+  await expect(app.locator('.tg-event-wrap', { hasText: 'Call the council' })).toContainText('10:00 → 12:00')
+  // Day view of today.
+  await app.locator('.seg', { hasText: 'Day' }).click()
+  await app.locator('.cal-head .icon-btn[title="Today"]').click()
+  await expect(app.locator('.cal-title')).toHaveText('October 10th, 2026')
+  await expect(app.locator('.tg-day')).toHaveText('Sat 10/10')
+})

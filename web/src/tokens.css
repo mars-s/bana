@@ -61,6 +61,10 @@
   --table-col-w: 128px;
   --filter-chip-h: 26.6px;
   --board-min-h: 60vh;
+  --tg-hour: 45px;
+  --tg-gutter: 50.5px;
+  --tg-event-min: 22px;
+  --tg-body-max: calc(100vh - 330px);
   --tool-search-w: 180px;
   --drag-hint-top: 60px;
   --drag-hint-w: 600px;

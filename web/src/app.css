@@ -3034,9 +3034,14 @@ kbd {
   border-left: 1px solid var(--c-divider);
 }
 
+/* The whole day scrolls inside the panel (N50). */
 .tg-body {
-  max-height: 540px;
+  max-height: var(--tg-body-max);
   overflow-y: auto;
+}
+
+.tg {
+  --tg-hour-h: var(--tg-hour);
 }
 
 .tg-gutter {
@@ -3045,7 +3050,7 @@ kbd {
 }
 
 .tg-hour {
-  height: 45px;
+  height: var(--tg-hour-h);
   padding-right: 6px;
   text-align: right;
   letter-spacing: -0.75px;
@@ -3056,8 +3061,8 @@ kbd {
 .tg-col {
   position: relative;
   border-left: 1px solid var(--c-divider);
-  background-image: repeating-linear-gradient(to bottom, var(--c-divider) 0 1px, transparent 1px 45px);
-  height: calc(24 * 45px);
+  background-image: repeating-linear-gradient(to bottom, var(--c-divider) 0 1px, transparent 1px var(--tg-hour-h));
+  height: calc(24 * var(--tg-hour-h));
 }
 
 .tg-event-wrap {
@@ -3197,4 +3202,39 @@ kbd {
 
 .sort-rule .ghost-btn {
   font-size: var(--fs-label);
+}
+
+/* Calendar pointer editing: a new event's span, and an event's resize edge (N50). */
+.tg-new {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  z-index: 2;
+  padding: var(--q1);
+  border-radius: 2px;
+  background: var(--c-selection);
+  box-shadow: inset 0 0 0 1px var(--c-selection-ring);
+}
+
+.tg-new-time {
+  color: var(--c-link-hover);
+  font-size: var(--fs-meta);
+}
+
+.tg-new-input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+}
+
+.tg-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--q1);
+  cursor: ns-resize;
 }

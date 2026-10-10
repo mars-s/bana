@@ -50,6 +50,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.30 | A table of notes with my own columns. | Table view, add a column, type a cell. | The field is set on the row's node. | WORKS | views (Table view) |
 | UC-06.31 | Groups I can fold. | Group by a field; fold a group. | A folded group hides its rows. | PARTIAL: board columns hide, outline and list group headers do not fold | views (Group); changelog 2026 wk 37-39 |
 | UC-06.32 | Light or dark. | Switch theme. | The theme changes. | WORKS | account-settings |
+| UC-06.43 | Rolling periods in searches. | `Due:"this week"`, `Due:"NEXT 14 DAYS"`, `LAST 7 DAYS`, next or last week or month, this year. | Results follow today. | WORKS (no FOR RELATIVE DATE; on day pages PARENT is the day, UC-01.15) | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
 | UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: runs through the engine, CLI and MCP; not listed by name in the web command line; no buttons on tags or fields, no node filter | command-nodes |
 
 ## Gaps (MISSING)
@@ -65,6 +66,5 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.40 | A Part of tree searched with COMPONENTS REC. | fields (Part of) |
 | UC-06.41 | Regular expressions in searches. | search-nodes (regular expressions) |
 | UC-06.42 | Search inside one node from the search box (Tab). | sidebar (Global Search) |
-| UC-06.43 | Rolling periods: this week, NEXT 14 DAYS, FOR RELATIVE DATE. | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
 | UC-06.44 | Content width per page (Medium, Full). The panel button has no action. | views (Content widths) |
 | UC-06.45 | Strikethrough. | nodes-and-references (Formatting text) |

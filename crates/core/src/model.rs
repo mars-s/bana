@@ -373,6 +373,14 @@ impl FieldValue {
         }
     }
 
+    /// Whether a date value falls on any day from `a` to `b` (a span that overlaps counts).
+    pub fn within(&self, a: Date, b: Date) -> bool {
+        match self {
+            FieldValue::Span { start, end } => *start <= b && *end >= a,
+            other => other.date().is_some_and(|d| a <= d && d <= b),
+        }
+    }
+
     /// Parses typed text into a value of `ty`. `Node` values are resolved by the graph.
     pub fn parse(ty: FieldType, s: &str) -> Result<FieldValue, String> {
         let s = s.trim();

@@ -348,6 +348,18 @@ missing('UC-06.39', 'code blocks with a language and Mermaid diagrams')
 missing('UC-06.40', 'a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)')
 missing('UC-06.41', 'search with a regular expression')
 missing('UC-06.42', 'search inside one node from the search box (Tab on a result)')
-missing('UC-06.43', 'rolling date periods in searches and filters (this week, NEXT 14 DAYS)')
+test('UC-06.43 rolling periods in searches: this week, NEXT 14 DAYS', works('UC-06.43'), async ({ app, server }) => {
+  await server.run('field.set', { node: await idOf(server, 'Build four beds'), field: 'Due', value: '2026-10-11' })
+  await server.run('field.set', { node: await idOf(server, 'Fill with compost'), field: 'Due', value: '2026-10-20' })
+  const lib = (await server.rpc('sidebar')).workspaces[0].library
+  const week = (await server.run('search.create', { query: '#task Due:"this week"', name: 'Due this week', parent: lib })).result.id
+  const soon = (await server.run('search.create', { query: '#task Due:"NEXT 14 DAYS"', name: 'Due soon', parent: lib })).result.id
+  await server.run('nav.open', { node: week })
+  await expect(app.locator('.row.node', { hasText: 'Build four beds' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Fill with compost' })).toHaveCount(0)
+  await server.run('nav.open', { node: soon })
+  await expect(app.locator('.row.node', { hasText: 'Fill with compost' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Build four beds' })).toBeVisible()
+})
 missing('UC-06.44', 'content width per page (medium or full) from the panel button')
 missing('UC-06.45', 'strikethrough text')

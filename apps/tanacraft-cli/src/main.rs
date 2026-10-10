@@ -244,6 +244,10 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             let web = take_opt(&mut args, "--web").map(PathBuf::from).unwrap_or_else(default_web_dir);
             let today = take_opt(&mut args, "--today").map(|d| Date::parse(&d).ok_or(format!("--today: bad date `{d}`"))).transpose()?;
             let sample_mode = take_flag(&mut args, "--sample");
+            // `Due<today` and rolling periods follow the fixed day too.
+            if let Some(t) = today {
+                tanacraft_core::Date::fix_today(t);
+            }
             let large = take_opt(&mut args, "--large").map(|n| n.parse::<usize>().map_err(|e| format!("--large: {e}"))).transpose()?;
             let session = match large {
                 // A generated graph of about N nodes, in memory (speed tests).

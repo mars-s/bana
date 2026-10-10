@@ -38,10 +38,70 @@ impl Date {
         (t.hour() * 60 + t.minute()).min(1439) as u16
     }
 
+    /// Today: the clock's, or the day fixed with [`Date::fix_today`] (tests, `serve --today`).
     pub fn today() -> Date {
+        let fixed = FIXED_TODAY.load(std::sync::atomic::Ordering::Relaxed);
+        if fixed != i64::MIN {
+            return Date::from_days(fixed);
+        }
         use chrono::Datelike;
         let d = chrono::Local::now().date_naive();
         Date::new(d.year(), d.month() as u8, d.day() as u8).unwrap_or_else(|| Date::from_days(0))
+    }
+
+    /// Makes [`Date::today`] answer `d` from now on (so `Due<today` and rolling periods agree with
+    /// a fixed day page date).
+    pub fn fix_today(d: Date) {
+        FIXED_TODAY.store(d.to_days(), std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// A rolling period in words (UC-06.43), first and last day: `this week`, `last week`, `next
+    /// week` (weeks start on Monday), `this month`, `last month`, `next month`, `this year`, `next
+    /// 14 days`, `last 7 days` (today included). Upper case and no spaces work too (`THISWEEK`).
+    pub fn period(text: &str, today: Date) -> Option<(Date, Date)> {
+        let t: String = text.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ");
+        let t = match t.as_str() {
+            "thisweek" => "this week",
+            "lastweek" => "last week",
+            "nextweek" => "next week",
+            "thismonth" => "this month",
+            "lastmonth" => "last month",
+            "nextmonth" => "next month",
+            "thisyear" => "this year",
+            other => other,
+        };
+        let monday = today.add_days(-(today.weekday() as i64));
+        let month = |y: i32, m: u8| Some((Date::new(y, m, 1)?, Date::new(y, m, days_in_month(y, m))?));
+        let (py, pm) = if today.month == 1 { (today.year - 1, 12) } else { (today.year, today.month - 1) };
+        let (ny, nm) = if today.month == 12 { (today.year + 1, 1) } else { (today.year, today.month + 1) };
+        match t {
+            "this week" => Some((monday, monday.add_days(6))),
+            "last week" => Some((monday.add_days(-7), monday.add_days(-1))),
+            "next week" => Some((monday.add_days(7), monday.add_days(13))),
+            "this month" => month(today.year, today.month),
+            "last month" => month(py, pm),
+            "next month" => month(ny, nm),
+            "this year" => Some((Date::new(today.year, 1, 1)?, Date::new(today.year, 12, 31)?)),
+            _ => {
+                let w: Vec<&str> = t.split(' ').collect();
+                let (dir, n) = match w.as_slice() {
+                    [d, n, "days" | "day"] => (*d, n.parse::<i64>().ok()?),
+                    [one] => {
+                        let (d, rest) = one.split_at(one.find(|c: char| c.is_ascii_digit())?);
+                        (d, rest.strip_suffix("days").or_else(|| rest.strip_suffix("day"))?.parse().ok()?)
+                    }
+                    _ => return None,
+                };
+                if !(1..=3660).contains(&n) {
+                    return None;
+                }
+                match dir {
+                    "next" => Some((today, today.add_days(n - 1))),
+                    "last" => Some((today.add_days(-(n - 1)), today)),
+                    _ => None,
+                }
+            }
+        }
     }
 
     /// Days since 1970-01-01 (Howard Hinnant's algorithm).
@@ -193,6 +253,9 @@ impl Date {
     }
 }
 
+/// [`Date::fix_today`]'s day (days since 1970), `i64::MIN` when not fixed.
+static FIXED_TODAY: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(i64::MIN);
+
 const WEEKDAY_NAMES: [&str; 7] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const MONTH_NAMES: [&str; 12] =
     ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -251,6 +314,22 @@ mod tests {
         assert_eq!(d("Nov 21 to 30"), Some(("2026-11-21".into(), Some("2026-11-30".into()))));
         for no in ["", "garden", "nov", "Nov 31", "in many days", "Nov 30 to Nov 21", "friday the 13th please"] {
             assert_eq!(d(no), None, "{no}");
+        }
+    }
+
+    #[test]
+    fn rolling_periods() {
+        // UC-06.43, today Sat 10 Oct 2026.
+        let today = Date::new(2026, 10, 10).unwrap();
+        let p = |t: &str| Date::period(t, today).map(|(a, b)| format!("{a} {b}"));
+        assert_eq!(p("this week").as_deref(), Some("2026-10-05 2026-10-11"));
+        assert_eq!(p("NEXTWEEK").as_deref(), Some("2026-10-12 2026-10-18"));
+        assert_eq!(p("last week").as_deref(), Some("2026-09-28 2026-10-04"));
+        assert_eq!(p("this month").as_deref(), Some("2026-10-01 2026-10-31"));
+        assert_eq!(p("NEXT 14 DAYS").as_deref(), Some("2026-10-10 2026-10-23"));
+        assert_eq!(p("last7days").as_deref(), Some("2026-10-04 2026-10-10"));
+        for no in ["", "soon", "next 0 days", "next many days"] {
+            assert_eq!(p(no), None, "{no}");
         }
     }
 

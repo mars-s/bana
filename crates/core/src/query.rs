@@ -13,6 +13,7 @@
 //! | `Due:DEFINED`, `Due:UNDEFINED` | the node carries the field at all / does not |
 //! | `Project:PARENT`, `Project:GRANDPARENT` | the value is the search node's parent (grandparent) |
 //! | `Due:today`, `Due:yesterday` | a date field on that (relative) date |
+//! | `Due:"this week"`, `Due:NEXTMONTH`, `Due:"NEXT 14 DAYS"`, `Due:"LAST 7 DAYS"` | a date in that rolling period |
 //! | `WORKSPACE:42` | in workspace 42 (the main one is the root) |
 //! | `SCOPE:PARENT`, `SCOPE:GRANDPARENT` | inside the search node's parent (grandparent) |
 //! | `CHILD:42` | a direct child of node 42 |
@@ -519,7 +520,12 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
             n.field_values(*field).into_iter().any(|v| match op {
                 Op::Set => !display_value(g, v).is_empty(),
                 // A date matches its day, also given as `today`, `yesterday`... (relative dates).
-                Op::Eq => display_value(g, v).eq_ignore_ascii_case(value.trim()) || Date::parse(value).is_some_and(|t| v.covers(t)),
+                // A rolling period: this week, NEXT 14 DAYS... (UC-06.43).
+                Op::Eq => {
+                    display_value(g, v).eq_ignore_ascii_case(value.trim())
+                        || Date::parse(value).is_some_and(|t| v.covers(t))
+                        || Date::period(value, Date::today()).is_some_and(|(a, b)| v.within(a, b))
+                }
                 Op::Lt => compare(g, v, value).is_some_and(|o| o.is_lt()),
                 Op::Gt => compare(g, v, value).is_some_and(|o| o.is_gt()),
                 Op::Node => value.parse::<u64>().is_ok_and(|x| *v == FieldValue::Node(NodeId(x))),

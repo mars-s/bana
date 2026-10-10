@@ -447,3 +447,28 @@ fn compaction_cuts_only_what_every_paired_copy_acknowledged() {
     assert!(g.to_snapshot().unwrap().len() < big);
     sync(&mut g, &mut laptop);
 }
+
+#[test]
+fn the_same_day_made_on_two_copies_apart_is_one_day_after_merging() {
+    let mut g = Graph::new();
+    let (mut a, mut b) = fork(&mut g);
+    let day = Date::new(2026, 10, 12).unwrap();
+    let da = a.day(day).unwrap();
+    a.create(da, None, "from a").unwrap();
+    let db = b.day(day).unwrap();
+    b.create(db, None, "from b").unwrap();
+    assert_ne!(da, db);
+    sync(&mut a, &mut b);
+    let d = a.find_day(day).unwrap();
+    let days: Vec<NodeId> = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Day { date } if date == day)).map(|n| n.id).collect();
+    assert_eq!(days, [d], "one day node");
+    let names: Vec<&str> = a.children(d).iter().map(|c| a.name(*c)).collect();
+    assert!(names.contains(&"from a") && names.contains(&"from b"), "{names:?}");
+    // The year and week are not doubled either.
+    let weeks = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Week { .. })).count();
+    let years = a.iter().filter(|n| matches!(n.kind, tanacraft_core::Kind::Year { .. })).count();
+    assert_eq!((weeks, years), (1, 1));
+    // And it stays merged on the next round.
+    a.create(d, None, "later").unwrap();
+    sync(&mut a, &mut b);
+}

@@ -11,6 +11,8 @@ commands:
   web     build the web UI and run its Playwright tests (needs pnpm)
   shots   web UI screenshots (Playwright) into docs/images/web/
   connector  the remote MCP connector's tests (cloudflare/: npm ci, typecheck, Worker + end to end)
+  sync    the sync checks: the Rust sync tests, the relay Worker's tests (cloudflare/sync, vitest
+          in workerd) and its typecheck
   parity  check that docs/parity.md maps every spec file and section; print status counts
 ";
 
@@ -21,6 +23,7 @@ fn main() -> ExitCode {
         Some("shots") => web_prep().and_then(|_| pnpm(&["run", "shots"])),
         Some("web") => web_prep().and_then(|_| pnpm(&["exec", "playwright", "test", "--project=tests"])),
         Some("parity") => parity(),
+        Some("sync") => sync(),
         Some("connector") => cargo(&["build", "-p", "tanacraft-cli"])
             .and_then(|_| npm(&["ci", "--no-audit", "--no-fund"]))
             .and_then(|_| npm(&["run", "typecheck"]))
@@ -65,6 +68,21 @@ fn ci() -> Result<(), String> {
     }
     cargo(&["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"])?;
     cargo(&["test", "--workspace"])
+}
+
+fn sync() -> Result<(), String> {
+    cargo(&["test", "-p", "tanacraft-sync"])?;
+    let relay = root().join("cloudflare/sync");
+    run_in(&relay, "npm", &["ci", "--no-audit", "--no-fund"])?;
+    run_in(&relay, "npm", &["run", "typecheck"])?;
+    run_in(&relay, "npm", &["test"])
+}
+
+fn run_in(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {
+    let what = format!("{cmd} {}", args.join(" "));
+    eprintln!("$ {what} (in {})", dir.display());
+    let status = Command::new(cmd).args(args).current_dir(dir).status().map_err(|e| format!("{what}: {e}"))?;
+    if status.success() { Ok(()) } else { Err(format!("{what}: exited with {status}")) }
 }
 
 fn web_prep() -> Result<(), String> {

@@ -17,6 +17,7 @@ tanacraft-core = { path = "crates/core" }
 tanacraft-commands = { path = "crates/commands" }
 tanacraft-mcp = { path = "crates/mcp" }
 tanacraft-server = { path = "crates/server" }
+tanacraft-sync = { path = "crates/sync" }
 
 # foundation
 serde = { version = "1", features = ["derive"] }

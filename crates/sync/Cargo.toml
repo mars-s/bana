@@ -1,0 +1,26 @@
+[package]
+name = "tanacraft-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TanaCraft sync: end-to-end encrypted Loro updates between paired copies through a relay"
+
+[lints]
+workspace = true
+
+[dependencies]
+tanacraft-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# Audited RustCrypto / dalek crates: XChaCha20-Poly1305 for the data, Ed25519 for device identity.
+chacha20poly1305 = "0.10"
+ed25519-dalek = "2"
+sha2 = "0.10"
+getrandom = "0.2"
+# The relay connection: a blocking WebSocket on a thread of its own; TLS from the system
+# (Security.framework on macOS and iOS), so nothing extra to build for the phone.
+tungstenite = { version = "0.30", default-features = false, features = ["handshake", "native-tls"] }
+native-tls = "0.2"
+# The pairing QR code, drawn as SVG.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }

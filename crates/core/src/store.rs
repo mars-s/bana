@@ -108,6 +108,23 @@ impl Store {
         self.doc.import(bytes).map(drop).map_err(err)
     }
 
+    /// Merges several blobs in at once (a snapshot first, then updates in any order).
+    pub fn import_all(&self, parts: &[Vec<u8>]) -> Result<()> {
+        match parts {
+            [] => Ok(()),
+            [one] => self.import(one),
+            // The first one alone: a snapshot (a shallow one too) must land in the empty
+            // document before the updates that follow it.
+            [first, rest @ ..] => {
+                self.import(first)?;
+                match rest {
+                    [one] => self.import(one),
+                    many => self.doc.import_batch(many).map(drop).map_err(err),
+                }
+            }
+        }
+    }
+
     // ---- history: compaction -------------------------------------------------------------------
 
     /// Drops history up to the newest version every paired copy has acknowledged (`acked`: each

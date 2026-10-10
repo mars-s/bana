@@ -2575,7 +2575,13 @@ impl Graph {
 
     /// A graph from a Loro snapshot (or updates), repaired like a loaded file.
     pub fn from_snapshot(bytes: &[u8]) -> Result<Graph> {
-        let store = crate::store::Store::from_bytes(bytes)?;
+        Graph::from_parts(&[bytes.to_vec()])
+    }
+
+    /// A graph from several blobs (a snapshot and the updates after it), as a synced copy starts.
+    pub fn from_parts(parts: &[Vec<u8>]) -> Result<Graph> {
+        let store = crate::store::Store::new();
+        store.import_all(parts)?;
         let mut g = Graph::new();
         g.store = store;
         g.reload_from_store()?;
@@ -2597,13 +2603,29 @@ impl Graph {
     /// Merges another copy's changes (a snapshot or updates) into this graph. Undo and redo stay:
     /// each step is rebased so it only takes back this copy's own edits, never the other copy's.
     pub fn merge(&mut self, bytes: &[u8]) -> Result<()> {
+        self.merge_all(&[bytes.to_vec()])
+    }
+
+    /// [`Graph::merge`] of several blobs at once (a sync backlog): one rebuild for all of them.
+    pub fn merge_all(&mut self, parts: &[Vec<u8>]) -> Result<()> {
         self.commit("edit");
         self.flush()?;
         let ids: BTreeSet<NodeId> = self.undo.iter().chain(self.redo.iter()).flat_map(|s| s.nodes.keys().copied()).collect();
         let before: PreImages = ids.iter().map(|id| (*id, self.nodes.get(id).cloned())).collect();
         let (undo, redo) = (std::mem::take(&mut self.undo), std::mem::take(&mut self.redo));
-        self.store.import(bytes)?;
+        let calendar: BTreeSet<NodeId> = self.nodes.values().filter(|n| calendar_key(&n.kind).is_some()).map(|n| n.id).collect();
+        let imported = self.store.import_all(parts);
+        if let Err(e) = imported {
+            // Nothing was taken in: the history stays as it was.
+            (self.undo, self.redo) = (undo, redo);
+            return Err(e);
+        }
         self.reload_from_store()?;
+        let touched = merge_calendar_twins(&mut self.nodes, &calendar);
+        if !touched.is_empty() {
+            self.changed.extend(touched);
+            self.flush()?;
+        }
         let mut steps = [undo, redo];
         for step in steps.iter_mut().flatten() {
             self.rebase_step(&mut step.nodes, &before);
@@ -2696,6 +2718,60 @@ struct GraphFile {
 
 fn is_default_settings(s: &Settings) -> bool {
     *s == Settings::default()
+}
+
+/// Two copies that made the same year, week or day apart (offline, then synced) keep one: the
+/// lowest id, which takes the others' children. Every copy repairs the same way, so they agree.
+/// Only twins a merge brought (one not in `before`): a copy may hold duplicates on purpose.
+/// Returns the nodes it changed or removed.
+/// ponytail: links to the dropped twin (`[[id]]` in text) stay dangling; references are moved over.
+fn merge_calendar_twins(nodes: &mut BTreeMap<NodeId, Node>, before: &BTreeSet<NodeId>) -> BTreeSet<NodeId> {
+    let mut touched = BTreeSet::new();
+    // Years first: their weeks then share a parent and are merged on the next pass, then days.
+    for _ in 0..3 {
+        let mut groups: BTreeMap<(Option<NodeId>, String), Vec<NodeId>> = BTreeMap::new();
+        for n in nodes.values() {
+            if calendar_key(&n.kind).is_some() {
+                groups.entry((n.parent, format!("{:?}", n.kind))).or_default().push(n.id);
+            }
+        }
+        let twins: Vec<Vec<NodeId>> = groups.into_values().filter(|g| g.len() > 1 && g.iter().any(|id| !before.contains(id))).collect();
+        if twins.is_empty() {
+            return touched;
+        }
+        let mut renamed: BTreeMap<NodeId, NodeId> = BTreeMap::new();
+        for group in twins {
+            let Some((&keep, rest)) = group.split_first() else { continue };
+            for gone in rest {
+                let Some(node) = nodes.remove(gone) else { continue };
+                touched.insert(*gone);
+                touched.insert(keep);
+                touched.extend(node.parent);
+                touched.extend(node.children.iter().copied());
+                for c in &node.children {
+                    if let Some(child) = nodes.get_mut(c) {
+                        child.parent = Some(keep);
+                    }
+                }
+                if let Some(k) = nodes.get_mut(&keep) {
+                    k.children.extend(node.children.iter().copied());
+                }
+                if let Some(p) = node.parent.and_then(|p| nodes.get_mut(&p)) {
+                    p.children.retain(|c| c != gone);
+                }
+                renamed.insert(*gone, keep);
+            }
+        }
+        for n in nodes.values_mut() {
+            if let Kind::Reference { target } = &mut n.kind
+                && let Some(k) = renamed.get(target)
+            {
+                *target = *k;
+                touched.insert(n.id);
+            }
+        }
+    }
+    touched
 }
 
 fn n_kind_week(k: &Kind) -> bool {

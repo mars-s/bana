@@ -19,6 +19,8 @@ pub mod view;
 
 pub use date::Date;
 pub use graph::{Graph, GraphEvent, Settings, SystemNodes};
+/// A copy's version (what it has of every peer's edits): sync sends what the other side lacks.
+pub use loro::VersionVector;
 pub use model::*;
 pub use query::Query;
 pub use view::{GroupBy, Sort, SortBy, SystemField, ViewDef, ViewKind};

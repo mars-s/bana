@@ -37,14 +37,14 @@ Everything here comes from Tana's public pages, written in our own words:
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 5 | 1 | 3 | 0 | 1 |
 | [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 33 | 3 | 9 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 3 | 1 | 5 | 2 | 0 |
-| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 1 | 4 | 1 | 1 |
+| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 2 | 3 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **101** | **11** | **31** | **14** | **24** |
+| **Total (181)** | | **101** | **12** | **30** | **14** | **24** |
 
-Out of the 143 use cases that need neither AI nor a cloud or mobile service, 112 work fully or in
-part (101 + 11) and 31 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 113 work fully or in
+part (101 + 12) and 30 are missing.
 
 ## Top 15 gaps by user value
 
@@ -71,7 +71,8 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 13. ~~**Merge duplicates** (UC-06.34).~~ Done: nodes, supertags and fields (`node.merge`).
 14. ~~**Progress at a glance** (UC-02.03, UC-02.04).~~ Done: bars by themselves, rings on pinned
     projects.
-15. **Capture from anywhere** (UC-08.14). A system-wide quick capture in the desktop app.
+15. ~~**Capture from anywhere** (UC-08.14).~~ Partly done: Cmd+Shift+E brings the desktop app
+    forward with Quick add open; a small window of its own is next.
 
 Smaller defects found on the way, all fixed since: the Content width button sets Medium or Full
 width per page (UC-06.44); side menu and tabs views show the item in place (UC-06.14); table and

@@ -128,7 +128,8 @@ test('UC-08.11 paste Tana Paste text: tagged nodes, fields, dates and a search a
 })
 missing('UC-08.12', 'paste spreadsheet cells as a table')
 missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
-missing('UC-08.14', 'capture from any app with a system-wide shortcut (Global Clipper)')
+// UC-08.14 (capture from any app) lives in the desktop app: its shortcut is checked by a Rust
+// test in apps/tanacraft-desktop; Quick add itself is tested in the web suite.
 missing('UC-08.15', 'browse and install templates from a gallery')
 missing('UC-08.16', 'capture on the phone: app, home screen widgets, share sheet, Siri', 'out-of-scope')
 missing('UC-08.17', 'voice memo on the phone, transcribed and tagged by AI', 'ai')

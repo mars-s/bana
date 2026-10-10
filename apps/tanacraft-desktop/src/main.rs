@@ -31,6 +31,11 @@ fn rpc(method: String, params: Value, shared: tauri::State<'_, Arc<Shared>>, app
     out
 }
 
+/// Quick capture from any app (UC-08.14). spec-gap: Tana's default key is not in its docs; this
+/// one is Quick add's own key with Shift, and Tana opens a small window of its own where this
+/// brings the main window forward with Quick add open.
+const CAPTURE_SHORTCUT: &str = "CmdOrCtrl+Shift+E";
+
 /// The native menu bar (spec 00 §7, DIFFS N75): (title, [(label, command id, accelerator)]). An
 /// empty label is a separator. Clipboard, select-all, minimize, zoom and full screen are the
 /// system's own items so they work as everywhere else; `window.*` ids are handled here.
@@ -206,6 +211,24 @@ fn run() -> Result<(), String> {
     let on_exit = Arc::clone(&shared);
     let watched = Arc::clone(&shared);
     let app = tauri::Builder::default()
+        // Capture from any app (UC-08.14): the shortcut brings TanaCraft forward with Quick add
+        // open; what is typed there goes to today's page.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcuts([CAPTURE_SHORTCUT])
+                .map_err(|e| e.to_string())?
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.unminimize();
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                        let _ = app.emit("menu", "ui.quickAdd");
+                    }
+                })
+                .build(),
+        )
         .manage(shared)
         .invoke_handler(tauri::generate_handler![rpc])
         .setup(move |app| {
@@ -259,6 +282,11 @@ fn run() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::MENUS;
+
+    #[test]
+    fn the_capture_shortcut_parses() {
+        assert!(super::CAPTURE_SHORTCUT.parse::<tauri_plugin_global_shortcut::Shortcut>().is_ok());
+    }
 
     #[test]
     fn menu_bar_follows_the_spec_and_every_item_runs_a_known_command() {

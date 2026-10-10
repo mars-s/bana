@@ -22,6 +22,8 @@ tanacraft-commands = { workspace = true }
 tanacraft-server = { workspace = true }
 serde_json = { workspace = true }
 tauri = { version = "2", features = [] }
+# Capture from any app (UC-08.14).
+tauri-plugin-global-shortcut = "2"
 
 [features]
 # Serve the embedded web UI. `tauri dev` turns default features off and uses the Vite dev server.

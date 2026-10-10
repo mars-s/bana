@@ -68,3 +68,5 @@ The UI is `web/` (Vite + React + TypeScript, plain CSS). It runs inside the Taur
 - A field name typed after `>` is sent as `fieldDraft`; saves write it in as a field so a force-kill keeps it (N26). Renames and field values carry `rev`; the engine drops older ones.
 - `PAGE_STACKS=1` makes the fixture report page errors with their stack (find the source in `dist/assets/*.js` at the line and column).
 - Every tool and menu on a page is a pointer target too: menus fit the window (`NodeMenu` measures itself), popovers that hold submenus need `overflow: visible`.
+- DIFFS value pairs ("A vs B") are not always Tana first (N59.33 to 35 and N67 give the clone first). Settle each with spec 12 and the paired `screens/diffs/dNN` image (Tana on the left) before changing anything.
+- Playwright HTML5 drags with `mouse.down/move/up`: the first moves start the drag, and a pause before `mouse.up` loses the drop unless one more `mouse.move` comes first. Measure boxes after the 250 ms modal entry (scale 0.95 to 1).

@@ -4,19 +4,27 @@ Maps every `##` section of the clean-room spec (`../tanacraft-spec/*.md`, includ
 10 to 15 and `DESIGN.md`) and every screenshot (`screens/` and `screens/visual/`) to its status in
 the web UI (`web/`, Tauri app and browser). `cargo xtask parity` fails when a spec section or a
 screenshot is missing from this file. The acceptance rounds are in `../tanacraft-spec/DIFFS.md`;
-round 8 (the first on the web UI) is answered item by item in the git log (`DIFFS N35` to `N59`).
+rounds 8 and 9 on the web UI are answered item by item in the git log (`DIFFS N35` to `N71`).
 
 Status: **done** (implemented and tested), **partial** (works, gaps listed), **missing** (not started),
 **n/a** (notes in the spec, not behaviour).
 
 ## Summary
 
-| | done | partial | missing | n/a |
-|---|---|---|---|---|
-| Behaviour sections, spec files 00 to 09 and INDEX (96 rows) | 78 | 12 | 3 | 3 |
-| Visual sections, spec files 10 to 15 and DESIGN.md (75 rows) | 69 | 4 | 0 | 2 |
-| Screenshots (160 rows) | 140 | 14 | 5 | 1 |
-| Visual screenshots (54 rows) | 46 | 4 | 0 | 4 |
+`cargo xtask parity` after round 9: 403 spec items (sections and screenshots); rows done 344,
+partial 27, missing 8, n/a 10.
+
+Round 9 (`DIFFS N60` to `N71` and the N59 list) is answered in the git log. Items kept as they
+are, with the reason:
+
+- N59.4 credits and N59.9 "Workspaces ▾" on the day toolbar: no billing, and what the menu filters
+  is not in the spec.
+- N59.10 the sidebar button's fill in mini mode: spec 11 §4 gives top bar icons a hover fill, and
+  the pointer rests on the button after the click.
+- N59.18 the table's first column: it fits its titles (150 to 340); the sample's titles are longer
+  than those in the compared table.
+- N46 "Suggested" fields in + Add: AI in spec 04.
+- N62 "/" Image / file and Start live transcription: no file store, no voice.
 
 ## `00-overview.md`
 

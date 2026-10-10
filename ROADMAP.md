@@ -46,11 +46,16 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M25 Data safety and boards | Write-ahead log of every edit and waiting key (reloads under load lose nothing), history kept for paired copies, board cards reordered in a column with the others sliding aside (`view.moveItem`) | done |
 | M26 Acceptance round 9 | DIFFS N60 to N71: two windows with their own pages and carets and both windows' words kept in one line (P1), typing with nothing focused restores the caret, field drafts become fields on reload, table header opens the field beside, board column add at the top, #, @ and / menus, command line under the line, page and tag menus, account menu, settings, search page, tabs, the N59 list settled with the paired images | done |
 | M28 Acceptance round 10 | DIFFS N72 to N76 and the open round 9 items: an offline notice while the engine is out of reach, edits wait first in line and go in when it is back (a restarted engine gets the pages and caret back), click right of a line, keys with nothing focused dropped after a click or reload, Suggested columns, a split in one window carries the other window's caret, the field typed after a line keeps its place, the spec's menu bar, page menu, Supertags header, Workspaces button, table and date cell | done |
+| I1 iPhone engine | `crates/ffi`: UniFFI binding of the `Host` (open or create a graph, `rpc` and `run` with JSON, view snapshots, change listeners, autosave), XCFramework for device and simulator (`scripts/build-ios-core.sh`), Rust tests incl. the desktop file format and a keystroke cost check | done (branch `ios`) |
+| I2 iPhone app | `apps/tanacraft-ios`: SwiftUI, iOS 17+, xcodegen project, graph in Documents in the desktop's Loro format, tokens generated from `web/src/tokens.css`, Inter Variable | done (first version) |
+| I3 iPhone screens | Day page, outline with bullets, tap to edit, Return and Backspace, keyboard bar (indent, outdent, move, collapse, checkbox, supertag, undo, redo), zoom with breadcrumbs and Back, tags and fields (text, options, checkbox), formatted lines, search, quick capture, supertag pages, Home sheet, node menu | done (first version) |
+| I4 iPhone tests | 15 XCUITests incl. data safety (type, background, kill, relaunch; and a kill in the foreground), screenshots in `docs/images/ios/` | done |
+| I5 iPhone next | Phone measurements from the spec team (`tanacraft-spec/ios/`), inline `#`, `@` and `>` while typing, date picker for date fields, table and board views, swipe actions, Share extension and widgets, sync with the desktop over iroh, device builds | next |
 | M27 Next | MCP on the running app, use-case gaps (docs/use-cases), sync over the network (iroh), AI features | next |
 
 ## Later
 
-Sync, workspace members, mobile and web (wasm) builds.
+Sync, workspace members, Android and web (wasm) builds.
 
 ## Known simplifications
 

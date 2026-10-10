@@ -14,7 +14,7 @@ import { QueryBuilder, ViewBody, ViewToolbar, toggleQuery } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
-import { keyInfo, shortcut } from './keys'
+import { type KeyInfo, isTextKey, keyInfo, shortcut } from './keys'
 
 const OVERSCAN_ROWS = 150
 const WINDOW = 400
@@ -1072,10 +1072,67 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
   const [editing, setEditing] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
   const pending = useRef(0)
+  const pageRef = useRef(page)
+  pageRef.current = page
   useEffect(() => {
     if (pending.current === 0 && !editing) setValue(page.name)
   }, [page.name, editing])
+  function send(v: string) {
+    setValue(v)
+    pending.current++
+    void call('run', { command: 'node.setName', params: { node: pageRef.current.zoom, name: v }, panel }).then(() => {
+      pending.current--
+      if (pending.current === 0) scheduleQuietRefresh()
+    })
+  }
+  /** The title's own keys (true: used). Live key presses and keys replayed from the buffer both
+   * come here, so a replayed Down leaves the title just as a typed one does. */
+  function titleKey(k: KeyInfo, el: HTMLTextAreaElement): boolean {
+    const page = pageRef.current
+    const sc = shortcut(k)
+    const first = () => page.rows.items.find((r) => r.k === 'node') as NodeRow | undefined
+    // spec-gap: the title is a node editor (02 §1): Cmd+Shift+Up/Down move the page node, and
+    // Tab does nothing (it would otherwise move the keyboard to a button and drop what is typed).
+    if (sc === 'Mod+Shift+Up' || sc === 'Mod+Shift+Down') {
+      void exec(sc.endsWith('Up') ? 'node.moveUp' : 'node.moveDown', { node: page.zoom }, panel)
+      return true
+    }
+    if (sc === 'Tab' || sc === 'Shift+Tab') return true
+    // Commands work from the title too (Cmd+K, zoom out, back; N40): the title lets go first.
+    if ((k.metaKey || k.ctrlKey) && !['Meta', 'Control', 'Shift', 'Alt'].includes(k.key) && !TITLE_TEXT_KEYS.test(sc)) {
+      el.blur()
+      keyFromTitle(panel, k)
+      return true
+    }
+    if ((k.key === 'Enter' || k.key === 'ArrowDown') && !k.metaKey && !k.ctrlKey) {
+      el.blur()
+      if (!outlineVisible(panel)) return true
+      const f = first()
+      if (k.key === 'ArrowDown' && f) void exec('focus.set', { node: f.id, caret: 0 }, panel)
+      else void exec('node.enter', { node: page.zoom }, panel)
+      return true
+    }
+    if (k.key === 'Escape') {
+      el.blur()
+      const f = first()
+      if (f && outlineVisible(panel)) void exec('select.set', { from: f.id }, panel)
+      return true
+    }
+    return false
+  }
+  const titleKeyRef = useRef(titleKey)
+  titleKeyRef.current = titleKey
   useEffect(() => {
+    const insert = (text: string) => {
+      const el = ref.current
+      if (!el) return
+      const v = el.value
+      const next = v.slice(0, el.selectionStart) + text + v.slice(el.selectionEnd)
+      const at = el.selectionStart + text.length
+      el.value = next
+      el.setSelectionRange(at, at)
+      send(next)
+    }
     registerTitle(panel, {
       panel,
       focus(atEnd = true) {
@@ -1086,28 +1143,32 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
         const n = atEnd ? el.value.length : 0
         el.setSelectionRange(n, n)
       },
-      insert(text: string) {
+      insert,
+      key(k: KeyInfo) {
         const el = ref.current
-        if (!el) return
+        if (!el || titleKeyRef.current(k, el)) return
+        if (isTextKey(k)) return insert(k.key)
+        // Plain editing keys that waited in the buffer.
         const v = el.value
-        const next = v.slice(0, el.selectionStart) + text + v.slice(el.selectionEnd)
-        const at = el.selectionStart + text.length
-        el.value = next
-        el.setSelectionRange(at, at)
-        send(next)
+        let s0 = el.selectionStart
+        let s1 = el.selectionEnd
+        if (k.key === 'Backspace' || k.key === 'Delete') {
+          if (s0 === s1) {
+            if (k.key === 'Backspace') s0 = Math.max(0, s0 - 1)
+            else s1 = Math.min(v.length, s1 + 1)
+          }
+          el.value = v.slice(0, s0) + v.slice(s1)
+          el.setSelectionRange(s0, s0)
+          send(el.value)
+        } else if (k.key === 'ArrowLeft') el.setSelectionRange(Math.max(0, s0 - 1), Math.max(0, s0 - 1))
+        else if (k.key === 'ArrowRight') el.setSelectionRange(Math.min(v.length, s1 + 1), Math.min(v.length, s1 + 1))
+        else if (k.key === 'Home' || k.key === 'ArrowUp') el.setSelectionRange(0, 0)
+        else if (k.key === 'End') el.setSelectionRange(v.length, v.length)
       },
     })
     return () => registerTitle(panel, null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel])
-  const zoom = page.zoom
-  function send(v: string) {
-    setValue(v)
-    pending.current++
-    void call('run', { command: 'node.setName', params: { node: zoom, name: v }, panel }).then(() => {
-      pending.current--
-      if (pending.current === 0) scheduleQuietRefresh()
-    })
-  }
   useLayoutEffect(() => {
     const el = ref.current
     if (el) {
@@ -1135,28 +1196,7 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
       onBlur={() => setEditing(false)}
       onChange={(e) => send(e.target.value.replace(/\n/g, ' '))}
       onKeyDown={(e) => {
-        const k = keyInfo(e)
-        // Commands work from the title too (Cmd+K, zoom out, back; N40): the title lets go first.
-        if ((k.metaKey || k.ctrlKey) && !['Meta', 'Control', 'Shift', 'Alt'].includes(k.key) && !TITLE_TEXT_KEYS.test(shortcut(k))) {
-          e.preventDefault()
-          e.stopPropagation()
-          e.currentTarget.blur()
-          keyFromTitle(panel, k)
-          return
-        }
-        if ((k.key === 'Enter' || k.key === 'ArrowDown') && !k.metaKey && !k.ctrlKey) {
-          e.preventDefault()
-          e.currentTarget.blur()
-          const first = page.rows.items.find((r) => r.k === 'node') as NodeRow | undefined
-          if (!outlineVisible(panel)) return
-          if (k.key === 'ArrowDown' && first) void exec('focus.set', { node: first.id, caret: 0 }, panel)
-          else void exec('node.enter', { node: page.zoom }, panel)
-        } else if (k.key === 'Escape') {
-          e.preventDefault()
-          e.currentTarget.blur()
-          const first = page.rows.items.find((r) => r.k === 'node') as NodeRow | undefined
-          if (first && outlineVisible(panel)) void exec('select.set', { from: first.id }, panel)
-        }
+        if (titleKey(keyInfo(e), e.currentTarget)) e.preventDefault()
         e.stopPropagation()
       }}
     />

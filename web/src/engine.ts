@@ -75,11 +75,13 @@ function makeTransport(): Transport {
 
 export const transport = makeTransport()
 
-// ---- the ordered queue ---------------------------------------------------------------------------
+// ---- the ordered queue and its write-ahead log ------------------------------------------------------
 
 interface Item {
   method: string
   params: Json
+  /** Write-ahead-log number of an edit: [this page's client id, sequence]. */
+  wal?: [string, number]
   done: ((r: Json) => void)[]
   fail: ((e: unknown) => void)[]
 }
@@ -93,9 +95,39 @@ const idleWaiters: (() => void)[] = []
 const isRename = (i: { method: string; params: Json }) => i.method === 'run' && i.params?.command === 'node.setName'
 
 /** Increases across reloads: the engine drops text older than what it already has. */
-let revSeq = 0
+let lastRev = 0
 function rev() {
-  return Date.now() * 1000 + (revSeq++ % 1000)
+  lastRev = Math.max(lastRev + 1, Date.now() * 1000)
+  return lastRev
+}
+
+// Every edit is written to sessionStorage the moment it is made (in the same task as the key
+// press), numbered per page load, and leaves the log only once the engine has answered. A reload
+// (or a crash of the page) replays what is left; the engine runs each (client, seq) once, so an
+// edit that did arrive is skipped. Reads are not logged.
+const WAL = 'tanacraft.wal'
+const EDITS = new Set(['run', 'fieldDraft', 'panel.open', 'panel.close'])
+const client = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+let walSeq = 0
+type WalEntry = { method: string; params: Json; wal: [string, number] }
+let wal: WalEntry[] = []
+
+function writeWal() {
+  try {
+    if (wal.length) sessionStorage.setItem(WAL, JSON.stringify(wal))
+    else sessionStorage.removeItem(WAL)
+  } catch {
+    /* storage off or full: the queue and the unload beacon still carry the edits */
+  }
+}
+
+/** The engine answered `it`: it and everything logged before it by the same page are in. */
+function ack(it: Item) {
+  if (!it.wal) return
+  const [c, n] = it.wal
+  const before = wal.length
+  wal = wal.filter((e) => e.wal[0] !== c || e.wal[1] > n)
+  if (wal.length !== before) writeWal()
 }
 
 export function call(method: string, params: Json = {}): Promise<Json> {
@@ -108,14 +140,27 @@ export function call(method: string, params: Json = {}): Promise<Json> {
     const waiting = pending.length > (sending ? 1 : 0)
     if (waiting && last && isRename(last) && isRename({ method, params }) && last.params.panel === params.panel && last.params.params?.node === params.params?.node) {
       last.params = params
+      const e = wal.find((x) => last.wal && x.wal[0] === last.wal[0] && x.wal[1] === last.wal[1])
+      if (e) {
+        e.params = params
+        writeWal()
+      }
       last.done.push(resolve)
       last.fail.push(reject)
       return
     }
-    pending.push({ method, params, done: [resolve], fail: [reject] })
+    const it: Item = { method, params, done: [resolve], fail: [reject] }
+    if (EDITS.has(method)) {
+      it.wal = [client, ++walSeq]
+      wal.push({ method, params, wal: it.wal })
+      writeWal()
+    }
+    pending.push(it)
     void pump()
   })
 }
+
+const send = (it: { method: string; params: Json; wal?: [string, number] }) => (it.wal ? { ...it.params, wal: it.wal } : it.params)
 
 async function pump() {
   if (sending) return
@@ -123,10 +168,12 @@ async function pump() {
   while (pending.length) {
     const it = pending[0]
     try {
-      const r = await transport.call(it.method, it.params)
+      const r = await transport.call(it.method, send(it))
       pending.shift()
+      ack(it)
       it.done.forEach((f) => f(r))
     } catch (e) {
+      // Not answered: the edit stays logged (a later answer, or the next load, settles it).
       pending.shift()
       it.fail.forEach((f) => f(e))
     }
@@ -143,40 +190,29 @@ export function busy() {
   return sending || pending.length > 0
 }
 
-/** The window is going away: whatever is still waiting goes out now, then the engine saves. */
-export function flushOnUnload() {
-  // The request in flight may be cut off by the unload. A rename or a field value carries the
-  // whole text, so sending it again is safe; other commands are not repeated.
-  const inFlight = sending ? pending[0] : undefined
-  const again = inFlight && (isRename(inFlight) || (inFlight.method === 'run' && inFlight.params?.command === 'field.set'))
-  const batch = pending.slice(sending && !again ? 1 : 0).map((i) => ({ method: i.method, params: i.params }))
-  // The next page waits until this batch is in (see waitForUnloadBatch).
-  const token = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+/** On load: edits the last page logged but the engine never answered go in first, in order. */
+export async function replayWal() {
+  let old: WalEntry[] = []
   try {
-    sessionStorage.setItem(MARK, token)
+    old = JSON.parse(sessionStorage.getItem(WAL) ?? '[]')
   } catch {
-    /* storage off */
+    /* nothing logged */
   }
-  transport.flushBeacon([...batch, { method: 'save', params: {} }, { method: 'flushMark', params: { token } }])
+  if (!Array.isArray(old) || !old.length) return
+  // They stay logged until answered, so a reload during the replay loses nothing either.
+  wal = old.filter((e) => e && typeof e.method === 'string' && Array.isArray(e.wal))
+  writeWal()
+  for (const e of [...wal]) pending.push({ method: e.method, params: e.params, wal: e.wal, done: [], fail: [] })
+  void pump()
+  await idle()
 }
 
-const MARK = 'tanacraft.flushMark'
-
-/** After a reload: waits (up to 3 s) until the batch the last page sent while unloading is in. */
-export async function waitForUnloadBatch() {
-  let token: string | null = null
-  try {
-    token = sessionStorage.getItem(MARK)
-    sessionStorage.removeItem(MARK)
-  } catch {
-    return
-  }
-  if (!token) return
-  for (let i = 0; i < 60; i++) {
-    const r = await call('marked', { token }).catch(() => null)
-    if (r?.marked) return
-    await new Promise((res) => setTimeout(res, 50))
-  }
+/** The window is going away (also when the tab closes, which drops sessionStorage): whatever is
+ * still waiting, the request in flight included, goes out now, then the engine saves. The engine
+ * runs a logged edit once, so the next page replaying the log does no harm. */
+export function flushOnUnload() {
+  const batch = pending.map((i) => ({ method: i.method, params: send(i) }))
+  transport.flushBeacon([...batch, { method: 'save', params: {} }])
 }
 
 // ---- snapshot types ------------------------------------------------------------------------------

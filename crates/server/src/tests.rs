@@ -25,6 +25,22 @@ fn page_lists_rows_and_typing_reaches_the_graph() {
 }
 
 #[test]
+fn a_logged_edit_sent_twice_runs_once() {
+    // A reload replays the write-ahead log; the request in flight (or the unload beacon) may
+    // arrive too. The same (client, seq) runs once; a new page's numbers are its own.
+    let mut h = host();
+    let parent = h.session.zoom.0;
+    let add = |seq: u64, client: &str| json!({"command": "node.add", "params": {"parent": parent, "name": "once"}, "wal": [client, seq]});
+    let count = |h: &Host| h.session.graph.children(tanacraft_core::NodeId(parent)).iter().filter(|c| h.session.graph.name(**c) == "once").count();
+    assert!(h.handle("run", &add(1, "a")).get("dup").is_none());
+    assert_eq!(h.handle("run", &add(1, "a"))["dup"], json!(true));
+    h.handle("run", &add(2, "a"));
+    assert_eq!(h.handle("run", &add(1, "a"))["dup"], json!(true), "an older one late");
+    h.handle("run", &add(1, "b"));
+    assert_eq!(count(&h), 3);
+}
+
+#[test]
 fn panels_keep_their_own_page() {
     let mut h = host();
     let today = h.session.zoom;

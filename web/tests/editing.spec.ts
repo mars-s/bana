@@ -187,3 +187,21 @@ test('the slash Checklist puts the caret at the start of New checklist (N58)', a
   const kids = async () => ((await server.run('export.json', { node: page })).result.children ?? []).map((c: any) => c.name)
   await expect.poll(kids).toContain('XNew checklist')
 })
+
+test('keys typed while Up goes into the title land there in order, and Down leaves it', async ({ app, server }) => {
+  // Under load the title's keys wait behind the ones before them, then run as title keys.
+  const cdp = await app.context().newCDPSession(app)
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 })
+  const { page, ids } = await pageWith(server, app, ['one'], 'Ti')
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.press('ArrowUp')
+  await app.keyboard.type('tle')
+  // Tab in the title does nothing; Cmd+Shift+Up moves the page node, never selects its text.
+  await app.keyboard.press('Tab')
+  await app.keyboard.press('Meta+Shift+ArrowUp')
+  await app.keyboard.type('s')
+  await app.keyboard.press('ArrowDown')
+  await app.keyboard.type('x')
+  await expect.poll(() => nameOf(server, page)).toBe('Titles')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('xone')
+})

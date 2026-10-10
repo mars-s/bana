@@ -71,10 +71,12 @@ done, 13 partial; 140 of 160 screenshots done). AI features are out of scope for
 ## Data safety
 
 The web UI never owns your notes. Every keystroke goes to the engine at once, in order; a key
-pressed while a command is still moving the caret waits and is replayed into the right line; keys
-still waiting when the window reloads are typed again after it; the engine autosaves within a
-second and saves on quit. Playwright fuzz tests type random keys at full speed (also on a long
-page in a small window, scrolled away mid-edit), reload the window at a random point, and
+pressed while a command is still moving the caret waits and is replayed into the right line. Each
+edit and each waiting key is also written to a log in the browser's session storage the moment it
+happens, and leaves it only once the engine has it; after a reload the rest is replayed, and the
+engine runs each logged edit exactly once. The engine autosaves within a second and saves on quit.
+Playwright fuzz tests type random keys at full speed (also on a long page in a small window,
+scrolled away mid-edit), reload the window at a random point with the CPU slowed 4 to 6 times, and
 force-kill the engine; not one character may go missing.
 
 The graph file is a [Loro](https://loro.dev) CRDT document: two copies edited apart (two devices,

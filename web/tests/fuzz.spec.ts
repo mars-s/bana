@@ -95,13 +95,10 @@ for (let seed = 1; seed <= SEEDS; seed++) {
     await expect.poll(async () => sorted(await pageChars(server, page))).toBe(sorted(before + typed))
   })
 
-  test.describe(() => {
-    test.describe.configure({ retries: 1 })
   test(`reloading at a random point keeps every character (seed ${seed})`, async ({ app, server }) => {
-    // spec-gap: open issue (seen before this round too): on a loaded machine with 40+ keys still
-    // queued at the reload, a few typed characters can go missing. One retry keeps the gate
-    // usable; the failure message prints the kept keys and the engine's text to chase it.
-    test.info().annotations.push({ type: 'issue', description: 'reload with a long key queue under load can lose characters' })
+    // Under load: the CPU runs 4 to 6 times slower, so many keys are still queued at the reload.
+    const cdp = await app.context().newCDPSession(app)
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 + (seed % 3) })
     const pick = rng(seed + 2000)
     const { page, ids } = await pageWith(server, app, ['one'], 'Reload')
     await focus(server, app, ids[0], 3)
@@ -110,16 +107,13 @@ for (let seed = 1; seed <= SEEDS; seed++) {
     const mid = await pageChars(server, page)
     await app.reload()
     await expect(app.locator('.panel .title, .panel .title-input').first()).toBeVisible()
-    // Keys still waiting when the page went are typed again after the reload (on a busy machine
-    // that can take a while: every Enter or Tab among them waits for the engine).
+    // Every key was written down as it happened; the new page sends what the engine had not taken.
     try {
       await expect.poll(async () => sorted(await pageChars(server, page)), { timeout: 20_000 }).toBe(sorted(before + typed))
     } catch (e) {
-      const kept = await app.evaluate(() => JSON.stringify((window as any).__tcKept?.keys?.map((k: any) => (k.shiftKey ? 'S-' : '') + (k.metaKey ? 'M-' : '') + k.key)))
       const now = await server.run('export.json', { node: page })
-      throw new Error(`${e}\nbefore reload the engine had ${JSON.stringify(mid)}\nkept keys ${kept}\nnow ${JSON.stringify(now.result)}`)
+      throw new Error(`${e}\nbefore reload the engine had ${JSON.stringify(mid)}\nnow ${JSON.stringify(now.result)}`)
     }
-  })
   })
 
   test(`killing the engine at a random point keeps what autosave wrote (seed ${seed})`, async ({ app, server }) => {

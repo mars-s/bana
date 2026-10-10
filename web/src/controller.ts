@@ -35,6 +35,8 @@ export interface TitleHandle {
   panel: string
   focus(atEnd?: boolean): void
   insert(text: string): void
+  /** A key that waited in the buffer while the title had the keyboard. */
+  key(k: KeyInfo): void
 }
 
 let editor: EditorHandle | null = null
@@ -131,7 +133,8 @@ export async function exec(command: string, params: Json = {}, panel = getState(
       // `editor` can change while awaiting (the line scrolls away and unmounts): keep the node.
       const node = editor.node
       if (!synced || synced.node !== node || synced.caret !== caret) {
-        await call('run', { command: 'focus.set', params: { node, caret }, panel })
+        // Not awaited: the queue keeps the order, and the command is logged in this same task.
+        void call('run', { command: 'focus.set', params: { node, caret }, panel })
         synced = { node, caret }
       }
     }
@@ -171,56 +174,60 @@ function drain() {
   if (draining) return
   draining = true
   try {
+    // A key leaves the buffer and becomes a logged edit in the same task (see keepBufferedKeys).
     while (buffer.length && barrier === 0) {
       const k = buffer.shift()!
-      if (!handleKey(k)) {
-        const title = [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))
+      // A page title with the keyboard (and no line caret) takes the key as if typed there.
+      const title = editor ? undefined : [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))
+      if (title && !getState().overlay) title.key(k)
+      else if (!handleKey(k)) {
         if (editor && isTextKey(k)) editor.insert(k.key)
         else if (editor) editor.native(k)
-        else if (title && isTextKey(k)) title.insert(k.key)
       }
     }
   } finally {
     draining = false
+    keepBufferedKeys()
   }
 }
 
 /** Keeps a key for later (a command is still moving the caret). */
 export function bufferKey(k: KeyInfo) {
   buffer.push(k)
+  keepBufferedKeys()
 }
 
 const KEPT = 'tanacraft.keys'
 
-/** The window is going away with keys still waiting: keep them for the next load. */
+/** Keys still waiting are written down whenever the buffer changes (in the task of the key press),
+ * so a reload or a crash of the page keeps them; the next load types them again. */
 export function keepBufferedKeys() {
-  if (!buffer.length) return
-  // Where typing was going: a page title takes keys the engine knows nothing about.
-  const title = [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))?.panel ?? null
   try {
+    if (!buffer.length) return sessionStorage.removeItem(KEPT)
+    // Where typing was going: a page title takes keys the engine knows nothing about.
+    const title = [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))?.panel ?? null
     sessionStorage.setItem(KEPT, JSON.stringify({ keys: buffer, title }))
   } catch {
-    /* storage off: nothing more can be done in an unloading page */
+    /* storage off: the keys still run while the page lives */
   }
 }
 
-/** Keys kept by an unloading page are typed again (the engine still has the caret there; a title
- * that had the keyboard takes it back first). */
+/** Keys kept by the last page are typed again, after its logged edits are in (the engine has the
+ * caret there; a title that had the keyboard takes it back first). */
 export function restoreKeptKeys() {
   let kept: { keys: KeyInfo[]; title: string | null } = { keys: [], title: null }
   try {
     kept = JSON.parse(sessionStorage.getItem(KEPT) ?? 'null') ?? kept
-    sessionStorage.removeItem(KEPT)
   } catch {
     /* nothing kept */
   }
-  // (Tests read what came back after a reload.)
-  ;(window as unknown as { __tcKept?: unknown }).__tcKept = kept
-  if (!kept.keys?.length) return drainSoon()
+  if (!Array.isArray(kept.keys) || !kept.keys.length) return drainSoon()
+  // Back in the buffer at once (and so still written down), then typed on the next frame.
+  buffer.unshift(...kept.keys)
+  keepBufferedKeys()
   barrier++
   requestAnimationFrame(() => {
     if (kept.title && !editor) titles.get(kept.title)?.focus(true)
-    buffer.unshift(...kept.keys)
     barrier--
     drainSoon()
   })
@@ -229,6 +236,7 @@ export function restoreKeptKeys() {
 /** Puts a key back in front: it came before everything still waiting. */
 function requeue(k: KeyInfo) {
   buffer.unshift(k)
+  keepBufferedKeys()
 }
 
 /** Holds keys back while `fn` runs (several commands, then a focus change). */

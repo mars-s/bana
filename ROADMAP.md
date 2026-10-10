@@ -42,7 +42,7 @@ further on openness, local-first storage and agent control. Status by spec secti
 | M20 Web UI | Tauri 2 app and a web UI (React, TypeScript, plain CSS tokens) on the same engine; browser transport (`tanacraft-cli serve`); virtualized outline; ordered command queue with key buffering; pickers, field values, views, query builder, menus, Supertags, Settings; Inter Variable | done (first version) |
 | M21 Loro store | The graph file is a Loro CRDT document (movable tree, text, maps); incremental writes; merge of copies edited apart; one-time import of JSON files | done |
 | M22 Design pass | Tokens and screens from the spec team's DESIGN.md and 10 to 15: shell, outline, day page, views, Supertags, motion, icon inventory | done (first version) |
-| M24 Acceptance round 8 (web UI) | DIFFS N35 to N59: keys only reach visibly focused editors (P1), the rewrite's regressions, view tabs in place, node and page menus, drag and drop per spec, tables, toolbar, board, calendar by pointer, sidebar and panel resizing, chips, settings panel, system theme, field names kept on a force-kill, visual list | done (see the git log; open: board reordering, a reload loss under heavy load) |
+| M24 Acceptance round 8 (web UI) | DIFFS N35 to N59: keys only reach visibly focused editors (P1), the rewrite's regressions, view tabs in place, node and page menus, drag and drop per spec, tables, toolbar, board, calendar by pointer, sidebar and panel resizing, chips, settings panel, system theme, field names kept on a force-kill, visual list | done (see the git log; open: board reordering) |
 | M23 Ports and assets | Remaining egui behaviours (selected field rows, Configure in a second panel, table header rename and menu, mini rail flyouts, tab moves, custom keybindings, reference counter, edit warning, link previews, context notes and fields, calendar drag, date picker with time and end, damaged files in every view); icon inventory; undo across merges; history compaction | done |
 | M25 Next | Board reordering, card displacement motion, sync over the network (iroh), AI features | next |
 
@@ -54,7 +54,6 @@ Sync, workspace members, mobile and web (wasm) builds.
 
 - Undo history is per session (merging another copy keeps it; it takes back only local edits).
 - History older than a month is compacted on save; copies apart for longer than that cannot merge.
-- Open issue: with 40 or more keys still queued when the window reloads on a busy machine, a few characters can go missing (the reload fuzz test has one retry and prints the kept keys).
 - A further workspace has its own Library, Schema and Trash; Today and Daily notes follow the main workspace.
 - One local editor: "edited by" is the computer's user.
 - Off macOS, a few Ctrl and Cmd shortcuts from the spec collapse onto the same key (Ctrl+Shift+D).

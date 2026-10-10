@@ -31,9 +31,10 @@ pub struct Host {
     /// Page reads served (a health check: a front end is alive and reading).
     pub reads: u64,
     dirty_since: Option<Instant>,
-    /// Tokens of the last unload batches applied: a reloaded page waits for its own batch before
-    /// typing kept keys again (else it would type over text still on its way).
-    marks: std::collections::VecDeque<String>,
+    /// The highest write-ahead-log number applied per front end page (`wal: [client, seq]` on a
+    /// request): the same edit sent twice (in flight at a reload, then replayed by the next page,
+    /// or also in the unload beacon) runs once.
+    applied: HashMap<String, u64>,
     /// The newest `rev` of each text sent (see "run").
     revs: HashMap<String, u64>,
     /// A field name being typed after `>` (owner, line, name): saves write it in as a field, so a
@@ -50,7 +51,7 @@ impl Host {
             version: 1,
             reads: 0,
             dirty_since: None,
-            marks: Default::default(),
+            applied: HashMap::new(),
             revs: HashMap::new(),
             draft: None,
         }
@@ -71,6 +72,17 @@ impl Host {
         // Bounded: a hostile client cannot grow the panel map without limit.
         if self.panels.len() > 64 {
             self.panels.clear();
+        }
+        if let Some((client, seq)) = params.get("wal").and_then(Value::as_array).and_then(|w| Some((w.first()?.as_str()?, w.get(1)?.as_u64()?))) {
+            let client: String = client.chars().take(64).collect();
+            if self.applied.get(&client).is_some_and(|done| *done >= seq) {
+                return json!({"result": null, "dup": true});
+            }
+            // ponytail: bounded by clearing; a duplicate older than 1024 page loads cannot arrive.
+            if self.applied.len() > 1024 {
+                self.applied.clear();
+            }
+            self.applied.insert(client, seq);
         }
         self.activate(panel);
         match method {
@@ -133,14 +145,6 @@ impl Host {
                 }
                 json!({"ok": true})
             }
-            "flushMark" => {
-                let token = params.get("token").and_then(Value::as_str).unwrap_or_default().chars().take(64).collect::<String>();
-                self.marks.push_back(token);
-                while self.marks.len() > 32 {
-                    self.marks.pop_front();
-                }
-                json!({"ok": true})
-            }
             "fieldDraft" => {
                 let owner = params.get("owner").and_then(Value::as_u64);
                 let line = params.get("line").and_then(Value::as_u64);
@@ -153,10 +157,6 @@ impl Host {
                     self.note_change();
                 }
                 json!({"ok": true})
-            }
-            "marked" => {
-                let token = params.get("token").and_then(Value::as_str).unwrap_or_default();
-                json!({"marked": self.marks.iter().any(|m| m == token)})
             }
             "save" => match self.save() {
                 Ok(()) => json!({"ok": true}),

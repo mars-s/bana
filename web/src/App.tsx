@@ -356,8 +356,16 @@ export function App() {
       if (s.overlay) return
       const target = e.target as HTMLElement | null
       const inOtherInput = target?.closest?.('input, textarea') && !target.closest('.editor-input') && !target.closest('.title-input')
-      if (inOtherInput || target?.closest?.('.title-input')) return
+      if (inOtherInput) return
       const k = keyInfo(e)
+      // The title handles its own keys, but not ahead of keys still waiting: those come first.
+      if (target?.closest?.('.title-input')) {
+        if (!inBarrier()) return
+        e.preventDefault()
+        e.stopPropagation()
+        bufferKey(k)
+        return
+      }
       // A command is moving the caret: the key waits and is replayed where the caret lands.
       if (inBarrier()) {
         e.preventDefault()

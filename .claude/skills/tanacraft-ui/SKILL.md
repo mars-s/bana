@@ -34,12 +34,14 @@ The UI is `web/` (Vite + React + TypeScript, plain CSS). It runs inside the Taur
 
 ## Data safety (DIFFS N15, N16, N26, N27, N32)
 
-- `engine.ts`: one ordered queue for every request. A rename waiting behind a rename of the same line is merged (never the one in flight). On unload the waiting requests go out as one `sendBeacon` batch, then `save`.
-- `controller.ts`: commands that move the caret run through `exec`, which raises a barrier: keys pressed meanwhile are buffered and replayed (in order) once the new snapshot is drawn. Keys still buffered when the page unloads go to `sessionStorage` and are replayed after reload.
+- `engine.ts`: one ordered queue for every request. A rename waiting behind a rename of the same line is merged (never the one in flight).
+- Write-ahead log: every edit (`run`, `fieldDraft`, `panel.open/close`) is written to `sessionStorage` (`tanacraft.wal`) in the same task as the key press, tagged `wal: [client, seq]` (client = this page load), and leaves the log only when the engine answers it (or a later edit of the same page). The next load replays what is left (`replayWal`) before drawing; `Host::handle` runs each (client, seq) once, so the request in flight at a reload, the unload beacon and the replay never double an edit. On unload everything still queued also goes out as one `sendBeacon` batch (a closed tab drops sessionStorage).
+- `controller.ts`: commands that move the caret run through `exec`, which raises a barrier: keys pressed meanwhile are buffered and replayed (in order) once the new snapshot is drawn. The buffer is written to `sessionStorage` (`tanacraft.keys`) whenever it changes and typed again after the log replay. `exec` never awaits between a key and its logged command (the `focus.set` before a command is queued, not awaited).
+- The page title is in the same pipeline: its keys are buffered while earlier keys wait, and buffered keys drained while the title has the keyboard go through the title's own key handler (`TitleHandle.key`), so a replayed Down leaves the title as a typed one does.
 - Before a command, `exec` tells the engine where the caret is (`focus.set`) if it moved without a command.
 - Line editors (`LineEditor` in `Outline.tsx`) send `node.setName` on every input and adopt the engine's text only when none of their own edits are pending.
 - The outline is virtualized; a row never holds unsaved text. A key pressed while the focused line is scrolled away scrolls it back (`focusScroll`) and is replayed into it.
-- Playwright fuzz tests (`web/tests/fuzz.spec.ts`) check that no typed character is lost, also across reloads and force-kills. Run them after any editor change; `FUZZ_SEEDS=40` for a long run.
+- Playwright fuzz tests (`web/tests/fuzz.spec.ts`) check that no typed character is lost, also across reloads and force-kills. Run them after any editor change; `FUZZ_SEEDS=40` for a long run. The reload test runs with the CPU throttled 4 to 6 times (CDP `Emulation.setCPUThrottlingRate`), so 40+ keys are still queued at the reload; it has no retry.
 
 ## Web and Tauri gotchas
 

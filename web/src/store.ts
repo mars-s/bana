@@ -80,7 +80,7 @@ export interface State {
    * letters extend its name. `name` is the name as typed so far. */
   fieldSel: { panel: string; owner: number; field: number; name: string; checkbox: boolean } | null
   /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
-  nodeMenu: { panel: string; node: number; x: number; y: number } | null
+  nodeMenu: { panel: string; node: number; x: number; y: number; alignRight?: boolean } | null
   /** Panels showing a supertag's configuration instead of its items. */
   configure: Record<string, boolean>
   /** Panels whose search query builder is open. */

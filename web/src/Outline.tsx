@@ -1065,13 +1065,22 @@ function Decorate({ page, panel }: { page: Page; panel: string }) {
   )
 }
 
-function HeadActions() {
+function HeadActions({ page, panel }: { page: Page; panel: string }) {
   return (
     <div className="head-actions">
       <button className="btn icon" title="AI (not available)">
         <Icon name="sparkle" size={12} />
       </button>
-      <button className="btn icon" title="Options">
+      <button
+        className="btn icon"
+        title="Options"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // The page's node menu, under the button, right-aligned, 7 px below (N37).
+          const r = e.currentTarget.getBoundingClientRect()
+          setState({ nodeMenu: { panel, node: page.zoom, x: r.right, y: r.bottom + 7, alignRight: true } })
+        }}
+      >
         <Icon name="more" size={12} />
       </button>
     </div>
@@ -1267,7 +1276,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                   </span>
                 )}
                 <TitleEditor key={page.zoom} page={page} panel={panel} />
-                {page.tags.length === 0 && <HeadActions />}
+                {page.tags.length === 0 && <HeadActions page={page} panel={panel} />}
               </div>
               {page.tags.length > 0 && (
                 <div className="head-meta">
@@ -1276,7 +1285,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                       <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
                     ))}
                   </div>
-                  <HeadActions />
+                  <HeadActions page={page} panel={panel} />
                 </div>
               )}
               {page.description && <p className="page-desc">{page.description}</p>}

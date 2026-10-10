@@ -1,7 +1,7 @@
 // Overlays: the command line (Mod+K), Search and open (Mod+S), quick add (Mod+E) and the
 // keyboard shortcut sheet.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { exec, returnKeyboard, runUiCommand } from './controller'
@@ -401,6 +401,8 @@ function Picker() {
 
 // ---- the node menu ------------------------------------------------------------------------------
 
+/** The node menu (spec 02 §16): right-click a bullet (top-left at the pointer) or a page's "…"
+ * (under the button, right-aligned, 7 px below). It always fits the window (N37, N38). */
 function NodeMenu() {
   const m = useStore((s) => s.nodeMenu)
   const row = useStore((s) => {
@@ -408,6 +410,9 @@ function NodeMenu() {
     const page = nm ? s.pages[nm.panel] : undefined
     return page?.rows.items.find((r) => r.k === 'node' && r.id === nm?.node) as NodeRow | undefined
   })
+  const page = useStore((s) => (s.nodeMenu ? s.pages[s.nodeMenu.panel] : undefined))
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null)
   useEffect(() => {
     if (!m) return
     const off = (e: MouseEvent) => {
@@ -421,9 +426,25 @@ function NodeMenu() {
       window.removeEventListener('keydown', esc, true)
     }
   }, [m])
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!m || !el) return setPos(null)
+    const margin = 8
+    const w = el.offsetWidth
+    const h = el.scrollHeight
+    let left = m.alignRight ? m.x - w : m.x
+    left = Math.max(margin, Math.min(left, window.innerWidth - w - margin))
+    let top = m.y
+    // No room below: it moves up to fit, and scrolls only if the window is shorter than it.
+    if (top + h > window.innerHeight - margin) top = Math.max(margin, window.innerHeight - h - margin)
+    const maxHeight = h > window.innerHeight - 2 * margin ? window.innerHeight - 2 * margin : undefined
+    setPos({ left, top, maxHeight })
+  }, [m])
   if (!m) return null
   const { panel, node } = m
-  const target = row?.target ?? node
+  const target = row?.target ?? (page?.zoom === node ? page.target : node)
+  const kind = row?.kind ?? page?.kind
+  const isRef = row?.ref ?? false
   const close = () => setState({ nodeMenu: null })
   const run = (cmd: string, p: Record<string, unknown> = {}) => () => {
     close()
@@ -439,69 +460,77 @@ function NodeMenu() {
   }
   const It = ({ label, on, sc, danger, icon }: { label: string; on: () => void; sc?: string; danger?: boolean; icon?: IconName }) => (
     <div className={`menu-item${danger ? ' danger' : ''}`} onMouseDown={(e) => (e.preventDefault(), on())}>
-      {icon && (
-        <span className="menu-icon">
-          <Icon name={icon} size={12} />
-        </span>
-      )}
+      <span className="menu-icon">{icon && <Icon name={icon} size={12} />}</span>
       <span className="grow">{label}</span>
       {sc && <kbd>{prettyKey(sc)}</kbd>}
     </div>
   )
+  const done = row ? row.done : null
   return (
-    <div className="menu node-menu" style={{ left: Math.min(m.x, window.innerWidth - 230), top: Math.min(m.y, window.innerHeight - 420) }} role="menu">
-      <It label="Open" on={run('nav.zoomIn')} sc="Mod+." />
-      <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
-      <It label={row?.expanded ? 'Collapse' : 'Expand'} on={run('node.toggleExpand')} />
-      <div className="menu-sep" />
-      {row?.kind === 'tag' && <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />}
-      <It label="Add supertag" icon="hash" on={pick('tag')} />
-      <It label="Add field" icon="fieldText" on={pick('field')} />
-      <It label={row?.done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
-      <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
-      <It label="Toggle heading" on={run('node.toggleHeading')} />
-      <It label="Show progress bar" on={run('node.toggleProgress')} />
-      <It label={row?.pinned ? 'Unpin from sidebar' : 'Pin to sidebar'} icon="pin" on={run('node.togglePin')} />
-      <div className="menu-sep" />
-      <SubMenu icon={false} label="View as">
+    <div
+      ref={ref}
+      className="menu node-menu"
+      style={pos ? { left: pos.left, top: pos.top, maxHeight: pos.maxHeight, overflowY: pos.maxHeight ? 'auto' : 'visible' } : { left: m.x, top: m.y, visibility: 'hidden' }}
+      role="menu"
+    >
+      <SubMenu label="View as">
         {['outline', 'table', 'cards', 'list', 'side_menu', 'tabs', 'calendar'].map((k) => (
           <It key={k} label={k[0].toUpperCase() + k.slice(1).replace('_', ' ')} on={run('view.set', { kind: k })} />
         ))}
       </SubMenu>
-      <SubMenu icon={false} label="Sort by">
+      <It label="Show view toolbar" on={run('view.toggleToolbar')} />
+      <SubMenu label="Filter by">
+        <It label="Not done" on={run('view.filter', { query: 'NOT DONE' })} />
+        <It label="Done" on={run('view.filter', { query: 'DONE' })} />
+        <It label="No filter" on={run('view.filter', { query: '' })} />
+      </SubMenu>
+      <SubMenu label="Sort by">
         {[['name', 'Name'], ['created', 'Created'], ['edited', 'Last edited'], ['done', 'Done'], ['none', 'None']].map(([by, l]) => (
           <It key={by} label={l} on={run('view.sort', { by })} />
         ))}
       </SubMenu>
-      <SubMenu icon={false} label="Group by">
+      <SubMenu label="Group by">
         {[['tags', 'Supertags'], ['done', 'Done'], ['owner', 'Owner'], ['created', 'Created day'], ['none', 'None']].map(([by, l]) => (
           <It key={by} label={l} on={run('view.group', { by })} />
         ))}
       </SubMenu>
+      <SubMenu label="Display">
+        {['Created time', 'Last edited time', 'Done time'].map((f) => (
+          <It key={f} label={f} on={run('view.toggleSystemField', { field: f })} />
+        ))}
+      </SubMenu>
+      <SubMenu label="Appearance">
+        {['📄', '🌱', '⭐', '📌'].map((e) => (
+          <It key={e} label={`Icon ${e}`} on={() => (close(), void exec('node.setIcon', { node: target, icon: e }, panel))} />
+        ))}
+        {[['picture:orbit', 'Banner: Orbit picture'], ['blue', 'Banner: Blue'], ['green', 'Banner: Green'], ['', 'No banner']].map(([v, l]) => (
+          <It key={l} label={l} on={() => (close(), void exec('node.setBanner', { node: target, color: v }, panel))} />
+        ))}
+      </SubMenu>
       <div className="menu-sep" />
-      <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
+      <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
       <It label="Copy node link" icon="link" on={copy(`[[id:${target}]]`, 'Node link copied')} />
+      <It label="Duplicate" icon="duplicate" on={run('node.duplicate')} sc="Mod+Shift+D" />
       <It label="Move to…" icon="forward" on={pick('moveTo')} />
-      <It label="Move to top" on={run('node.moveToTop')} />
-      <It label="Move to bottom" on={run('node.moveToBottom')} />
-      <It label="Move up" on={run('node.moveUp')} sc="Mod+Shift+Up" />
-      <It label="Move down" on={run('node.moveDown')} sc="Mod+Shift+Down" />
-      <It label="Indent" on={run('node.indent')} sc="Tab" />
-      <It label="Outdent" on={run('node.outdent')} sc="Shift+Tab" />
       <div className="menu-sep" />
-      {row?.kind === 'search' && <It label="Convert search node to plain list" on={run('search.toPlainList')} />}
-      {row && !row.ref && row.kind === 'plain' && <It label="Convert to supertag" on={run('node.convertToSupertag')} />}
-      <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
+      {kind === 'tag' && <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />}
+      {kind === 'tag' && <It label={row?.pinned ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />}
+      <It label="Add tag" icon="hash" on={pick('tag')} />
+      <It label="Toggle heading" on={run('node.toggleHeading')} />
+      <It label="Show progress bar" on={run('node.toggleProgress')} />
+      <It label="Add description" on={() => (close(), setState({ descEdit: { panel, node } }))} sc="Ctrl+I" />
+      <It label={done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />
+      {isRef && <It label="Notes and fields for this context" on={run('node.contextNote')} sc="Mod+Alt+Down" />}
+      {kind === 'search' && <It label="Convert search node to plain list" on={run('search.toPlainList')} />}
+      <div className="menu-sep" />
       {row?.inTrash ? (
         <It label="Restore" on={run('node.restore')} />
-      ) : row?.ref ? (
-        <It label="Remove reference" on={run('node.delete')} />
+      ) : isRef ? (
+        <It label="Remove reference" icon="trash" on={run('node.delete')} />
       ) : (
-        <>
-          <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
-          <It label="Hard delete including references" on={run('node.hardDelete')} danger />
-        </>
+        <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
       )}
+      <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
     </div>
   )
 }

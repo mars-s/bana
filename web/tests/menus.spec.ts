@@ -5,11 +5,11 @@ async function tree(server: Server, id: number): Promise<any> {
   return (await server.run('export.json', { node: id })).result
 }
 
-test('right-clicking a bullet opens the node menu; Add supertag tags the node', async ({ app, server }) => {
+test('right-clicking a bullet opens the node menu; Add tag tags the node', async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['Seeds'])
   await app.locator(`.row.node[data-id="${ids[0]}"] .bullet`).click({ button: 'right' })
   await expect(app.locator('.node-menu')).toBeVisible()
-  await app.locator('.node-menu .menu-item', { hasText: 'Add supertag' }).click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Add tag' }).click()
   await expect(app.locator('.menu.picker')).toBeVisible()
   await app.locator('.menu.picker .menu-item', { hasText: 'task' }).first().click()
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toContainText('task')
@@ -99,4 +99,38 @@ test('manage workspaces creates a second workspace, shown folded in the sidebar 
   await expect(app.locator('.side-ws').nth(1).locator('.side-ws-items')).toHaveCount(0)
   await app.locator('.side-ws-head', { hasText: 'Lab' }).click()
   await expect(app.locator('.side-ws').nth(1).locator('.side-row', { hasText: 'Library' })).toBeVisible()
+})
+
+test('a selected line keeps its text readable above the selection fill (N39)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Seed swap'])
+  await focus(server, app, ids[0], 2)
+  await app.keyboard.press('Escape')
+  const text = app.locator(`.row.node.selected[data-id="${ids[0]}"] .text`)
+  await expect(text).toBeVisible()
+  const box = (await text.boundingBox())!
+  const top = await app.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('.text') !== null, [box.x + 5, box.y + box.height / 2])
+  expect(top).toBe(true)
+})
+
+test('the bullet menu fits the window; the page Options menu opens under its button (N37, N38)', async ({ app }) => {
+  // Today's first line, near the middle of a short window.
+  await app.setViewportSize({ width: 1512, height: 700 })
+  const bullet = app.locator('.row.node .bullet').first()
+  await bullet.click({ button: 'right' })
+  const menu = app.locator('.node-menu')
+  await expect(menu).toBeVisible()
+  const box = (await menu.boundingBox())!
+  expect(box.width).toBeCloseTo(210, 0)
+  expect(box.y + box.height).toBeLessThanOrEqual(700)
+  await expect(menu.locator('.menu-item', { hasText: /^Delete/ })).toBeInViewport()
+  await app.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await app.setViewportSize({ width: 1512, height: 949 })
+  const opts = app.locator('.head-actions .btn[title="Options"]').first()
+  await opts.click()
+  await expect(menu).toBeVisible()
+  const b = (await opts.boundingBox())!
+  const mb = (await menu.boundingBox())!
+  expect(Math.abs(mb.x + mb.width - (b.x + b.width))).toBeLessThan(2)
+  expect(Math.round(mb.y - (b.y + b.height))).toBe(7)
 })

@@ -712,6 +712,7 @@ button:focus-visible {
 
 .row-inner {
   position: relative;
+  isolation: isolate;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -719,8 +720,10 @@ button:focus-visible {
 }
 
 /* Selection: a rounded rectangle 6 px wider than the line on each side. */
+/* Behind the text (N39). */
 .row.selected .row-inner::before {
   content: '';
+  z-index: -1;
   position: absolute;
   inset: calc(-1 * var(--row-pad)) -6px;
   border-radius: var(--r-sm);
@@ -2031,7 +2034,7 @@ kbd {
 
 .node-menu,
 .header-menu {
-  width: 230px;
+  width: var(--menu-w);
   max-height: none;
   overflow: visible;
 }

@@ -38,6 +38,15 @@ By hand, the same steps are:
 
 A second computer joins the same way: **Settings, Sync, Join another device's sync** with a code.
 
+### Or with a Bana ID (no codes)
+
+A Bana ID ([bana-id.md](bana-id.md)) is optional: it signs you in with a passkey instead of a
+pairing code. **Profile and Bana ID, Create Bana ID** on the first device sets sync up and keeps
+the workspace key on the relay only wrapped (locked by your passkey and by a printable recovery
+code). On a new device, **Sign in with a passkey** unlocks the key on that device and joins.
+Pairing with a code keeps working, and it is the way to go where a passkey cannot unlock notes
+(no PRF in that browser).
+
 ## What Cloudflare (or anyone who runs the relay) can and cannot see
 
 It **cannot** see:
@@ -47,7 +56,9 @@ It **cannot** see:
 - the workspace key: it is made on your computer and only travels inside the pairing code, which
   is shown on your screen and never sent to the relay, put in a web address or written to a log;
 - device names: they are encrypted too;
-- which notes changed, or anything about their structure.
+- which notes changed, or anything about their structure;
+- with a Bana ID: the workspace key, which it keeps only wrapped by keys it never sees (your
+  passkey's PRF secret and your recovery code), see [bana-id.md](bana-id.md).
 
 It **can** see:
 
@@ -113,11 +124,13 @@ written a day. Limits per room: 16 devices, 32 connections, 64 MB stored, frames
 | The engine side: sync on the host's graph, `sync.*` requests | `crates/server/src/sync.rs` |
 | Desktop and browser UI | `web/src/Sync.tsx` (Settings, Sync and the top bar button) |
 | iPhone | `apps/bana-ios/Bana/Sync.swift` (Manage, Sync, QR scanner), `Engine.startSync`, `Engine.syncNow` |
+| Bana ID (passkey sign-in, wrapped keys, recovery) | `crates/sync/src/id.rs`, `account.rs`, `cloudflare/sync/src/id.ts`; see [bana-id.md](bana-id.md) |
 
 Requests (the web UI, the phone and local tools send them like any engine request; they never wait
 for the engine lock): `sync.status`, `sync.setup {relay, name}`, `sync.join {code, name}`,
 `sync.invite` (answers `{code, qr}`), `sync.devices`, `sync.revoke {device}`, `sync.leave`,
-`sync.now {wait}`.
+`sync.now {wait}`. Bana ID adds `id.*` (listed in [bana-id.md](bana-id.md)); a device signed in
+with it joins the room with an invite the relay makes at sign-in, like a pairing code's.
 
 The protocol (JSON text frames over one WebSocket per device, `GET /v1/rooms/<room>`):
 the relay sends a challenge, the device signs it with its Ed25519 key (`hello`, with an invite

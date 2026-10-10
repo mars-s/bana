@@ -140,6 +140,9 @@ final class Store {
     private(set) var generation = 0
     /// Sync's state (nil until read).
     private(set) var sync: SyncStatus?
+    /// The person's profile and Bana ID status (Profile.swift), as last read.
+    var profile: Profile?
+    var bana: IdStatus?
     let engine: Engine?
     @ObservationIgnored private var shown: UInt64 = 0
     @ObservationIgnored private let decoder = JSONDecoder()
@@ -150,11 +153,14 @@ final class Store {
         engine?.subscribe(listener: Listener(store: self))
         refresh()
         readSync()
+        readProfile()
+        readId()
     }
 
     /// Opens the graph in the app's Documents folder (`graph.bana`, the desktop format).
     /// Launch arguments (tests, screenshots): `-sample YES` starts a missing file from the sample
-    /// graph, `-today 2026-10-10` fixes the date, `-reset YES` deletes the file first.
+    /// graph, `-today 2026-10-10` fixes the date, `-reset YES` deletes the file first,
+    /// `-onboarded YES` starts past onboarding.
     static func openDefault() -> Store {
         let defaults = UserDefaults.standard
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSTemporaryDirectory())
@@ -166,11 +172,15 @@ final class Store {
         if defaults.bool(forKey: "reset") {
             try? FileManager.default.removeItem(at: file)
             try? FileManager.default.removeItem(at: syncFile)
+            try? FileManager.default.removeItem(at: file.deletingLastPathComponent().appendingPathComponent("profile.json"))
             for key in ["captureTo", "theme"] { defaults.removeObject(forKey: key) }
         }
         do {
             let engine = try Engine.open(path: file.path, sample: defaults.bool(forKey: "sample"), today: defaults.string(forKey: "today"))
             engine.startSync(configPath: syncFile.path)
+            if defaults.bool(forKey: "onboarded") {
+                _ = engine.rpc(method: "profile.set", paramsJson: #"{"onboarded": true}"#)
+            }
             return Store(engine: engine)
         } catch {
             return Store(engine: nil, error: "Could not open \(file.lastPathComponent): \(error)")

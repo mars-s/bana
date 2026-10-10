@@ -3,7 +3,7 @@
 
 import { test as base, expect, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -43,7 +43,10 @@ export function liveToken(file: string): string {
   }
 }
 
-export async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
+export async function startServer(file: string, port: number, args: string[], opts: { onboarded?: boolean } = {}): Promise<ChildProcess> {
+  // Tests start past onboarding (onboarding.spec.ts runs it); a restart keeps what is there.
+  const profile = join(dirname(file), 'profile.json')
+  if ((opts.onboarded ?? true) && !existsSync(profile)) writeFileSync(profile, '{"onboarded": true}')
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
     env: { ...process.env, BANA_HOME: dirname(file) },
@@ -61,15 +64,17 @@ export async function startServer(file: string, port: number, args: string[]): P
   throw new Error(`server on ${port} did not start`)
 }
 
-export const test = base.extend<{ server: Server; app: Page; serveArgs: string[] }>({
+export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]; onboarded: boolean }>({
   serveArgs: [['--sample'], { option: true }],
-  server: async ({ serveArgs }, use, info) => {
+  // false: the engine starts as a first launch (onboarding shows).
+  onboarded: [true, { option: true }],
+  server: async ({ serveArgs, onboarded }, use, info) => {
     let port = nextPort + info.workerIndex * 200 + (info.repeatEachIndex % 200)
     nextPort += 1
     // Never talk to a server this test did not start.
     while (!(await portFree(port))) port = nextPort++ + info.workerIndex * 200
     const file = join(mkdtempSync(join(tmpdir(), 'bana-')), 'graph.bana')
-    let proc = await startServer(file, port, serveArgs)
+    let proc = await startServer(file, port, serveArgs, { onboarded })
     const s: Server = {
       url: `http://127.0.0.1:${port}/`,
       port,
@@ -78,7 +83,7 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
         return proc
       },
       async restart() {
-        proc = await startServer(file, port, serveArgs)
+        proc = await startServer(file, port, serveArgs, { onboarded })
       },
       async kill(signal = 'SIGKILL') {
         const p = proc

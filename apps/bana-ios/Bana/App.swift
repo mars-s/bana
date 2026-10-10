@@ -93,6 +93,11 @@ struct RootView: View {
         .sheet(item: Binding(get: { tagPickerFor.map(NodeRef.init) }, set: { tagPickerFor = $0?.id })) { ref in
             TagPicker(node: ref.id, close: { tagPickerFor = nil })
         }
+        // First launch only: onboarding (skippable); "Pair with a code" ends it and opens Manage.
+        .fullScreenCover(isPresented: Binding(get: { store.profile.map { !$0.onboarded } ?? false }, set: { _ in })) {
+            OnboardingView(pair: { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { sheet = .manage } })
+                .environment(store)
+        }
     }
 
     // MARK: top: Back, breadcrumbs, Today

@@ -146,6 +146,10 @@
   --command-item-h: 42.1px;
   --search-w: 585px;
   --modal-w: 630px;
+  /* Onboarding and the profile (Profile.tsx). */
+  --onboarding-w: 520px;
+  --avatar-small: 18px;
+  --avatar-large: 56px;
 
   /* Shape */
   --r-hair: 1.875px;

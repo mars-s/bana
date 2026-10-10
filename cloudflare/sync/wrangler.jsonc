@@ -1,7 +1,8 @@
 {
   // The Bana sync relay (docs/sync.md): a Worker and one Durable Object per synced workspace
-  // ("room"). Built for the Workers free plan: SQLite-backed Durable Objects and the WebSocket
-  // Hibernation API. It stores and forwards ciphertext only. Nothing here is a secret.
+  // ("room"), plus one for Bana ID accounts (docs/bana-id.md). Built for the Workers free plan:
+  // SQLite-backed Durable Objects and the WebSocket Hibernation API. It stores and forwards
+  // ciphertext only. Nothing here is a secret.
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "bana-sync",
   "main": "src/index.ts",
@@ -9,6 +10,21 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": false },
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }]
+  "vars": {
+    // The passkeys' relying party: the exact host the Bana ID page is served from. Passkeys are
+    // tied to it forever: renaming the workers.dev subdomain or this Worker breaks every passkey
+    // already made (the recovery code still gets you back in). Set once; empty means "this
+    // Worker's own host". Local development overrides it with `--var RP_ID:localhost`.
+    "RP_ID": "bana-sync.lifeos-read-mirror-worker.workers.dev"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "Room" },
+      { "name": "ACCOUNTS", "class_name": "Accounts" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Room"] },
+    { "tag": "v2", "new_sqlite_classes": ["Accounts"] }
+  ]
 }

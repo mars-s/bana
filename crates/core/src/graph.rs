@@ -76,6 +76,10 @@ pub struct Settings {
     /// checked before the defaults.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub keybindings: BTreeMap<String, String>,
+    /// The person using the app: their #person node (set in onboarding and on the profile page),
+    /// the first name user fields offer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub me: Option<NodeId>,
 }
 
 fn yes() -> bool {
@@ -92,6 +96,7 @@ impl Default for Settings {
             url_embeds: true,
             ref_counter: false,
             keybindings: BTreeMap::new(),
+            me: None,
         }
     }
 }
@@ -1914,13 +1919,37 @@ impl Graph {
     }
 
     /// The people a user field can pick: the current user, then every name used in a user field.
+    /// The person's own #person node, when it is still there (not trashed).
+    pub fn me(&self) -> Option<NodeId> {
+        self.settings.me.filter(|m| self.get(*m).is_some() && !self.in_trash(*m))
+    }
+
+    /// Makes (or renames) the person's own #person node in the main workspace's Library.
+    pub fn set_me(&mut self, name: &str) -> Result<NodeId> {
+        let name = name.trim();
+        if let Some(m) = self.me() {
+            self.set_name(m, name)?;
+            return Ok(m);
+        }
+        let tag = match self.find_tag("person") {
+            Some(t) => t,
+            None => self.create_tag("person", "green")?,
+        };
+        let lib = self.sys.library;
+        let m = self.create(lib, None, name)?;
+        self.add_tag(m, tag)?;
+        self.settings_mut().me = Some(m);
+        Ok(m)
+    }
+
     /// The person using this computer: the only editor of a local graph.
     pub fn local_user() -> String {
         std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_else(|_| "Me".into())
     }
 
     pub fn user_names(&self) -> Vec<String> {
-        let mut out = vec![Graph::local_user()];
+        let me = self.me().map(|m| self.name(m).trim().to_string()).filter(|n| !n.is_empty());
+        let mut out = vec![me.unwrap_or_else(Graph::local_user)];
         for n in self.nodes.values() {
             for e in &n.fields {
                 if self.field_def(e.field).is_some_and(|d| d.field_type == FieldType::User) {

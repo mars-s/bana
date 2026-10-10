@@ -34,6 +34,18 @@ pub struct Config {
     /// The one-time invite secret a joining device signs in with (base64), cleared once used.
     #[serde(default)]
     pub invite: Option<String>,
+    /// Signed in with a Bana ID (docs/bana-id.md); `None`: paired with codes only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<IdSession>,
+}
+
+/// This device's Bana ID session on the relay. The token is a secret like the key.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct IdSession {
+    pub account: String,
+    pub session: String,
+    /// This device's entry in the account's devices list.
+    pub sid: String,
 }
 
 impl std::fmt::Debug for Config {
@@ -43,6 +55,7 @@ impl std::fmt::Debug for Config {
             .field("room", &self.room)
             .field("name", &self.name)
             .field("cursor", &self.cursor)
+            .field("id", &self.id.as_ref().map(|i| &i.account))
             .finish()
     }
 }
@@ -63,6 +76,7 @@ impl Config {
             sent: String::new(),
             joining: false,
             invite: None,
+            id: None,
         })
     }
 
@@ -80,6 +94,7 @@ impl Config {
             sent: String::new(),
             joining: true,
             invite: Some(code.invite.clone()),
+            id: None,
         })
     }
 

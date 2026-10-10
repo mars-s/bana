@@ -234,6 +234,9 @@ enum T {
     static let commandItemH: CGFloat = 42.1
     static let searchW: CGFloat = 585
     static let modalW: CGFloat = 630
+    static let onboardingW: CGFloat = 520
+    static let avatarSmall: CGFloat = 18
+    static let avatarLarge: CGFloat = 56
     static let rHair: CGFloat = 1.875
     static let rSm: CGFloat = 3.75
     static let rMd: CGFloat = 5.625

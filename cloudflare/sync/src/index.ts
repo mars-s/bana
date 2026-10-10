@@ -11,9 +11,16 @@
 
 import { DurableObject } from 'cloudflare:workers'
 import { CLOSE_AUTH, CLOSE_LIMIT, CLOSE_REVOKED, LIMITS } from './limits'
+import { Accounts, idApi } from './id'
+import { page } from './page'
+
+export { Accounts }
 
 export interface Env {
   ROOMS: DurableObjectNamespace<Room>
+  ACCOUNTS: DurableObjectNamespace<Accounts>
+  /** The passkeys' relying party (docs/bana-id.md); empty: this Worker's own host. */
+  RP_ID?: string
 }
 
 const ROOM = /^[0-9a-f]{32}$/
@@ -22,6 +29,20 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
     if (url.pathname === '/' || url.pathname === '/health') return new Response('Bana sync relay: it stores encrypted updates and cannot read them.\n')
+    // Bana ID (src/id.ts): the passkey page and its API.
+    if (url.pathname === '/id' && req.method === 'GET') {
+      const nonce = crypto.randomUUID().replace(/-/g, '')
+      return new Response(page(nonce), {
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+          'referrer-policy': 'no-referrer',
+          'x-content-type-options': 'nosniff',
+        },
+      })
+    }
+    if (url.pathname.startsWith('/id/api/')) return idApi(req, env)
     const m = url.pathname.match(/^\/v1\/rooms\/([^/]+)$/)
     if (!m || !ROOM.test(m[1])) return new Response('not found\n', { status: 404 })
     if (req.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('expected a WebSocket\n', { status: 426 })
@@ -81,6 +102,12 @@ export class Room extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     this.sql = ctx.storage.sql
+    this.schema()
+    // Keep-alive pings are answered by the runtime: they never wake the object.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
+  }
+
+  schema() {
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
       CREATE TABLE IF NOT EXISTS devices (device TEXT PRIMARY KEY, name TEXT, cursor INTEGER NOT NULL DEFAULT 0, vv TEXT, seen INTEGER NOT NULL DEFAULT 0, revoked INTEGER NOT NULL DEFAULT 0);
@@ -89,8 +116,6 @@ export class Room extends DurableObject<Env> {
       CREATE TABLE IF NOT EXISTS snap_parts (device TEXT NOT NULL, id TEXT NOT NULL, i INTEGER NOT NULL, n INTEGER NOT NULL, upto INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (device, id, i));
       CREATE TABLE IF NOT EXISTS invites (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL);
     `)
-    // Keep-alive pings are answered by the runtime: they never wake the object.
-    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'))
   }
 
   // ---- state ------------------------------------------------------------------------------
@@ -343,6 +368,41 @@ export class Room extends DurableObject<Env> {
     this.#bytes = null
     this.#head = null
     this.broadcast({ t: 'pruned', upto })
+  }
+
+  // ---- calls from Bana ID (src/id.ts), not reachable from outside ------------------------------
+
+  /** Lets a device signed in with Bana ID join: an invite like a pairing code's, for a few minutes. */
+  async allow(hash: string, expires: number) {
+    this.sql.exec('DELETE FROM invites WHERE expires <= ?', Date.now())
+    this.sql.exec('INSERT OR REPLACE INTO invites (hash, expires) VALUES (?, ?)', hash, expires)
+  }
+
+  /** A device removed on the profile page. */
+  async revokeDevice(device: string) {
+    this.revoke({ device })
+  }
+
+  /** The Bana ID was deleted: close every connection and forget everything. */
+  async wipe() {
+    for (const w of this.ctx.getWebSockets()) this.fail(w, CLOSE_REVOKED, 'deleted', 'this Bana ID and its sync data were deleted')
+    await this.ctx.storage.deleteAll()
+    this.schema()
+    this.#head = null
+    this.#bytes = null
+  }
+
+  /** For tests: rows kept. */
+  async rows(): Promise<number> {
+    let n = 0
+    for (const t of ['meta', 'devices', 'updates', 'snapshot', 'invites']) {
+      try {
+        n += Number(this.sql.exec<{ c: number }>(`SELECT COUNT(*) AS c FROM ${t}`).one().c)
+      } catch {
+        /* table gone */
+      }
+    }
+    return n
   }
 
   revoke(m: Msg) {

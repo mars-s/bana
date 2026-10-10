@@ -372,7 +372,7 @@ test('a search page hides its view toolbar until asked and ends its table with a
 test('tabs name each panel: a page beside Settings reads "page | Settings" (N70); the account menu opens Settings (N66)', async ({ app }) => {
   const first = await app.locator('.tab.active .tab-title').first().textContent()
   await app.locator('.topbar [title="Account"]').click()
-  await expect(app.locator('.account-menu .menu-item')).toHaveText(['Workspaces', 'Settings', 'Import content…', 'Export everything as Markdown', 'Browse templates', 'Light theme', 'Keyboard shortcuts', 'Help'])
+  await expect(app.locator('.account-menu .menu-item')).toHaveText(['Profile and Bana ID', 'Workspaces', 'Settings', 'Import content…', 'Export everything as Markdown', 'Browse templates', 'Light theme', 'Keyboard shortcuts', 'Help'])
   await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
   await expect(app.locator('.tab.active .tab-title')).toHaveText([first ?? '', 'Settings'])
 })

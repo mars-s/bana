@@ -11,6 +11,7 @@
 
 mod emoji;
 pub mod http;
+mod profile;
 pub mod snapshot;
 mod sync;
 
@@ -55,6 +56,8 @@ pub struct Host {
     /// The person's hand-edited agent opt-outs (`bana_commands::agents`), read on every
     /// assistant command so an edit applies at once.
     pub agents_file: std::path::PathBuf,
+    /// The profile when the graph has no file to keep `profile.json` beside.
+    profile_mem: profile::Profile,
 }
 
 impl Host {
@@ -75,6 +78,7 @@ impl Host {
             primary: None,
             splits: Vec::new(),
             agents_file: bana_commands::agents::config_file(),
+            profile_mem: profile::Profile::default(),
         }
     }
 
@@ -195,6 +199,7 @@ impl Host {
             "schema" => snapshot::schema(&self.session, params),
             "usedElsewhere" => snapshot::used_elsewhere(&self.session, params),
             "commands" => self.session.registry.describe(),
+            "profile.get" | "profile.set" | "onboarding.sample" => self.profile_request(method, params),
             "panel.open" => {
                 // A new panel showing `node` (or a copy of the active panel's page).
                 let node = bana_commands::p::node(params, "node").ok().flatten().filter(|n| self.session.graph.get(*n).is_some());

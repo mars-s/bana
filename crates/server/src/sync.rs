@@ -114,7 +114,7 @@ impl Shared {
     pub(crate) fn sync_request(&self, method: &str, params: &serde_json::Value) -> serde_json::Value {
         match self.sync.get() {
             Some(s) => s.handle(method, params),
-            None if method == "sync.status" => json!({"state": "off", "unavailable": true}),
+            None if method == "sync.status" || method == "id.status" => json!({"state": "off", "unavailable": true}),
             None => json!({"error": "sync is not available here (this engine has no file)"}),
         }
     }

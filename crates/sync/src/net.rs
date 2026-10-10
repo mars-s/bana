@@ -33,8 +33,8 @@ const SILENT_FOR: Duration = Duration::from_secs(70);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 
 #[derive(Default)]
-struct St {
-    client: Option<Client>,
+pub(crate) struct St {
+    pub(crate) client: Option<Client>,
     /// Frames from requests (invite, revoke) for the worker to send.
     outbox: Vec<String>,
     /// Bumped to stop the current worker (leave, a new setup).
@@ -45,18 +45,24 @@ struct St {
     pending: bool,
     /// The last connection problem.
     net_error: Option<String>,
+    /// Bana ID: the sign-in in progress, the last outcome ("ok" or what went wrong), the new
+    /// recovery code until the page has shown it, and whether this passkey can unlock (PRF).
+    pub(crate) flow: Option<crate::account::Flow>,
+    pub(crate) id_note: Option<String>,
+    pub(crate) recovery: Option<String>,
+    pub(crate) id_prf: bool,
 }
 
-struct Inner {
-    path: PathBuf,
+pub(crate) struct Inner {
+    pub(crate) path: PathBuf,
     replica: Arc<dyn SharedReplica>,
     st: Mutex<St>,
-    cv: Condvar,
+    pub(crate) cv: Condvar,
 }
 
 #[derive(Clone)]
 pub struct Service {
-    inner: Arc<Inner>,
+    pub(crate) inner: Arc<Inner>,
 }
 
 fn net(e: impl std::fmt::Display) -> Error {
@@ -80,7 +86,7 @@ impl Service {
         s
     }
 
-    fn lock(&self) -> MutexGuard<'_, St> {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, St> {
         self.inner.st.lock().unwrap_or_else(|p| p.into_inner())
     }
 
@@ -248,6 +254,7 @@ impl Service {
             "sync.devices" => Ok(self.devices()),
             "sync.revoke" => self.revoke(&s("device")),
             "sync.leave" => self.leave(),
+            m if m.starts_with("id.") => self.id_handle(m, params),
             "sync.now" => Ok(self.sync_now(Duration::from_millis(params.get("wait").and_then(Value::as_u64).unwrap_or(10_000).min(60_000)))),
             other => Err(Error::Config(format!("unknown method `{other}`"))),
         };

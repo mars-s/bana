@@ -72,6 +72,9 @@ export interface FieldEdit {
 export interface State {
   /** Sync with the other devices (Sync.tsx), as last read. */
   sync: import('./Sync').SyncStatus | null
+  /** The person's profile and Bana ID status (Profile.tsx), as last read. */
+  profile: import('./Profile').Profile | null
+  bana: import('./Profile').IdStatus | null
   /** The Settings section to open next (the sync button opens Sync). */
   settingsTab: string | null
   tabs: Tab[]
@@ -165,6 +168,8 @@ let state: State = {
   toastLeaving: false,
   sync: null,
   settingsTab: null,
+  profile: null,
+  bana: null,
   caretEpoch: 0,
   focusScroll: 0,
   activePanel: 'main',

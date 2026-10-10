@@ -2930,3 +2930,18 @@ kbd {
   font-size: var(--fs-meta);
   opacity: 0.75;
 }
+
+/* Custom keybindings in Settings > Keyboard shortcuts. */
+.custom-keys {
+  margin-bottom: var(--q6);
+}
+
+.custom-keys .shortcut-row {
+  align-items: center;
+  gap: var(--q2);
+}
+
+.custom-keys .key-capture {
+  min-width: 0;
+  width: var(--key-capture-w);
+}

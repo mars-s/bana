@@ -953,6 +953,19 @@ fn settings_change_time_format_week_start_and_survive_save() {
 }
 
 #[test]
+fn custom_keybindings_are_saved_with_the_graph() {
+    let mut s = blank();
+    let r = run(&mut s, "settings.setKeybinding", json!({"shortcut": "Mod+Shift+H", "command": "node.toggleHeading"}));
+    assert_eq!(r["keybindings"]["Mod+Shift+H"], "node.toggleHeading");
+    run(&mut s, "settings.setKeybinding", json!({"shortcut": "Mod+Shift+J", "command": "ui.quickAdd"}));
+    assert!(s.run("settings.setKeybinding", &json!({"shortcut": "Mod+J", "command": "no.such"})).is_err());
+    let back = Graph::from_snapshot(&s.graph.to_snapshot().unwrap()).unwrap();
+    assert_eq!(back.settings.keybindings.len(), 2);
+    let r = run(&mut s, "settings.setKeybinding", json!({"shortcut": "Mod+Shift+H"}));
+    assert_eq!(r["keybindings"].as_object().map(|o| o.len()), Some(1), "no command removes it");
+}
+
+#[test]
 fn building_blocks_are_promoted_or_hidden_in_menus() {
     // Spec 03 §5 Advanced options, building block.
     let mut s = blank();

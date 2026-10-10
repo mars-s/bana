@@ -7,7 +7,7 @@
 
 import { type Json, type NodeRow, type Page, call } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
-import { closeTab, getState, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
+import { closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
 import { fieldKey, fieldRowKey, pickerKey } from './picker'
 import { toggleQuery } from './Views'
@@ -248,6 +248,12 @@ function runUi(id: string): boolean {
     case 'ui.prevTab':
       void switchTab((s.tab + s.tabs.length - 1) % s.tabs.length)
       return true
+    case 'ui.moveTabLeft':
+      moveTab(s.tab, s.tab - 1)
+      return true
+    case 'ui.moveTabRight':
+      moveTab(s.tab, s.tab + 1)
+      return true
     case 'ui.openInPanel': {
       const node = p?.focus ?? p?.sel[0] ?? p?.zoom
       if (node != null) void openInNewPanel(node)
@@ -313,6 +319,13 @@ export function handleKey(k: KeyInfo): boolean {
   if (s.fieldEdit) return fieldKey(k, editor?.value() ?? '')
   if (s.fieldSel && s.fieldSel.panel === s.activePanel && fieldRowKey(k)) return true
   const sc = shortcut(k)
+  // Custom keybindings come first (spec 09, Customize keybindings).
+  const custom = Object.entries(s.sidebar?.keybindings ?? {}).find(([key]) => matches(key, sc))?.[1]
+  if (custom) {
+    if (custom.startsWith('ui.')) return runUi(custom)
+    void exec(custom)
+    return true
+  }
   // Mod+1..8 go to tab N, Mod+9 to the last tab (spec 09).
   const d = /^Mod\+(\d)$/.exec(sc)
   if (d && Number(d[1]) >= 1) {

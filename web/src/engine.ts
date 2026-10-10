@@ -257,6 +257,8 @@ export interface Sidebar {
   journal: number
   schema: number
   hidden: string[]
+  /** Custom keybindings: shortcut to command id (spec 09). */
+  keybindings: Record<string, string>
   recents: { id: number; name: string; kind: string }[]
 }
 

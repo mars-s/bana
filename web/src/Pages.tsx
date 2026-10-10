@@ -6,7 +6,7 @@ import { call, type Json } from './engine'
 import { Icon } from './icons'
 import { tagStyle } from './Outline'
 import { exec } from './controller'
-import { UI_COMMANDS } from './keys'
+import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { closeConfigure, openConfigure, setState, useStore } from './store'
 
 interface TagInfo {
@@ -174,11 +174,72 @@ export function SettingsPage({ panel }: { panel: string }) {
             ['show_help', 'Help button'],
             ['show_shortcuts', 'Keyboard shortcuts button'],
           ].map(([k, l]) => <div key={k}>{row(l, 'Shown in the sidebar or top bar.', <Toggle label={l} on={!!s[k]} onChange={(v) => set(k, v)} />)}</div>)}
-        {tab === 3 && <ShortcutList />}
+        {tab === 3 && (
+          <>
+            <CustomKeys panel={panel} />
+            <ShortcutList />
+          </>
+        )}
       </div>
     </div>
   )
 }
+
+/** Custom keybindings (spec 09): press a shortcut, pick a command; saved with the graph. */
+function CustomKeys({ panel }: { panel: string }) {
+  const bound = useStore((s) => s.sidebar?.keybindings ?? NONE)
+  const commands = useStore((s) => s.commands)
+  const [key, setKey] = useState('')
+  const [cmd, setCmd] = useState('')
+  const all = [...UI_COMMANDS.map(([id, label]) => ({ id, label })), ...commands]
+  const label = (id: string) => all.find((c) => c.id === id)?.label ?? id
+  const add = () => {
+    const id = all.find((c) => c.id === cmd || c.label.toLowerCase() === cmd.trim().toLowerCase())?.id
+    if (!key || !id) return
+    void exec('settings.setKeybinding', { shortcut: key, command: id }, panel).then(() => (setKey(''), setCmd('')))
+  }
+  return (
+    <div className="custom-keys">
+      <div className="setting-label">Your shortcuts</div>
+      <div className="setting-help">Checked before the defaults below.</div>
+      {Object.entries(bound).map(([k, id]) => (
+        <div key={k} className="shortcut-row">
+          <kbd>{k}</kbd>
+          <span className="grow">{label(id)}</span>
+          <button className="ghost-btn" aria-label={`Remove ${k}`} onClick={() => void exec('settings.setKeybinding', { shortcut: k }, panel)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      <div className="shortcut-row add">
+        <input
+          className="cfg-input key-capture"
+          placeholder="Press a shortcut"
+          value={key}
+          readOnly
+          onKeyDown={(e) => {
+            if (['Shift', 'Meta', 'Control', 'Alt', 'Tab'].includes(e.key)) return
+            e.preventDefault()
+            setKey(e.key === 'Backspace' && !e.metaKey && !e.ctrlKey ? '' : shortcut(keyInfo(e)))
+          }}
+        />
+        <input className="cfg-input grow" placeholder="Command" list="tc-commands" value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <datalist id="tc-commands">
+          {all.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </datalist>
+        <button className="btn regular" onClick={add}>
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const NONE: Record<string, string> = {}
 
 function ShortcutList() {
   const commands = useStore((s) => s.commands)

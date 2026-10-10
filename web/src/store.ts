@@ -308,6 +308,17 @@ export async function switchTab(i: number) {
   await refresh()
 }
 
+/** Moves tab `from` to position `to` (drag, or Ctrl+Shift+PageUp/PageDown); it stays active if it was. */
+export function moveTab(from: number, to: number) {
+  const s = state
+  if (from === to || !s.tabs[from] || to < 0 || to >= s.tabs.length) return
+  const tabs = [...s.tabs]
+  const [t] = tabs.splice(from, 1)
+  tabs.splice(to, 0, t)
+  const activeId = s.tabs[s.tab]?.id
+  setState({ tabs, tab: Math.max(0, tabs.findIndex((x) => x.id === activeId)) })
+}
+
 export async function closeTab(i = state.tab) {
   const s = state
   if (s.tabs.length < 2) return

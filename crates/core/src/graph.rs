@@ -67,6 +67,10 @@ pub struct Settings {
     /// A node that is just a link shows a card under it (spec 08: URL embeds). On by default.
     #[serde(default = "yes")]
     pub url_embeds: bool,
+    /// Custom keybindings (spec 09, Customize keybindings): shortcut (`Mod+Shift+H`) to command id,
+    /// checked before the defaults.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub keybindings: BTreeMap<String, String>,
 }
 
 fn yes() -> bool {
@@ -75,7 +79,14 @@ fn yes() -> bool {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { time_12h: false, week_starts_sunday: false, hidden: Vec::new(), warn_referenced: true, url_embeds: true }
+        Settings {
+            time_12h: false,
+            week_starts_sunday: false,
+            hidden: Vec::new(),
+            warn_referenced: true,
+            url_embeds: true,
+            keybindings: BTreeMap::new(),
+        }
     }
 }
 

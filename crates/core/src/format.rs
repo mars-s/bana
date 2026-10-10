@@ -231,6 +231,16 @@ pub fn toggle_at(s: &str, at: usize, mark: Mark) -> (String, usize) {
 pub fn strip_empty(s: &str, caret: usize) -> (String, usize) {
     let mut chars: Vec<char> = s.chars().collect();
     let mut caret = caret.min(chars.len());
+    // Until nothing changes: taking out one empty pair can leave another (`**____**`).
+    let mut before = usize::MAX;
+    while chars.len() != before {
+        before = chars.len();
+        caret = strip_pairs(&mut chars, caret);
+    }
+    (chars.into_iter().collect(), caret)
+}
+
+fn strip_pairs(chars: &mut Vec<char>, mut caret: usize) -> usize {
     for pair in ["****", "____", "====", "``"] {
         let p: Vec<char> = pair.chars().collect();
         let mut i = 0;
@@ -245,7 +255,7 @@ pub fn strip_empty(s: &str, caret: usize) -> (String, usize) {
             }
         }
     }
-    (chars.into_iter().collect(), caret)
+    caret
 }
 
 fn toggle_range(chars: &[char], a: usize, b: usize, mark: Mark) -> (String, usize, usize) {
@@ -288,6 +298,7 @@ mod tests {
         assert_eq!((s2.as_str(), c2), ("Mulch **now**", 13));
         assert_eq!(strip_empty("Mulch **now** please****", 24), ("Mulch **now** please".to_string(), 20));
         assert_eq!(strip_empty("a``b", 2), ("ab".to_string(), 1));
+        assert_eq!(strip_empty("12**____**", 10), ("12".to_string(), 2), "nested empty marks go too");
     }
 
     #[test]

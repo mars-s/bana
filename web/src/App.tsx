@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
 import { Panel, tagStyle } from './Outline'
-import { closeTab, getState, newTab, setState, switchTab, useStore } from './store'
+import { closeTab, getState, moveTab, newTab, setState, switchTab, useStore } from './store'
 import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
@@ -34,6 +34,13 @@ function TopBar() {
             key={t.id}
             className={`tab${i === tab ? ' active' : ''}`}
             onMouseDown={() => void switchTab(i)}
+            draggable
+            onDragStart={(e) => e.dataTransfer.setData('text/x-tanacraft-tab', String(i))}
+            onDragOver={(e) => e.dataTransfer.types.includes('text/x-tanacraft-tab') && e.preventDefault()}
+            onDrop={(e) => {
+              const from = Number(e.dataTransfer.getData('text/x-tanacraft-tab'))
+              if (Number.isFinite(from)) moveTab(from, i)
+            }}
             title={t.panels.map((p) => pages[p]?.title ?? '').join(' | ')}
           >
             {t.panels.map((p, j) => (

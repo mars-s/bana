@@ -73,6 +73,8 @@ export const UI_COMMANDS: [string, string, string][] = [
   ['ui.closeTab', 'Close tab', 'Mod+W'],
   ['ui.nextTab', 'Next tab', 'Ctrl+Tab'],
   ['ui.prevTab', 'Previous tab', 'Ctrl+Shift+Tab'],
+  ['ui.moveTabLeft', 'Move tab left', 'Ctrl+Shift+PageUp'],
+  ['ui.moveTabRight', 'Move tab right', 'Ctrl+Shift+PageDown'],
   ['ui.openInPanel', 'Open in new panel', 'Mod+M'],
   ['ui.shortcuts', 'Keyboard shortcuts', 'Mod+/ / Mod+Shift+/ / Mod+Shift+?'],
   ['ui.toggleTheme', 'Switch light or dark theme', ''],

@@ -379,6 +379,7 @@ pub fn sidebar(s: &Session) -> Value {
         "journal": g.sys.journal.0,
         "schema": g.sys.schema.0,
         "hidden": g.settings.hidden,
+        "keybindings": g.settings.keybindings,
         "recents": s.recents.iter().filter(|r| g.get(**r).is_some()).map(|r| json!({"id": r.0, "name": page_title(s, *r), "kind": kind_name(g, *r)})).collect::<Vec<_>>(),
     })
 }

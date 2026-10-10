@@ -623,6 +623,25 @@ pub fn registry() -> Registry {
         })
         .params(r#"{"key": "time_format|week_start|show_daily_notes|show_recents|show_supertags|show_help|show_shortcuts|warn_referenced|url_embeds", "value": "12h|24h" | "monday|sunday" | bool}"#)
         .pure(),
+        // Custom keybindings (spec 09): saved with the graph, checked before the defaults.
+        C::new("settings.setKeybinding", "Customize keybinding", "Settings", |s, v| {
+            let key = p::req_str(v, "shortcut")?.trim().to_string();
+            if key.is_empty() || key.len() > 40 {
+                return Err(CmdError::Params("`shortcut` like Mod+Shift+H".into()));
+            }
+            let cmd = v.get("command").and_then(Value::as_str).unwrap_or("").trim().to_string();
+            let set = s.graph.settings_mut();
+            if cmd.is_empty() {
+                set.keybindings.remove(&key);
+            } else if cmd.starts_with("ui.") || s.registry.get(&cmd).is_some() {
+                s.graph.settings_mut().keybindings.insert(key, cmd);
+            } else {
+                return Err(CmdError::Params(format!("unknown command `{cmd}`")));
+            }
+            settings_json(s)
+        })
+        .params(r#"{"shortcut": "Mod+Shift+H", "command"?: string}  (no command removes the binding)"#)
+        .pure(),
         // What copying nodes puts on the clipboard: formatted HTML plus plain text (spec 02 §12).
         C::new("export.clipboard", "Copy as HTML and text", "Export", |s, v| {
             let ids = if v.get("nodes").is_some() || v.get("node").is_some() || s.sel.is_some() { s.targets(v)? } else { vec![node_or_zoom(s, v)?] };
@@ -1674,6 +1693,7 @@ fn settings_json(s: &Session) -> CmdResult {
         "week_start": if st.week_starts_sunday { "sunday" } else { "monday" },
         "warn_referenced": st.warn_referenced,
         "url_embeds": st.url_embeds,
+        "keybindings": st.keybindings,
     });
     if let Some(o) = v.as_object_mut() {
         o.extend(shows);

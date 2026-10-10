@@ -10,6 +10,12 @@ async function openTasks(server: Server, app: Page) {
   return id as number
 }
 
+/** Search options by the title, then Open query editor in its card (N54). */
+async function openQueryEditor(app: Page) {
+  await app.locator('.head-actions [title="Search options"]').click()
+  await app.locator('.search-pop .ghost-btn', { hasText: 'Open query editor' }).click()
+}
+
 async function fieldOf(server: Server, node: number, field: string) {
   return (await server.run('export.json', { node })).result?.fields?.[field]
 }
@@ -156,7 +162,7 @@ test('the table header menu calculates, moves and hides a column', async ({ app,
 test('+ OR in the query builder never sends typing into a result row (N35)', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'table' })
-  await app.locator('.head-actions .btn[title^="Search options"]').click()
+  await openQueryEditor(app)
   await app.locator('.q-add .btn', { hasText: '+ OR' }).click()
   // The new group's input has the keyboard.
   await expect(app.locator('.query-builder .q-group .q-group .q-input')).toBeFocused()
@@ -173,7 +179,7 @@ test('+ OR in the query builder never sends typing into a result row (N35)', asy
 test('the query builder has its menus, Learn more and a corner close button (N43)', async ({ app, server }) => {
   const view = await openTasks(server, app)
   await server.run('view.set', { node: view, kind: 'table' })
-  await app.locator('.head-actions .btn[title^="Search options"]').click()
+  await openQueryEditor(app)
   const qb = app.locator('.query-builder')
   for (const label of ['+ Supertag', 'Tag fields ▾', 'Field values ▾', 'System fields ▾', 'Tag types ▾', 'Search operators ▾']) await expect(qb.getByText(label, { exact: true })).toBeVisible()
   await expect(qb.locator('.q-learn')).toHaveText('Learn more')
@@ -313,4 +319,20 @@ test('a supertag page shows the open view tab as a title row with its tools', as
   await expect(app.locator('.view-title .view-name')).toHaveText('Task calendar')
   await app.locator('.view-title [title="View options"]').click()
   await expect(app.locator('.menu')).toBeVisible()
+})
+
+test('search options show the query as a sentence and merge view filters into the search (N54)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.addFilter', { node: view, clause: 'Status:"Not started"' })
+  await app.locator('.head-actions [title="Search options"]').click()
+  const pop = app.locator('.search-pop')
+  await expect(pop.locator('.search-pop-body')).toHaveText('Search for nodes tagged #task and not done')
+  await expect(pop.locator('.q-token')).toHaveText(['#task'])
+  await pop.locator('.btn', { hasText: 'Merge filters into search' }).click()
+  await expect(pop).toHaveCount(0)
+  await app.locator('.head-actions [title="Search options"]').click()
+  await expect(pop.locator('.search-pop-body')).toHaveText('Search for nodes tagged #task and not done and where Status set to Not started')
+  await expect(pop.locator('.btn', { hasText: 'Merge filters into search' })).toHaveCount(0)
+  await app.keyboard.press('Escape')
+  await expect(pop).toHaveCount(0)
 })

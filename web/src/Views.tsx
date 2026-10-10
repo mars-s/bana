@@ -46,7 +46,7 @@ export interface ViewSnap {
   tabs: { id: number; name: string }[]
   name: string
   description: string
-  query: { tree: QueryGroup; text: string; held: boolean } | null
+  query: { tree: QueryGroup; text: string; sentence: [string, boolean][]; held: boolean } | null
   refs: Record<string, string>
 }
 
@@ -250,6 +250,78 @@ function Toolbar({ v, panel }: { v: ViewSnap; panel: string }) {
 // ---- query builder (spec 05 §2) ------------------------------------------------------------------
 
 /** Opens or closes the conditions of a search node. While open, results wait for "Run once". */
+/** The search options button by a search's title: a 360 wide card under it, right-aligned, with
+ * the query as a sentence (tags, fields and values tinted), Open query editor, and Merge filters
+ * into search when the view has filters (spec 05 §1, §3; 12: Search summary popover; N54). */
+export function SearchOptions({ node, panel, small }: { node: number; panel: string; small?: boolean }) {
+  const qOpen = useStore((s) => !!s.queryOpen[panel])
+  const [snap, setSnap] = useState<ViewSnap | null>(null)
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!snap) return
+    const off = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setSnap(null)
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setSnap(null))
+    window.addEventListener('mousedown', off)
+    window.addEventListener('keydown', esc, true)
+    return () => {
+      window.removeEventListener('mousedown', off)
+      window.removeEventListener('keydown', esc, true)
+    }
+  }, [snap])
+  const q = snap?.query
+  return (
+    <span className="menu-anchor" ref={ref}>
+      <button
+        className={`${small ? 'icon-btn small' : 'btn icon'}${qOpen || snap ? ' on' : ''}`}
+        title="Search options"
+        onClick={() => (snap ? setSnap(null) : void call('view', { panel, node }).then((v) => setSnap(v?.query ? v : null)))}
+      >
+        <Icon name="dotCircle" size={12} />
+      </button>
+      {q && (
+        <div className="search-pop" role="dialog" aria-label="Search">
+          <div className="search-pop-head">Search</div>
+          <p className="search-pop-body">
+            {q.sentence.map(([w, token], i) =>
+              token ? (
+                <span key={i} className="q-token">
+                  {w}
+                </span>
+              ) : (
+                w
+              ),
+            )}
+          </p>
+          <div className="search-pop-foot">
+            <button
+              className="ghost-btn"
+              onClick={() => {
+                setSnap(null)
+                void toggleQuery(panel, node, !qOpen)
+              }}
+            >
+              {qOpen ? 'Close query editor' : 'Open query editor'}
+            </button>
+            {(snap.filters?.length ?? 0) > 0 && (
+              <button
+                className="btn regular"
+                onClick={() => {
+                  setSnap(null)
+                  void exec('search.mergeFilters', { node }, panel)
+                }}
+              >
+                Merge filters into search
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </span>
+  )
+}
+
 export async function toggleQuery(panel: string, node: number, open: boolean) {
   setState((s) => ({ queryOpen: { ...s.queryOpen, [panel]: open } }))
   await exec('search.hold', { node, on: open }, panel)
@@ -1317,7 +1389,6 @@ export { Toolbar as ViewToolbar }
 /** A supertag page's view header (spec 12): the view's name 19 px 600 with +, search options and
  * options after it, then its description in 14 px muted. */
 export function ViewTitle({ v, panel, name, description }: { v: ViewSnap; panel: string; name: string; description: string }) {
-  const qOpen = useStore((s) => !!s.queryOpen[panel])
   return (
     <div className="view-title">
       <div className="view-title-row">
@@ -1325,11 +1396,7 @@ export function ViewTitle({ v, panel, name, description }: { v: ViewSnap; panel:
         <button className="icon-btn small" title="Add an item" onClick={() => void exec('view.addItem', { node: v.node, name: '' }, panel)}>
           <Icon name="plus" size={12} />
         </button>
-        {v.query && (
-          <button className={`icon-btn small${qOpen ? ' on' : ''}`} title="Search options (query editor)" onClick={() => void toggleQuery(panel, v.node, !qOpen)}>
-            <Icon name="dotCircle" size={12} />
-          </button>
-        )}
+        {v.query && <SearchOptions node={v.node} panel={panel} small />}
         <button
           className="icon-btn small"
           title="View options"

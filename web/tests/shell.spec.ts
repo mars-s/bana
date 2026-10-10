@@ -122,3 +122,12 @@ test('the gap between panels resizes them; a half panel puts the side card under
   await app.mouse.up()
   await expect.poll(async () => Math.round((await first.boundingBox())!.width - w0)).toBeGreaterThan(80)
 })
+
+test('the day toolbar goes to a picked date, and calendar sync explains itself', async ({ app }) => {
+  await app.locator('.day-nav [title="Go to date"]').click()
+  await app.locator('.date-picker .dp-day:not(.out)', { hasText: /^15$/ }).click()
+  await app.locator('.date-picker .btn', { hasText: 'OK' }).click()
+  await expect(app.locator('.panel .title').first()).toContainText('15 Oct')
+  await app.locator('.day-nav [title="Set up calendar sync"]').click()
+  await expect(app.locator('.toast')).toContainText('Calendar sync')
+})

@@ -3672,3 +3672,44 @@ kbd {
   font-size: var(--fs-dense);
   color: var(--c-muted);
 }
+
+/* Search summary popover (spec 12): 360 wide under the search options button, right-aligned. */
+.search-pop {
+  position: absolute;
+  top: calc(100% + var(--q1));
+  right: 0;
+  z-index: 30;
+  width: var(--search-pop-w);
+  background: var(--c-popover);
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 1px var(--c-outline), var(--shadow-float);
+  text-align: left;
+}
+
+.search-pop-head {
+  padding: var(--q3);
+  font-size: var(--fs-dense);
+  font-weight: var(--fw-medium);
+  color: var(--c-strong);
+  border-bottom: 1px solid var(--c-divider);
+}
+
+.search-pop-body {
+  margin: 0;
+  padding: var(--q3);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--c-text);
+}
+
+.search-pop .q-token {
+  color: var(--c-muted);
+}
+
+.search-pop-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--q2);
+  padding: var(--q2) var(--q3);
+  border-top: 1px solid var(--c-divider);
+}

@@ -1333,3 +1333,18 @@ fn board_cards_reorder_within_a_column() {
     run(&mut s, "view.moveItem", json!({"node": beds.0, "item": kids[0].0, "after": kids[1].0}));
     assert_eq!(&s.graph.children(beds)[..2], &[kids[1], kids[0]]);
 }
+
+#[test]
+fn view_filters_merge_into_the_search() {
+    let mut s = Session::with_today(sample::sample(today()).unwrap(), today());
+    let open = s.graph.search("Open tasks")[0];
+    run(&mut s, "nav.open", json!({"node": open.0}));
+    assert!(s.run("search.mergeFilters", &json!({})).is_err(), "nothing to merge");
+    run(&mut s, "view.addFilter", json!({"clause": "Status:\"Not started\""}));
+    let shown = s.graph.view_groups(open)[0].items.clone();
+    run(&mut s, "search.mergeFilters", json!({}));
+    assert!(s.graph.view_def(open).filter.is_empty());
+    assert_eq!(s.graph.view_groups(open)[0].items, shown, "the same items, now from the search");
+    let words: String = s.graph.query(open).unwrap().sentence(&s.graph).into_iter().map(|(w, _)| w).collect();
+    assert!(words.ends_with("and where Status set to Not started"), "{words}");
+}

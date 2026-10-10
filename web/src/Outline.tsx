@@ -10,7 +10,7 @@ import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
 import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
-import { QueryBuilder, ViewBody, ViewTitle, ViewToolbar, toggleQuery } from './Views'
+import { QueryBuilder, SearchOptions, ViewBody, ViewTitle, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
@@ -900,7 +900,7 @@ function isoWeekOf(iso: string): number {
 
 /** The date picker (spec 03 §8): month grid with ISO weeks, today, the picked day, a start and
  * end time, Add end for a range of days, OK. */
-function DatePicker({ value, onPick }: { value: string; onPick: (v: string) => void }) {
+function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pick' }: { value: string; onPick: (v: string) => void; title?: string; className?: string }) {
   const today = useStore((s) => s.sidebar?.todayDate) ?? new Date().toISOString().slice(0, 10)
   const [open, setOpen] = useState(false)
   const parsed = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?:-(\d{2}:\d{2}))?)?(?:\/(\d{4}-\d{2}-\d{2}))?/.exec(value.trim())
@@ -940,7 +940,7 @@ function DatePicker({ value, onPick }: { value: string; onPick: (v: string) => v
   }
   return (
     <span className="date-pick-anchor">
-      <button className="date-pick" title="Pick a date" tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => (open ? setOpen(false) : start())}>
+      <button className={className} title={title} tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => (open ? setOpen(false) : start())}>
         <Icon name="calendar" size={12} />
       </button>
       {open && (
@@ -1333,7 +1333,6 @@ function PageDescription({ page, panel }: { page: Page; panel: string }) {
 }
 
 function HeadActions({ page, panel }: { page: Page; panel: string }) {
-  const qOpen = useStore((s) => !!s.queryOpen[panel])
   const search = page.kind === 'search'
   // A field page has only help at the right (spec 12).
   if (page.kind === 'field')
@@ -1366,11 +1365,7 @@ function HeadActions({ page, panel }: { page: Page; panel: string }) {
           <Icon name="plus" size={12} />
         </button>
       )}
-      {search && (
-        <button className={`btn icon${qOpen ? ' on' : ''}`} title="Search options (query editor)" onClick={() => void toggleQuery(panel, page.zoom, !qOpen)}>
-          <Icon name="dotCircle" size={12} />
-        </button>
-      )}
+      {search && <SearchOptions node={page.zoom} panel={panel} />}
       <button
         className="btn icon"
         title="Options"
@@ -1388,6 +1383,7 @@ function HeadActions({ page, panel }: { page: Page; panel: string }) {
 }
 
 function DayNav({ panel }: { panel: string }) {
+  const today = useStore((s) => s.sidebar?.todayDate) ?? ''
   return (
     <div className="day-nav">
       <span className="btn-group">
@@ -1402,10 +1398,12 @@ function DayNav({ panel }: { panel: string }) {
         <button className="btn" onClick={() => void exec('nav.today', {}, panel)}>
           Today
         </button>
-        <button className="btn icon" title="Go to date" onClick={() => void exec('nav.today', {}, panel)}>
-          <Icon name="calendar" size={12} />
-        </button>
+        <DatePicker value={today} title="Go to date" className="btn icon" onPick={(v) => void exec('nav.day', { date: v.slice(0, 10) }, panel)} />
       </span>
+      {/* spec-gap: syncing an online calendar needs an account this local app does not have. */}
+      <button className="btn icon" title="Set up calendar sync" onClick={() => showToast('Calendar sync needs an online calendar account, which this local app does not have yet')}>
+        <Icon name="calendarSync" size={12} />
+      </button>
     </div>
   )
 }

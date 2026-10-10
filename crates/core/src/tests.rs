@@ -592,7 +592,10 @@ fn search_snippets_come_from_content() {
 fn queries_read_as_sentences() {
     let g = garden();
     let q = Query::parse(&g, "#task AND NOT DONE AND Status:\"In progress\"").unwrap();
-    assert_eq!(q.sentence(&g), "Search for nodes tagged #task and not done and where Status is In progress");
+    let words: String = q.sentence(&g).into_iter().map(|(w, _)| w).collect();
+    assert_eq!(words, "Search for nodes tagged #task and not done and where Status set to In progress");
+    let tokens: Vec<String> = q.sentence(&g).into_iter().filter(|(_, t)| *t).map(|(w, _)| w).collect();
+    assert_eq!(tokens, ["#task", "Status", "In progress"]);
 }
 
 #[test]

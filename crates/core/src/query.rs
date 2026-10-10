@@ -238,16 +238,6 @@ fn parse_group(g: &Graph, toks: &[Token], pos: &mut usize, depth: usize) -> Resu
 
 impl Query {
     /// The text form (parses back to the same query).
-    /// The query as a sentence ("Search for nodes tagged #task and not done"), for the search
-    /// options card (spec 05 §1).
-    pub fn sentence(&self, g: &Graph) -> String {
-        let parts: Vec<String> = self.clauses.iter().map(|c| clause_words(g, c)).collect();
-        if parts.is_empty() {
-            return "Search for nothing yet".into();
-        }
-        format!("Search for nodes {}", parts.join(if self.any { " or " } else { " and " }))
-    }
-
     pub fn describe(&self, g: &Graph) -> String {
         let parts: Vec<String> = self
             .clauses
@@ -295,6 +285,69 @@ impl Query {
             })
             .collect();
         parts.join(if self.any { " OR " } else { " AND " })
+    }
+
+    /// The query as a plain sentence (the search summary popover, spec 05 §1): text pieces, each
+    /// flagged when it is a tag, field or value (shown tinted). "Search for nodes tagged #Task and
+    /// where Status set to Done and with text "x"".
+    pub fn sentence(&self, g: &Graph) -> Vec<(String, bool)> {
+        if self.clauses.is_empty() {
+            return vec![("Search for nothing yet".to_string(), false)];
+        }
+        let mut out = vec![("Search for nodes ".to_string(), false)];
+        self.sentence_into(g, &mut out);
+        out
+    }
+
+    fn sentence_into(&self, g: &Graph, out: &mut Vec<(String, bool)>) {
+        let t = |s: &str| (s.to_string(), false);
+        let tok = |s: String| (s, true);
+        for (i, c) in self.clauses.iter().enumerate() {
+            if i > 0 {
+                out.push(t(if self.any { " or " } else { " and " }));
+            }
+            let not = if c.not { "not " } else { "" };
+            match &c.kind {
+                ClauseKind::Tagged { tag } => out.extend([t(&format!("{not}tagged ")), tok(format!("#{}", g.name(*tag)))]),
+                ClauseKind::Text { text } => out.extend([t(if c.not { "without text " } else { "with text " }), tok(format!("\"{text}\""))]),
+                ClauseKind::Done => out.push(t(if c.not { "not done" } else { "done" })),
+                ClauseKind::Todo => out.push(t(if c.not { "done" } else { "not done" })),
+                ClauseKind::Field { field, op, value } => {
+                    out.extend([t(&format!("{not}where ")), tok(g.name(*field).to_string())]);
+                    match op {
+                        Op::Eq => out.extend([t(" set to "), tok(value.clone())]),
+                        Op::Lt => out.extend([t(" less than "), tok(value.clone())]),
+                        Op::Gt => out.extend([t(" greater than "), tok(value.clone())]),
+                        Op::Set | Op::Defined => out.push(t(" is set")),
+                        Op::NotSet | Op::Undefined => out.push(t(" is not set")),
+                        Op::Parent => out.push(t(" is the parent")),
+                        Op::Grandparent => out.push(t(" is the grandparent")),
+                        Op::Node => out.extend([t(" is "), tok(value.parse::<u64>().map(|x| g.name(NodeId(x)).to_string()).unwrap_or_default())]),
+                    }
+                }
+                ClauseKind::CreatedWithin { days } => out.push(t(&format!("{not}created in the last {days} days"))),
+                ClauseKind::EditedWithin { days } => out.push(t(&format!("{not}edited in the last {days} days"))),
+                ClauseKind::DoneWithin { days } => out.push(t(&format!("{not}done in the last {days} days"))),
+                ClauseKind::Under { node } => out.extend([t(&format!("{not}under ")), tok(g.name(*node).to_string())]),
+                ClauseKind::ChildOf { node } => out.extend([t(&format!("{not}child of ")), tok(g.name(*node).to_string())]),
+                ClauseKind::LinksTo { node } => out.extend([t(&format!("{not}linking to ")), tok(g.name(*node).to_string())]),
+                ClauseKind::InWorkspace { ws } => out.extend([t(&format!("{not}in workspace ")), tok(g.name(*ws).to_string())]),
+                ClauseKind::Sibling { name } => out.extend([t(&format!("{not}with a sibling named ")), tok(format!("\"{name}\""))]),
+                ClauseKind::HasTag => out.push(t(&format!("{not}with a supertag"))),
+                ClauseKind::HasField => out.push(t(&format!("{not}with a field"))),
+                ClauseKind::Is { what } => out.push(t(&format!("{not}that are {} nodes", what.name().to_ascii_lowercase()))),
+                ClauseKind::InLibrary => out.push(t(&format!("{not}in the Library"))),
+                ClauseKind::OnDay => out.push(t(&format!("{not}on a day page"))),
+                ClauseKind::ForDate { date } => out.extend([t(&format!("{not}for date ")), tok(date.clone())]),
+                ClauseKind::BaseType { base } => out.extend([t(&format!("{not}of type ")), tok(base.clone())]),
+                ClauseKind::Scope { up } => out.push(t(&format!("{not}under the {}", if *up > 1 { "grandparent" } else { "parent" }))),
+                ClauseKind::Group { query } => {
+                    out.push(t(&format!("{not}(")));
+                    query.sentence_into(g, out);
+                    out.push(t(")"));
+                }
+            }
+        }
     }
 
     /// Whether node `id` matches. An empty query matches nothing (a search must ask for something).
@@ -621,47 +674,4 @@ fn quote(s: &str) -> String {
     let plain = !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | '@'));
     let keyword = matches!(s, "AND" | "OR" | "NOT" | "DONE" | "TODO");
     if plain && !keyword { s.to_string() } else { format!("\"{}\"", s.replace('"', "'")) }
-}
-
-/// One condition in words.
-fn clause_words(g: &Graph, c: &Clause) -> String {
-    let body = match &c.kind {
-        ClauseKind::Tagged { tag } => format!("tagged #{}", g.name(*tag)),
-        ClauseKind::Text { text } => format!("with text \"{text}\""),
-        ClauseKind::Done => "done".into(),
-        ClauseKind::Todo => "not done".into(),
-        ClauseKind::Field { field, op, value } => match op {
-            Op::Set => format!("where {} is set", g.name(*field)),
-            Op::Eq => format!("where {} is {value}", g.name(*field)),
-            Op::Lt => format!("where {} is before or below {value}", g.name(*field)),
-            Op::Gt => format!("where {} is after or above {value}", g.name(*field)),
-            Op::NotSet => format!("where {} is not set", g.name(*field)),
-            Op::Defined => format!("where {} is defined", g.name(*field)),
-            Op::Undefined => format!("where {} is not defined", g.name(*field)),
-            Op::Parent => format!("where {} is the parent", g.name(*field)),
-            Op::Grandparent => format!("where {} is the grandparent", g.name(*field)),
-            Op::Node => format!("where {} is {}", g.name(*field), value.parse::<u64>().map(|x| g.name(NodeId(x)).to_string()).unwrap_or_default()),
-        },
-        ClauseKind::InWorkspace { ws } => format!("in workspace {}", g.name(*ws)),
-        ClauseKind::Scope { up } => format!("inside the search's {}", if *up > 1 { "grandparent" } else { "parent" }),
-        ClauseKind::ChildOf { node } => format!("directly under {}", g.name(*node)),
-        ClauseKind::Sibling { name } => format!("next to \"{name}\""),
-        ClauseKind::CreatedWithin { days } => format!("created in the last {days} days"),
-        ClauseKind::EditedWithin { days } => format!("edited in the last {days} days"),
-        ClauseKind::DoneWithin { days } => format!("done in the last {days} days"),
-        ClauseKind::Under { node } => format!("inside {}", g.name(*node)),
-        ClauseKind::HasTag => "with a supertag".into(),
-        ClauseKind::HasField => "with a field".into(),
-        ClauseKind::Is { what } => format!("that are {}", what.name().to_lowercase()),
-        ClauseKind::InLibrary => "in the Library".into(),
-        ClauseKind::OnDay => "on a day".into(),
-        ClauseKind::ForDate { date } => format!("for {date}"),
-        ClauseKind::LinksTo { node } => format!("linking to {}", g.name(*node)),
-        ClauseKind::BaseType { base } => format!("of type {base}"),
-        ClauseKind::Group { query } => {
-            let inner: Vec<String> = query.clauses.iter().map(|c| clause_words(g, c)).collect();
-            format!("({})", inner.join(if query.any { " or " } else { " and " }))
-        }
-    };
-    if c.not { format!("not {body}") } else { body }
 }

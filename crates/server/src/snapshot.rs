@@ -663,7 +663,7 @@ pub fn view(s: &Session, params: &Value) -> Value {
         "tabs": tabs,
         "name": g.name(node),
         "description": g.get(node).map(|n| n.description.clone()).unwrap_or_default(),
-        "query": g.query(g.resolve(node)).map(|q| json!({"tree": query_tree(g, q, 0), "text": q.describe(g), "held": g.held_results(g.resolve(node)).is_some()})),
+        "query": g.query(g.resolve(node)).map(|q| json!({"tree": query_tree(g, q, 0), "text": q.describe(g), "sentence": q.sentence(g), "held": g.held_results(g.resolve(node)).is_some()})),
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
     })
 }

@@ -120,7 +120,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | 1. Hierarchy | done | Daily notes, year, ISO week (#week, newest first), day (#day); lazy creation. |
 | 2. Day titles | done | Today, Yesterday, Tomorrow prefixes; year omitted for the current year. |
-| 3. Day page layout (`01-today-shell-dark.png`) | partial | Nav bar, Open tasks card (related content of #day), references. Calendar sync missing. |
+| 3. Day page layout (`01-today-shell-dark.png`) | done | Nav bar (Go to date opens the date picker; calendar sync explains it needs an online account, spec-gap), Open tasks card (related content of #day), references. |
 | 4. Navigation | done | Previous/next day, Today, Go to date picker marking days that have notes. |
 | 5. Daily notes root (`60-daily-notes-root.png`) | done | Today's notes embedded under the title with the nav bar. |
 | 6. Week page (`79-week-node.png`) | done | Previous/next week, day nodes, and a Schedule card: the week's time grid with every dated node (by the date field most of them use); New event on it goes on that day. Tested. |
@@ -206,7 +206,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | Shell (all screens) | done | Top bar 45, sidebar 225 (resizable, mini 45, hidden), panel inset 6, panels split evenly and resize by their gap (N51, N52). Credits and notifications dot left out (no billing). |
 | Mini rail | done | Today, Supertags, Search, Recents, Create new, Pinned and Workspaces flyouts. |
-| Day page | done | Title, day toolbar, Open tasks card 403 wide that moves under the outline in a narrow panel. No calendar sync button. |
+| Day page | done | Title, day toolbar, Open tasks card 403 wide that moves under the outline in a narrow panel; calendar sync button (no online calendar to sync, spec-gap). Workspaces ▾ on the day toolbar left out (what it filters is not in the spec). |
 | Tagged node page (node with a supertag and its fields) | done | Title checkbox, tag colour wash, field boxes. |
 | Node page (plain node with fields and nesting) | done | Field rows, guides, nesting. |
 | Supertag page (tag node with views) | done | Tag square, + Create new, help and options by the title; tab strip; views in place; view title row (name 19 px 600 with +, search options and options, then the view's description). The view toolbar stays on by default (it can be hidden per view). |
@@ -219,7 +219,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | Configure supertag | done | Second panel, colour row, folded section cards. AI and voice sections left out. |
 | Field definition page | done | Breadcrumb Schema / #supertag / field, type icon and a 19 px 500 title with help at the right, a faint Add a description line typed in place, form of label and control. (DIFFS N59.33 lists the clone first; d47 and spec 12 agree on 19 px.) |
 | Search node with query builder | done | Builder with groups, menus, Learn more and a corner close (N43). |
-| Search summary popover | partial | Search options by the title opens the query editor directly; no summary sentence or Merge filters. |
+| Search summary popover | done | 360 wide under Search options, right-aligned: Search heading, the query as a sentence with tinted tags, fields and values, Open query editor, Merge filters into search when the view has filters (`search.mergeFilters`). |
 | Search and open (Cmd+S) | done | Dialog, results with crumbs. |
 | Command line | done | 500 wide, no scrim, active item bar. |
 | Quick add | done | 630 wide, 5 px gold bar, 250 ms entry. |
@@ -481,8 +481,8 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | `21-table-light.png` | done | Matched in the visual pass and round 8. |
 | `22-menu-options-dark.png` | done | Matched in the visual pass and round 8. |
 | `22-menu-options-light.png` | done | Matched in the visual pass and round 8. |
-| `23-search-popover-dark.png` | partial | Search options opens the editor; no summary popover. |
-| `23-search-popover-light.png` | partial | Search options opens the editor; no summary popover. |
+| `23-search-popover-dark.png` | done | Summary popover with sentence, Open query editor and Merge filters. |
+| `23-search-popover-light.png` | done | Summary popover with sentence, Open query editor and Merge filters. |
 | `24-query-builder-dark.png` | done | Matched in the visual pass and round 8. |
 | `24-query-builder-light.png` | done | Matched in the visual pass and round 8. |
 | `25-cards-dark.png` | done | Matched in the visual pass and round 8. |

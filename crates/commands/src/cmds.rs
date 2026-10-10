@@ -216,6 +216,7 @@ pub fn registry() -> Registry {
         C::new("search.setQuery", "Set search query", "Search", search_set_query).params(r#"{"node"?: id, "query": string}"#),
         C::new("search.addClause", "Add search condition", "Search", search_add_clause)
             .params(r#"{"node"?: id, "clause": string, "not"?: bool, "path"?: [number]}  (path: indexes of nested groups)"#),
+        C::new("search.mergeFilters", "Merge filters into search", "Search", search_merge_filters).params(r#"{"node"?: id}"#),
         C::new("search.addGroup", "Add AND / OR / NOT group", "Search", search_add_group)
             .params(r#"{"node"?: id, "kind": "and|or|not", "path"?: [number]}"#),
         C::new("search.removeClause", "Remove search condition", "Search", search_remove_clause)
@@ -1970,6 +1971,26 @@ fn search_add_clause(s: &mut Session, v: &Value) -> CmdResult {
         group_at(q, v)?.clauses.extend(parsed.clauses.into_iter().map(|c| Clause { not: c.not != not, kind: c.kind }));
         Ok(())
     })
+}
+
+/// The view's filters become conditions of the search, and the view has none left (spec 05 §3:
+/// the summary popover's "Merge filters into search"). An OR search is kept whole as one group.
+fn search_merge_filters(s: &mut Session, v: &Value) -> CmdResult {
+    let id = view_target(s, v)?;
+    let filter = s.graph.view_def(id).filter;
+    if filter.is_empty() {
+        return Err(CmdError::Params("the view has no filters".into()));
+    }
+    let q = s.graph.query(id).cloned().ok_or_else(|| CmdError::Params("not a search node".into()))?;
+    let mut merged = if q.any && q.clauses.len() > 1 {
+        Query { any: false, clauses: vec![Clause { not: false, kind: ClauseKind::Group { query: q } }] }
+    } else {
+        Query { any: false, ..q }
+    };
+    merged.clauses.extend(filter.clauses);
+    s.graph.set_query(id, merged)?;
+    s.graph.view_mut(id)?.filter = Query::default();
+    view_json(s, id)
 }
 
 /// Adds an AND, OR or NOT group (spec 05 §2): a NOT group negates what it holds.

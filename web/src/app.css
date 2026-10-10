@@ -1043,33 +1043,82 @@ button:focus-visible {
 /* Tag chip: "#" and name, fg on tint (the Chip Rule). */
 .chip {
   display: inline-flex;
-  align-items: center;
-  gap: 3px;
+  align-items: stretch;
   height: var(--chip-h);
   margin-top: 2px;
-  padding: 0.75px var(--q1);
   border-radius: var(--r-sm);
   font-size: var(--fs-label);
   line-height: 15px;
   font-weight: var(--fw-text);
   color: var(--tag);
-  background: var(--tag-t1);
   white-space: nowrap;
   cursor: pointer;
 }
 
-.chip:hover {
-  box-shadow: var(--shadow-chip);
+/* Two joined parts in the tag's tint: "#" and the name (DESIGN.md: Chips). */
+.chip-hash,
+.chip-name {
+  display: inline-flex;
+  align-items: center;
+  background: var(--tag-t1);
+  transition: border-radius var(--t-micro), margin var(--t-micro);
 }
 
 .chip-hash {
+  position: relative;
+  padding: 0.75px 0 0.75px var(--q1);
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
+.chip-hash-glyph {
   opacity: 0.85;
+}
+
+.chip-name {
+  padding: 0.75px var(--q1) 0.75px 3px;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.chip:hover .chip-hash,
+.chip:hover .chip-name {
+  box-shadow: var(--shadow-chip);
+}
+
+/* Hover: the "#" part becomes a remove button and the name part stands apart. */
+.chip-x {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--q1);
+}
+
+.chip.removable:hover .chip-hash-glyph {
+  visibility: hidden;
+}
+
+.chip.removable:hover .chip-x {
+  display: inline-flex;
+}
+
+.chip.removable:hover .chip-hash {
+  padding-right: 3px;
+  border-radius: var(--r-sm);
+}
+
+.chip.removable:hover .chip-name {
+  margin-left: 1px;
+  padding-left: var(--q1);
+  border-radius: var(--r-sm);
 }
 
 .chip.mini {
   height: 16.5px;
   margin-top: 2.5px;
   padding: 0 4px;
+  align-items: center;
+  background: var(--tag-t1);
 }
 
 .progress {

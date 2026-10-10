@@ -154,3 +154,15 @@ test('dragging a selection moves both lines in order and they stay selected (N45
   await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['three', 'one', 'two'])
   await expect(app.locator('.row.node.selected')).toHaveCount(2)
 })
+
+test('hovering a tag chip shows a remove part; clicking it removes the tag (N53)', async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Seeds'])
+  await server.run('tag.add', { node: ids[0], tag: 'chores' })
+  const chip = app.locator(`.row.node[data-id="${ids[0]}"] .chip`)
+  await expect(chip).toContainText('chores')
+  await expect(chip.locator('.chip-x')).toBeHidden()
+  await chip.hover()
+  await expect(chip.locator('.chip-x')).toBeVisible()
+  await chip.locator('.chip-x').click()
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toHaveCount(0)
+})

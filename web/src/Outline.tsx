@@ -34,11 +34,30 @@ export function tagStyle(color: string): CSSProperties {
   return { '--tag': `var(--tag-${name}-fg)`, '--tag-t1': `var(--tag-${name}-t1)`, '--tag-t2': `var(--tag-${name}-t2)` } as CSSProperties
 }
 
-export function TagChip({ chip, onOpen }: { chip: Chip; onOpen?: () => void }) {
+/** A tag chip: two joined parts, "#" and the name. On hover, with `onRemove`, the "#" part turns
+ * into a remove button and the name part's corners round (motion M12; N53). */
+export function TagChip({ chip, onOpen, onRemove }: { chip: Chip; onOpen?: () => void; onRemove?: () => void }) {
   return (
-    <span className="chip" style={tagStyle(chip.color)} onMouseDown={(e) => e.preventDefault()} onClick={onOpen} data-tag={chip.name}>
-      <span className="chip-hash">#</span>
-      {chip.name}
+    <span className={`chip${onRemove ? ' removable' : ''}`} style={tagStyle(chip.color)} onMouseDown={(e) => e.preventDefault()} data-tag={chip.name}>
+      <span
+        className="chip-hash"
+        title={onRemove ? `Remove #${chip.name}` : undefined}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (onRemove) onRemove()
+          else onOpen?.()
+        }}
+      >
+        <span className="chip-hash-glyph">#</span>
+        {onRemove && (
+          <span className="chip-x">
+            <Icon name="close" size={9} />
+          </span>
+        )}
+      </span>
+      <span className="chip-name" onClick={onOpen}>
+        {chip.name}
+      </span>
     </span>
   )
 }
@@ -624,7 +643,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             </span>
           )}
           {row.tags.map((t) => (
-            <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
+            <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} onRemove={() => void exec('tag.remove', { node: row.target, tag: t.id }, panel)} />
           ))}
           {row.progress && (
             <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>
@@ -1329,7 +1348,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 <div className="head-meta">
                   <div className="tag-row">
                     {page.tags.map((t) => (
-                      <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} />
+                      <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} onRemove={() => void exec('tag.remove', { node: page.target, tag: t.id }, panel)} />
                     ))}
                   </div>
                   <HeadActions page={page} panel={panel} />

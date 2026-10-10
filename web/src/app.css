@@ -2890,19 +2890,20 @@ kbd {
   margin-top: -60px;
 }
 
+/* Icon and Banner fade in 400 ms after the pointer enters the header, and out with the same
+ * delay and fade (motion M15; N59.12). */
 .decorate {
   display: flex;
   gap: var(--q1);
-  height: 20px;
-  margin: -20px 0 0;
+  height: var(--decorate-h);
+  margin: calc(-1 * var(--decorate-h)) 0 0;
   opacity: 0;
-  transition: opacity 200ms ease;
+  transition: opacity var(--t-fade-delayed);
 }
 
 .page-head:hover .decorate,
 .decorate.open {
   opacity: 1;
-  transition-delay: 400ms;
 }
 
 .decorate.open {
@@ -3544,4 +3545,22 @@ kbd {
 .scroller > .page {
   position: relative;
   z-index: 1;
+}
+
+/* Breadcrumb-row tools: small raised buttons at 75 % (N59.6, motion M16). */
+.crumb-tool {
+  width: var(--crumb-tool);
+  height: var(--crumb-tool);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  background: var(--c-button);
+  color: var(--c-secondary);
+  opacity: 0.75;
+  transition: opacity var(--t-crumb-tools);
+}
+
+.crumb-tool:hover {
+  opacity: 1;
 }

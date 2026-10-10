@@ -65,6 +65,9 @@
   --cal-event-h: 18.8px;
   --title-check: 27.8px;
   --t-head-h: 29.9px;
+  --decorate-h: 20px;
+  --crumb-tool: 21.5px;
+  --t-crumb-tools: 100ms linear;
   --date-picker-w: 290px;
   --dp-day: 26px;
   --board-col-w: 300px;

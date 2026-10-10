@@ -1190,8 +1190,8 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
           <Icon name="close" size={14} />
         </button>
       ) : (
-        <button className="icon-btn" title="Content width">
-          <Icon name="width" size={14} />
+        <button className="crumb-tool" title="Content width">
+          <Icon name="width" size={12} />
         </button>
       )}
     </div>
@@ -1491,7 +1491,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
             <div ref={head} className="page-head">
-              {page.titleEditable && <Decorate page={page} panel={panel} />}
+              {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
               <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}
                 {page.kind === 'tag' && (

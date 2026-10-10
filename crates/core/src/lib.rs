@@ -87,6 +87,14 @@ pub fn live_file(graph: &std::path::Path) -> std::path::PathBuf {
     graph.with_file_name(name)
 }
 
+/// A device's sync settings for `graph` (`graph.bana.sync`, readable by this user only; it holds
+/// the workspace key). The phone keeps its own in a private folder instead.
+pub fn sync_file(graph: &std::path::Path) -> std::path::PathBuf {
+    let mut name = graph.file_name().unwrap_or_default().to_os_string();
+    name.push(".sync");
+    graph.with_file_name(name)
+}
+
 /// Where files attached to nodes are kept for `graph`: a folder beside it (`graph.bana.files`).
 pub fn files_dir(graph: &std::path::Path) -> std::path::PathBuf {
     let mut name = graph.file_name().unwrap_or_default().to_os_string();

@@ -12,4 +12,5 @@ workspace = true
 bana-core = { workspace = true }
 bana-commands = { workspace = true }
 bana-mcp = { workspace = true }
+bana-sync = { workspace = true }
 serde_json = { workspace = true }

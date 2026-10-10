@@ -254,6 +254,8 @@ fn run() -> Result<(), String> {
     let session = bana_server::open_session(file, sample, None)?;
     let shared = Shared::new(Host::new(session));
     shared.spawn_autosave();
+    // Sync with the phone in the background (Settings > Sync sets it up; docs/sync.md).
+    shared.start_sync_beside_graph();
     // The same engine over HTTP on 127.0.0.1, announced in
     // the live file beside the graph so MCP and the CLI work on the running app (UC-10.11).
     // Port 8787 by default, so a tunnel (the remote MCP connector, docs/mcp.md) has a fixed

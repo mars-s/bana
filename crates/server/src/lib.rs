@@ -12,6 +12,7 @@
 mod emoji;
 pub mod http;
 pub mod snapshot;
+mod sync;
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -311,13 +312,30 @@ impl Host {
     }
 
     /// Appends the latest edits to the file's edit log (see [`bana_core::Graph::append_log`]).
-    fn journal(&mut self) {
+    pub(crate) fn journal(&mut self) {
         let Some(path) = self.session.path.clone() else { return };
         // A graph never written yet is saved whole the first time.
         let r = if self.session.graph.has_file() { self.session.graph.append_log(&path).map_err(|e| e.to_string()) } else { self.save() };
         if let Err(e) = r {
             self.session.status = format!("could not write the edit log: {e}");
         }
+    }
+
+    /// Swaps in another graph (a device joining a synced workspace): every panel starts again on
+    /// today's page, and the views read everything again.
+    pub fn replace_graph(&mut self, graph: bana_core::Graph) {
+        self.session.graph = graph;
+        self.panels.clear();
+        self.session.focus = None;
+        self.session.sel = None;
+        let today = self.session.today;
+        if let Ok(day) = self.session.graph.day(today) {
+            self.session.zoom = day;
+        }
+        let _ = self.session.run("nav.today", &json!({}));
+        self.splits.clear();
+        self.draft = None;
+        self.version += 1;
     }
 
     /// Writes the file now when there are unsaved changes.

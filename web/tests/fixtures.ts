@@ -43,7 +43,7 @@ export function liveToken(file: string): string {
   }
 }
 
-async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
+export async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
     env: { ...process.env, BANA_HOME: dirname(file) },

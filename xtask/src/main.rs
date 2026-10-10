@@ -12,7 +12,8 @@ commands:
   shots   web UI screenshots (Playwright) into docs/images/web/
   connector  the remote MCP connector's tests (cloudflare/: npm ci, typecheck, Worker + end to end)
   sync    the sync checks: the Rust sync tests, the relay Worker's tests (cloudflare/sync, vitest
-          in workerd) and its typecheck
+          in workerd) and its typecheck, then end to end: `wrangler dev` and two `bana serve`
+          engines in two browser windows (Playwright project `sync`)
   parity  check that docs/parity.md maps every spec file and section; print status counts
 ";
 
@@ -75,7 +76,9 @@ fn sync() -> Result<(), String> {
     let relay = root().join("cloudflare/sync");
     run_in(&relay, "npm", &["ci", "--no-audit", "--no-fund"])?;
     run_in(&relay, "npm", &["run", "typecheck"])?;
-    run_in(&relay, "npm", &["test"])
+    run_in(&relay, "npm", &["test"])?;
+    web_prep()?;
+    pnpm(&["exec", "playwright", "test", "--project=sync"])
 }
 
 fn run_in(dir: &Path, cmd: &str, args: &[&str]) -> Result<(), String> {

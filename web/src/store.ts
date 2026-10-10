@@ -70,6 +70,10 @@ export interface FieldEdit {
 }
 
 export interface State {
+  /** Sync with the other devices (Sync.tsx), as last read. */
+  sync: import('./Sync').SyncStatus | null
+  /** The Settings section to open next (the sync button opens Sync). */
+  settingsTab: string | null
   tabs: Tab[]
   tab: number
   pages: Record<string, Page>
@@ -159,6 +163,8 @@ let state: State = {
   commands: [],
   toast: null,
   toastLeaving: false,
+  sync: null,
+  settingsTab: null,
   caretEpoch: 0,
   focusScroll: 0,
   activePanel: 'main',

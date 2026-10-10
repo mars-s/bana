@@ -8,6 +8,7 @@ import { tagStyle } from './Outline'
 import { exec } from './controller'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { refresh, setState, useStore } from './store'
+import { SyncSettings } from './Sync'
 
 interface TagInfo {
   id: number
@@ -97,12 +98,13 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
 // ---- settings ----------------------------------------------------------------------------------
 
 // The sections in Tana's order (DIFFS N23, N55), then Keybindings (ours).
-const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Keybindings']
+const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Sync', 'Keybindings']
 /** Under each section heading (N67). */
 const SUBTITLE: Record<string, string> = {
   Preferences: 'Your user preferences',
   'Date and time': 'How dates and times read',
   Keybindings: 'Your own keys for commands',
+  Sync: 'Your notes on your other devices, end-to-end encrypted',
 }
 const EMPTY_NOTE: Record<string, string> = {
   'Notifications seen': 'No notifications yet.',
@@ -123,7 +125,15 @@ function Check({ on, onChange, label, disabled }: { on: boolean; onChange: (v: b
 
 export function SettingsPage({ panel }: { panel: string }) {
   const [s, setS] = useState<Json>(null)
+  const wanted = useStore((st) => st.settingsTab)
   const [tab, setTab] = useState(0)
+  // The sync button opens this page at Sync.
+  useEffect(() => {
+    if (wanted && SECTIONS.includes(wanted)) {
+      setTab(SECTIONS.indexOf(wanted))
+      setState({ settingsTab: null })
+    }
+  }, [wanted])
   const theme = useStore((st) => st.theme)
   const followSystem = useStore((st) => st.followSystem)
   const load = () => void call('run', { command: 'settings.get', params: {}, panel }).then((r) => setS(r?.result))
@@ -194,6 +204,7 @@ export function SettingsPage({ panel }: { panel: string }) {
             ))}
           </>
         )}
+        {name === 'Sync' && <SyncSettings />}
         {name === 'Keybindings' && (
           <>
             <CustomKeys panel={panel} />

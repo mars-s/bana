@@ -2,7 +2,8 @@
 // pages, live broadcast, hibernation, pruning with a snapshot, revoking, and the limits.
 import { SELF, env, evictDurableObject, runInDurableObject } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-import { LIMITS, type Room } from '../src/index'
+import type { Room } from '../src/index'
+import { LIMITS } from '../src/limits'
 
 let rooms = 0
 /** A fresh room id (32 hex) per test. */

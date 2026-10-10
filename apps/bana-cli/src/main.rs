@@ -278,6 +278,9 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             };
             let shared = bana_server::http::Shared::new(bana_server::Host::new(session));
             shared.spawn_autosave();
+            if large.is_none() {
+                shared.start_sync_beside_graph();
+            }
             let listener = bana_server::http::bind(port)?;
             let port = listener.local_addr().map_err(|e| e.to_string())?.port();
             // MCP and the CLI find this running engine through the live file (UC-10.11).

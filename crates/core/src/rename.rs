@@ -69,6 +69,11 @@ pub fn old_home() -> PathBuf {
 
 /// Copies the old data folder to the new one (see the module docs). Returns whether it did.
 pub fn migrate_home() -> Result<bool> {
+    let var = |v: &str| std::env::var_os(v).is_some_and(|d| !d.is_empty());
+    if var("BANA_HOME") || var(OLD_HOME_VAR) {
+        // A folder named on purpose: only its own graph file may need its new name.
+        return migrate_file(&crate::data_dir().join("graph.bana"));
+    }
     migrate_home_to(&old_home(), &crate::data_dir())
 }
 

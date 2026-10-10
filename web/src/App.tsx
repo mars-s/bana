@@ -7,6 +7,7 @@ import { closeTab, getState, moveTab, newTab, setState, showToast, switchTab, us
 import { bufferKey, noteClick, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
+import { SyncButton } from './Sync'
 import { SubMenu } from './Views'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
@@ -90,6 +91,7 @@ function TopBar() {
         </button>
       </nav>
       <div className="topbar-right">
+        <SyncButton />
         <button className="icon-btn" title="Notifications (none yet)">
           <Icon name="bell" size={14} />
         </button>

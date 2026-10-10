@@ -4354,3 +4354,132 @@ html.capture body {
   border: 1px solid var(--c-outline);
   border-radius: var(--r-sm);
 }
+
+/* ---- sync (Settings > Sync and the top bar's status) ---- */
+.sync-btn {
+  position: relative;
+}
+
+.sync-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-muted);
+  flex: none;
+}
+
+.sync-btn .sync-dot {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+}
+
+.sync-synced .sync-dot {
+  background: var(--c-done);
+}
+
+.sync-syncing .sync-dot {
+  background: var(--c-link);
+  animation: sync-pulse 1.2s ease-in-out infinite;
+}
+
+.sync-offline .sync-dot {
+  background: var(--c-muted);
+}
+
+.sync-error .sync-dot {
+  background: var(--c-danger);
+}
+
+@keyframes sync-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-syncing .sync-dot {
+    animation: none;
+  }
+}
+
+.sync-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q2);
+  max-width: 640px;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  padding: var(--q2) var(--q3);
+  border-radius: var(--r-sm);
+  background: var(--c-raised);
+  color: var(--c-strong);
+}
+
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+}
+
+.sync-row .grow,
+.sync-status .grow,
+.sync-device .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.sync-invite {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q3);
+  align-items: flex-start;
+}
+
+.sync-settings .btn {
+  white-space: nowrap;
+}
+
+.sync-qr {
+  flex: none;
+  width: 200px;
+  height: 200px;
+  padding: var(--q1);
+  border-radius: var(--r-sm);
+  /* A QR code reads best dark on white, in both themes. */
+  background: var(--c-on-accent);
+}
+
+.sync-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sync-code-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q2);
+  align-self: stretch;
+}
+
+.sync-code {
+  height: 64px;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-dense);
+  word-break: break-all;
+}
+
+.sync-device.revoked {
+  opacity: 0.55;
+}
+
+.sync-error {
+  color: var(--c-danger);
+}

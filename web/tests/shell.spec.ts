@@ -70,7 +70,7 @@ test('Settings open in a second panel with the sections in order; Escape closes 
   await expect(app.locator('.panel')).toHaveCount(2)
   const settings = app.locator('.panel.settings-panel')
   await expect(settings.locator('.crumbs')).toContainText('User settings')
-  await expect(settings.locator('.settings-nav .view-tab')).toHaveText(['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Keybindings'])
+  await expect(settings.locator('.settings-nav .view-tab')).toHaveText(['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Sync', 'Keybindings'])
   await expect(settings.locator('button[aria-label="Use system theme"]')).toBeVisible()
   await app.keyboard.press('Escape')
   await expect(app.locator('.panel')).toHaveCount(1)

@@ -24,11 +24,18 @@ use crate::Host;
 /// Requests bigger than this are refused (a paste of a large outline still fits).
 const MAX_BODY: usize = 32 * 1024 * 1024;
 
+/// A callback told the engine's version after a merge.
+pub type OnChange = Box<dyn Fn(u64) + Send + Sync>;
+
 pub struct Shared {
     pub host: Mutex<Host>,
     pub changed: Condvar,
     /// What a request from outside a browser page must send.
     pub token: String,
+    /// Sync with the other devices, once started ([`Shared::start_sync`]).
+    pub(crate) sync: std::sync::OnceLock<bana_sync::Service>,
+    /// Told after edits from another device were merged (the phone's change listeners).
+    pub on_change: Mutex<Option<OnChange>>,
 }
 
 impl Shared {
@@ -40,14 +47,21 @@ impl Shared {
 
     /// With a given token (tests, or an app that keeps its token elsewhere).
     pub fn with_token(host: Host, token: String) -> Arc<Shared> {
-        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new(), token })
+        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new(), token, sync: std::sync::OnceLock::new(), on_change: Mutex::new(None) })
     }
 
     /// Runs one request (or an array of them) and wakes event waiters.
     pub fn handle(&self, req: &Value) -> Value {
+        // Sync requests never take the engine lock (the sync service takes it when it merges).
+        if let Some(m) = req.get("method").and_then(Value::as_str).filter(|m| m.starts_with("sync.")) {
+            return self.sync_request(m, req.get("params").unwrap_or(&Value::Null));
+        }
         let Ok(mut host) = self.host.lock() else { return json!({"error": "host lock poisoned"}) };
         let one = |host: &mut Host, r: &Value| {
             let method = r.get("method").and_then(Value::as_str).unwrap_or_default();
+            if method.starts_with("sync.") {
+                return json!({"error": "send sync requests one at a time"});
+            }
             let params = r.get("params").cloned().unwrap_or_else(|| json!({}));
             host.handle(method, &params)
         };

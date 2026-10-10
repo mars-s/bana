@@ -10,38 +10,13 @@
 // Protocol: JSON text frames, the same as crates/sync/src/proto.rs.
 
 import { DurableObject } from 'cloudflare:workers'
+import { CLOSE_AUTH, CLOSE_LIMIT, CLOSE_REVOKED, LIMITS } from './limits'
 
 export interface Env {
   ROOMS: DurableObjectNamespace<Room>
 }
 
 const ROOM = /^[0-9a-f]{32}$/
-
-/** Limits that keep a room inside the free plan and stop a misbehaving client. */
-export const LIMITS = {
-  /** Biggest frame a device may send (characters). */
-  frame: 1024 * 1024,
-  /** Biggest base64 payload in one frame (devices send 256 KiB parts). */
-  data: 400_000,
-  /** Parts per message (a snapshot of up to about 32 MB). */
-  parts: 128,
-  /** Bytes of updates and snapshot a room may hold. */
-  roomBytes: 64 * 1024 * 1024,
-  devices: 16,
-  sockets: 32,
-  invites: 10,
-  inviteMs: 24 * 3600 * 1000,
-  /** Messages per socket: a burst, then this many per second. */
-  burst: 200,
-  perSecond: 20,
-  /** A backlog page: at most this many rows or bytes. */
-  pageRows: 200,
-  pageBytes: 4 * 1024 * 1024,
-}
-
-export const CLOSE_AUTH = 4001
-export const CLOSE_REVOKED = 4003
-export const CLOSE_LIMIT = 4008
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {

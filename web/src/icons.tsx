@@ -32,6 +32,14 @@ const P: Record<string, JSX.Element> = {
       <path d="M3 6v3.6C3 10.8 5.2 12 8 12s5-1.2 5-2.4V6" />
     </>
   ),
+  // Sync (our own glyphs): a cloud, and a cloud struck through for offline.
+  cloud: <path d="M4.6 12.5h7a2.9 2.9 0 0 0 .3-5.8 4 4 0 0 0-7.6-.9A3.4 3.4 0 0 0 4.6 12.5Z" />,
+  cloudOff: (
+    <>
+      <path d="M4.6 12.5h6.4M12.7 11.2a2.9 2.9 0 0 0-.8-4.5 4 4 0 0 0-6.2-2.3M4.3 5.8A3.4 3.4 0 0 0 4.6 12.5" />
+      <path d="M2.5 2.5l11 11" />
+    </>
+  ),
   user: (
     <>
       <circle cx="8" cy="5.5" r="2.6" />

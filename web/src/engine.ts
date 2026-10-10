@@ -394,6 +394,8 @@ export interface Page {
   done: boolean | null
   kind: string
   tagColor: string | null
+  /** A supertag page: whether its nodes show a checkbox (the slot after the tag square). */
+  tagCheckbox?: boolean
   /** On a field definition page: the field's type. */
   fieldType?: string | null
   icon: string | null

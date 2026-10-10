@@ -32,13 +32,13 @@ test('the View as menu switches to a table, and a cell is typed in place', async
   // The Effort column is the last field column.
   const cells = row.locator('.t-cell')
   const n = await cells.count()
-  await cells.nth(n - 2).click()
+  await cells.nth(n - 1).click()
   await expect(app.locator('.field-input')).toBeFocused()
   await app.keyboard.press('Meta+a')
   await app.keyboard.type('9')
   await expect.poll(() => fieldOf(server, id, 'Effort (hours)')).toBe('9')
   await app.keyboard.press('Escape')
-  await expect(row.locator('.t-cell').nth(n - 2)).toHaveText('9')
+  await expect(row.locator('.t-cell').nth(n - 1)).toHaveText('9')
 })
 
 test('a board card dragged to another column takes its value', async ({ app, server }) => {
@@ -151,7 +151,7 @@ test('the table header menu calculates, moves and hides a column', async ({ app,
   const effort = before.find((n) => n.startsWith('Effort'))!
   await app.locator('.t-head .t-cell', { hasText: effort }).click({ button: 'right' })
   await app.locator('.header-menu .menu-item', { hasText: 'Calculate' }).hover()
-  await app.locator('.header-menu .submenu .menu-item', { hasText: 'Sum' }).click()
+  await app.locator('.submenu .menu-item', { hasText: 'Sum' }).click()
   await expect(app.locator('.t-foot')).toBeVisible()
   await expect(app.locator('.t-foot')).toContainText(/\d/)
   await app.locator('.t-head .t-cell', { hasText: effort }).click({ button: 'right' })
@@ -192,7 +192,7 @@ test('the query builder has its menus, Learn more and a corner close button (N43
   await expect(app.locator('.q-expr')).toContainText(/library/i)
   await qb.getByText('Tag fields ▾').click()
   await app.locator('.menu.pop .menu-item', { hasText: 'Status' }).hover()
-  await app.locator('.menu.pop .submenu .menu-item', { hasText: /^Set$/ }).click()
+  await app.locator('.submenu .menu-item', { hasText: /^Set$/ }).click()
   await expect(app.locator('.q-expr')).toContainText('Status')
   await qb.locator('.q-close').click()
   await expect(qb).toHaveCount(0)
@@ -265,7 +265,7 @@ test('the view toolbar: text filter, filter chips with x, sort rules; no Group i
   await expect(app.locator('.t-row[data-id]')).toHaveCount(3)
   await app.locator('.view-toolbar .tool[title="Sort by"]').click()
   await app.locator('.menu.pop .menu-item', { hasText: '+ Add sort' }).hover()
-  await app.locator('.menu.pop .submenu .menu-item', { hasText: 'Name' }).click()
+  await app.locator('.submenu .menu-item', { hasText: 'Name' }).click()
   await app.locator('.view-toolbar .tool[title="Sort by"]').click()
   await expect(app.locator('.menu.pop .sort-rule', { hasText: 'Name' })).toContainText('Ascending')
 })

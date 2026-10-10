@@ -390,6 +390,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "done": g.checkbox(target),
         "kind": kind_name(g, target),
         "tagColor": g.tag_def(target).map(|d| d.color.clone()),
+        "tagCheckbox": g.tag_def(target).is_some_and(|d| d.checkbox),
         "fieldType": g.field_def(target).map(|d| d.field_type.name()),
         "icon": node.and_then(|n| n.icon.clone()),
         "banner": node.and_then(|n| n.banner.clone()),

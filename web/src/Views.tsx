@@ -9,6 +9,7 @@ import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
 import { exec, withBarrier } from './controller'
 import { openBeside, openInNewPanel, setActivePanel, setState, useStore } from './store'
 import { openPicker, startFieldEdit } from './picker'
+import { Popover, pointBox } from './Popover'
 
 export interface ViewItem extends NodeRow {
   cells: Record<string, string[]>
@@ -76,21 +77,17 @@ const FIELD_ICON: Record<string, IconName> = { date: 'fieldDate', checkbox: 'fie
 export function MenuButton({ icon, label, title, children, active }: { icon?: IconName; label?: string; title: string; children: (close: () => void) => ReactNode; active?: boolean }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const off = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    window.addEventListener('mousedown', off)
-    return () => window.removeEventListener('mousedown', off)
-  }, [open])
   return (
     <span className="menu-anchor" ref={ref}>
       <button className={`tool${active ? ' active' : ''}${label ? ' labelled' : ''}`} title={title} onClick={() => setOpen((o) => !o)}>
         {icon && <Icon name={icon} size={14} />}
         {label}
       </button>
-      {open && <div className="menu pop">{children(() => setOpen(false))}</div>}
+      {open && (
+        <Popover anchor={ref} onClose={() => setOpen(false)}>
+          {children(() => setOpen(false))}
+        </Popover>
+      )}
     </span>
   )
 }
@@ -261,19 +258,6 @@ export function SearchOptions({ node, panel, small }: { node: number; panel: str
   const qOpen = useStore((s) => s.queryOpen[panel] === node)
   const [snap, setSnap] = useState<ViewSnap | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!snap) return
-    const off = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setSnap(null)
-    }
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setSnap(null))
-    window.addEventListener('mousedown', off)
-    window.addEventListener('keydown', esc, true)
-    return () => {
-      window.removeEventListener('mousedown', off)
-      window.removeEventListener('keydown', esc, true)
-    }
-  }, [snap])
   const q = snap?.query
   return (
     <span className="menu-anchor" ref={ref}>
@@ -285,7 +269,7 @@ export function SearchOptions({ node, panel, small }: { node: number; panel: str
         <Icon name="dotCircle" size={12} />
       </button>
       {q && (
-        <div className="search-pop" role="dialog" aria-label="Search">
+        <Popover anchor={ref} align="end" className="search-pop" onClose={() => setSnap(null)} role="dialog" aria-label="Search">
           <div className="search-pop-head">Search</div>
           <p className="search-pop-body">
             {q.sentence.map(([w, token], i) =>
@@ -320,7 +304,7 @@ export function SearchOptions({ node, panel, small }: { node: number; panel: str
               </button>
             )}
           </div>
-        </div>
+        </Popover>
       )}
     </span>
   )
@@ -608,23 +592,12 @@ const CALCS: [string, string][] = [['sum', 'Sum'], ['average', 'Average'], ['med
 
 /** Right-click on a column header (spec 04, table): type, calculation, sort, move, hide, delete. */
 function HeaderMenu({ v, panel, col, x, y, close }: { v: ViewSnap; panel: string; col: ViewColumn; x: number; y: number; close: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && close()
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), close())
-    window.addEventListener('mousedown', off)
-    window.addEventListener('keydown', esc, true)
-    return () => {
-      window.removeEventListener('mousedown', off)
-      window.removeEventListener('keydown', esc, true)
-    }
-  }, [close])
   const run = (c: string, p: Json = {}) => () => {
     close()
     void exec(c, { node: v.node, field: col.id, ...p }, panel)
   }
   return (
-    <div ref={ref} className="menu header-menu" style={{ left: Math.min(x, window.innerWidth - 230), top: Math.min(y, window.innerHeight - 360) }} role="menu">
+    <Popover anchor={pointBox(x, y)} gap={0} className="menu header-menu" onClose={close} role="menu">
       <SubMenu label="Change field type">
         {FIELD_TYPES.map(([t, l]) => (
           <Item key={t} checked={col.type === t} onPick={() => (close(), void exec('field.setType', { field: col.id, type: t }, panel))}>
@@ -660,26 +633,37 @@ function HeaderMenu({ v, panel, col, x, y, close }: { v: ViewSnap; panel: string
         </span>
         <span className="grow">Delete column and values</span>
       </div>
-    </div>
+    </Popover>
   )
 }
 
 /** A menu item with a submenu on hover; it opens to the left when there is no room on the right. */
 export function SubMenu({ label, children, icon = true }: { label: string; children: ReactNode; icon?: boolean }) {
-  const [open, setOpen] = useState<'right' | 'left' | null>(null)
+  const [open, setOpen] = useState(false)
+  const item = useRef<HTMLDivElement>(null)
   return (
-    <div
-      className="menu-item has-sub"
-      onMouseEnter={(e) => setOpen(e.currentTarget.getBoundingClientRect().right + 240 > window.innerWidth ? 'left' : 'right')}
-      onMouseLeave={() => setOpen(null)}
-    >
+    <div ref={item} className="menu-item has-sub" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       {icon && <span className="menu-icon" />}
       <span className="grow">{label}</span>
       <Icon name="chevronRight" size={12} />
-      {open && <div className={`menu submenu${open === 'left' ? ' to-left' : ''}`}>{children}</div>}
+      {open && (
+        <Popover anchor={subBox(item)} align="side" gap={subGap()} className="menu submenu">
+          {children}
+        </Popover>
+      )}
     </div>
   )
 }
+
+const cssPx = (name: string) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0
+/** A submenu's top lines up with its item's menu padding (the item sits inside it). */
+function subBox(item: React.RefObject<HTMLDivElement | null>) {
+  const r = item.current?.getBoundingClientRect()
+  const pad = cssPx('--q1-5')
+  return r ? { left: r.left - pad, top: r.top - pad, right: r.right + pad, bottom: r.bottom } : { left: 0, top: 0, right: 0, bottom: 0 }
+}
+/** Flush with the parent menu's edge, overlapping it by --submenu-overlap (spec 12: Menus). */
+export const subGap = () => -cssPx('--submenu-overlap')
 
 let measureCtx: CanvasRenderingContext2D | null = null
 /** The width the longest title needs, with its bullet, checkbox and chip (a guess from the font). */
@@ -701,7 +685,8 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
   // The title column fits its titles up to a limit (150 wide for short ones, spec 12: Table).
   // Each row is its own grid, so the width is worked out once from the longest title.
   const title = sizing?.col === 'title' ? `${sizing.width}px` : v.titleWidth ? `${v.titleWidth}px` : `clamp(var(--table-title-w), ${titleFit(v)}px, var(--table-title-max))`
-  const tmpl = `${title} ${v.columns.map((c) => w(c.id, c.width, '--table-col-w')).join(' ')} auto`
+  // The table is as wide as its columns; "+ Add" hangs after the last one, outside the rules (spec 12: Table).
+  const tmpl = `${title} ${v.columns.map((c) => w(c.id, c.width, '--table-col-w')).join(' ')}`
   const grip = (col: number | 'title') => (
     <span
       className="t-grip"
@@ -761,7 +746,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
             {grip(c.id)}
           </span>
         ))}
-        <span className="t-cell">
+        <span className="t-add">
           <MenuButton label="+ Add" title="Add a column">
             {(close) => (
               <>
@@ -836,7 +821,6 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
                   </span>
                 )
               })}
-              <span className="t-cell" />
             </div>
           ))}
         </div>
@@ -849,7 +833,6 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
               {c.calcValue ?? ''}
             </span>
           ))}
-          <span className="t-cell" />
         </div>
       )}
       {/* The table ends with an empty row: faint bullets in each column; a click adds an item
@@ -869,7 +852,6 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
             <span className="dot faint" />
           </span>
         ))}
-        <span className="t-cell" />
       </div>
       {menu && <HeaderMenu v={v} panel={panel} col={menu.col} x={menu.x} y={menu.y} close={() => setMenu(null)} />}
     </div>

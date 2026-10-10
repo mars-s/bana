@@ -287,7 +287,7 @@ test('the #, @ and / menus: Add supertag with workspaces, recently opened, slash
   await expect(menu.locator('.menu-item .grow')).toHaveText(['Paste', 'Search node', 'Field', 'Reference', 'Heading', 'Checkbox', 'Checklist', 'More commands'])
   await expect(menu.locator('.menu-item', { hasText: 'More commands' }).locator('kbd')).toHaveText('⌘K')
   await menu.locator('.menu-item', { hasText: 'Field' }).hover()
-  await menu.locator('.picker-sub .menu-item', { hasText: /^Number$/ }).click()
+  await app.locator('.picker-sub .menu-item', { hasText: /^Number$/ }).click()
   await expect(app.locator('.menu.picker.mode-field')).toBeVisible()
   await app.keyboard.type('Score')
   await app.keyboard.press('Tab')

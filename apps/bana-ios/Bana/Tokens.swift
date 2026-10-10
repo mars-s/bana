@@ -58,6 +58,7 @@ enum T {
     static let cHighlight = dyn(UIColor(red: 0.3804, green: 0.3529, blue: 0.0980, alpha: 1.0000), UIColor(red: 0.9725, green: 0.9059, blue: 0.6353, alpha: 1.0000))
     static let cHighlightText = dyn(UIColor(red: 0.9569, green: 0.9569, blue: 0.9569, alpha: 1.0000), UIColor(red: 0.0784, green: 0.0902, blue: 0.0980, alpha: 1.0000))
     static let cCheckbox = dyn(UIColor(red: 1.0000, green: 1.0000, blue: 1.0000, alpha: 0.1500), UIColor(red: 0.0000, green: 0.0000, blue: 0.0000, alpha: 0.1500))
+    static let cTitleSlot = dyn(UIColor(red: 0.2392, green: 0.2431, blue: 0.2510, alpha: 1.0000), UIColor(red: 0.8510, green: 0.8510, blue: 0.8510, alpha: 1.0000))
     static let cBullet = dyn(UIColor(red: 0.5098, green: 0.5098, blue: 0.5098, alpha: 1.0000), UIColor(red: 0.5098, green: 0.5098, blue: 0.5098, alpha: 1.0000))
     static let cBulletHalo = dyn(UIColor(red: 0.2627, green: 0.2667, blue: 0.2667, alpha: 1.0000), UIColor(red: 0.8902, green: 0.8902, blue: 0.8902, alpha: 1.0000))
     static let cChipNeutral = dyn(UIColor(red: 0.2078, green: 0.2118, blue: 0.2118, alpha: 1.0000), UIColor(red: 0.9569, green: 0.9569, blue: 0.9569, alpha: 1.0000))
@@ -167,7 +168,8 @@ enum T {
     static let tgHour: CGFloat = 45
     static let calEventH: CGFloat = 18.8
     static let titleCheck: CGFloat = 27.8
-    static let tHeadH: CGFloat = 29.9
+    static let tHeadH: CGFloat = 27.1
+    static let tAddH: CGFloat = 20.4
     static let calHeadH: CGFloat = 23.9
     static let bannerH: CGFloat = 237
     static let calHeadBtn: CGFloat = 23
@@ -249,6 +251,7 @@ enum T {
     static let crumbPadR: CGFloat = 2.4
     static let searchPopW: CGFloat = 360
     static let viewTitleGap: CGFloat = 6.65
+    static let viewTitleTop: CGFloat = 27.75
     static let fwText: CGFloat = 375
 
     /// Numbers the light theme sets differently (font weights).

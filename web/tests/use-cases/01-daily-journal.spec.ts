@@ -177,7 +177,7 @@ test('UC-01.12 Add to day (Remind me): a reference of the node on the chosen day
   const id = (await server.run('node.add', { name: 'Read the soil article', parent: day })).result.id
   await app.locator(`.row.node[data-id="${id}"] .bullet`).click({ button: 'right' })
   await app.locator('.node-menu .menu-item', { hasText: 'Add to day' }).hover()
-  await app.locator('.node-menu .menu-item', { hasText: /^Tomorrow$/ }).click()
+  await app.locator('.submenu .menu-item', { hasText: /^Tomorrow$/ }).click()
   await app.locator('.day-nav .btn[title="Next day"]').click()
   await expect(app.locator('.panel .title').first()).toContainText('Sun, 11 Oct')
   await expect(app.locator('.row.node', { hasText: 'Read the soil article' })).toBeVisible()

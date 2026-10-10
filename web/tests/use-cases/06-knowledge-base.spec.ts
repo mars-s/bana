@@ -518,7 +518,7 @@ test('UC-06.44 content width per page: medium or full from the panel button', wo
   const { page } = await pageWith(server, app, ['A long line that wants room'], 'Wide page')
   const before = (await app.locator('.page-main').first().boundingBox())!.width
   await app.locator('.crumb-tool[title="Content width"]').click()
-  await app.locator('.width-menu .menu-item', { hasText: 'Full width' }).click()
+  await app.locator('.width-list .menu-item', { hasText: 'Full width' }).click()
   await expect.poll(async () => (await app.locator('.page-main').first().boundingBox())!.width).toBeGreaterThan(before + 100)
   expect((await server.rpc('page', {})).width).toBe('full')
   // Another page keeps the medium column.

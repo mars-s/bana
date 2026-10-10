@@ -9,6 +9,7 @@ import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import { SyncButton } from './Sync'
 import { SubMenu } from './Views'
+import { Popover, type Box } from './Popover'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
 /** What the sidebar button does next, as its accessible name (N75): full, mini, hidden, full. */
@@ -127,12 +128,6 @@ function AccountMenu() {
   const ref = useRef<HTMLSpanElement>(null)
   const file = useRef<HTMLInputElement>(null)
   const theme = useStore((s) => s.theme)
-  useEffect(() => {
-    if (!open) return
-    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
-    window.addEventListener('mousedown', off)
-    return () => window.removeEventListener('mousedown', off)
-  }, [open])
   const item = (label: string, run: () => void) => (
     <div className="menu-item" role="menuitem" onMouseDown={(e) => (e.preventDefault(), setOpen(false), run())}>
       {label}
@@ -156,7 +151,7 @@ function AccountMenu() {
         }}
       />
       {open && (
-        <div className="menu pop account-menu" role="menu">
+        <Popover anchor={ref} align="end" className="menu pop account-menu" onClose={() => setOpen(false)} role="menu">
           {item('Workspaces', () => setState({ overlay: { kind: 'workspaces' } }))}
           {item('Settings', () => runUiCommand('ui.settings'))}
           {item('Import content…', () => file.current?.click())}
@@ -171,7 +166,7 @@ function AccountMenu() {
           {item(theme === 'dark' ? 'Light theme' : 'Dark theme', () => runUiCommand('ui.toggleTheme'))}
           {item('Keyboard shortcuts', () => runUiCommand('ui.shortcuts'))}
           {item('Help', () => runUiCommand('ui.help'))}
-        </div>
+        </Popover>
       )}
     </span>
   )
@@ -265,11 +260,11 @@ function WorkspaceRows({ ws, several, zoom, journal, showDaily }: { ws: SidebarD
 /** The mini rail: one column of icon buttons (spec 07 §1, 12: Mini rail). Pinned and Workspaces
  * open a flyout to the right with the same lists the full sidebar shows. */
 function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: (k: string) => boolean }) {
-  const [fly, setFly] = useState<{ what: 'pinned' | 'workspaces'; top: number } | null>(null)
+  const [fly, setFly] = useState<{ what: 'pinned' | 'workspaces'; at: Box } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!fly) return
-    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setFly(null)
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && !(e.target as Element).closest?.('.flyout') && setFly(null)
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && (e.stopPropagation(), setFly(null))
     window.addEventListener('mousedown', off)
     window.addEventListener('keydown', esc, true)
@@ -279,8 +274,11 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
     }
   }, [fly])
   const toggle = (what: 'pinned' | 'workspaces') => (e: React.MouseEvent) => {
-    const top = (e.currentTarget as HTMLElement).getBoundingClientRect().top
-    setFly((f) => (f?.what === what ? null : { what, top }))
+    // Beside the rail, its top at the row's top.
+    const row = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const rail = ref.current?.getBoundingClientRect()
+    const at = { left: rail?.left ?? 0, right: rail?.right ?? row.right, top: row.top, bottom: row.top }
+    setFly((f) => (f?.what === what ? null : { what, at }))
   }
   // Clicking an item inside the flyout opens it and closes the flyout.
   const closeAfter = () => setTimeout(() => setFly(null), 0)
@@ -294,7 +292,7 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
       <SideRow icon={<Icon name="pin" size={14} />} label="Pinned" active={fly?.what === 'pinned'} onClick={toggle('pinned')} />
       <SideRow icon={<Icon name="workspace" size={14} />} label="Workspaces" active={fly?.what === 'workspaces'} onClick={toggle('workspaces')} />
       {fly && (
-        <div className="flyout" style={{ top: fly.top }} role="menu" aria-label={fly.what === 'pinned' ? 'Pinned' : 'Workspaces'} onClick={(e) => (e.target as HTMLElement).closest('.side-row') && closeAfter()}>
+        <Popover anchor={fly.at} align="side" className="flyout" role="menu" aria-label={fly.what === 'pinned' ? 'Pinned' : 'Workspaces'} onClick={(e) => (e.target as HTMLElement).closest('.side-row') && closeAfter()}>
           {fly.what === 'pinned' ? (
             sb.pinned.length ? (
               sb.pinned.map((it) => (
@@ -315,7 +313,7 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
               </div>
             </>
           )}
-        </div>
+        </Popover>
       )}
     </div>
   )

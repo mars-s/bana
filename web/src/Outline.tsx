@@ -12,6 +12,7 @@ import { type EditorHandle, copyNodeLink, currentEditor, exec, focusLine, keyFro
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, SearchOptions, ViewBody, ViewTitle, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
+import { Popover } from './Popover'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
 import { ConfigureTag, FieldPage } from './Schema'
 import { type KeyInfo, isTextKey, keyInfo, shortcut } from './keys'
@@ -1183,7 +1184,7 @@ export function FieldEditorCell({ row, panel, index, initial, pickDate }: { row:
         // Clicking elsewhere ends typing; the value is already in the engine.
         setTimeout(() => {
           const fe = getState().fieldEdit
-          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current && !document.activeElement?.closest('.date-pick-anchor'))
+          if (fe && fe.owner === row.owner && fe.field === row.field && fe.index === index && !getState().picker && document.activeElement !== ref.current && !document.activeElement?.closest('.date-pick-anchor, .date-picker'))
             setState({ fieldEdit: null })
         }, 0)
       }}
@@ -1232,12 +1233,8 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
   const [t1, setT1] = useState('')
   const [t2, setT2] = useState('')
   const [ym, setYm] = useState<[number, number]>([0, 0])
-  // Opened from a table cell it floats over the table (whose rows clip what hangs out of them).
   const anchor = useRef<HTMLSpanElement>(null)
-  const [fixed, setFixed] = useState<CSSProperties | null>(null)
   const start = () => {
-    const r = anchor.current?.getBoundingClientRect()
-    if (openAtStart && r) setFixed({ position: 'fixed', top: r.bottom + 4, right: window.innerWidth - r.right, left: 'auto' })
     const d = parsed?.[1] ?? null
     setDay(d)
     setEnd(parsed?.[4] ?? null)
@@ -1278,7 +1275,7 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
         <Icon name="calendar" size={12} />
       </button>
       {open && (
-        <div className="menu pop date-picker" role="dialog" aria-label="Date picker" style={fixed ?? undefined} onMouseDown={(e) => e.preventDefault()}>
+        <Popover anchor={anchor} align="end" className="menu pop date-picker" role="dialog" aria-label="Date picker" onMouseDown={(e) => e.preventDefault()}>
           <button className="dp-close" title="Close" onClick={() => setOpen(false)}>
             <Icon name="close" size={9} />
           </button>
@@ -1325,7 +1322,7 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
               OK
             </button>
           </div>
-        </div>
+        </Popover>
       )}
     </span>
   )
@@ -1599,12 +1596,6 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
 function WidthMenu({ page, panel }: { page: Page; panel: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
-    window.addEventListener('mousedown', off)
-    return () => window.removeEventListener('mousedown', off)
-  }, [open])
   const pick = (width: 'medium' | 'full') => (e: RME) => {
     e.preventDefault()
     setOpen(false)
@@ -1616,14 +1607,14 @@ function WidthMenu({ page, panel }: { page: Page; panel: string }) {
         <Icon name="width" size={12} />
       </button>
       {open && (
-        <div className="menu pop" role="menu">
+        <Popover anchor={ref} align="end" className="menu pop width-list" onClose={() => setOpen(false)} role="menu">
           {(['medium', 'full'] as const).map((w) => (
             <div key={w} className={`menu-item${(page.width ?? 'medium') === w ? ' checked' : ''}`} onMouseDown={pick(w)}>
               <span className="menu-icon">{(page.width ?? 'medium') === w && <Icon name="check" size={12} />}</span>
               <span className="grow">{w === 'medium' ? 'Medium' : 'Full width'}</span>
             </div>
           ))}
-        </div>
+        </Popover>
       )}
     </span>
   )
@@ -1639,14 +1630,16 @@ function Banner({ banner }: { banner: string }) {
 function Decorate({ page, panel }: { page: Page; panel: string }) {
   const [menu, setMenu] = useState<'icon' | 'banner' | null>(null)
   const [emoji, setEmoji] = useState('')
+  const iconAt = useRef<HTMLSpanElement>(null)
+  const bannerAt = useRef<HTMLSpanElement>(null)
   return (
     <div className={`decorate${menu ? ' open' : ''}`}>
-      <span className="menu-anchor">
+      <span className="menu-anchor" ref={iconAt}>
         <button className="ghost-btn" onClick={() => setMenu(menu === 'icon' ? null : 'icon')}>
           <Icon name="face" size={12} /> Icon
         </button>
         {menu === 'icon' && (
-          <div className="menu pop">
+          <Popover anchor={iconAt} onClose={() => setMenu(null)}>
             <input
               className="filter-input small"
               autoFocus
@@ -1667,21 +1660,21 @@ function Decorate({ page, panel }: { page: Page; panel: string }) {
                 Remove icon
               </div>
             )}
-          </div>
+          </Popover>
         )}
       </span>
-      <span className="menu-anchor">
+      <span className="menu-anchor" ref={bannerAt}>
         <button className="ghost-btn" onClick={() => setMenu(menu === 'banner' ? null : 'banner')}>
           <Icon name="image" size={12} /> Banner
         </button>
         {menu === 'banner' && (
-          <div className="menu pop">
+          <Popover anchor={bannerAt} onClose={() => setMenu(null)}>
             {[['picture:orbit', 'Orbit (picture)'], ['blue', 'Blue'], ['green', 'Green'], ['amber', 'Amber'], ['pink', 'Pink'], ['grey', 'Grey'], ['', 'No banner']].map(([v, l]) => (
               <div key={l} className="menu-item" onMouseDown={(e) => (e.preventDefault(), void exec('node.setBanner', { node: page.zoom, color: v }, panel), setMenu(null))}>
                 {l}
               </div>
             ))}
-          </div>
+          </Popover>
         )}
       </span>
     </div>
@@ -1806,12 +1799,6 @@ function WorkspacesButton({ panel }: { panel: string }) {
   const [open, setOpen] = useState(false)
   const ws = useStore((s) => s.sidebar?.workspaces) ?? []
   const ref = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
-    window.addEventListener('mousedown', off)
-    return () => window.removeEventListener('mousedown', off)
-  }, [open])
   const pick = (f: () => void) => (e: RME) => (e.preventDefault(), setOpen(false), f())
   return (
     <span className="menu-anchor ws-menu" ref={ref}>
@@ -1820,7 +1807,7 @@ function WorkspacesButton({ panel }: { panel: string }) {
         <Icon name="chevronDown" size={12} />
       </button>
       {open && (
-        <div className="menu pop" role="menu">
+        <Popover anchor={ref} align="end" className="menu pop ws-list" onClose={() => setOpen(false)} role="menu">
           {ws.map((w) => (
             <div key={w.id} className="menu-item" onMouseDown={pick(() => void exec('nav.open', { node: w.library }, panel))}>
               <span className="menu-icon">
@@ -1834,7 +1821,7 @@ function WorkspacesButton({ panel }: { panel: string }) {
             <span className="menu-icon" />
             <span className="grow">Manage workspaces</span>
           </div>
-        </div>
+        </Popover>
       )}
     </span>
   )
@@ -2052,7 +2039,8 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                     #
                   </span>
                 )}
-                {page.kind === 'tag' && <span className="title-slot" aria-hidden />}
+                {/* The checkbox-like slot shows only when the tag gives its nodes a checkbox. */}
+                {page.kind === 'tag' && page.tagCheckbox && <span className="title-slot" aria-hidden />}
                 {/* A page with a checkbox shows it before the title (N59.22). */}
                 {page.done != null && page.kind !== 'tag' && (
                   <span

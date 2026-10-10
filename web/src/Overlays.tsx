@@ -1,13 +1,14 @@
 // Overlays: the command line (Mod+K), Search and open (Mod+S), quick add (Mod+E) and the
 // keyboard shortcut sheet.
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { copyNodeLink, copySelection, exec, returnKeyboard, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
-import { SubMenu } from './Views'
+import { SubMenu, subGap } from './Views'
+import { Popover, pointBox } from './Popover'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { getState, newTab, openConfigure, openInNewPanel, refresh, setState, showToast, useStore } from './store'
 
@@ -456,29 +457,20 @@ function SlashIcon({ icon }: { icon: string }) {
   return icon.length <= 1 ? <span className="menu-glyph">{icon}</span> : <Icon name={icon as IconName} size={12} />
 }
 
+/** The line a picker opens from: under it, or above it near the window's bottom (22 + 4 = 26). */
+const LINE_H = 22
+
 function Picker() {
   const p = useStore((s) => s.picker)
-  const ref = useRef<HTMLDivElement>(null)
-  const [above, setAbove] = useState(false)
   const [fieldSub, setFieldSub] = useState(false)
-  // Near the bottom of the window the menu opens above the line (spec 02 §11).
-  useLayoutEffect(() => {
-    const r = ref.current?.getBoundingClientRect()
-    if (!r || !p) return setAbove(false)
-    if (!above && r.bottom > window.innerHeight - 8 && p.y - r.height > 8) setAbove(true)
-  })
-  useEffect(() => {
-    setAbove(false)
-    setFieldSub(false)
-  }, [p?.mode, p?.node])
+  const fieldItem = useRef<HTMLDivElement>(null)
+  useEffect(() => setFieldSub(false), [p?.mode, p?.node])
   if (!p) return null
-  const width = p.mode === 'tag' ? 500 : p.mode === 'slash' ? 210 : 260
-  const left = Math.min(p.x, window.innerWidth - width - 8)
   const nodes = p.mode === 'reference' || p.mode === 'inlineRef'
   const head = p.mode === 'tag' ? 'Add supertag' : nodes && !p.query ? 'Recently opened' : null
-  const top = above ? p.y - (ref.current?.getBoundingClientRect().height ?? 0) - 26 : p.y + 4
+  // Under the line at (x, y); near the bottom of the window it opens above the line (spec 02 §11).
   return (
-    <div ref={ref} className={`menu picker mode-${p.mode}`} style={{ left, top }} role="listbox" aria-label={PICK_TITLES[p.mode]}>
+    <Popover anchor={{ left: p.x, right: p.x, top: p.y - LINE_H, bottom: p.y }} gap={4} className={`menu picker mode-${p.mode}`} role="listbox" aria-label={PICK_TITLES[p.mode]}>
       {head ? <div className="menu-caps">{head}</div> : p.mode !== 'slash' && <div className="menu-label">{PICK_TITLES[p.mode]}</div>}
       {p.at < 0 && p.mode !== 'choice' && (
         // Opened from a menu or button: the query is typed here.
@@ -505,6 +497,7 @@ function Picker() {
         return (
           <div
             key={i}
+            ref={slash && label === 'Field' ? fieldItem : undefined}
             role="option"
             aria-selected={i === p.sel}
             className={`menu-item${i === p.sel ? ' sel' : ''}${it.description || it.path ? ' two-line' : ''}`}
@@ -541,7 +534,7 @@ function Picker() {
             {slash?.key && <kbd>{slash.key}</kbd>}
             {slash && label === 'Field' && <Icon name="chevronRight" size={10} />}
             {slash && label === 'Field' && fieldSub && (
-              <div className="menu submenu picker-sub">
+              <Popover anchor={fieldItem} align="side" gap={subGap()} className="menu submenu picker-sub">
                 {FIELD_TYPES.map(([type, name]) => (
                   <div
                     key={type}
@@ -555,12 +548,12 @@ function Picker() {
                     {name}
                   </div>
                 ))}
-              </div>
+              </Popover>
             )}
           </div>
         )
       })}
-    </div>
+    </Popover>
   )
 }
 
@@ -578,41 +571,13 @@ function NodeMenu() {
   const page = useStore((s) => (s.nodeMenu ? s.pages[s.nodeMenu.panel] : undefined))
   const pinned = useStore((s) => s.sidebar?.pinned)
   const pinnedIds = (pinned ?? []).map((p) => p.id)
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null)
-  useEffect(() => {
-    if (!m) return
-    const off = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest?.('.node-menu')) setState({ nodeMenu: null })
-    }
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setState({ nodeMenu: null })
-    window.addEventListener('mousedown', off)
-    window.addEventListener('keydown', esc, true)
-    return () => {
-      window.removeEventListener('mousedown', off)
-      window.removeEventListener('keydown', esc, true)
-    }
-  }, [m])
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!m || !el) return setPos(null)
-    const margin = 8
-    const w = el.offsetWidth
-    const h = el.scrollHeight
-    let left = m.alignRight ? m.x - w : m.x
-    left = Math.max(margin, Math.min(left, window.innerWidth - w - margin))
-    let top = m.y
-    // No room below: it moves up to fit, and scrolls only if the window is shorter than it.
-    if (top + h > window.innerHeight - margin) top = Math.max(margin, window.innerHeight - h - margin)
-    const maxHeight = h > window.innerHeight - 2 * margin ? window.innerHeight - 2 * margin : undefined
-    setPos({ left, top, maxHeight })
-  }, [m])
   if (!m) return null
   const { panel, node } = m
   const target = row?.target ?? (page?.zoom === node ? page.target : node)
   const kind = row?.kind ?? page?.kind
   const isRef = row?.ref ?? false
   const close = () => setState({ nodeMenu: null })
+  const at = pointBox(m.x, m.y)
   const run = (cmd: string, p: Record<string, unknown> = {}) => () => {
     close()
     void exec(cmd, { node, ...p }, panel)
@@ -647,7 +612,7 @@ function NodeMenu() {
   const copyNode = () => (close(), void copySelection(panel, { node: target }))
   if (fromPage && kind === 'tag')
     return (
-      <div ref={ref} className="menu node-menu" style={pos ? { left: pos.left, top: pos.top } : { left: m.x, top: m.y, visibility: 'hidden' }} role="menu">
+      <Popover anchor={at} align={m.alignRight ? 'end' : 'start'} gap={0} className="menu node-menu" onClose={close} role="menu">
         <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />
         <It label={pinnedIds.includes(target) ? 'Unpin tag' : 'Pin tag'} icon="pin" on={run('node.togglePin')} />
         <div className="menu-sep" />
@@ -662,15 +627,10 @@ function NodeMenu() {
         <div className="menu-sep" />
         <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
         <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
-      </div>
+      </Popover>
     )
   return (
-    <div
-      ref={ref}
-      className="menu node-menu"
-      style={pos ? { left: pos.left, top: pos.top, maxHeight: pos.maxHeight, overflowY: pos.maxHeight ? 'auto' : 'visible' } : { left: m.x, top: m.y, visibility: 'hidden' }}
-      role="menu"
-    >
+    <Popover anchor={at} align={m.alignRight ? 'end' : 'start'} gap={0} className="menu node-menu" onClose={close} role="menu">
       <SubMenu label="View as">
         {['outline', 'table', 'cards', 'list', 'side_menu', 'tabs', 'calendar'].map((k) => (
           <It key={k} label={k[0].toUpperCase() + k.slice(1).replace('_', ' ')} on={run('view.set', { kind: k })} />
@@ -750,7 +710,7 @@ function NodeMenu() {
         <It label="Delete" icon="trash" on={run('node.delete')} sc="Mod+Shift+Backspace" danger />
       )}
       <It label="More commands" icon="search" on={() => (close(), runUiCommand('ui.commandLine'))} sc="Mod+K" />
-    </div>
+    </Popover>
   )
 }
 
@@ -759,13 +719,7 @@ function RefMenu() {
   const m = useStore((s) => s.refMenu)
   const [alias, setAlias] = useState('')
   useEffect(() => {
-    if (!m) return
-    setAlias(m.alias)
-    const off = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest?.('.ref-menu')) setState({ refMenu: null })
-    }
-    window.addEventListener('mousedown', off)
-    return () => window.removeEventListener('mousedown', off)
+    if (m) setAlias(m.alias)
   }, [m])
   if (!m) return null
   const shut = () => setState({ refMenu: null })
@@ -775,7 +729,7 @@ function RefMenu() {
     if (alias !== m.alias) void exec('node.refAlias', { ...params, alias }, m.panel)
   }
   return (
-    <div className="menu node-menu ref-menu" style={{ left: Math.min(m.x, window.innerWidth - 260), top: Math.min(m.y, window.innerHeight - 160) }} role="menu">
+    <Popover anchor={pointBox(m.x, m.y)} gap={0} className="menu node-menu ref-menu" onClose={shut} role="menu">
       <div className="menu-item" onMouseDown={(e) => (e.preventDefault(), shut(), void exec('nav.open', { node: m.ref }, m.panel))}>
         <span className="menu-icon">
           <Icon name="forward" size={12} />
@@ -804,7 +758,7 @@ function RefMenu() {
         </span>
         <span className="grow">Turn into text</span>
       </div>
-    </div>
+    </Popover>
   )
 }
 

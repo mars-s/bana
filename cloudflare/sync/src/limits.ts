@@ -22,6 +22,26 @@ export const LIMITS = {
   pageBytes: 4 * 1024 * 1024,
 }
 
+/** Bana ID (src/id.ts): token buckets per IP address, and what one relay holds. */
+export const ID_LIMITS = {
+  /** Sign-in steps (options, finish, exchange): a burst, then this many a minute. */
+  auth: { burst: 30, perMinute: 20 },
+  /** New Bana IDs from one address. */
+  create: { burst: 5, perMinute: 0.2 },
+  /** Recovery code tries from one address. */
+  recover: { burst: 5, perMinute: 0.1 },
+  /** Calls with a session (the profile page): per account. */
+  session: { burst: 60, perMinute: 60 },
+  /** Bana IDs on one relay (it is yours: a few people, not a public service). */
+  accounts: 100,
+  credentials: 10,
+  sessions: 20,
+  challengeMs: 5 * 60 * 1000,
+  codeMs: 2 * 60 * 1000,
+  ticketMs: 10 * 60 * 1000,
+  body: 64 * 1024,
+}
+
 export const CLOSE_AUTH = 4001
 export const CLOSE_REVOKED = 4003
 export const CLOSE_LIMIT = 4008

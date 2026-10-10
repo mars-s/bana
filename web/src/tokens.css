@@ -55,6 +55,11 @@
   --link-card-w: 360px;
   --settings-nav-w: 195px;
   --q-close: 15px;
+  --drag-dim: 0.5;
+  --drag-hint-top: 60px;
+  --drag-hint-w: 600px;
+  --drag-hint-h: 40px;
+  --blur-glass: 12px;
   --settings-nav-gap: 2.25px;
   --fs-settings-title: 23px;
   --lh-settings-title: 26.45px;
@@ -124,7 +129,9 @@
   --c-hover: #353636;
   --c-pressed: #434444;
   --c-popover: #232526;
+  --c-popover-glass: rgba(35, 37, 38, 0.8);
   --c-tooltip: #2e2f30;
+  --c-tooltip-text: #eaeaea;
   --c-divider: #2e2f30;
   --c-outline: #3b3c3d;
   --c-guide: #2e2f30;
@@ -229,7 +236,9 @@
   --c-hover: #e3e3e3;
   --c-pressed: #f8f8f8;
   --c-popover: #fefefe;
+  --c-popover-glass: rgba(254, 254, 254, 0.8);
   --c-tooltip: #3b3c3d;
+  --c-tooltip-text: #f4f4f4;
   --c-divider: #efefef;
   --c-outline: #dcdddd;
   --c-guide: #f4f4f4;

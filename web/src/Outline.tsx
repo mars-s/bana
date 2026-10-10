@@ -361,11 +361,22 @@ function Bullet({ row, onClick, panel }: { row: NodeRow; onClick: () => void; pa
         const ids = page?.sel.includes(row.id) ? page.sel : [row.id]
         e.dataTransfer.setData('text/x-nodes', JSON.stringify(ids))
         e.dataTransfer.effectAllowed = 'move'
+        // Several nodes: a small "N nodes" badge follows the pointer.
+        if (ids.length > 1) {
+          const badge = document.createElement('div')
+          badge.className = 'drag-badge'
+          badge.textContent = `${ids.length} nodes`
+          document.body.appendChild(badge)
+          e.dataTransfer.setDragImage(badge, 0, 0)
+          setTimeout(() => badge.remove(), 0)
+        }
         dragging = ids
+        dropSubs.forEach((f) => f())
       }}
       onDragEnd={() => {
         dragging = []
         setDrop(null)
+        dropSubs.forEach((f) => f())
       }}
       onContextMenu={(e) => {
         if (!panel) return
@@ -462,16 +473,20 @@ function DescEditor({ row, panel }: { row: NodeRow; panel: string }) {
 // ---- drag and drop (spec 02 §9; 11 §10) -----------------------------------------------------------
 
 let dragging: number[] = []
-let dropState: { id: number; nest: boolean } | null = null
+/** Where a drop lands: above or below a row at its depth, or as the first child of an expanded
+ * row (spec 02 §6: the sideways offset never changes the depth; N44). */
+type Drop = { id: number; where: 'above' | 'below' | 'child' }
+let dropState: Drop | null = null
 const dropSubs = new Set<() => void>()
 
-function setDrop(d: { id: number; nest: boolean } | null) {
-  if (d?.id === dropState?.id && d?.nest === dropState?.nest) return
+function setDrop(d: Drop | null) {
+  if (d?.id === dropState?.id && d?.where === dropState?.where) return
   dropState = d
   dropSubs.forEach((f) => f())
 }
 
-function useDrop(id: number): { nest: boolean } | null {
+/** Re-renders on drag changes; returns this row's drop (if any) and whether it is being dragged. */
+function useDrop(id: number): { drop: Drop | null; dragged: boolean } {
   const [, force] = useState(0)
   useEffect(() => {
     const f = () => force((x) => x + 1)
@@ -480,19 +495,19 @@ function useDrop(id: number): { nest: boolean } | null {
       dropSubs.delete(f)
     }
   }, [])
-  return dropState?.id === id ? dropState : null
+  return { drop: dropState?.id === id ? dropState : null, dragged: dragging.includes(id) }
 }
 
-/** Drop on a row: after it, or (right of its bullet by an indent) as its first child. */
 function dropHandlers(row: NodeRow, panel: string) {
   return {
     onDragOver(e: React.DragEvent) {
       if (!dragging.length || dragging.includes(row.id)) return
       e.preventDefault()
-      const box = (e.currentTarget as HTMLElement).querySelector('.bullet')?.getBoundingClientRect()
-      // Just right of the bullet, by about an indent: nest. Further right (over the text): after.
-      const nest = !!box && e.clientX > box.left + 32 && e.clientX < box.left + 32 * 3
-      setDrop({ id: row.id, nest })
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const lower = e.clientY > r.top + r.height / 2
+      // Below an expanded row with children is its first child; a collapsed row takes nothing in.
+      const where = !lower ? 'above' : row.expanded && row.hasKids ? 'child' : 'below'
+      setDrop({ id: row.id, where })
     },
     onDragLeave() {
       setDrop(null)
@@ -503,13 +518,26 @@ function dropHandlers(row: NodeRow, panel: string) {
       setDrop(null)
       const nodes = dragging
       dragging = []
+      dropSubs.forEach((f) => f())
       if (!d || !nodes.length || nodes.includes(row.id)) return
-      const parent = d.nest ? row.id : row.parent
-      const index = d.nest ? 0 : (row.index ?? 0) + 1
+      const parent = d.where === 'child' ? row.id : row.parent
+      const index = d.where === 'child' ? 0 : d.where === 'above' ? (row.index ?? 0) : (row.index ?? 0) + 1
       if (parent == null) return
-      void exec('node.moveMany', { nodes, parent, index }, panel)
+      void withBarrier(async () => {
+        await exec('node.moveMany', { nodes, parent, index }, panel)
+        // Several nodes moved together stay selected (spec 02 §6).
+        if (nodes.length > 1) await exec('select.set', { from: nodes[0], to: nodes[nodes.length - 1] }, panel)
+      })
     },
   }
+}
+
+/** While dragging: a hint at the top of the panel (spec 02 §6, N45). */
+export function DragHint() {
+  const { dragged } = useDrop(-1)
+  void dragged
+  if (!dragging.length) return null
+  return <div className="drag-hint">{dragging.length > 1 ? `Moving ${dragging.length} nodes: drop on a line` : 'Drop above or below a line, or under an open one to nest it'}</div>
 }
 
 export function ago(secs: number) {
@@ -521,20 +549,20 @@ export function ago(secs: number) {
 }
 
 function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel: string; page: Page; selected: boolean; editing: boolean }) {
-  const drop = useDrop(row.id)
+  const { drop, dragged } = useDrop(row.id)
   const descEdit = useStore((s) => s.descEdit)
   const describing = descEdit?.panel === panel && descEdit.node === row.id
   const blank = !editing && !row.ref && !row.hasKids && !row.name && !row.tags.length && row.kind === 'plain'
   return (
     <div
-      className={`row node${selected ? ' selected' : ''}${editing ? ' editing' : ''}${row.done ? ' done' : ''}${row.heading ? ' heading' : ''}`}
+      className={`row node${selected ? ' selected' : ''}${editing ? ' editing' : ''}${row.done ? ' done' : ''}${row.heading ? ' heading' : ''}${dragged ? ' dragged' : ''}`}
       style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }}
       data-id={row.id}
       data-depth={row.depth}
       {...dropHandlers(row, panel)}
     >
       <Guides depth={row.depth} />
-      {drop && <span className={`drop-line${drop.nest ? ' nest' : ''}`} style={{ '--d': row.depth } as CSSProperties} />}
+      {drop && <span className={`drop-line ${drop.where}`} style={{ '--d': row.depth + (drop.where === 'child' ? 1 : 0) } as CSSProperties} />}
       {selected && page.sel[0] === row.id && <SelectionToolbar row={row} panel={panel} />}
       <div className="row-inner">
         {row.notesHead && <div className="notes-head">{row.notesHead}</div>}

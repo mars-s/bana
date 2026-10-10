@@ -2144,8 +2144,45 @@ kbd {
   z-index: 5;
 }
 
-.drop-line.nest {
-  margin-left: var(--indent);
+.drop-line.above {
+  top: -2px;
+  bottom: auto;
+}
+
+/* The rows being dragged dim (spec 02 §6). */
+.row.dragged {
+  opacity: var(--drag-dim);
+}
+
+.drag-hint {
+  position: fixed;
+  top: var(--drag-hint-top);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: var(--drag-hint-w);
+  max-width: calc(100vw - 2 * var(--q4));
+  height: var(--drag-hint-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-xl);
+  background: var(--c-popover-glass);
+  backdrop-filter: blur(var(--blur-glass));
+  color: var(--c-secondary);
+  font-size: var(--fs-label);
+  pointer-events: none;
+}
+
+.drag-badge {
+  position: fixed;
+  top: -100px;
+  left: 0;
+  padding: var(--q1) var(--q2);
+  border-radius: var(--r-sm);
+  background: var(--c-tooltip);
+  color: var(--c-tooltip-text);
+  font-size: var(--fs-label);
 }
 
 /* ---- Supertags overview, tag pages (03 §1, §2; 12) ---- */

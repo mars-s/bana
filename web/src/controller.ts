@@ -214,6 +214,8 @@ export function restoreKeptKeys() {
   } catch {
     /* nothing kept */
   }
+  // (Tests read what came back after a reload.)
+  ;(window as unknown as { __tcKept?: unknown }).__tcKept = kept
   if (!kept.keys?.length) return drainSoon()
   barrier++
   requestAnimationFrame(() => {

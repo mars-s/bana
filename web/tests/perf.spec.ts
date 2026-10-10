@@ -18,12 +18,24 @@ test('50k rows: scroll, click a line far down and type', async ({ app, server })
   await expect(app.locator('.row.node .text').first()).toBeVisible()
   await expect.poll(async () => (await app.locator('.vrow .row.placeholder').count()) === 0).toBe(true)
   const scrollMs = Date.now() - t0
-  const row = app.locator('.row.node').nth(10)
-  const id = Number(await row.getAttribute('data-id'))
+  // The list may still settle after the jump (rows measured as they draw): take a row that is
+  // well inside the visible part of the panel right now.
+  let id = 0
+  let box: { x: number; y: number; width: number; height: number } | null = null
+  for (let i = 0; i < 20 && !box; i++) {
+    const hit = await app.evaluate(() => {
+      const sc = document.querySelector('.scroller')!.getBoundingClientRect()
+      for (const t of document.querySelectorAll<HTMLElement>('.row.node .text')) {
+        const r = t.getBoundingClientRect()
+        if (r.top > sc.top + 120 && r.bottom < sc.bottom - 40 && r.width > 4) return { id: Number(t.closest<HTMLElement>('.row.node')!.dataset.id), box: { x: r.x, y: r.y, width: r.width, height: r.height } }
+      }
+      return null
+    })
+    if (hit) ({ id, box } = hit)
+    else await app.waitForTimeout(100)
+  }
+  if (!box) throw new Error('no row on screen after the jump')
   const before = await nameOf(server, id)
-  const text = app.locator(`.row.node[data-id="${id}"] .text`)
-  await text.scrollIntoViewIfNeeded()
-  const box = (await text.boundingBox())!
   await app.mouse.click(box.x + box.width - 1, box.y + box.height / 2)
   await expect(app.locator('.editor-input')).toBeFocused()
   const t1 = Date.now()

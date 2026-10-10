@@ -41,17 +41,25 @@ test('dragging a bullet onto another line moves it below that line', async ({ ap
   const { page, ids } = await pageWith(server, app, ['one', 'two', 'three'])
   const src = app.locator(`.row.node[data-id="${ids[0]}"] .bullet`)
   const dst = app.locator(`.row.node[data-id="${ids[2]}"]`)
-  // Over the far side of the line: after it (just right of its bullet would nest it).
-  await src.dragTo(dst, { targetPosition: { x: 300, y: 12 } })
+  // The lower half of the line: below it.
+  await src.dragTo(dst, { targetPosition: { x: 300, y: 22 } })
   await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['two', 'three', 'one'])
 })
 
-test('dropping just right of a bullet nests the dragged line under it', async ({ app, server }) => {
-  const { ids } = await pageWith(server, app, ['one', 'two'])
-  const src = app.locator(`.row.node[data-id="${ids[1]}"] .bullet`)
-  const dst = app.locator(`.row.node[data-id="${ids[0]}"]`)
-  await src.dragTo(dst, { targetPosition: { x: 50, y: 12 } })
-  await expect.poll(async () => ((await tree(server, ids[0])).children ?? []).map((c: any) => c.name)).toEqual(['two'])
+test('the sideways offset never nests; a drop under an open row makes a first child (N44)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['one', 'two', 'three'])
+  // Lower half of a collapsed leaf, just right of its bullet: a sibling below it, never a child.
+  await app.locator(`.row.node[data-id="${ids[2]}"] .bullet`).dragTo(app.locator(`.row.node[data-id="${ids[0]}"]`), { targetPosition: { x: 50, y: 22 } })
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['one', 'three', 'two'])
+  // Upper half: above.
+  await app.locator(`.row.node[data-id="${ids[1]}"] .bullet`).dragTo(app.locator(`.row.node[data-id="${ids[0]}"]`), { targetPosition: { x: 300, y: 4 } })
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['two', 'one', 'three'])
+  // Lower half of an expanded row with children: its first child.
+  await server.run('node.add', { parent: ids[0], name: 'kid' })
+  await server.run('node.expand', { node: ids[0] })
+  await expect(app.locator('.row.node', { hasText: 'kid' })).toBeVisible()
+  await app.locator(`.row.node[data-id="${ids[2]}"] .bullet`).dragTo(app.locator(`.row.node[data-id="${ids[0]}"]`), { targetPosition: { x: 300, y: 22 } })
+  await expect.poll(async () => ((await tree(server, ids[0])).children ?? []).map((c: any) => c.name)).toEqual(['three', 'kid'])
 })
 
 test('pasting several lines makes nodes; copied lines paste back as references', async ({ app, server, context }) => {
@@ -133,4 +141,16 @@ test('the bullet menu fits the window; the page Options menu opens under its but
   const mb = (await menu.boundingBox())!
   expect(Math.abs(mb.x + mb.width - (b.x + b.width))).toBeLessThan(2)
   expect(Math.round(mb.y - (b.y + b.height))).toBe(7)
+})
+
+test('dragging a selection moves both lines in order and they stay selected (N45)', async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['one', 'two', 'three'])
+  await focus(server, app, ids[0], 0)
+  // The first Shift+Down selects the line, the second takes in the next.
+  await app.keyboard.press('Shift+ArrowDown')
+  await app.keyboard.press('Shift+ArrowDown')
+  await expect(app.locator('.row.node.selected')).toHaveCount(2)
+  await app.locator(`.row.node[data-id="${ids[0]}"] .bullet`).dragTo(app.locator(`.row.node[data-id="${ids[2]}"]`), { targetPosition: { x: 300, y: 22 } })
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['three', 'one', 'two'])
+  await expect(app.locator('.row.node.selected')).toHaveCount(2)
 })

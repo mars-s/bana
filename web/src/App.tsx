@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Icon, TodayIcon, type IconName } from './icons'
-import { Panel, tagStyle } from './Outline'
+import { DragHint, Panel, tagStyle } from './Outline'
 import { closeTab, getState, moveTab, newTab, setState, switchTab, useStore } from './store'
 import { bufferKey, currentEditor, exec, handleKey, holdKeysForEditor, inBarrier, runUiCommand } from './controller'
 import { isTextKey, keyInfo } from './keys'
@@ -346,6 +346,7 @@ export function App() {
         </main>
       </div>
       <Overlays />
+      <DragHint />
       <Toast />
     </div>
   )

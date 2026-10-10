@@ -130,7 +130,7 @@ pub fn registry() -> Registry {
         .params(r#"{"node"?: id, "color": string}  (a colour name, #rrggbb or picture:orbit; empty removes it)"#),
         // Files on nodes (UC-05.08): kept in a folder beside the graph, one node per file.
         C::new("file.attach", "Attach a file", "File", file_attach)
-            .params(r#"{"name": string, "data": base64, "after"?: id, "parent"?: id}  (a new node for the file after a line or under a parent; up to 20 MB)"#),
+            .params(r#"{"name": string, "data": base64, "after"?: id, "parent"?: id, "into"?: id}  (a new node for the file after a line or under a parent, or an empty line turned into the file; up to 20 MB)"#),
         C::new("file.read", "Read an attached file", "File", |s, v| {
             let id = s.graph.resolve(s.target(v)?);
             let stored = s.graph.get(id).and_then(|n| n.file.clone()).ok_or_else(|| CmdError::Params("this node holds no file".into()))?;
@@ -286,7 +286,15 @@ pub fn registry() -> Registry {
         C::new("node.unlinkedMentions", "Unlinked mentions", "Node", |s, v| {
             let id = s.target(v)?;
             Ok(Value::Array(
-                s.graph.unlinked_mentions(id, 50).into_iter().map(|m| json!({"id": m.0, "name": s.graph.text(m), "parent": s.graph.parent(m).map(|p| p.0)})).collect(),
+                s.graph
+                    .unlinked_mentions(id, 50)
+                    .into_iter()
+                    .map(|m| {
+                        // Where it lives, shown above it (DIFFS N86).
+                        let path: Vec<String> = s.graph.ancestors(m).into_iter().filter(|a| *a != s.graph.sys.root).map(|a| s.graph.text(a)).collect();
+                        json!({"id": m.0, "name": s.graph.text(m), "parent": s.graph.parent(m).map(|p| p.0), "path": path.join(" / ")})
+                    })
+                    .collect(),
             ))
         })
         .params(r#"{"node"?: id}"#)
@@ -296,7 +304,7 @@ pub fn registry() -> Registry {
             let target = p::node(v, "target")?.ok_or_else(|| CmdError::Params("`target` is required".into()))?;
             s.graph.node(target)?;
             s.graph.link_mention(line, target)?;
-            Ok(json!({"node": line.0, "name": s.graph.name(line)}))
+            Ok(json!({"node": line.0, "name": s.graph.name(line), "message": "Linked the mention"}))
         })
         .params(r#"{"node": id, "target": id}  (the first plain mention of the target's name becomes a link)"#),
         // Remind me (UC-01.12): a reference to the node on that day's page.
@@ -306,7 +314,12 @@ pub fn registry() -> Registry {
             let (d, _) = Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`{t}` is not a date")))?;
             let day = s.graph.day(d)?;
             let r = s.graph.create_reference(day, None, s.graph.resolve(id))?;
-            Ok(json!({"reference": r.0, "day": day.0, "date": d.to_string()}))
+            let label = match d {
+                d if d == s.today => "Today".to_string(),
+                d if d == s.today.add_days(1) => "Tomorrow".to_string(),
+                d => d.day_title(),
+            };
+            Ok(json!({"reference": r.0, "day": day.0, "date": d.to_string(), "message": format!("Added a reference to {label}")}))
         })
         .params(r#"{"node"?: id, "date"?: "tomorrow | next tuesday | 2026-10-20 ..."}  (default tomorrow)"#),
         C::new("node.reference", "Add reference", "Node", reference)
@@ -1172,7 +1185,20 @@ fn file_attach(s: &mut Session, v: &Value) -> CmdResult {
     // Written whole before the node points at it (a crash leaves at most an unused file).
     let tmp = dir.join(format!(".{stored}.part"));
     std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, dir.join(&stored))).map_err(|e| CmdError::Failed(format!("{stored}: {e}")))?;
-    let id = s.graph.create(parent, index, &name)?;
+    // An empty line takes the file itself (DIFFS N87); a picture there has no name, as in Tana.
+    let into = p::node(v, "into")?
+        .filter(|n| s.graph.name(*n).is_empty() && s.graph.children(*n).is_empty() && s.graph.get(*n).is_some_and(|x| x.file.is_none()));
+    let id = match into {
+        Some(n) => {
+            if mime_of(&stored).starts_with("image/") {
+                s.graph.set_name(n, "")?;
+            } else {
+                s.graph.set_name(n, &name)?;
+            }
+            n
+        }
+        None => s.graph.create(parent, index, &name)?,
+    };
     s.graph.set_file(id, Some(stored.clone()))?;
     Ok(json!({"id": id.0, "file": stored, "size": bytes.len()}))
 }
@@ -1657,6 +1683,16 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
         if bulleted {
             t = t.strip_prefix("- ").or_else(|| t.strip_prefix("* ")).unwrap_or(t);
         }
+        // Markdown task markers become checkboxes (DIFFS N88).
+        let done = if let Some(r) = t.strip_prefix("[ ] ") {
+            t = r;
+            Some(false)
+        } else if let Some(r) = t.strip_prefix("[x] ").or_else(|| t.strip_prefix("[X] ")) {
+            t = r;
+            Some(true)
+        } else {
+            None
+        };
         while stack.last().is_some_and(|(w, _)| *w >= indent) {
             stack.pop();
         }
@@ -1670,6 +1706,9 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
             at += 1;
             s.graph.create(parent, Some(at), t)?
         };
+        if done.is_some() {
+            s.graph.set_done(node, done)?;
+        }
         first = false;
         stack.push((indent, node));
         last = node;

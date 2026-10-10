@@ -79,7 +79,10 @@ test('UC-05.06 unlinked mentions: lines that name this page without linking it, 
   await app.locator('.mentions .references-head').click()
   const row = app.locator('.mentions .reference-row', { hasText: 'Try companion planting with basil' })
   await expect(row).toBeVisible()
+  // Where it lives shows above it (DIFFS N86); linking says so.
+  await expect(app.locator('.mentions .mention-box .reference-path')).toContainText('Library')
   await row.locator('.btn', { hasText: 'Link' }).click()
+  await expect(app.locator('.toast').last()).toContainText('Linked')
   await expect.poll(async () => (await server.run('graph.inspect', { node: line })).result.name).toBe(`Try [[id:${concept}]] with basil`)
   await expect(app.locator('.mentions .reference-row')).toHaveCount(0)
   // It is a reference now.
@@ -104,6 +107,16 @@ test('UC-05.08 drop a picture or a PDF on a line: it is kept beside the graph an
   const back = (await server.run('file.read', { node: pdf })).result
   expect(back.mime).toBe('application/pdf')
   expect(Buffer.from(back.data, 'base64').toString()).toBe('%PDF-1.4 tiny')
+  // A picture pasted into an empty line becomes that line, with no name, in a box (DIFFS N87).
+  const blank = (await server.run('node.add', { name: '', parent: page })).result.id
+  await focus(server, app, blank, 0)
+  await app.locator(`.editor-input[data-node="${blank}"]`).evaluate((el, png) => {
+    const dt = new DataTransfer()
+    dt.items.add(new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'image.png', { type: 'image/png' }))
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+  }, png)
+  await expect(app.locator(`.row.node[data-id="${blank}"] .attachment.boxed .file-preview`)).toBeVisible()
+  expect(((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['Soil paper', 'diagram.png', 'paper.pdf', ''])
 })
 test('UC-05.09 expand an inline reference in place (Shift+click) to read it without leaving the line', works('UC-05.09'), async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['Deep Work', 'Reading list'], 'Books')

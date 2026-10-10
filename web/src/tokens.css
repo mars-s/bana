@@ -121,6 +121,8 @@
   --checkbox: 18px;
   --checkbox-title: 27.8px;
   --chip-h: 17px;
+  /* A node's progress bar (N85: about 98 px in Tana's). */
+  --progress-w: 98px;
   --chip-h-title: 21px;
   --field-h: 34.5px;
   --field-name-w: 172.5px;

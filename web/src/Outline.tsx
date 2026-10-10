@@ -66,12 +66,15 @@ export function TagChip({ chip, onOpen, onRemove }: { chip: Chip; onOpen?: () =>
 export function RichText({
   text,
   refs,
+  days,
   onRef,
   onPeek,
   onRefMenu,
 }: {
   text: string
   refs: Record<string, string>
+  /** Day pages among the references: shown as grey date chips (N84). */
+  days?: Record<string, string>
   onRef?: (id: number) => void
   /** Shift+click on an inline reference (UC-05.09). */
   onPeek?: (id: number) => void
@@ -79,11 +82,48 @@ export function RichText({
   onRefMenu?: (id: number, index: number, alias: string, x: number, y: number) => void
 }) {
   const spans = rawSpans(text)
+  // A date range `[[day]] to [[day]]` reads as one chip with an arrow (N84): the " to " and the
+  // second day are drawn by the first.
+  const isDay = (x?: Span) => x?.node != null && days?.[String(x.node)] != null
+  const vis = spans.map((x, i) => [x, i] as const).filter(([x]) => !x.marker)
+  const skip = new Set<number>()
+  const ends = new Map<number, Span>()
+  for (let j = 0; j + 2 < vis.length; j++) {
+    const [a, ai] = vis[j]
+    const [t, ti] = vis[j + 1]
+    const [b, bi] = vis[j + 2]
+    if (!skip.has(ai) && isDay(a) && t.text === ' to ' && isDay(b)) {
+      skip.add(ti)
+      skip.add(bi)
+      ends.set(ai, b)
+    }
+  }
   const linkOnly = spans.filter((s) => !s.marker && s.text.trim()).length === 1 && spans.some((s) => s.url)
   return (
     <>
       {spans.map((s, i) => {
         if (s.marker) return <span key={i} data-at={s.at} data-marker="1" className="mark-hidden" />
+        if (skip.has(i)) return null
+        if (s.node != null && days?.[String(s.node)] != null) {
+          const end = ends.get(i)
+          return (
+            <span
+              key={i}
+              className="date-chip"
+              data-at={s.at}
+              data-ref={s.node}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRef?.(s.node!)
+              }}
+            >
+              <Icon name="calendar" size={12} />
+              {s.alias || days[String(s.node)]}
+              {end && ` → ${end.alias || days[String(end.node)]}`}
+            </span>
+          )
+        }
         if (s.node != null) {
           const name = refs[String(s.node)]
           const index = spans.slice(0, i).filter((x) => !x.marker && x.node === s.node).length
@@ -381,7 +421,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
           // Pasted pictures or files become file nodes after the line (UC-05.08).
           if (e.clipboardData.files.length) {
             e.preventDefault()
-            void attachFiles(e.clipboardData.files, row.id, panel)
+            void attachFiles(e.clipboardData.files, row.id, panel, valueRef.current === '' ? row.id : undefined)
             return
           }
           const text = e.clipboardData.getData('text/plain')
@@ -595,7 +635,8 @@ function useDrop(id: number): { drop: Drop | null; dragged: boolean } {
 }
 
 /** Files dropped or pasted on a line: each becomes a node after it holding the file (UC-05.08). */
-export async function attachFiles(files: FileList, after: number, panel: string) {
+/** `into`: an empty line the first file fills instead of adding a line (N87). */
+export async function attachFiles(files: FileList, after: number, panel: string, into?: number) {
   for (const f of Array.from(files)) {
     if (f.size > 20 * 1024 * 1024) {
       showToast(`${f.name} is larger than 20 MB`)
@@ -608,7 +649,8 @@ export async function attachFiles(files: FileList, after: number, panel: string)
       r.readAsDataURL(f)
     })
     // Several files keep their order: each goes after the one before.
-    const r = await exec('file.attach', { name: f.name, data, after }, panel)
+    const r = await exec('file.attach', { name: f.name, data, after, ...(into != null ? { into } : {}) }, panel)
+    into = undefined
     if (r?.result?.id != null) after = r.result.id
   }
 }
@@ -752,6 +794,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
                 <RichText
                   text={row.name}
                   refs={page.refs}
+                  days={page.dayRefs}
                   onRef={(id) => void exec('nav.open', { node: id }, panel)}
                   onPeek={(id) => setPeek((p) => (p === id ? null : id))}
                   onRefMenu={(ref, index, alias, x, y) => setState({ refMenu: { panel, line: row.target, ref, index, alias, x, y } })}
@@ -780,15 +823,21 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
             </span>
           )}
           <CommandButtons buttons={row.buttons} node={row.target} panel={panel} />
-          {row.progress && (
+        </span>
+        {/* The bar has a line of its own under the node, with its count (N85). */}
+        {row.progress && (
+          <span className="progress-line">
             <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>
               <span style={{ width: `${row.progress[1] ? (100 * row.progress[0]) / row.progress[1] : 0}%` }} />
             </span>
-          )}
-        </span>
+            <span className="progress-count">
+              {row.progress[0]} / {row.progress[1]}
+            </span>
+          </span>
+        )}
         {row.link && !editing && <LinkCard text={row.name} />}
         {row.file && (
-          <span className="attachment">
+          <span className={`attachment${row.fileImage && !row.name ? ' boxed' : ''}`}>
             <Attachment row={row} panel={panel} />
           </span>
         )}
@@ -1442,7 +1491,7 @@ function TitleEditor({ page, panel }: { page: Page; panel: string }) {
     <span className="title-wrap">
     {rich && (
       <span className="title title-rich" aria-hidden>
-        <RichText text={value} refs={page.refs} />
+        <RichText text={value} refs={page.refs} days={page.dayRefs} />
       </span>
     )}
     <textarea
@@ -1766,7 +1815,7 @@ function WorkspacesButton({ panel }: { panel: string }) {
 /** Lines that name this page without linking it, found on demand; Link turns the name into a
  * link (UC-05.06). */
 function UnlinkedMentions({ page, panel }: { page: Page; panel: string }) {
-  const [items, setItems] = useState<{ id: number; name: string }[] | null>(null)
+  const [items, setItems] = useState<{ id: number; name: string; path?: string }[] | null>(null)
   const load = async () => {
     const r = await call('run', { command: 'node.unlinkedMentions', params: { node: page.target }, panel })
     setItems(Array.isArray(r?.result) ? r.result : [])
@@ -1778,17 +1827,21 @@ function UnlinkedMentions({ page, panel }: { page: Page; panel: string }) {
         <Icon name={items ? 'chevronDown' : 'chevronRight'} size={12} />
       </button>
       {items?.length === 0 && <p className="muted">No other line names this page.</p>}
+      {/* Each in a box: where it lives above it, Link at the right (DIFFS N86). */}
       {items?.map((m) => (
-        <div key={m.id} className="reference-row">
-          <span className="bullet">
-            <span className="dot" />
-          </span>
-          <span className="reference-name" onClick={() => void exec('nav.open', { node: m.id }, panel)}>
-            {m.name}
-          </span>
-          <button className="btn" onClick={() => void exec('node.linkMention', { node: m.id, target: page.target }, panel).then(load)}>
-            Link
-          </button>
+        <div key={m.id} className="mention-box">
+          {m.path && <div className="reference-path">{m.path}</div>}
+          <div className="reference-row">
+            <span className="bullet">
+              <span className="dot" />
+            </span>
+            <span className="reference-name grow" onClick={() => void exec('nav.open', { node: m.id }, panel)}>
+              {m.name}
+            </span>
+            <button className="btn" onClick={() => void exec('node.linkMention', { node: m.id, target: page.target }, panel).then(load)}>
+              Link
+            </button>
+          </div>
         </div>
       ))}
     </section>
@@ -1839,7 +1892,7 @@ function RelatedCard({ page, panel }: { page: Page; panel: string }) {
                 </span>
               )}
               <span className="side-text" onClick={() => void exec('nav.open', { node: it.target }, panel)}>
-                <RichText text={it.name} refs={page.refs} />
+                <RichText text={it.name} refs={page.refs} days={page.dayRefs} />
                 {it.tags.map((t) => (
                   <span key={t.id} className="chip mini" style={tagStyle(t.color)}>
                     #

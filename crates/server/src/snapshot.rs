@@ -408,6 +408,17 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "references": references,
         "filteredOut": g.view_filtered_out(zoom),
         "rows": {"total": total, "start": start, "items": window, "focusIndex": focus_index},
+        // Inline references to day pages read as dates (DIFFS N84): Today, Tomorrow, Yesterday, else
+        // the day's own title.
+        "dayRefs": refs.keys().filter_map(|k| match g.get(NodeId(*k)).map(|n| &n.kind) {
+            Some(Kind::Day { date }) => Some((k.to_string(), json!(match *date {
+                d if d == s.today => "Today".to_string(),
+                d if d == s.today.add_days(1) => "Tomorrow".to_string(),
+                d if d == s.today.add_days(-1) => "Yesterday".to_string(),
+                _ => g.name(NodeId(*k)).to_string(),
+            }))),
+            _ => None,
+        }).collect::<serde_json::Map<_, _>>(),
         "refs": refs.into_iter().map(|(k, v)| (k.to_string(), json!(v))).collect::<serde_json::Map<_, _>>(),
         "status": s.status,
         "canUndo": g.can_undo(),
@@ -558,6 +569,27 @@ pub fn choices(s: &Session, params: &Value) -> Value {
             .filter(|l| l.to_lowercase().contains(&q))
             .map(|l| json!({"id": 0, "label": l}))
             .collect(),
+        // Add to day (DIFFS N82): the usual days, and any date typed in words (first).
+        "addToDay" => {
+            let mut v: Vec<Value> = Vec::new();
+            if let Some((d, _)) = tanacraft_core::Date::from_words(raw, s.today).filter(|_| !q.is_empty()) {
+                v.push(json!({"date": raw.trim(), "label": d.day_title()}));
+            }
+            for (words, label) in [
+                ("today", "Today"),
+                ("tomorrow", "Tomorrow"),
+                ("next monday", "Next Monday"),
+                ("in 1 week", "In a week"),
+                ("next month", "Next month"),
+            ] {
+                if label.to_lowercase().contains(&q)
+                    && let Some((d, _)) = tanacraft_core::Date::from_words(words, s.today)
+                {
+                    v.push(json!({"date": words, "label": format!("{label}  {}", d.day_title())}));
+                }
+            }
+            v
+        }
         // `:` and a word (UC-06.38): the emoji whose name has a word starting with it.
         "emoji" => crate::emoji::EMOJI
             .iter()
@@ -624,7 +656,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
         }
     }
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source" | "mergeInto" | "emoji") {
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag" | "source" | "mergeInto" | "emoji" | "addToDay") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.

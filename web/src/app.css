@@ -1182,9 +1182,24 @@ button:focus-visible {
   background: var(--tag-t1);
 }
 
+/* A node's progress (N85): its own line under the node, a 98 px bar and "1 / 3". */
+.progress-line {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+  min-height: var(--lh-label);
+}
+
+.progress-count {
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
 .progress {
   align-self: center;
-  width: 60px;
+  width: var(--progress-w);
   height: 4px;
   border-radius: 2px;
   background: var(--c-checkbox);
@@ -4296,4 +4311,46 @@ html.capture body {
   align-items: center;
   gap: var(--q2);
   min-height: var(--row-h);
+}
+
+/* A date in a line (an inline reference to a day page, N84): a grey chip with a calendar. */
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q1);
+  padding: 0 var(--q1);
+  border-radius: var(--r-sm);
+  background: var(--c-hover);
+  color: var(--c-secondary);
+  cursor: pointer;
+}
+
+.date-chip:hover {
+  color: var(--c-text);
+}
+
+/* An unlinked mention (DIFFS N86): its path, then the line with Link at the right, in a box. */
+.mention-box {
+  margin: var(--q1) 0;
+  padding: var(--q1) var(--q2);
+  border: 1px solid var(--c-outline);
+  border-radius: var(--r-md);
+}
+
+.mention-box .reference-row .grow {
+  flex: 1;
+}
+
+/* A line that is a picture and nothing else (DIFFS N87): centred at its own size in a box as
+   wide as the line. */
+.attachment.boxed {
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
+  width: calc(100% - var(--text-from-bullet));
+  margin-left: var(--text-from-bullet);
+  padding: var(--q2);
+  background: var(--c-raised);
+  border: 1px solid var(--c-outline);
+  border-radius: var(--r-sm);
 }

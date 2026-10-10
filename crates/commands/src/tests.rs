@@ -1083,6 +1083,17 @@ fn every_template_installs_as_one_page() {
 }
 
 #[test]
+fn pasted_markdown_tasks_become_checkboxes() {
+    // DIFFS N88.
+    let mut s = blank();
+    let line = id(&run(&mut s, "node.add", json!({"name": ""})), "id");
+    run(&mut s, "node.paste", json!({"node": line.0, "text": "- [ ] md todo\n- [x] md done\n- plain"}));
+    let parent = s.graph.parent(line).unwrap();
+    let kids: Vec<_> = s.graph.children(parent).iter().map(|c| (s.graph.name(*c).to_string(), s.graph.checkbox(*c))).collect();
+    assert_eq!(kids, [("md todo".to_string(), Some(false)), ("md done".to_string(), Some(true)), ("plain".to_string(), None)]);
+}
+
+#[test]
 fn counting_words_characters_and_nodes() {
     // UC-06.36.
     let mut s = blank();

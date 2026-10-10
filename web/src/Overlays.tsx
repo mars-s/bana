@@ -85,6 +85,9 @@ function Palette() {
     steps.push({ id: 'step.tag', label: 'Add tag', shortcut: '#', run: () => openPicker({ ...at, mode: 'tag', node: row.target }) })
     steps.push({ id: 'step.move', label: 'Move to', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id }) })
     steps.push({ id: 'step.moveRef', label: 'Move and leave reference to', shortcut: '', run: () => openPicker({ ...at, mode: 'moveTo', node: row.id, leaveRef: true }) })
+    // Commands that need a choice ask for it (N82, N83).
+    steps.push({ id: 'step.addToDay', label: 'Add to day…', shortcut: '', run: () => openPicker({ ...at, mode: 'addToDay', node: row.target }) })
+    steps.push({ id: 'step.merge', label: 'Merge into…', shortcut: '', run: () => openPicker({ ...at, mode: 'mergeInto', node: row.target }) })
     for (const k of ['table', 'cards', 'calendar', 'outline']) steps.push({ id: `step.view.${k}`, label: `View as ${k}`, shortcut: '', run: () => void exec('view.set', { node: row.id, kind: k }, panel) })
     for (const t of row.tags) steps.push({ id: `step.untag.${t.id}`, label: `Remove #${t.name}`, shortcut: '', run: () => void exec('tag.remove', { node: row.target, tag: t.id }, panel) })
     steps.push({ id: 'step.field', label: 'Add field', shortcut: '', run: () => openPicker({ ...at, mode: 'field', node: row.target, owner: row.target }) })
@@ -96,7 +99,8 @@ function Palette() {
     // On a line: run a command node on each new child of it (UC-02.20).
     ...(ctx ? cmdNodes.map((c) => ({ id: `cmdchild.${c.id}`, label: `On new children run ${c.name}`, shortcut: '', run: () => void exec('commandNode.on', { command: c.id, event: 'child', node: ctx.row.target }) })) : []),
     ...UI_COMMANDS.map(([id, label, sc]) => ({ id, label, shortcut: sc, run: () => runUiCommand(id) })),
-    ...commands.map((c) => ({ id: c.id, label: c.label, shortcut: c.shortcut, run: () => void exec(c.id, {}) })),
+    // (Add to day and Merge ask through the steps above.)
+    ...commands.filter((c) => c.id !== 'node.addToDay' && c.id !== 'node.merge').map((c) => ({ id: c.id, label: c.label, shortcut: c.shortcut, run: () => void exec(c.id, {}) })),
   ]
   const list = all.filter((c) => words.every((w) => `${c.label} ${c.id}`.toLowerCase().includes(w))).slice(0, 60)
   const pick = (i: number) => {
@@ -432,6 +436,7 @@ const PICK_TITLES: Record<string, string> = {
   source: 'Source of options',
   mergeInto: 'Merge into',
   emoji: 'Emoji',
+  addToDay: 'Add to day',
 }
 
 /** "/" items: icon and shortcut (spec 02 §11; DIFFS N62). */
@@ -719,7 +724,7 @@ function NodeMenu() {
             label={l}
             on={() => {
               close()
-              void exec('node.addToDay', { node: target, date: d }, panel).then((r) => r?.result && showToast(`Added to ${r.result.date}`))
+              void exec('node.addToDay', { node: target, date: d }, panel)
             }}
           />
         ))}

@@ -19,7 +19,7 @@ export interface Overlay {
 /** An open `#`, `@`, `>`, `/` or field value menu. `at` is where the trigger character sits in the
  * line (chars); the query is the text typed after it, in the line itself (so it is in the engine). */
 export interface PickerState {
-  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column' | 'templateField' | 'sourceTag' | 'source' | 'mergeInto' | 'emoji'
+  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column' | 'templateField' | 'sourceTag' | 'source' | 'mergeInto' | 'emoji' | 'addToDay'
   panel: string
   /** The line typed in (or the field's owner for `choice`). */
   node: number

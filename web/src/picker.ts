@@ -176,6 +176,9 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
       return
     }
     switch (p.mode) {
+      case 'addToDay':
+        if (item.date) await exec('node.addToDay', { node: p.node, date: item.date }, panel)
+        break
       case 'emoji': {
         if (!item.emoji) break
         const caret = await cutQuery(p, item.emoji)

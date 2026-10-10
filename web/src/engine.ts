@@ -408,6 +408,8 @@ export interface Page {
   filteredOut: number
   rows: { total: number; start: number; items: Row[]; focusIndex: number | null }
   refs: Record<string, string>
+  /** Inline references to day pages: how each reads as a date (N84). */
+  dayRefs?: Record<string, string>
   status: string
   canUndo: boolean
   canRedo: boolean

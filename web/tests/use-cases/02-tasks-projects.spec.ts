@@ -44,6 +44,8 @@ test('UC-02.03 a parent shows a progress bar of the checkboxes below it by itsel
   const firstId = (await server.rpc('find', { query: first.name, limit: 5 }))[0].id
   await app.locator(`.row.node[data-id="${firstId}"] .checkbox`).click()
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .progress`)).toHaveAttribute('title', '1 of 3 done')
+  // On a line of its own with its count (DIFFS N85).
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .progress-count`)).toHaveText('1 / 3')
 })
 
 test('UC-02.05 typing #task makes a task: checkbox and template fields appear', works('UC-02.05'), async ({ app, server }) => {

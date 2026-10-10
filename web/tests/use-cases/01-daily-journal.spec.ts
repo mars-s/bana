@@ -1,6 +1,7 @@
 // Use cases: daily journal and calendar pages (docs/use-cases/01-daily-journal.md).
 // The fixture's today is Sat, 10 Oct 2026.
 import { test, expect, missing, works, partial, idOf, library, palette, page } from './helpers'
+import { focus } from '../fixtures'
 
 const title = (app: import('@playwright/test').Page) => app.locator('.panel .title').first()
 
@@ -98,6 +99,13 @@ test('UC-01.08b type @next friday or @Nov 21 to 30 and the words become date lin
   await expect(app.locator('.menu.picker .menu-item').first()).toContainText('Sat, 21 Nov to Mon, 30 Nov')
   await app.keyboard.press('Enter')
   await expect.poll(name).toMatch(/ok \[\[id:\d+\]\] to \[\[id:\d+\]\]$/)
+  // Read as grey date chips (DIFFS N84): tomorrow reads "Tomorrow", a range is one chip.
+  await app.keyboard.type(' @tomorrow')
+  await app.keyboard.press('Enter')
+  await app.keyboard.press('Escape')
+  const row = app.locator(`.row.node[data-id="${id}"]`)
+  await expect(row.locator('.date-chip')).toHaveText(['Fri, 16 Oct', 'Sat, 21 Nov → Mon, 30 Nov', 'Tomorrow'])
+  await expect(row.locator('.inline-ref')).toHaveCount(0)
 })
 
 test('UC-01.10 habit check-off: tick a habit each day and count what was done recently', partial('UC-01.10'), async ({ app, server }) => {
@@ -153,6 +161,24 @@ test('UC-01.12 Add to day (Remind me): a reference of the node on the chosen day
   await app.locator('.day-nav .btn[title="Next day"]').click()
   await expect(app.locator('.panel .title').first()).toContainText('Sun, 11 Oct')
   await expect(app.locator('.row.node', { hasText: 'Read the soil article' })).toBeVisible()
+})
+test('UC-01.12 Add to day from the command line asks which day, typed words too (DIFFS N82)', works('UC-01.12'), async ({ app, server }) => {
+  const day = (await server.run('nav.today')).result.zoom
+  const id = (await server.run('node.add', { name: 'Call the council', parent: day })).result.id
+  await focus(server, app, id, 0)
+  await palette(app, 'Add to day')
+  await expect(app.locator('.menu.picker .menu-item')).toContainText(['Today', 'Tomorrow', 'Next Monday', 'In a week', 'Next month'])
+  await app.keyboard.type('next friday')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Fri, 16 Oct')
+  await app.keyboard.press('Enter')
+  await expect(app.locator('.toast').last()).toContainText('Added a reference to Fri, 16 Oct')
+  const fri = (await server.run('nav.day', { date: '2026-10-16' })).result.zoom
+  await expect.poll(async () => ((await server.run('export.json', { node: fri })).result.children ?? []).map((c: any) => c.name)).toContain('Call the council')
+  // Merge from the command line opens its picker instead of failing (DIFFS N83).
+  await server.run('nav.today')
+  await focus(server, app, id, 0)
+  await palette(app, 'merge')
+  await expect(app.locator('.menu.picker')).toBeVisible()
 })
 missing('UC-01.14', 'daily notes for a second workspace (Today follows the main workspace only)')
 test('UC-01.15 every day page lists the tasks due that day and the overdue ones (PARENT is the day)', works('UC-01.15'), async ({ app, server }) => {

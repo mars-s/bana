@@ -1,0 +1,38 @@
+// The field definition page and supertag configuration (spec 03 §5, §6, §8).
+import { test, expect, type Server } from './fixtures'
+
+async function inspectSchema(server: Server, node: number) {
+  return server.rpc('schema', { node })
+}
+
+test('a field page changes the type, adds options and makes it required', async ({ app, server }) => {
+  const f = (await server.run('field.create', { name: 'Mood', type: 'plain' })).result
+  const id = f.field ?? f.id ?? f.node
+  await server.run('nav.open', { node: id })
+  await expect(app.locator('.cfg-grid')).toBeVisible()
+  await app.locator('select[aria-label="Field type"]').selectOption('options')
+  await expect.poll(async () => (await inspectSchema(server, id)).type).toBe('options')
+  await app.locator('.cfg-input[placeholder="Add an option"]').fill('Calm')
+  await app.locator('.cfg-input[placeholder="Add an option"]').press('Enter')
+  await expect.poll(async () => (await inspectSchema(server, id)).ownOptions).toEqual(['Calm'])
+  await app.locator('button[aria-label="Required"]').click()
+  await expect.poll(async () => (await inspectSchema(server, id)).required).toBe(true)
+})
+
+test('configure a supertag: colour, checkbox and a template field', async ({ app, server }) => {
+  const tag = (await server.run('tag.create', { name: 'idea', color: 'grey' })).result
+  const id = tag.tag ?? tag.id ?? tag.node
+  await server.run('nav.open', { node: id })
+  await app.locator('.tag-tabs .btn', { hasText: 'Configure' }).click()
+  await expect(app.locator('.configure')).toBeVisible()
+  await app.locator('.swatch[title="green"]').click()
+  await expect.poll(async () => (await inspectSchema(server, id)).color).toBe('green')
+  await app.locator('button[aria-label="Show a checkbox"]').click()
+  await expect.poll(async () => (await inspectSchema(server, id)).checkbox).toBe(true)
+  await app.locator('.cfg-fields .ghost-btn').click()
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type('Impact')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Impact')
+  await app.keyboard.press('Enter')
+  await expect.poll(async () => (await inspectSchema(server, id)).fields.map((x: any) => x.name)).toEqual(['Impact'])
+})

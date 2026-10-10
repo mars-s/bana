@@ -2583,3 +2583,163 @@ kbd {
   height: 28px;
   margin: 0 0 var(--q1);
 }
+
+/* ---- configure supertag, field page (12: Configure supertag panel, Field definition page) ---- */
+
+.configure {
+  margin-top: var(--q4);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4.7px;
+  margin-bottom: var(--q5);
+}
+
+.swatch {
+  width: 23.8px;
+  height: 23.8px;
+  border-radius: 50%;
+  background: var(--tag);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-muted);
+}
+
+.swatch.none {
+  background: transparent;
+}
+
+.swatch.on {
+  box-shadow: 0 0 0 2px var(--c-panel), 0 0 0 4px var(--tag);
+}
+
+.cfg-card {
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+.cfg-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--q3);
+  width: 100%;
+  padding: var(--q4);
+  background: var(--c-button);
+  text-align: left;
+  color: var(--c-secondary);
+  border-bottom: 1px solid var(--c-divider);
+}
+
+.cfg-card-title {
+  display: block;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+
+.cfg-card-help {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
+}
+
+.cfg-card-body {
+  padding: var(--q5);
+}
+
+.cfg-grid {
+  margin-top: var(--q4);
+}
+
+.cfg-row {
+  display: flex;
+  gap: var(--q4);
+  padding: var(--q2) 0;
+  margin-bottom: var(--q3);
+  border-top: 1px solid var(--c-outline);
+}
+
+.cfg-label {
+  width: 157.5px;
+  flex: none;
+  padding-top: var(--q2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-semibold);
+  color: var(--c-tertiary);
+}
+
+.cfg-control {
+  flex: 1;
+  min-width: 0;
+  padding-top: var(--q1);
+}
+
+.cfg-help {
+  margin-top: var(--q1);
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.select,
+.cfg-input {
+  height: 34.6px;
+  min-width: 175px;
+  padding: 0 var(--q2);
+  border: 0;
+  outline: 0;
+  border-radius: var(--r-hair);
+  background: var(--c-raised);
+  box-shadow: inset 0 0 0 1px var(--c-input-well);
+  font: inherit;
+  font-size: var(--fs-dense);
+  color: var(--c-text);
+}
+
+.cfg-pair {
+  display: flex;
+  gap: var(--q2);
+}
+
+.cfg-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q1);
+  align-items: flex-start;
+}
+
+.cfg-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q2);
+  min-height: var(--row-h);
+}
+
+.cfg-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cfg-field {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  min-height: var(--field-h);
+  padding: 0 var(--q2);
+  border-radius: var(--r-lg);
+  background: var(--c-raised);
+  color: var(--c-text);
+  cursor: default;
+}
+
+.btn.on {
+  background: var(--c-pressed);
+  color: var(--c-strong);
+}

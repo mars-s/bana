@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { call, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { exec, runUiCommand } from './controller'
-import { applyPick, openPicker } from './picker'
+import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { getState, newTab, openInNewPanel, refresh, setState, showToast, useStore } from './store'
@@ -286,6 +286,8 @@ const PICK_TITLES: Record<string, string> = {
   searchTag: 'List of supertag',
   moveTo: 'Move to',
   column: 'Add a column',
+  templateField: 'Add a field to the template',
+  sourceTag: 'Options from supertag',
 }
 
 function Picker() {
@@ -295,6 +297,20 @@ function Picker() {
   return (
     <div className="menu picker" style={{ left, top: p.y + 4 }} role="listbox" aria-label={PICK_TITLES[p.mode]}>
       <div className="menu-label">{PICK_TITLES[p.mode]}</div>
+      {p.at < 0 && p.mode !== 'choice' && (
+        // Opened from a menu or button: the query is typed here.
+        <input
+          className="filter-input small"
+          autoFocus
+          placeholder="Type to search"
+          value={p.query}
+          onChange={(e) => setPickerQuery(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (pickerKey(keyInfo(e))) e.preventDefault()
+          }}
+        />
+      )}
       {p.items.length === 0 && <div className="menu-empty">{p.query ? 'Nothing matches' : 'Type to search'}</div>}
       {p.items.map((it, i) => {
         const label = it.create

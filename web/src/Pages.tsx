@@ -64,6 +64,7 @@ export function SupertagsPage({ panel }: { panel: string }) {
 
 /** The tag page's extra header: glow, "+ Create new", and its view tabs. */
 export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; tag: number; color: string; tabs: { id: number; name: string }[]; active: number }) {
+  const configuring = useStore((s) => !!s.configure[panel])
   return (
     <>
       <div className="tag-glow" style={tagStyle(color)} />
@@ -80,6 +81,9 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
           + Add view
         </button>
         <span className="spacer" />
+        <button className={`btn regular${configuring ? ' on' : ''}`} onClick={() => setState((s) => ({ configure: { ...s.configure, [panel]: !s.configure[panel] } }))}>
+          {configuring ? 'Done' : 'Configure'}
+        </button>
         <button className="btn regular" onClick={() => void exec('view.addItem', { node: tag, name: '' }, panel)}>
           <Icon name="plus" size={12} /> Create new
         </button>

@@ -13,6 +13,7 @@ import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker
 import { QueryBuilder, ViewBody, ViewToolbar } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
 import { HelpPage, RecentsPage, SettingsPage, SupertagsPage, TagHeader } from './Pages'
+import { ConfigureTag, FieldPage } from './Schema'
 import { keyInfo } from './keys'
 
 const OVERSCAN_ROWS = 150
@@ -1110,6 +1111,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   const focusScroll = useStore((s) => s.focusScroll)
   const viewSnap = useStore((s) => s.views[panel])
   const special = useStore((s) => s.special[panel])
+  const configureOn = useStore((s) => !!s.configure[panel])
   useEffect(() => {
     if (focusIndex == null || !page) return
     if (focusIndex < first + 1 || focusIndex > last - 1) v.scrollToIndex(focusIndex, { align: 'center' })
@@ -1143,8 +1145,10 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   }
   const wide = page.related.length > 0
   const vs = viewSnap && viewSnap.node === page.zoom ? viewSnap : null
-  const layout = vs && vs.kind !== 'outline' ? vs : null
-  const schema = page.kind === 'schema'
+  const configuring = page.kind === 'tag' && configureOn
+  const fieldPage = page.kind === 'field'
+  const layout = vs && vs.kind !== 'outline' && !configuring ? vs : null
+  const schema = page.kind === 'schema' || configuring || fieldPage
   return (
     <div className={`panel${active ? ' active' : ''}`} onMouseDown={() => setActivePanel(panel)} data-panel={panel}>
       <Crumbs page={page} panel={panel} many={many} />
@@ -1178,10 +1182,12 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
               {page.kind === 'tag' && vs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={vs.tabs} active={page.zoom} />}
-              {vs && !layout && <QueryBuilder v={vs} panel={panel} />}
-              {vs && !layout && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
+              {vs && !layout && !schema && <QueryBuilder v={vs} panel={panel} />}
+              {vs && !layout && !schema && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>
-            {schema && <SupertagsPage panel={panel} />}
+            {page.kind === 'schema' && <SupertagsPage panel={panel} />}
+            {configuring && <ConfigureTag panel={panel} tag={page.target} />}
+            {fieldPage && <FieldPage panel={panel} field={page.target} />}
             {layout && <ViewBody v={layout} panel={panel} />}
             <div className="rows" style={{ height: layout || schema ? 0 : v.getTotalSize() - headH, display: layout || schema ? 'none' : undefined }}>
               {items.map((vi) => {

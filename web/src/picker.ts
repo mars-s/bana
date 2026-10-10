@@ -247,6 +247,14 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
         await exec('focus.clear', {}, panel)
         break
       }
+      case 'templateField': {
+        await exec('tag.addField', { tag: p.node, field: item.create ?? item.id }, panel)
+        break
+      }
+      case 'sourceTag': {
+        if (item.id != null) await exec('field.setSourceTag', { field: p.node, tag: item.id }, panel)
+        break
+      }
       case 'column': {
         await exec('view.addColumn', { node: p.node, field: item.create ?? item.id }, panel)
         break

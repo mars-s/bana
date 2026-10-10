@@ -416,7 +416,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
     let item = |id: NodeId, label: String| json!({"id": id.0, "label": label});
     let line = |id: NodeId| export::node_line(g, id);
     let mut out: Vec<Value> = match mode {
-        "tag" | "searchTag" => g
+        "tag" | "searchTag" | "sourceTag" => g
             .menu_tags(node)
             .into_iter()
             .filter(|t| g.name(*t).to_lowercase().contains(&q))
@@ -426,7 +426,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
                 v
             })
             .collect(),
-        "field" | "column" => g
+        "field" | "column" | "templateField" => g
             .iter()
             .filter(|n| g.field_def(n.id).is_some() && !g.in_trash(n.id) && n.name.to_lowercase().contains(&q))
             .map(|n| {
@@ -487,7 +487,7 @@ pub fn choices(s: &Session, params: &Value) -> Value {
     };
     out.truncate(10);
     let exact = out.iter().any(|c| c["label"].as_str().is_some_and(|l| l.trim_start_matches('#').eq_ignore_ascii_case(&q)));
-    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag") {
+    if !q.is_empty() && !exact && !matches!(mode, "slash" | "moveTo" | "searchTag" | "sourceTag") {
         out.push(json!({"create": raw.trim().trim_start_matches('#')}));
     }
     // A new supertag gets the next colour of the palette, so tags are told apart at a glance.
@@ -633,4 +633,62 @@ pub fn used_elsewhere(s: &Session, params: &Value) -> Value {
     let used: std::collections::BTreeSet<NodeId> =
         ids.iter().filter(|i| g.resolve(**i) == **i).flat_map(|i| g.references_to(*i)).filter(|r| !inside(*r)).collect();
     json!({"count": used.len(), "name": ids.first().map(|i| g.name(*i)).unwrap_or_default(), "nodes": ids.iter().map(|i| i.0).collect::<Vec<_>>()})
+}
+
+/// The definition behind a supertag or field page: what the configure panel and the field page
+/// show and change. Params: `node` (default: the page).
+pub fn schema(s: &Session, params: &Value) -> Value {
+    let g = &s.graph;
+    let node = g.resolve(tanacraft_commands::p::node(params, "node").ok().flatten().filter(|n| g.get(*n).is_some()).unwrap_or(s.zoom));
+    let named = |id: NodeId| json!({"id": id.0, "name": g.name(id)});
+    if let Some(d) = g.field_def(node) {
+        let (nodes, tags) = g.field_usage(node);
+        return json!({
+            "kind": "field",
+            "id": node.0,
+            "type": d.field_type.name(),
+            "options": g.field_options(node),
+            "ownOptions": d.options,
+            "sourceTag": d.source_tag.map(named),
+            "required": d.required,
+            "hide": d.hide.name(),
+            "autoInit": match d.auto_init {
+                Some(tanacraft_core::AutoInit::CurrentDate) => "current_date",
+                Some(tanacraft_core::AutoInit::AncestorDay) => "ancestor_day",
+                Some(tanacraft_core::AutoInit::AncestorValue) => "ancestor_value",
+                None => "none",
+            },
+            "default": d.default.as_ref().map(|v| export::display_value(g, v)),
+            "min": d.min, "max": d.max,
+            "autoCollect": !d.no_auto_collect,
+            "usedIn": {"nodes": nodes, "tags": tags},
+        });
+    }
+    if let Some(d) = g.tag_def(node) {
+        let fields: Vec<Value> = g
+            .template_fields(node)
+            .into_iter()
+            .map(|f| {
+                json!({"id": f.0, "name": g.name(f), "type": g.field_def(f).map(|x| x.field_type.name()).unwrap_or("plain"),
+                       "own": d.fields.contains(&f), "pinned": d.pinned_fields.contains(&f)})
+            })
+            .collect();
+        return json!({
+            "kind": "tag",
+            "id": node.0,
+            "color": d.color,
+            "checkbox": d.checkbox,
+            "extends": d.extends.iter().map(|t| named(*t)).collect::<Vec<_>>(),
+            "fields": fields,
+            "optional": d.optional.iter().map(|f| named(*f)).collect::<Vec<_>>(),
+            "childTag": d.child_tag.map(named),
+            "baseType": d.base_type,
+            "baseTypes": tanacraft_core::BASE_TYPES,
+            "titleExpr": d.title_expr,
+            "doneMap": d.done_map.as_ref().map(|m| json!({"field": named(m.field), "checked": m.checked, "unchecked": m.unchecked})),
+            "colors": tanacraft_core::TAG_COLORS,
+            "used": g.tagged(node).len(),
+        });
+    }
+    json!({"kind": "none"})
 }

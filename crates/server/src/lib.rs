@@ -78,6 +78,7 @@ impl Host {
             "choices" => snapshot::choices(&self.session, params),
             "view" => snapshot::view(&self.session, params),
             "tags" => snapshot::tags(&self.session),
+            "schema" => snapshot::schema(&self.session, params),
             "usedElsewhere" => snapshot::used_elsewhere(&self.session, params),
             "commands" => self.session.registry.describe(),
             "panel.open" => {

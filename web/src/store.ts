@@ -19,7 +19,7 @@ export interface Overlay {
 /** An open `#`, `@`, `>`, `/` or field value menu. `at` is where the trigger character sits in the
  * line (chars); the query is the text typed after it, in the line itself (so it is in the engine). */
 export interface PickerState {
-  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column'
+  mode: 'tag' | 'field' | 'reference' | 'inlineRef' | 'slash' | 'choice' | 'searchTag' | 'moveTo' | 'column' | 'templateField' | 'sourceTag'
   panel: string
   /** The line typed in (or the field's owner for `choice`). */
   node: number
@@ -76,6 +76,8 @@ export interface State {
   fieldEdit: FieldEdit | null
   /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
   nodeMenu: { panel: string; node: number; x: number; y: number } | null
+  /** Panels showing a supertag's configuration instead of its items. */
+  configure: Record<string, boolean>
   /** Panels whose search query builder is open. */
   queryOpen: Record<string, boolean>
   /** Pages that are not nodes, per panel. */
@@ -113,6 +115,7 @@ let state: State = {
   nodeMenu: null,
   special: {},
   queryOpen: {},
+  configure: {},
   descEdit: null,
 }
 

@@ -8,7 +8,8 @@
 //! It listens on 127.0.0.1 only and refuses requests from pages on other origins, so a web site
 //! open in the same browser cannot reach the notes. A `POST /rpc` that comes from no page (an MCP
 //! server, the CLI, a script) must carry the server's token (`Authorization: Bearer <token>`),
-//! which [`announce`] writes beside the graph file for local tools to find.
+//! the install's local token in the data folder (`tanacraft_core::local_token`); [`announce`] writes
+//! the port beside the graph file for local tools to find.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -30,21 +31,16 @@ pub struct Shared {
     pub token: String,
 }
 
-/// A fresh random token (std's per-process random hash keys, twice).
-fn new_token() -> String {
-    use std::hash::{BuildHasher, Hasher};
-    let part = || {
-        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
-        h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default());
-        h.write_u32(std::process::id());
-        h.finish()
-    };
-    format!("{:016x}{:016x}", part(), part())
-}
-
 impl Shared {
     pub fn new(host: Host) -> Arc<Shared> {
-        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new(), token: new_token() })
+        // The install's token (a fresh one only when the data folder cannot be written).
+        let token = tanacraft_core::local_token().unwrap_or_else(|_| tanacraft_core::random_hex());
+        Shared::with_token(host, token)
+    }
+
+    /// With a given token (tests, or an app that keeps its token elsewhere).
+    pub fn with_token(host: Host, token: String) -> Arc<Shared> {
+        Arc::new(Shared { host: Mutex::new(host), changed: Condvar::new(), token })
     }
 
     /// Runs one request (or an array of them) and wakes event waiters.
@@ -92,7 +88,8 @@ pub fn bind(port: u16) -> Result<TcpListener, String> {
 pub fn announce(shared: &Shared, port: u16, graph: Option<&Path>) -> Option<PathBuf> {
     let graph = shared.host.lock().ok()?.session.path.clone().or_else(|| graph.map(Path::to_path_buf))?;
     let path = tanacraft_core::live_file(&graph);
-    let body = json!({"port": port, "token": shared.token, "pid": std::process::id()}).to_string();
+    // The token itself stays in the data folder (`tanacraft_core::local_token`).
+    let body = json!({"port": port, "pid": std::process::id()}).to_string();
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
@@ -179,21 +176,33 @@ pub(crate) fn origin_ok(origin: Option<&str>) -> bool {
     matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "tauri.localhost") || o.starts_with("tauri://")
 }
 
-fn respond(mut s: &TcpStream, status: &str, ctype: &str, origin: Option<&str>, body: &[u8]) -> Result<(), String> {
+fn respond(s: &TcpStream, status: &str, ctype: &str, origin: Option<&str>, body: &[u8]) -> Result<(), String> {
+    respond_with(s, status, ctype, origin, "", body)
+}
+
+fn respond_with(mut s: &TcpStream, status: &str, ctype: &str, origin: Option<&str>, extra: &str, body: &[u8]) -> Result<(), String> {
     let cors = match origin.filter(|o| origin_ok(Some(o))) {
         Some(o) => format!("Access-Control-Allow-Origin: {o}\r\nAccess-Control-Allow-Headers: content-type, authorization\r\nVary: Origin\r\n"),
         None => String::new(),
     };
     let head = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n{cors}Connection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\n{cors}{extra}Connection: close\r\n\r\n",
         body.len()
     );
     s.write_all(head.as_bytes()).and_then(|_| s.write_all(body)).map_err(|e| e.to_string())
 }
 
-fn connection(shared: &Shared, stream: TcpStream, web: &Path) -> Result<(), String> {
+fn connection(shared: &Arc<Shared>, stream: TcpStream, web: &Path) -> Result<(), String> {
     let Some(req) = read_request(&stream)? else { return Ok(()) };
     let origin = req.origin.as_deref();
+    // The MCP endpoint (streamable HTTP): the token is the authority, so it also answers through a
+    // tunnel whose Host is not this machine's; pages on other origins are still refused.
+    if req.path == "/mcp" {
+        if !origin_ok(origin) {
+            return respond(&stream, "403 Forbidden", "text/plain", None, b"other origins may not use this server");
+        }
+        return mcp_http(shared, &stream, &req);
+    }
     let host_ok = req.host.as_deref().is_none_or(|h| origin_ok(Some(&format!("http://{h}"))));
     if !origin_ok(origin) || !host_ok {
         return respond(&stream, "403 Forbidden", "text/plain", None, b"other origins may not use this server");
@@ -220,6 +229,44 @@ fn connection(shared: &Shared, stream: TcpStream, web: &Path) -> Result<(), Stri
         ("GET" | "HEAD", path) => static_file(&stream, web, path, origin),
         _ => respond(&stream, "405 Method Not Allowed", "text/plain", origin, b""),
     }
+}
+
+/// MCP over streamable HTTP (spec 2025-06-18): `POST /mcp` with a JSON-RPC message or batch,
+/// answered as JSON; notifications only get 202. No server-sent stream (`GET` is 405), no
+/// sessions. The same tools as the stdio server, run in their own window of this engine.
+fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(), String> {
+    if req.token.as_deref() != Some(shared.token.as_str()) {
+        return respond_with(
+            stream,
+            "401 Unauthorized",
+            "application/json",
+            None,
+            "WWW-Authenticate: Bearer realm=\"tanacraft\"\r\n",
+            br#"{"error":"send the install's local token as a Bearer token"}"#,
+        );
+    }
+    if req.method != "POST" {
+        return respond_with(stream, "405 Method Not Allowed", "text/plain", None, "Allow: POST\r\n", b"");
+    }
+    let msg: Value = match serde_json::from_slice(&req.body) {
+        Ok(v) => v,
+        Err(e) => {
+            let err = json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": format!("parse error: {e}")}});
+            return respond(stream, "400 Bad Request", "application/json", None, err.to_string().as_bytes());
+        }
+    };
+    let me = Arc::clone(shared);
+    let engine = move |method: &str, params: Value| me.handle(&json!({"method": method, "params": params}));
+    let mut server = tanacraft_mcp::Server::new(tanacraft_mcp::Backend::Engine(Box::new(engine)));
+    let replies: Vec<Value> = match &msg {
+        Value::Array(all) => all.iter().take(1000).filter_map(|m| server.handle_line(&m.to_string())).collect(),
+        one => server.handle_line(&one.to_string()).into_iter().collect(),
+    };
+    if replies.is_empty() {
+        return respond(stream, "202 Accepted", "application/json", None, b"");
+    }
+    let body = if msg.is_array() { Value::Array(replies) } else { replies.into_iter().next().unwrap_or(Value::Null) };
+    respond(stream, "200 OK", "application/json", None, body.to_string().as_bytes())
 }
 
 fn wait_version(shared: &Shared, since: u64) -> u64 {

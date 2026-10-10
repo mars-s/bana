@@ -29,8 +29,48 @@ pub const PRODUCT_NAME: &str = "TanaCraft";
 /// Where the graph lives unless a file is given: `~/TanaCraft/graph.tanacraft` (a Loro document,
 /// see [`store`]).
 pub fn default_graph_path() -> std::path::PathBuf {
+    data_dir().join("graph.tanacraft")
+}
+
+/// The app's data folder: `$TANACRAFT_HOME`, else `~/TanaCraft`. It holds the default graph and
+/// the install's local API token.
+pub fn data_dir() -> std::path::PathBuf {
+    if let Some(d) = std::env::var_os("TANACRAFT_HOME").filter(|d| !d.is_empty()) {
+        return std::path::PathBuf::from(d);
+    }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from).unwrap_or_default();
-    home.join(PRODUCT_NAME).join("graph.tanacraft")
+    home.join(PRODUCT_NAME)
+}
+
+/// The install's local API token (`<data dir>/token`, readable by this user only), made on first
+/// use. Local tools (MCP, the CLI, scripts, the tunnel connector) send it to the running app.
+pub fn local_token() -> std::io::Result<String> {
+    let path = data_dir().join("token");
+    if let Ok(t) = std::fs::read_to_string(&path)
+        && t.trim().len() >= 32
+    {
+        return Ok(t.trim().to_string());
+    }
+    std::fs::create_dir_all(data_dir())?;
+    let token = random_hex();
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+    std::io::Write::write_all(&mut opts.open(&path)?, token.as_bytes())?;
+    Ok(token)
+}
+
+/// 128 random bits as hex (std's per-process random hash keys, from the OS).
+pub fn random_hex() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let part = || {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default());
+        h.write_u32(std::process::id());
+        h.finish()
+    };
+    format!("{:016x}{:016x}", part(), part())
 }
 
 /// Where a running app (desktop or `serve`) says how to reach its engine for `graph`: a JSON file

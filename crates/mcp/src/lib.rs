@@ -30,7 +30,13 @@ pub enum Backend {
         port: u16,
         token: String,
     },
+    /// The engine in this process (the app's own `/mcp` endpoint): `(method, params)` in, the
+    /// host's JSON answer out.
+    Engine(EngineFn),
 }
+
+/// See [`Backend::Engine`].
+pub type EngineFn = Box<dyn FnMut(&str, Value) -> Value + Send>;
 
 impl Backend {
     /// The running app that has `graph` open (its live file answers), else the file itself.
@@ -47,28 +53,25 @@ impl Backend {
         Ok(Backend::Local(Box::new(s)))
     }
 
-    /// The running app announced beside `graph`, if it answers.
+    /// The running app announced beside `graph`, if it answers to the install's token.
     pub fn find_live(graph: &Path) -> Option<Backend> {
+        Backend::find_live_with(graph, tanacraft_core::local_token().ok()?)
+    }
+
+    pub fn find_live_with(graph: &Path, token: String) -> Option<Backend> {
         let v: Value = serde_json::from_slice(&std::fs::read(tanacraft_core::live_file(graph)).ok()?).ok()?;
         let port = u16::try_from(v.get("port")?.as_u64()?).ok()?;
-        let token = v.get("token")?.as_str()?.to_string();
         let mut b = Backend::Live { port, token };
         b.post(&json!({"method": "version"})).ok()?;
         Some(b)
     }
 
-    /// `host:port` (127.0.0.1 only) with a token (`--token`, or the live file of the default graph).
+    /// `host:port` (127.0.0.1 only) with a token (`--token`, else the install's local token).
     pub fn connect(addr: &str, token: Option<String>) -> Result<Backend, String> {
         let port = addr.rsplit(':').next().and_then(|p| p.parse::<u16>().ok()).ok_or(format!("connect {addr}: no port"))?;
         let token = match token {
             Some(t) => t,
-            None => {
-                let v: Value = std::fs::read(tanacraft_core::live_file(&tanacraft_core::default_graph_path()))
-                    .ok()
-                    .and_then(|b| serde_json::from_slice(&b).ok())
-                    .ok_or("no token: pass --token (it is in the live file beside the graph)")?;
-                v["token"].as_str().unwrap_or_default().to_string()
-            }
+            None => tanacraft_core::local_token().map_err(|e| format!("no local token: {e}"))?,
         };
         let mut b = Backend::Live { port, token };
         b.post(&json!({"method": "version"}))?;
@@ -113,6 +116,13 @@ impl Backend {
                 }
                 Ok(r)
             }
+            Backend::Engine(f) => {
+                let v = f("run", json!({"command": command, "params": params, "window": "mcp"}));
+                match v.get("error") {
+                    Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
+                    None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
+                }
+            }
             Backend::Live { .. } => {
                 let v = self.post(&json!({"method": "run", "params": {"command": command, "params": params}}))?;
                 match v.get("error") {
@@ -127,6 +137,7 @@ impl Backend {
         match self {
             Backend::Local(s) => Ok(s.registry.describe()),
             Backend::Live { .. } => self.post(&json!({"method": "commands", "params": {}})),
+            Backend::Engine(f) => Ok(f("commands", json!({"window": "mcp"}))),
         }
     }
 }
@@ -282,14 +293,13 @@ mod tests {
         let today = Date::new(2026, 10, 10).unwrap();
         let mut session = Session::with_today(sample::sample(today).unwrap(), today);
         session.path = Some(file.clone());
-        let shared = tanacraft_server::http::Shared::new(tanacraft_server::Host::new(session));
+        let shared = tanacraft_server::http::Shared::with_token(tanacraft_server::Host::new(session), "t".repeat(32));
         let listener = tanacraft_server::http::bind(0).unwrap();
         let port = listener.local_addr().unwrap().port();
         tanacraft_server::http::announce(&shared, port, None).unwrap();
         let s2 = std::sync::Arc::clone(&shared);
         std::thread::spawn(move || tanacraft_server::http::serve_on(s2, listener, dir.clone()));
-        let mut b = Backend::open(&file).unwrap();
-        assert!(matches!(b, Backend::Live { .. }));
+        let mut b = Backend::find_live_with(&file, "t".repeat(32)).unwrap();
         let r = b.run("node.add", json!({"name": "From MCP"})).unwrap();
         let id = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
         assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From MCP");

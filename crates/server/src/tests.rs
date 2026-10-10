@@ -196,3 +196,49 @@ fn keys_typed_at_the_end_of_a_line_another_window_splits_follow_the_end() {
     h.handle("run", &json!({"window": "B", "command": "node.setName", "params": {"node": line, "name": "XPick!", "base": "XPick", "caret": 6}}));
     assert_eq!(name(&h, line), "XPick!");
 }
+
+/// One HTTP request to a local test server: (status line, body).
+fn http(port: u16, method: &str, path: &str, headers: &str, body: &str) -> (String, String) {
+    use std::io::{Read, Write};
+    let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    write!(s, "{method} {path} HTTP/1.1\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+    let mut out = String::new();
+    s.read_to_string(&mut out).unwrap();
+    let (head, body) = out.split_once("\r\n\r\n").unwrap();
+    (head.lines().next().unwrap().to_string(), body.to_string())
+}
+
+#[test]
+fn mcp_over_streamable_http_needs_the_token_and_runs_the_tools() {
+    // The app's own MCP endpoint (POST /mcp), the same tools as stdio; also through a tunnel.
+    let token = "k".repeat(32);
+    let shared = http::Shared::with_token(host(), token.clone());
+    let listener = http::bind(0).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s2 = std::sync::Arc::clone(&shared);
+    std::thread::spawn(move || http::serve_on(s2, listener, std::env::temp_dir()));
+    let auth = format!("Authorization: Bearer {token}\r\nContent-Type: application/json\r\n");
+    let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#;
+    assert!(http(port, "POST", "/mcp", "", init).0.contains("401"));
+    assert!(http(port, "POST", "/mcp", "Authorization: Bearer nope\r\n", init).0.contains("401"));
+    let (status, body) = http(port, "POST", "/mcp", &auth, init);
+    assert!(status.contains("200"), "{status}");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["result"]["serverInfo"]["name"], "tanacraft");
+    let (status, _) = http(port, "POST", "/mcp", &auth, r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#);
+    assert!(status.contains("202"), "{status}");
+    // Through a tunnel the Host is a public name: the token still lets it in.
+    let tunnel = format!("Host: tanacraft.example.org\r\n{auth}");
+    let call = r#"[{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_node","arguments":{"name":"From the cloud"}}},{"jsonrpc":"2.0","id":3,"method":"tools/list"}]"#;
+    let (status, body) = http(port, "POST", "/mcp", &tunnel, call);
+    assert!(status.contains("200"), "{status}");
+    let v: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v[0]["result"]["isError"], false, "{v}");
+    assert!(v[1]["result"]["tools"].as_array().unwrap().len() >= 6);
+    let id = tanacraft_core::NodeId(v[0]["result"]["structuredContent"]["id"].as_u64().unwrap());
+    assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From the cloud");
+    // A page on another origin is refused; GET has no stream.
+    assert!(http(port, "POST", "/mcp", &format!("Origin: https://evil.example\r\n{auth}"), init).0.contains("403"));
+    assert!(http(port, "GET", "/mcp", &auth, "").0.contains("405"));
+    // The rest of the API still refuses a foreign Host (DNS rebinding).
+    assert!(http(port, "POST", "/rpc", &tunnel, r#"{"method":"version"}"#).0.contains("403"));
+}

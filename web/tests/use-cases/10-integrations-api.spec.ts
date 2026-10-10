@@ -1,7 +1,7 @@
 // Use cases: API, MCP and integrations (docs/use-cases/10-integrations-api.md).
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree } from './helpers'
 import { pageWith, liveToken } from '../fixtures'
 
@@ -9,7 +9,7 @@ const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '.
 
 /** An MCP client on stdio: `tanacraft-cli --file FILE mcp` on a graph file. */
 function mcp(file: string) {
-  const proc = spawn(bin, ['--file', file, 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'] })
+  const proc = spawn(bin, ['--file', file, 'mcp'], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, TANACRAFT_HOME: dirname(file) } })
   const lines = createInterface({ input: proc.stdout! })
   const waiting = new Map<number, (v: any) => void>()
   lines.on('line', (l) => {

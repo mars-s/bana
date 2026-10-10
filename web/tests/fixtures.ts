@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '../..')
 const bin = join(process.env.CARGO_TARGET_DIR ?? join(root, 'target'), 'debug', 'tanacraft-cli')
@@ -33,10 +33,11 @@ function portFree(port: number): Promise<boolean> {
   })
 }
 
-/** The token a running engine wrote beside its graph (local tools must send it, UC-10.11). */
+/** The install's local token (local tools send it, UC-10.11). Each test's engine has its own
+ * data folder (TANACRAFT_HOME = the graph's folder), so tests never touch ~/TanaCraft. */
 export function liveToken(file: string): string {
   try {
-    return JSON.parse(readFileSync(`${file}.live`, 'utf8')).token ?? ''
+    return readFileSync(join(dirname(file), 'token'), 'utf8').trim()
   } catch {
     return ''
   }
@@ -45,6 +46,7 @@ export function liveToken(file: string): string {
 async function startServer(file: string, port: number, args: string[]): Promise<ChildProcess> {
   const proc = spawn(bin, ['--file', file, 'serve', ...args, '--today', '2026-10-10', '--port', String(port), '--web', join(root, 'web/dist')], {
     stdio: ['ignore', 'ignore', 'pipe'],
+    env: { ...process.env, TANACRAFT_HOME: dirname(file) },
   })
   for (let i = 0; i < 400; i++) {
     if (proc.exitCode !== null) throw new Error(`server on ${port} exited (port taken?)`)

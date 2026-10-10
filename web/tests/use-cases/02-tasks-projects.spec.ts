@@ -256,6 +256,8 @@ test('UC-02.20 commands on events: checking a task stamps a field; new children 
   // When checked: Configure supertag, Commands.
   const task = (await server.run('graph.tags')).result.find((t: any) => t.name === 'task').id
   await server.run('nav.open', { node: task })
+  // The test page has an Options button too: wait for the tag page before clicking.
+  await expect(app.locator('.panel .title-input')).toHaveValue('task')
   await app.locator('.head-actions .btn[title="Options"]').click()
   await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
   await app.locator('.cfg-card-head', { hasText: 'Command nodes that run' }).click()

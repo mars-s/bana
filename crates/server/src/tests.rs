@@ -52,6 +52,29 @@ fn panels_keep_their_own_page() {
 }
 
 #[test]
+fn a_node_shown_twice_on_a_page_gets_a_key_per_row() {
+    // A search result under its expanded search node, next to the line itself (UC-06.40 flake:
+    // equal keys left stale rows on the next page).
+    let mut h = host();
+    let run = |h: &mut Host, c: &str, p: serde_json::Value| h.handle("run", &json!({"command": c, "params": p}))["result"].clone();
+    let lib = h.session.graph.sys.library.0;
+    let page = run(&mut h, "node.add", json!({"name": "Places", "parent": lib}))["id"].clone();
+    run(&mut h, "node.add", json!({"name": "Kitchen sink", "parent": page}));
+    run(&mut h, "nav.open", json!({"node": page}));
+    run(&mut h, "search.create", json!({"query": "\"Kitchen sink\"", "name": "Sinks"}));
+    let keys = |h: &mut Host, start: usize| -> Vec<String> {
+        let p = h.handle("page", &json!({"start": start}));
+        p["rows"]["items"].as_array().unwrap().iter().map(|r| r["key"].as_str().unwrap().to_string()).collect()
+    };
+    let all = keys(&mut h, 0);
+    let unique: std::collections::HashSet<&String> = all.iter().collect();
+    assert_eq!(unique.len(), all.len(), "{all:?}");
+    assert!(all.iter().any(|k| k.ends_with(".2")), "{all:?}");
+    // The same row has the same key in a window that starts below the first one.
+    assert_eq!(keys(&mut h, 1), all[1..]);
+}
+
+#[test]
 fn windows_are_clamped_and_bad_input_is_an_error() {
     let mut h = host();
     let p = h.handle("page", &json!({"start": 1_000_000, "count": 99_999_999}));

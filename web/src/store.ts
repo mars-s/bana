@@ -279,7 +279,20 @@ export async function refresh() {
     return
   }
   for (const p of Object.values(pages)) seenVersion = Math.max(seenVersion, p.version ?? 0)
-  setState((s) => ({ pages: { ...s.pages, ...pages }, views: { ...s.views, ...views }, subViews: { ...s.subViews, ...subViews }, sidebar, caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch }))
+  setState((s) => {
+    // A node menu belongs to the page it was opened on: when its panel shows another page (opened
+    // from another window, the CLI or MCP), its items would act on the wrong node, so it closes.
+    const nm = s.nodeMenu
+    const moved = nm && pages[nm.panel] && pages[nm.panel].zoom !== s.pages[nm.panel]?.zoom
+    return {
+      pages: { ...s.pages, ...pages },
+      views: { ...s.views, ...views },
+      subViews: { ...s.subViews, ...subViews },
+      sidebar,
+      caretEpoch: wantCaret ? s.caretEpoch + 1 : s.caretEpoch,
+      nodeMenu: moved ? null : nm,
+    }
+  })
   markApplied(seq)
 }
 

@@ -1,7 +1,7 @@
 //! View snapshots: everything a front end needs to draw a panel or the sidebar, as JSON. The
 //! front end draws exactly this and holds no data of its own.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use bana_commands::Session;
 use bana_core::{FieldType, FieldValue, Graph, HideMode, Kind, NodeId, export, format};
@@ -289,24 +289,32 @@ fn items(s: &Session) -> Vec<Item> {
     out
 }
 
+/// A row's key before repeats are told apart (see `page`).
+fn item_key(it: &Item) -> String {
+    match it {
+        Item::Node(id, _) => format!("n{}", id.0),
+        Item::Field(owner, field, _) => format!("f{}:{}", owner.0, field.0),
+        Item::Empty(parent, _) => format!("e{}", parent.0),
+        Item::More(owner, _, _) => format!("m{}", owner.0),
+    }
+}
+
 fn item_json(s: &Session, it: &Item, refs: &mut BTreeMap<u64, String>) -> Value {
     let g = &s.graph;
     match it {
         Item::Node(id, depth) => {
             let mut v = node_info(s, *id, refs);
             v["k"] = json!("node");
-            v["key"] = json!(format!("n{}", id.0));
             v["depth"] = json!(depth);
             v
         }
         Item::Field(owner, field, depth) => match g.get(*owner).and_then(|n| n.fields.iter().find(|e| e.field == *field)) {
             Some(e) => field_row(g, *owner, e, *depth),
-            None => json!({"k": "gone", "key": format!("f{}:{}", owner.0, field.0), "depth": depth}),
+            None => json!({"k": "gone", "depth": depth}),
         },
-        Item::Empty(parent, depth) => json!({"k": "empty", "key": format!("e{}", parent.0), "parent": parent.0, "depth": depth}),
+        Item::Empty(parent, depth) => json!({"k": "empty", "parent": parent.0, "depth": depth}),
         Item::More(owner, depth, fields) => json!({
             "k": "more",
-            "key": format!("m{}", owner.0),
             "owner": owner.0,
             "depth": depth,
             "fields": fields.iter().map(|(f, opt)| json!({"field": f.0, "name": g.name(*f), "optional": opt})).collect::<Vec<_>>(),
@@ -335,6 +343,18 @@ pub fn page(s: &Session, params: &Value) -> Value {
     let count = bana_commands::p::usize(params, "count").unwrap_or(DEFAULT_COUNT).min(MAX_COUNT);
     let end = start.saturating_add(count).min(total);
     let mut window: Vec<Value> = all.get(start..end).unwrap_or(&[]).iter().map(|it| item_json(s, it, &mut refs)).collect();
+    // One node can show twice on a page (a search result under its expanded search node next to
+    // the line itself): every repeat gets its own key (`n67.2`), counted from the top so a key
+    // does not depend on the window. Equal keys make React and SwiftUI keep stale rows.
+    let mut seen: HashMap<String, usize> = HashMap::new();
+    for (i, it) in all.get(..end).unwrap_or(&[]).iter().enumerate() {
+        let key = item_key(it);
+        let n = seen.entry(key.clone()).or_default();
+        *n += 1;
+        if let Some(v) = i.checked_sub(start).and_then(|w| window.get_mut(w)) {
+            v["key"] = json!(if *n > 1 { format!("{key}.{n}") } else { key });
+        }
+    }
     // The reference counter (a setting): how many places point at each line's node.
     if g.settings.ref_counter {
         let counts = g.reference_counts();

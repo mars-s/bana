@@ -462,14 +462,20 @@ test('UC-06.38 type : and a word to pick an emoji', works('UC-06.38'), async ({ 
 })
 missing('UC-06.39', 'code blocks with a language and Mermaid diagrams')
 test('UC-06.40 a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)', works('UC-06.40'), async ({ app, server }) => {
+  // The source tag must exist first: setSourceTag refuses an unknown tag, and the values would
+  // then be plain text that no Part of search follows.
+  await server.run('tag.create', { name: 'area' })
   await server.run('field.create', { name: 'Part of', type: 'options_from_tag' })
-  await server.run('field.setSourceTag', { field: 'Part of', tag: 'area' })
+  expect((await server.run('field.setSourceTag', { field: 'Part of', tag: 'area' })).error).toBeUndefined()
   const { ids } = await pageWith(server, app, ['House', 'Kitchen', 'Sink', 'Shed'], 'Places')
   for (const id of ids) await server.run('tag.add', { node: id, tag: 'area' })
   await server.run('field.set', { node: ids[1], field: 'Part of', value: 'House' })
   await server.run('field.set', { node: ids[2], field: 'Part of', value: 'Kitchen' })
-  const q = (await server.run('search.create', { query: `COMPONENTS:${ids[0]}`, name: 'In the house' })).result.id
-  await server.run('nav.open', { node: q })
+  const made = (await server.run('search.create', { query: `COMPONENTS:${ids[0]}`, name: 'In the house' })).result
+  expect(made.results).toBe(2)
+  await server.run('nav.open', { node: made.id })
+  // Places shows the same lines: wait for the search page before looking at its rows.
+  await expect(app.locator('.panel .title-input')).toHaveValue('In the house')
   await expect(app.locator('.row.node', { hasText: 'Kitchen' })).toBeVisible()
   await expect(app.locator('.row.node', { hasText: 'Sink' })).toBeVisible()
   await expect(app.locator('.row.node', { hasText: 'Shed' })).toHaveCount(0)

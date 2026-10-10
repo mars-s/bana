@@ -16,6 +16,17 @@ test('right-clicking a bullet opens the node menu; Add tag tags the node', async
   await expect.poll(async () => (await tree(server, ids[0])).tags).toContain('task')
 })
 
+test('a page menu closes when its panel opens another page from outside (UC-02.20 flake)', async ({ app, server }) => {
+  await pageWith(server, app, ['Seeds'])
+  await app.locator('.head-actions .btn[title="Options"]').click()
+  await expect(app.locator('.node-menu')).toBeVisible()
+  const task = (await server.run('graph.tags')).result.find((t: any) => t.name === 'task').id
+  await server.run('nav.open', { node: task })
+  await expect(app.locator('.panel .title-input')).toHaveValue('task')
+  // Left open, its items (Configure supertag) acted on the page it was opened on.
+  await expect(app.locator('.node-menu')).toHaveCount(0)
+})
+
 test('Escape on a line shows the selection toolbar; its H makes a heading', async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['Plan'])
   await focus(server, app, ids[0], 4)

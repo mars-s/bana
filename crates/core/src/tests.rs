@@ -385,7 +385,7 @@ fn views_sort_group_filter_and_columns() {
     g.view_mut(open).unwrap().group = Some(GroupBy::Field(status));
     let groups = g.view_groups(open);
     let labels: Vec<&str> = groups.iter().map(|x| x.label.as_str()).collect();
-    assert_eq!(labels, ["Not started", "In progress", "Done"], "option order, empty options too");
+    assert_eq!(labels, ["Not started", "In progress", "Done", "Not defined"], "option order, empty options and not set too");
     g.view_mut(open).unwrap().filter = Query::parse(&g, "\"Effort (hours)\">4").unwrap();
     let total: usize = g.view_groups(open).iter().map(|x| x.items.len()).sum();
     assert_eq!(total, 1);

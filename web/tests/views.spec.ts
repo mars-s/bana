@@ -117,13 +117,15 @@ test('the calendar week view has an hour grid and steps by a week', async ({ app
   await expect(app.locator('.tg .cal-event', { hasText: 'Build four beds' })).toBeVisible()
 })
 
-test('clicking a table header renames the field in place; its icon opens the field', async ({ app, server }) => {
+test('clicking a table header renames the field in place and opens it to the right (N46)', async ({ app, server }) => {
   await openTasks(server, app)
   await app.locator('.view-toolbar .tool[title="View as"]').click()
   await app.locator('.menu-item', { hasText: 'Table' }).click()
   const head = app.locator('.t-head .t-cell', { hasText: 'Due' })
   await head.locator('.t-col-name').click()
   await expect(app.locator('.t-col-input')).toBeFocused()
+  await expect(app.locator('.panel')).toHaveCount(2)
+  await expect(app.locator('.panel').nth(1).locator('.title-input')).toHaveValue('Due')
   await app.keyboard.type('Due date')
   await app.keyboard.press('Enter')
   await expect(app.locator('.t-head .t-col-name', { hasText: 'Due date' })).toBeVisible()
@@ -261,6 +263,9 @@ test('board column + Add makes a card at the top with its name typed in place; a
   await app.keyboard.type('Water seedlings')
   await app.keyboard.press('Enter')
   await expect(col.locator('.card', { hasText: 'Water seedlings' })).toBeVisible()
+  // Still first once named, and the empty "Status not set" column is there.
+  await expect(col.locator('.card').first()).toContainText('Water seedlings')
+  await expect(app.locator('.board-col .board-name', { hasText: 'Status not set' })).toBeVisible()
   const hit = (await server.run('graph.search', { query: 'Water seedlings' })).result
   expect(hit.length).toBe(1)
   // Drop far below the cards of a column.

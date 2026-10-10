@@ -7,7 +7,7 @@ import { call, type FieldRow, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
 import { exec, withBarrier } from './controller'
-import { openInNewPanel, setActivePanel, setState, useStore } from './store'
+import { openBeside, openInNewPanel, setActivePanel, setState, useStore } from './store'
 import { openPicker, startFieldEdit } from './picker'
 
 export interface ViewItem extends NodeRow {
@@ -562,12 +562,18 @@ function AddItem({ v, panel, preset, label = '+ Add' }: { v: ViewSnap; panel: st
 // ---- table -------------------------------------------------------------------------------------
 
 /** A column header's name: a click renames the field in place (Enter keeps, Escape leaves it as it
- * was); the icon beside it opens the field (spec 04, table). */
+ * was) and opens its definition in the panel to the right (N46); the icon opens it too. */
 function HeaderName({ id, name, panel }: { id: number; name: string; panel: string }) {
   const [editing, setEditing] = useState(false)
   if (!editing)
     return (
-      <span className="t-col-name" onClick={() => setEditing(true)}>
+      <span
+        className="t-col-name"
+        onClick={() => {
+          setEditing(true)
+          void openBeside(panel, id)
+        }}
+      >
         {name}
       </span>
     )
@@ -743,7 +749,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
               setMenu({ col: c, x: e.clientX, y: e.clientY })
             }}
           >
-            <span className="t-col-icon" title="Open the field" onClick={() => void openInNewPanel(c.id)}>
+            <span className="t-col-icon" title="Open the field" onClick={() => void openBeside(panel, c.id)}>
               <Icon name={FIELD_ICON[c.type] ?? 'fieldText'} size={12} />
             </span>
             <HeaderName id={c.id} name={c.name} panel={panel} />
@@ -941,9 +947,13 @@ function Board({ v, panel }: { v: ViewSnap; panel: string }) {
   }
   // "+ Add" in a column: a card at the top of that column, its name typed in place (spec 04 §5).
   const addTo = async (label: string) => {
+    const first = v.groups.find((g) => g.label === label)?.items[0]
     const r = await exec('view.addItem', { node: v.node, name: '', stay: true, ...(groupField ? { field: groupField.id, value: label === 'Not defined' ? '' : label } : {}) }, panel)
     const id = r?.result?.id
-    if (id != null) setFresh(id)
+    if (id == null) return
+    setFresh(id)
+    // It stays at the top of the column once named (N49, `143`).
+    if (first) await exec('view.moveItem', { node: v.node, item: id, before: first.id }, panel)
   }
   const endDrag = () => {
     setDrag(null)

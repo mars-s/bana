@@ -308,6 +308,18 @@ export async function openConfigure(tag: number) {
   await openInNewPanel(tag, true)
 }
 
+/** Opens `node` in the panel to the right of `panel` (a new one when there is none) and leaves
+ * `panel` active, so what has the keyboard there keeps it (a table header being renamed, N46). */
+export async function openBeside(panel: string, node: number) {
+  const shown = visiblePanels()
+  const right = shown[shown.indexOf(panel) + 1]
+  if (right) {
+    await call('run', { command: 'nav.open', params: { node }, panel: right })
+    await refresh()
+  } else await openInNewPanel(node)
+  setActivePanel(panel)
+}
+
 /** Done in a configure panel: the panel closes (or, alone, goes back to the tag page). */
 export async function closeConfigure(panel: string) {
   if (visiblePanels().length > 1) {

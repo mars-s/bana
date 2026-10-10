@@ -313,11 +313,13 @@ impl Graph {
         };
         let hidden = v.hidden_groups.clone();
         let mut groups: Vec<Group> = Vec::new();
-        // Every option of an options field gets a group, even an empty one (spec 04 §12).
+        // Every option of an options field gets a group, even an empty one, and so does "not
+        // set" (spec 04 §5, §12; DIFFS N49).
         if let GroupBy::Field(f) = group {
             for o in self.field_options(f) {
                 groups.push(Group { label: o, items: Vec::new() });
             }
+            groups.push(Group { label: NO_VALUE.to_string(), items: Vec::new() });
         }
         for i in items {
             let label = self.group_label(self.resolve(i), group);

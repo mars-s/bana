@@ -7,7 +7,7 @@
 
 import { type Json, type NodeRow, type Page, call } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
-import { closePanel, closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels, wantCaret } from './store'
+import { closePanel, closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
 import { fieldKey, fieldRowKey, pickerKey } from './picker'
 import { toggleQuery } from './Views'
@@ -138,7 +138,6 @@ export async function exec(command: string, params: Json = {}, panel = getState(
     const r = await call('run', { command, params, panel })
     if (r?.error) showToast(r.error)
     synced = null
-    wantCaret()
     await refresh()
     // A line that just took the caret is drawn on the next frame: keys wait for its editor.
     const after = getState().pages[panel]

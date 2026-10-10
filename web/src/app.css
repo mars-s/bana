@@ -1595,6 +1595,9 @@ kbd {
   position: absolute;
   top: calc(100% + var(--q1));
   left: 0;
+  /* Submenus hang outside it. */
+  max-height: none;
+  overflow: visible;
 }
 
 .menu-item.checked {
@@ -2475,10 +2478,44 @@ kbd {
 /* ---- query builder (12: Search node with query builder) ---- */
 
 .query-builder {
+  position: relative;
   margin: var(--q2) 0 var(--q4);
   border-radius: var(--r-sm);
   box-shadow: inset 0 0 0 1px var(--c-outline);
-  overflow: hidden;
+}
+
+/* The 15 px close circle sitting on the builder's top-right corner (N43). */
+.q-close {
+  position: absolute;
+  top: calc(var(--q-close) / -2);
+  right: calc(var(--q-close) / -2);
+  width: var(--q-close);
+  height: var(--q-close);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--c-pressed);
+  color: var(--c-text);
+  z-index: 1;
+}
+
+.q-learn {
+  align-self: flex-start;
+  color: var(--c-link);
+  text-decoration: none;
+}
+
+.q-menus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--q1);
+  padding: 0 var(--q4) var(--q3);
+}
+
+.menu-note {
+  margin: var(--q1) var(--q2);
 }
 
 .q-head {

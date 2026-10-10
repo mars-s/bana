@@ -3,7 +3,7 @@
 // engine's `view` snapshot and runs commands; nothing is stored here.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { FieldRow, Json, NodeRow } from './engine'
+import { call, type FieldRow, type Json, type NodeRow } from './engine'
 import { Icon, type IconName } from './icons'
 import { RichText, TagChip, tagStyle, FieldEditorCell } from './Outline'
 import { exec } from './controller'
@@ -256,16 +256,107 @@ function GroupBox({ g, node, panel, path, not }: { g: QueryGroup; node: number; 
   )
 }
 
+const OPERATORS: [string, string][] = [
+  ['TODO', 'TODO'], ['DONE', 'DONE'], ['NOT DONE', 'NOT DONE'], ['DONE LAST 7 DAYS', 'DONE:7'], ['CREATED LAST 7 DAYS', 'CREATED:7'], ['EDITED LAST 7 DAYS', 'EDITED:7'],
+  ['HAS TAG', 'HAS:TAG'], ['HAS FIELD', 'HAS:FIELD'], ['IS TAG', 'IS:TAG'], ['IS FIELD', 'IS:FIELD'], ['IS SEARCH NODE', 'IS:SEARCH'], ['IS CALENDAR NODE', 'IS:CALENDAR'],
+  ['IS COMMAND', 'IS:COMMAND'], ['PARENTS DESCENDANTS', 'SCOPE:PARENT'], ['GRANDPARENTS DESCENDANTS', 'SCOPE:GRANDPARENT'], ['IN LIBRARY', 'IN:LIBRARY'], ['ON DAY NODE', 'ON:DAY'], ['FOR DATE today', 'DATE:today'],
+]
+const SYSTEM: [string, string][] = [['Created time: last 7 days', 'CREATED:7'], ['Last edited time: last 7 days', 'EDITED:7'], ['Done time: last 7 days', 'DONE:7'], ['Tags: any', 'HAS:TAG'], ['Date from calendar node: today', 'DATE:today']]
+const VALUES: [string, string][] = [['PARENT', 'PARENT'], ['GRANDPARENT', 'GRANDPARENT'], ['FOR RELATIVE DATE: today', 'today'], ['FOR RELATIVE DATE: yesterday', 'yesterday'], ['FOR RELATIVE DATE: tomorrow', 'tomorrow'], ['Set', 'SET'], ['Not Set', 'NOTSET'], ['Defined', 'DEFINED'], ['Not Defined', 'UNDEFINED']]
+const BASE_TYPES = ['task', 'meeting', 'person', 'organization', 'location', 'project', 'topic', 'event', 'article', 'memo', 'reflection', 'day', 'week']
+
+interface TagInfo {
+  id: number
+  name: string
+  fields: { id: number; name: string }[]
+}
+
+/** The add bar's menus (spec 05 §2): supertag, tag fields, field values, system fields, tag types,
+ * search operators, and the workspace when there are several (N43). */
+function QueryMenus({ v, panel }: { v: ViewSnap; panel: string }) {
+  const [tags, setTags] = useState<TagInfo[]>([])
+  const workspaces = useStore((s) => s.sidebar?.workspaces ?? [])
+  useEffect(() => {
+    void call('run', { command: 'graph.tags', params: {} }).then((r) => setTags(Array.isArray(r?.result) ? r.result : []))
+  }, [v.query?.text])
+  const add = (clause: string, not = false) => void exec('search.addClause', { node: v.node, clause, ...(not ? { not } : {}) }, panel)
+  const text = v.query?.text.toLowerCase() ?? ''
+  const inQuery = tags.filter((t) => text.includes(`#${t.name.toLowerCase()}`) || text.includes(`tagged:${t.name.toLowerCase()}`))
+  const tagFields = inQuery.flatMap((t) => t.fields)
+  const valueFields = tagFields.length ? tagFields : tags.flatMap((t) => t.fields)
+  return (
+    <div className="q-menus">
+      <button
+        className="btn"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect()
+          openPicker({ mode: 'searchTag', panel, node: v.node, at: -1, x: r.left, y: r.bottom + 2 })
+        }}
+      >
+        + Supertag
+      </button>
+      <MenuButton label="Tag fields ▾" title="Tag fields">
+        {(close) =>
+          tagFields.length ? (
+            tagFields.map((f) => (
+              <SubMenu key={f.id} label={f.name}>
+                <Item onPick={() => (close(), add(`"${f.name}":*`))}>Set</Item>
+                <Item onPick={() => (close(), add(`"${f.name}":*`, true))}>Not set</Item>
+              </SubMenu>
+            ))
+          ) : (
+            <p className="muted menu-note">Add a supertag condition first</p>
+          )
+        }
+      </MenuButton>
+      <MenuButton label="Field values ▾" title="Field values">
+        {(close) =>
+          [...new Map(valueFields.map((f) => [f.name, f])).values()].map((f) => (
+            <SubMenu key={f.id} label={f.name}>
+              {VALUES.map(([l, x]) => (
+                <Item key={x} onPick={() => (close(), add(`"${f.name}":${x}`))}>
+                  {l}
+                </Item>
+              ))}
+            </SubMenu>
+          ))
+        }
+      </MenuButton>
+      <MenuButton label="System fields ▾" title="System fields">
+        {(close) => SYSTEM.map(([l, x]) => <Item key={l} onPick={() => (close(), add(x))}>{l}</Item>)}
+      </MenuButton>
+      <MenuButton label="Tag types ▾" title="Tag types">
+        {(close) => BASE_TYPES.map((b) => <Item key={b} onPick={() => (close(), add(`TYPE:${b}`))}>{`${b} (base type)`}</Item>)}
+      </MenuButton>
+      <MenuButton label="Search operators ▾" title="Search operators">
+        {(close) => OPERATORS.map(([l, x]) => <Item key={l} onPick={() => (close(), add(x))}>{l}</Item>)}
+      </MenuButton>
+      {workspaces.length > 1 && (
+        <MenuButton label="Workspace ▾" title="Workspace">
+          {(close) => workspaces.map((w) => <Item key={w.id} onPick={() => (close(), add(`WORKSPACE:${w.id}`))}>{w.name}</Item>)}
+        </MenuButton>
+      )}
+    </div>
+  )
+}
+
 export function QueryBuilder({ v, panel }: { v: ViewSnap; panel: string }) {
   const open = useStore((s) => !!s.queryOpen[panel])
   if (!v.query || !open) return null
   return (
     <div className="query-builder">
+      <button className="q-close" title="Close the query builder" onClick={() => void toggleQuery(panel, v.node, false)}>
+        <Icon name="close" size={9} />
+      </button>
       <div className="q-head">
         <span className="q-title">Query builder</span>
         <span className="muted">Results wait until you run the query.</span>
+        <a className="q-learn" href="https://outliner.tana.inc/learn" target="_blank" rel="noreferrer">
+          Learn more
+        </a>
       </div>
       <GroupBox g={v.query.tree} node={v.node} panel={panel} path={[]} />
+      <QueryMenus v={v} panel={panel} />
       <div className="q-foot">
         <span className="q-expr">{v.query.text || 'No conditions yet'}</span>
         <span className="spacer" />

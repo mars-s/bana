@@ -184,11 +184,6 @@ export async function run(command: string, params: Json = {}, panel = state.acti
   return r
 }
 
-/** The next refresh puts the caret where the engine says (after a command, not typing). */
-export function wantCaret() {
-  caretWanted = true
-}
-
 export function scheduleRefresh() {
   if (refreshQueued) return
   refreshQueued = true

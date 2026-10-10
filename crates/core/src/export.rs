@@ -178,7 +178,7 @@ fn shown_line(g: &Graph, id: NodeId, html: bool) -> String {
         if let Some(u) = &sp.url {
             piece = format!("<a href=\"{}\">{piece}</a>", escape(u));
         }
-        for (on, tag) in [(sp.code, "code"), (sp.highlight, "mark"), (sp.underline, "u"), (sp.italic, "i"), (sp.bold, "b")] {
+        for (on, tag) in [(sp.code, "code"), (sp.highlight, "mark"), (sp.strike, "s"), (sp.underline, "u"), (sp.italic, "i"), (sp.bold, "b")] {
             if on {
                 piece = format!("<{tag}>{piece}</{tag}>");
             }

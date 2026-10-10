@@ -982,6 +982,16 @@ button:focus-visible {
   text-decoration: underline;
 }
 
+.text .st,
+.editor .st {
+  text-decoration: line-through;
+}
+
+.text .u.st,
+.editor .u.st {
+  text-decoration: underline line-through;
+}
+
 .text .hl,
 .editor .hl {
   background: var(--c-highlight);
@@ -4097,4 +4107,66 @@ kbd {
   font: inherit;
   font-size: var(--fs-label);
   cursor: pointer;
+}
+
+/* Command buttons on a supertag's nodes and a field's rows (UC-06.33). spec-gap: not pictured;
+   a small outlined button in the row's label size. */
+.cmd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q1);
+  height: var(--chip-h);
+  margin: 2px 0 0 var(--q1);
+  padding: 0 var(--q1-5);
+  border: 1px solid var(--c-outline);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-button);
+  color: var(--c-tertiary);
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.cmd-btn:hover {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+
+.cmd-btn:active {
+  background: var(--c-pressed);
+}
+
+.cmd-btn:focus-visible {
+  outline: 1px solid var(--c-focus);
+}
+
+/* The capture window (UC-08.14): Quick add alone fills a small window of its own, opaque (no
+   glass), with the same accent bar, title and help as the in-app dialog. */
+html.capture,
+html.capture body {
+  background: var(--c-panel);
+  overflow: hidden;
+}
+
+.dialog.quick.standalone {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+/* Search inside one node (UC-06.42): the node a Tab picked, before the search box. */
+.search-scope {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--q1-5);
+  border-radius: var(--r-sm);
+  background: var(--c-hover);
+  font-size: var(--fs-label);
+  color: var(--c-text);
 }

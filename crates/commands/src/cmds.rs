@@ -213,6 +213,16 @@ pub fn registry() -> Registry {
             Ok(json!({"on": on.0, "event": event, "command": cmd.0, "active": add}))
         })
         .params(r#"{"command": name | id, "event": "added" | "done" | "child", "tag"?: name | id, "node"?: id, "off"?: bool}  (added, done: on a supertag; child: on a node)"#),
+        // Command buttons (UC-06.33): a command node shown as a button on every node with a
+        // supertag, or on every row of a field; a click runs `commandNode.run` on that node.
+        C::new("commandNode.button", "Show a command node as a button", "Command", |s, v| {
+            let cmd = command_node_param(s, v)?;
+            let on = if v.get("field").is_some() { field_param(s, v, false)? } else { tag_param(s, v, "tag", false)? };
+            let add = v.get("off").and_then(Value::as_bool) != Some(true);
+            s.graph.set_button(on, cmd, add)?;
+            Ok(json!({"on": on.0, "command": cmd.0, "active": add}))
+        })
+        .params(r#"{"command": name | id, "tag"?: name | id, "field"?: name | id, "off"?: bool}  (a button on nodes with the supertag, or on the field's rows)"#),
         C::new("commandNode.list", "Command nodes", "Command", |s, _| {
             Ok(Value::Array(s.graph.command_nodes().into_iter().map(|c| json!({"id": c.0, "name": s.graph.name(c)})).collect()))
         })
@@ -313,6 +323,8 @@ pub fn registry() -> Registry {
         C::new("format.italic", "Italic", "Format", |s, v| format_mark(s, v, Mark::Italic)).key("Mod+I").params(FMT),
         C::new("format.underline", "Underline", "Format", |s, v| format_mark(s, v, Mark::Underline)).key("Mod+U").params(FMT),
         C::new("format.highlight", "Highlight", "Format", |s, v| format_mark(s, v, Mark::Highlight)).key("Ctrl+H").params(FMT),
+        // spec-gap: Tana's docs list strikethrough without its key; Mod+Shift+X is the common one.
+        C::new("format.strikethrough", "Strikethrough", "Format", |s, v| format_mark(s, v, Mark::Strike)).key("Mod+Shift+X").params(FMT),
         C::new("format.code", "Code", "Format", |s, v| format_mark(s, v, Mark::Code)).params(FMT),
         // Search nodes.
         C::new("search.create", "New search node", "Search", search_create)
@@ -781,6 +793,11 @@ pub fn registry() -> Registry {
         .params(r#"{"shortcut": "Mod+Shift+H", "command"?: string}  (no command removes the binding)"#)
         .pure(),
         // What copying nodes puts on the clipboard: formatted HTML plus plain text (spec 02 §12).
+        // UC-06.36: words, characters and nodes of the open page (below its title) or of the
+        // selected lines with what is under them. `message` is shown to the person.
+        C::new("node.count", "Count words, characters and nodes", "Node", count)
+            .params(r#"{"node"?: id, "nodes"?: [id]}  (default: the selection, else the open page)"#)
+            .pure(),
         C::new("export.clipboard", "Copy as HTML and text", "Export", |s, v| {
             let ids = if v.get("nodes").is_some() || v.get("node").is_some() || s.sel.is_some() { s.targets(v)? } else { vec![node_or_zoom(s, v)?] };
             let text = export::to_plain(&s.graph, &ids);
@@ -792,6 +809,28 @@ pub fn registry() -> Registry {
 }
 
 // ---- helpers ------------------------------------------------------------------------------------
+
+fn count(s: &mut Session, v: &Value) -> CmdResult {
+    let g = &s.graph;
+    let mut stack: Vec<NodeId> = if v.get("nodes").is_some() || s.sel.is_some() { s.targets(v)? } else { g.children(node_or_zoom(s, v)?).to_vec() };
+    stack.reverse();
+    let mut seen = std::collections::HashSet::new();
+    let (mut words, mut chars, mut nodes) = (0usize, 0usize, 0usize);
+    // ponytail: names only, not field values or descriptions.
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) || seen.len() > 1_000_000 {
+            continue;
+        }
+        let text = g.text(id);
+        words += text.split_whitespace().count();
+        chars += text.chars().count();
+        nodes += 1;
+        stack.extend(g.children(id).iter().rev());
+    }
+    let plural = |n: usize, one: &str| format!("{n} {one}{}", if n == 1 { "" } else { "s" });
+    let message = format!("{}, {}, {}", plural(words, "word"), plural(chars, "character"), plural(nodes, "node"));
+    Ok(json!({"words": words, "characters": chars, "nodes": nodes, "message": message}))
+}
 
 fn node_or_zoom(s: &Session, v: &Value) -> Result<NodeId, CmdError> {
     let id = p::node(v, "node")?.unwrap_or(s.zoom);

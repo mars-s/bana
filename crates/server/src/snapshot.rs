@@ -126,7 +126,14 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
         },
         "created": n.created,
         "edited": n.edited.max(n.created),
+        // Command buttons from its supertags (UC-06.33).
+        "buttons": buttons(g, target, None),
     })
+}
+
+/// Command buttons as `{id, name}` (UC-06.33).
+fn buttons(g: &Graph, node: NodeId, field: Option<NodeId>) -> Vec<Value> {
+    g.buttons(node, field).into_iter().map(|c| json!({"id": c.0, "name": g.name(c)})).collect()
 }
 
 fn field_type_name(t: FieldType) -> &'static str {
@@ -162,6 +169,7 @@ fn field_row(g: &Graph, owner: NodeId, e: &tanacraft_core::FieldEntry, depth: us
         "values": shown,
         "missing": def.required && empty,
         "invalid": invalid,
+        "buttons": buttons(g, owner, Some(e.field)),
     })
 }
 
@@ -455,8 +463,16 @@ pub fn find(s: &Session, params: &Value) -> Value {
     let g = &s.graph;
     let q = params.get("query").and_then(Value::as_str).unwrap_or_default();
     let limit = tanacraft_commands::p::usize(params, "limit").unwrap_or(12).min(100);
-    let ids: Vec<NodeId> =
-        if q.trim().is_empty() { s.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(limit).collect() } else { g.fuzzy(q, limit) };
+    // `under`: only what is inside that node (Tab on a result, UC-06.42).
+    let under = tanacraft_commands::p::node(params, "under").ok().flatten().filter(|n| g.get(*n).is_some());
+    let ids: Vec<NodeId> = match under {
+        Some(u) if q.trim().is_empty() => g.children(u).iter().copied().take(limit).collect(),
+        Some(u) => {
+            g.fuzzy(q, tanacraft_core::query::MAX_RESULTS).into_iter().filter(|n| *n != u && g.is_ancestor_or_self(u, *n)).take(limit).collect()
+        }
+        None if q.trim().is_empty() => s.recents.iter().copied().filter(|r| g.get(*r).is_some()).take(limit).collect(),
+        None => g.fuzzy(q, limit),
+    };
     let mut refs = BTreeMap::new();
     Value::Array(
         ids.into_iter()
@@ -792,6 +808,8 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             "default": d.default.as_ref().map(|v| export::display_value(g, v)),
             "min": d.min, "max": d.max,
             "autoCollect": !d.no_auto_collect,
+            "buttons": d.buttons.iter().map(|c| named(*c)).collect::<Vec<_>>(),
+            "commandNodes": g.command_nodes().into_iter().map(named).collect::<Vec<_>>(),
             "usedIn": {"nodes": nodes, "tags": tags},
         });
     }
@@ -820,6 +838,7 @@ pub fn schema(s: &Session, params: &Value) -> Value {
             // Commands on events (UC-02.20) and the command nodes to pick from.
             "onAdded": d.on_added.first().map(|c| c.0),
             "onDone": d.on_done.first().map(|c| c.0),
+            "buttons": d.buttons.iter().map(|c| named(*c)).collect::<Vec<_>>(),
             "commandNodes": g.command_nodes().into_iter().map(named).collect::<Vec<_>>(),
             "doneMap": d.done_map.as_ref().map(|m| json!({"field": named(m.field), "checked": m.checked, "unchecked": m.unchecked})),
             "colors": tanacraft_core::TAG_COLORS,

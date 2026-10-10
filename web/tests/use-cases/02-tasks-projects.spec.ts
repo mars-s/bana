@@ -1,5 +1,5 @@
 // Use cases: tasks and projects (docs/use-cases/02-tasks-projects.md).
-import { test, expect, missing, works, partial, tree, fieldOf, idOf, palette } from './helpers'
+import { test, expect, works, partial, tree, fieldOf, idOf, palette } from './helpers'
 import { pageWith, focus, nameOf } from '../fixtures'
 
 const done = async (server: any, id: number) => (await server.run('graph.inspect', { node: id })).result.done
@@ -219,7 +219,17 @@ test('UC-02.04 a pinned project shows its progress ring in the sidebar', works('
   await server.run('node.setDone', { node: kids[0], done: true })
   await expect(ring).toHaveAttribute('aria-label', '1 of 2 done')
 })
-missing('UC-02.19', 'Cmd+Shift+M opens Move to from the keyboard')
+test('UC-02.19 Cmd+Shift+M opens Move to from the keyboard', works('UC-02.19'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Return the ladder'])
+  await focus(server, app, ids[0], 3)
+  await app.keyboard.press('Meta+Shift+M')
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type('Ideas')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Ideas')
+  await app.keyboard.press('Enter')
+  const ideas = await idOf(server, 'Ideas')
+  await expect.poll(async () => (await tree(server, ideas)).children.map((c: any) => c.name)).toContain('Return the ladder')
+})
 test('UC-02.20 commands on events: checking a task stamps a field; new children of an Inbox become tasks', works('UC-02.20'), async ({ app, server }) => {
   await server.run('commandNode.create', { name: 'Stamp done', steps: ['field.add {"field": "Finished", "value": "yes"}'] })
   await server.run('commandNode.create', { name: 'Make task', steps: ['tag.add {"tag": "task"}'] })
@@ -230,12 +240,12 @@ test('UC-02.20 commands on events: checking a task stamps a field; new children 
   await expect.poll(async () => (await tree(server, ids[0])).onChild).toEqual(['Make task'])
   const item = (await server.run('node.add', { name: 'Call the plumber', parent: ids[0] })).result.id
   await expect.poll(async () => (await tree(server, item)).tags).toEqual(['task'])
-  // When checked: Configure supertag, Commands on events.
+  // When checked: Configure supertag, Commands.
   const task = (await server.run('graph.tags')).result.find((t: any) => t.name === 'task').id
   await server.run('nav.open', { node: task })
   await app.locator('.head-actions .btn[title="Options"]').click()
   await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
-  await app.locator('.cfg-card-head', { hasText: 'Commands on events' }).click()
+  await app.locator('.cfg-card-head', { hasText: 'Command nodes that run' }).click()
   await app.locator('select[aria-label="When checked done"]').selectOption({ label: 'Stamp done' })
   await expect.poll(async () => (await server.rpc('schema', { node: task })).onDone).toBeTruthy()
   await server.run('node.setDone', { node: item, done: true })

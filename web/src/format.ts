@@ -1,5 +1,5 @@
 // Inline marks in a node's text, read the same way as `tanacraft_core::format::raw_spans`:
-// `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `` `code` ``, `[[id:42]]` references
+// `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `~~strike~~`, `` `code` ``, `[[id:42]]` references
 // and `http(s)://` links. Only for drawing; the engine owns the text.
 
 export interface Span {
@@ -8,6 +8,7 @@ export interface Span {
   italic?: boolean
   underline?: boolean
   highlight?: boolean
+  strike?: boolean
   code?: boolean
   node?: number
   url?: string
@@ -17,14 +18,17 @@ export interface Span {
   at: number
 }
 
-type Mark = 'bold' | 'underline' | 'highlight' | 'code' | 'italic'
+type Mark = 'bold' | 'underline' | 'highlight' | 'strike' | 'code' | 'italic'
 const TOKENS: [Mark, string][] = [
   ['bold', '**'],
   ['underline', '__'],
   ['highlight', '=='],
+  ['strike', '~~'],
   ['code', '`'],
   ['italic', '*'],
 ]
+
+const CODE: [Mark, string] = ['code', '`']
 
 export function rawSpans(s: string): Span[] {
   const out: Span[] = []
@@ -58,7 +62,7 @@ export function rawSpans(s: string): Span[] {
       cur.at = i
       continue
     }
-    const found = cur.code ? (s[i] === '`' ? TOKENS[3] : undefined) : TOKENS.find(([, t]) => s.startsWith(t, i))
+    const found = cur.code ? (s[i] === '`' ? CODE : undefined) : TOKENS.find(([, t]) => s.startsWith(t, i))
     if (found) {
       const [m, tok] = found
       const open = !!cur[m]

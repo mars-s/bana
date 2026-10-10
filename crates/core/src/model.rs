@@ -116,6 +116,9 @@ pub struct TagDef {
     /// Command nodes run on a tagged node when it is checked done (UC-02.20).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_done: Vec<NodeId>,
+    /// Command nodes shown as buttons on tagged nodes; a click runs one on the node (UC-06.33).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buttons: Vec<NodeId>,
     /// Builds tagged nodes' titles from fields: `${name}` then text and `${Field}` placeholders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title_expr: Option<String>,
@@ -269,6 +272,10 @@ pub struct FieldDef {
     /// New typed values are not added to the options ("Auto-collect values" off).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub no_auto_collect: bool,
+    /// Command nodes shown as buttons on the field's rows; a click runs one on the field's node
+    /// (UC-06.33).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buttons: Vec<NodeId>,
 }
 
 fn is_never(h: &HideMode) -> bool {

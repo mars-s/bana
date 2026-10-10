@@ -975,6 +975,51 @@ impl Graph {
         Ok(())
     }
 
+    /// Adds or removes command node `command` as a button on supertag or field `on` (UC-06.33).
+    pub fn set_button(&mut self, on: NodeId, command: NodeId, add: bool) -> Result<()> {
+        if self.node(command)?.kind != Kind::Command {
+            return Err(Error::Invalid(format!("node {command} is not a command node")));
+        }
+        let list = if self.tag_def(on).is_some() {
+            &mut self.tag_def_mut(on)?.buttons
+        } else if self.field_def(on).is_some() {
+            &mut self.field_def_mut(on)?.buttons
+        } else {
+            return Err(Error::Invalid(format!("node {on} is neither a supertag nor a field")));
+        };
+        list.retain(|c| *c != command);
+        if add {
+            list.push(command);
+        }
+        Ok(())
+    }
+
+    /// The command buttons a node shows: those of its supertags (and the ones they extend), or of
+    /// field `field` when given; each once, in order, skipping trashed command nodes (UC-06.33).
+    pub fn buttons(&self, node: NodeId, field: Option<NodeId>) -> Vec<NodeId> {
+        let live = |c: &NodeId| self.get(*c).is_some_and(|n| n.kind == Kind::Command) && !self.in_trash(*c);
+        let all: Vec<NodeId> = match field {
+            Some(f) => self.field_def(f).map(|d| d.buttons.clone()).unwrap_or_default(),
+            None => self
+                .get(node)
+                .map(|n| {
+                    n.tags
+                        .iter()
+                        .flat_map(|t| self.tag_lineage(*t))
+                        .flat_map(|t| self.tag_def(t).map(|d| d.buttons.clone()).unwrap_or_default())
+                        .collect()
+                })
+                .unwrap_or_default(),
+        };
+        let mut out: Vec<NodeId> = Vec::new();
+        for c in all.into_iter().filter(|c| live(c)) {
+            if !out.contains(&c) {
+                out.push(c);
+            }
+        }
+        out
+    }
+
     /// Takes what happened since the last call (UC-02.20).
     pub fn take_events(&mut self) -> Vec<GraphEvent> {
         std::mem::take(&mut self.events)

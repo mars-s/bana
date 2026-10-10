@@ -101,6 +101,8 @@ export const test = base.extend<{ server: Server; app: Page; serveArgs: string[]
     // Any error thrown in the page fails the test.
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(process.env.PAGE_STACKS ? String(e.stack) : e.message))
+    // CPU_THROTTLE=4 runs the page 4 times slower, to find races that only show under load.
+    if (process.env.CPU_THROTTLE) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.CPU_THROTTLE) })
     await page.goto(server.url)
     await expect(page.locator('.panel .title')).toBeVisible()
     await use(page)

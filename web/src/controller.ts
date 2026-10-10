@@ -9,7 +9,7 @@ import { type Json, type NodeRow, type Page, call, onResume } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
 import { closePanel, closeTab, getState, moveTab, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
-import { fieldKey, fieldRowKey, pickerKey } from './picker'
+import { fieldKey, fieldRowKey, openPicker, pickerKey } from './picker'
 import { toggleQuery } from './Views'
 
 /** What the mounted line editor exposes. */
@@ -162,6 +162,8 @@ export async function exec(command: string, params: Json = {}, panel = getState(
     }
     const r = await call('run', { command, params, panel })
     if (r?.error) showToast(r.error)
+    // A command that reports something to the person (a count, UC-06.36).
+    else if (typeof r?.result?.message === 'string') showToast(r.result.message)
     synced = null
     await refresh()
     // A line that just took the caret is drawn on the next frame: keys wait for its editor.
@@ -375,6 +377,14 @@ function runUi(id: string): boolean {
     case 'ui.searchOpen':
       setState({ overlay: { kind: 'search', query: '' } })
       return true
+    // Move to from the keyboard (UC-02.19): the picker opens under the line.
+    case 'ui.moveTo': {
+      const node = p?.focus ?? p?.sel[0]
+      if (node == null) return true
+      const r = document.querySelector(`[data-panel="${s.activePanel}"] .row.node[data-id="${node}"]`)?.getBoundingClientRect()
+      openPicker({ mode: 'moveTo', panel: s.activePanel, node, at: -1, x: r?.left ?? 200, y: r?.bottom ?? 200 })
+      return true
+    }
     case 'ui.editDescription': {
       const node = p?.focus ?? p?.sel[0]
       if (node != null && p) {

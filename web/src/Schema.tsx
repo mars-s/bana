@@ -91,6 +91,33 @@ function TextBox({ value, placeholder, onCommit, label }: { value: string; place
 
 // ---- field page ----------------------------------------------------------------------------------
 
+/** Command buttons on a supertag's nodes or a field's rows (UC-06.33): the ones shown, and a menu
+ * of the other command nodes to add. */
+function CommandButtonsRow({ d, on, panel }: { d: Json; on: { tag: number } | { field: number }; panel: string }) {
+  const shown: { id: number; name: string }[] = d.buttons ?? []
+  const rest: { id: number; name: string }[] = (d.commandNodes ?? []).filter((c: Json) => !shown.some((b) => b.id === c.id))
+  return (
+    <Row label="Command buttons" help={'tag' in on ? 'Shown on every node with this supertag; a click runs it on the node.' : 'Shown on the field; a click runs it on the node the field is on.'}>
+      <div className="cfg-options">
+        {shown.map((b) => (
+          <span key={b.id} className="cfg-option">
+            {b.name}
+            <button className="q-x" title="Remove button" onClick={() => void exec('commandNode.button', { command: b.id, ...on, off: true }, panel)}>
+              <Icon name="close" size={9} />
+            </button>
+          </span>
+        ))}
+        <Select
+          label="Add a command button"
+          value=""
+          options={[['', rest.length ? 'Add a button…' : 'No command nodes'], ...rest.map((c) => [String(c.id), c.name] as [string, string])]}
+          onChange={(v) => v && void exec('commandNode.button', { command: Number(v), ...on }, panel)}
+        />
+      </div>
+    </Row>
+  )
+}
+
 export function FieldPage({ panel, field }: { panel: string; field: number }) {
   const d = useSchema(panel, field)
   const [opt, setOpt] = useState('')
@@ -201,6 +228,7 @@ export function FieldPage({ panel, field }: { panel: string; field: number }) {
       <Row label="Hide field">
         <Select label="Hide field" value={d.hide} options={HIDE} onChange={(mode) => run('field.setHide', { mode })} />
       </Row>
+      <CommandButtonsRow d={d} on={{ field }} panel={panel} />
       <button className="ghost-btn" onClick={(e) => mergeFrom(e, field, panel)}>
         <Icon name="duplicate" size={12} /> Merge into…
       </button>
@@ -267,7 +295,7 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
       </div>
       {/* Commands on events (UC-02.20): a command node runs when the tag is added or a tagged
           node is checked. */}
-      <Section icon="check" title="Commands on events" help="A command node runs on the node when this happens.">
+      <Section icon="check" title="Commands" help="Command nodes that run on events or from buttons on the node.">
         {(['added', 'done'] as const).map((ev) => {
           const current = ev === 'added' ? d.onAdded : d.onDone
           return (
@@ -284,6 +312,7 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
             </Row>
           )
         })}
+        <CommandButtonsRow d={d} on={{ tag }} panel={panel} />
       </Section>
       <Section icon="blocks" title="Building blocks" help="What this supertag is and builds on.">
         <Row label="Base type" help="A built-in meaning (task, meeting, person…).">

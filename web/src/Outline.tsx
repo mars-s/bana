@@ -115,7 +115,7 @@ export function RichText({ text, refs, onRef }: { text: string; refs: Record<str
 }
 
 function spanClass(s: Span) {
-  return [s.bold && 'b', s.italic && 'i', s.underline && 'u', s.highlight && 'hl', s.code && 'code'].filter(Boolean).join(' ')
+  return [s.bold && 'b', s.italic && 'i', s.underline && 'u', s.highlight && 'hl', s.strike && 'st', s.code && 'code'].filter(Boolean).join(' ')
 }
 
 /** The raw text while editing: marks shown faint, the text between them formatted. */
@@ -170,6 +170,9 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
   const [value, setValue] = useState(row.name)
   const ta = useRef<HTMLTextAreaElement>(null)
   const pending = useRef(0)
+  // The engine's version after this editor's last edit: a page read older than that (drawn late,
+  // under load) does not have the edit yet and is not taken.
+  const acked = useRef(0)
   const valueRef = useRef(value)
   valueRef.current = value
   const caretEpoch = useStore((s) => s.caretEpoch)
@@ -177,7 +180,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
   // The engine's text wins once every edit sent from here has arrived. Text another window typed
   // in this line keeps this window's caret where it was in its own words (N60).
   useEffect(() => {
-    if (pending.current !== 0 || row.name === valueRef.current) return
+    if (pending.current !== 0 || row.name === valueRef.current || (page.version ?? 0) < acked.current) return
     const el = ta.current
     if (el && document.activeElement === el) {
       const move = (i: number) => shiftedOffset(valueRef.current, row.name, i)
@@ -187,7 +190,8 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
     }
     valueRef.current = row.name
     setValue(row.name)
-  }, [row.name])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.name, page.version])
 
   /** `base`: the text this edit started from, so the engine can merge it with another window's. */
   const sendName = (name: string, caret: number, base: string) => {
@@ -195,6 +199,8 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
     noteSynced(row.id, caret)
     void call('run', { command: 'node.setName', params: { node: row.id, name, caret, base }, panel }).then((r) => {
       pending.current--
+      // Set, not raised: a restarted engine counts versions from the start again (N73).
+      if (typeof r?.version === 'number') acked.current = r.version
       if (r?.error) setState({ toast: r.error })
       if (pending.current === 0) void scheduleQuietRefresh()
     })
@@ -719,6 +725,7 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
           {row.tags.map((t) => (
             <TagChip key={t.id} chip={t} onOpen={() => void exec('nav.open', { node: t.id }, panel)} onRemove={() => void exec('tag.remove', { node: row.target, tag: t.id }, panel)} />
           ))}
+          <CommandButtons buttons={row.buttons} node={row.target} panel={panel} />
           {row.progress && (
             <span className="progress" title={`${row.progress[0]} of ${row.progress[1]} done`}>
               <span style={{ width: `${row.progress[1] ? (100 * row.progress[0]) / row.progress[1] : 0}%` }} />
@@ -736,6 +743,22 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
         )}
       </div>
     </div>
+  )
+}
+
+/** Command nodes shown as buttons on a supertag's nodes or a field's rows (UC-06.33): a click runs
+ * one on the node and leaves the caret where it was. spec-gap: the spec has no picture of them. */
+function CommandButtons({ buttons, node, panel }: { buttons?: { id: number; name: string }[]; node: number; panel: string }) {
+  if (!buttons?.length) return null
+  return (
+    <>
+      {buttons.map((b) => (
+        <button key={b.id} className="cmd-btn" title={`Run ${b.name}`} onMouseDown={(e) => e.preventDefault()} onClick={() => void exec('commandNode.run', { command: b.id, node }, panel)}>
+          <Icon name="play" size={10} />
+          {b.name}
+        </button>
+      ))}
+    </>
   )
 }
 
@@ -826,6 +849,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
         <span className="field-name" onClick={() => void exec('nav.open', { node: row.field }, panel)} title={row.name}>
           {row.name}
         </span>
+        <CommandButtons buttons={row.buttons} node={row.owner} panel={panel} />
         <span className="field-values">
           {lines.length === 0 && (
             <span className="field-value field-empty" onMouseDown={(e) => (e.preventDefault(), edit(0))}>

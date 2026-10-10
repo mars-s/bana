@@ -128,8 +128,32 @@ test('UC-08.11 paste Tana Paste text: tagged nodes, fields, dates and a search a
 })
 missing('UC-08.12', 'paste spreadsheet cells as a table')
 missing('UC-08.13', 'export a whole workspace as a ZIP of Markdown files (outline, supertag folders, vault)')
-// UC-08.14 (capture from any app) lives in the desktop app: its shortcut is checked by a Rust
-// test in apps/tanacraft-desktop; Quick add itself is tested in the web suite.
+// UC-08.14: Cmd+Shift+E in any app shows the desktop app's capture window, which loads this page
+// at #capture (the shortcut and window are checked by Rust tests in apps/tanacraft-desktop). Here:
+// that page is Quick add alone, saves each line to today and closes on Escape.
+test('UC-08.14 capture from any app: a small window of its own saves lines to today and closes', works('UC-08.14'), async ({ app, server }) => {
+  const w = await app.context().newPage()
+  await w.setViewportSize({ width: 630, height: 210 })
+  await w.addInitScript(() => {
+    window.close = () => document.documentElement.setAttribute('data-closed', '')
+  })
+  await w.goto(server.url + '#capture')
+  // Only Quick add: no sidebar or outline, and it fits the window.
+  await expect(w.getByRole('dialog', { name: 'Quick add' })).toBeVisible()
+  await expect(w.locator('.sidebar, .panel')).toHaveCount(0)
+  const box = await w.locator('.dialog.quick').boundingBox()
+  expect(box?.height ?? 999).toBeLessThanOrEqual(210)
+  await expect(w.getByLabel('New line')).toBeFocused()
+  await w.keyboard.type('Call the vet')
+  await w.keyboard.press('Enter')
+  await w.keyboard.type('Buy bird seed')
+  await w.keyboard.press('Escape')
+  await expect(w.locator('html')).toHaveAttribute('data-closed', '')
+  // Both lines are on today's page in the main window.
+  await server.run('nav.today')
+  await expect(app.locator('.row.node', { hasText: 'Call the vet' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Buy bird seed' })).toBeVisible()
+})
 missing('UC-08.15', 'browse and install templates from a gallery')
 missing('UC-08.16', 'capture on the phone: app, home screen widgets, share sheet, Siri', 'out-of-scope')
 missing('UC-08.17', 'voice memo on the phone, transcribed and tagged by AI', 'ai')

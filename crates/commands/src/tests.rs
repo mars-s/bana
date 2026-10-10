@@ -409,6 +409,12 @@ fn insert_quick_add_and_formatting() {
     assert_eq!(s.graph.name(a), "==Hello== world");
     assert_eq!((s.anchor, s.caret), (2, 7));
     assert_eq!(s.graph.search("hello world"), vec![a], "search ignores marks");
+    // Strikethrough (UC-06.45).
+    run(&mut s, "format.strikethrough", json!({"node": a.0, "start": 0, "end": 9}));
+    assert_eq!(s.graph.name(a), "~~==Hello==~~ world");
+    assert_eq!(s.graph.text(a), "Hello world");
+    let sp = tanacraft_core::format::spans(s.graph.name(a));
+    assert!(sp[0].strike && sp[0].highlight && !sp[1].strike);
 }
 
 #[test]
@@ -953,6 +959,50 @@ fn command_nodes_run_on_events() {
     run(&mut s, "commandNode.on", json!({"command": "Make task", "event": "child", "node": inbox.0, "off": true}));
     let plain = id(&run(&mut s, "node.add", json!({"name": "plain", "parent": inbox.0})), "id");
     assert!(s.graph.get(plain).unwrap().tags.is_empty());
+}
+
+#[test]
+fn counting_words_characters_and_nodes() {
+    // UC-06.36.
+    let mut s = blank();
+    let page = id(&run(&mut s, "node.add", json!({"name": "Essay title"})), "id");
+    let a = id(&run(&mut s, "node.add", json!({"name": "One **bold** word", "parent": page.0})), "id");
+    run(&mut s, "node.add", json!({"name": "two  words", "parent": a.0}));
+    let r = run(&mut s, "node.count", json!({"node": page.0}));
+    assert_eq!((r["words"].as_u64(), r["characters"].as_u64(), r["nodes"].as_u64()), (Some(5), Some(23), Some(2)));
+    assert_eq!(r["message"], "5 words, 23 characters, 2 nodes");
+    let r = run(&mut s, "node.count", json!({"nodes": [a.0]}));
+    assert_eq!(r["nodes"].as_u64(), Some(2));
+}
+
+#[test]
+fn command_nodes_show_as_buttons_on_tags_and_fields() {
+    // UC-06.33: buttons on a supertag's nodes and on a field's rows.
+    let mut s = blank();
+    run(&mut s, "commandNode.create", json!({"name": "Stamp", "steps": ["field.add {\"field\": \"Stamped\", \"value\": \"yes\"}"]}));
+    run(&mut s, "commandNode.create", json!({"name": "Done", "steps": ["node.setDone {\"done\": true}"]}));
+    run(&mut s, "tag.create", json!({"name": "task"}));
+    run(&mut s, "tag.create", json!({"name": "chore"}));
+    run(&mut s, "tag.extend", json!({"tag": "chore", "base": "task"}));
+    run(&mut s, "commandNode.button", json!({"command": "Stamp", "tag": "task"}));
+    run(&mut s, "commandNode.button", json!({"command": "Stamp", "tag": "task"}));
+    let n = id(&run(&mut s, "node.add", json!({"name": "Sweep"})), "id");
+    run(&mut s, "tag.add", json!({"node": n.0, "tag": "chore"}));
+    let stamp = s.graph.command_nodes()[0];
+    assert_eq!(s.graph.buttons(n, None), [stamp], "inherited from the extended tag, once");
+    // A field's button.
+    run(&mut s, "field.add", json!({"node": n.0, "field": "Due", "value": "today"}));
+    let due = s.graph.find_field("Due").unwrap();
+    run(&mut s, "commandNode.button", json!({"command": "Done", "field": "Due"}));
+    let done = s.graph.command_nodes()[1];
+    assert_eq!(s.graph.buttons(n, Some(due)), [done]);
+    // A click runs the command node on the node.
+    run(&mut s, "commandNode.run", json!({"command": done.0, "node": n.0}));
+    assert_eq!(s.graph.get(n).unwrap().done, Some(true));
+    // Off again; not a supertag or field is refused.
+    run(&mut s, "commandNode.button", json!({"command": "Stamp", "tag": "task", "off": true}));
+    assert!(s.graph.buttons(n, None).is_empty());
+    assert!(s.run("commandNode.button", &json!({"command": "Stamp", "tag": "nope"})).is_err());
 }
 
 #[test]

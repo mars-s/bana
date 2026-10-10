@@ -74,9 +74,10 @@ Scenarios: `web/tests/use-cases/08-capture-import.spec.ts`.
 - **Source:** https://outliner.tana.inc/changelog (2026 wk 33-36: three shapes for Markdown export)
 - **TanaCraft:** MISSING (per-node Markdown export only).
 
-### UC-08.14 Capture from any app: PARTIAL
+### UC-08.14 Capture from any app: WORKS
+- **Story:** In another app I press a key, type a thought, and go back to what I was doing.
 - **Source:** https://outliner.tana.inc/learn/features/tana-for-desktop (Global Clipper)
-- **TanaCraft:** PARTIAL. In the desktop app Cmd+Shift+E (Ctrl+Shift+E elsewhere) works from any app: TanaCraft comes forward with Quick add open. Tana opens a small window of its own over the other app; the key cannot be changed yet. Checked by a Rust test of the shortcut, not end to end (it needs the desktop session).
+- **TanaCraft:** WORKS. In the desktop app Cmd+Shift+E (Ctrl+Shift+E elsewhere) opens a small Quick add window of its own over any app, without the main window. Each line goes to today's page as it is typed; Enter starts the next line, Escape or a click elsewhere puts the window away and the keyboard goes back to the app that had it. Not built: changing the key. The page is tested in the web suite (`#capture`); the window and its permission by Rust tests; the shortcut was tried by hand.
 
 ### UC-08.15 Templates gallery: MISSING
 - **Story:** I install a ready-made OKR or habit tracker setup.

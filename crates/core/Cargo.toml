@@ -14,3 +14,5 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 loro = "1"
+# Regular expressions in searches (UC-06.41): linear time, so a hostile pattern cannot stall.
+regex = { version = "1", default-features = false, features = ["std", "unicode", "perf"] }

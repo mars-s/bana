@@ -32,9 +32,74 @@ fn rpc(method: String, params: Value, shared: tauri::State<'_, Arc<Shared>>, app
 }
 
 /// Quick capture from any app (UC-08.14). spec-gap: Tana's default key is not in its docs; this
-/// one is Quick add's own key with Shift, and Tana opens a small window of its own where this
-/// brings the main window forward with Quick add open.
+/// one is Quick add's own key with Shift. It opens a small window of its own (`capture`) showing
+/// Quick add (the web UI at `#capture`); Escape or a click elsewhere puts it away.
 const CAPTURE_SHORTCUT: &str = "CmdOrCtrl+Shift+E";
+
+/// The capture window: Quick add's width (spec 12), as tall as the dialog.
+const CAPTURE: &str = "capture";
+const CAPTURE_SIZE: (f64, f64) = (630.0, 210.0);
+
+/// Whether the main window had the keyboard when the shortcut was pressed: if not, putting the
+/// capture window away gives the keyboard back to the app that had it (macOS: hide the app).
+static WAS_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Shows the capture window (made hidden at start, so it opens at once) in the middle of the
+/// screen, on top, with the keyboard.
+fn show_capture(app: &tauri::AppHandle) {
+    let active = app.get_webview_window("main").and_then(|w| w.is_focused().ok()).unwrap_or(false);
+    WAS_ACTIVE.store(active, std::sync::atomic::Ordering::Relaxed);
+    let w = match app.get_webview_window(CAPTURE) {
+        Some(w) => w,
+        None => match capture_window(app) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("capture window: {e}");
+                return;
+            }
+        },
+    };
+    let _ = w.center();
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
+fn capture_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    tauri::WebviewWindowBuilder::new(app, CAPTURE, tauri::WebviewUrl::App("index.html#capture".into()))
+        .title("Quick add")
+        .inner_size(CAPTURE_SIZE.0, CAPTURE_SIZE.1)
+        .resizable(false)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible_on_all_workspaces(true)
+        .visible(false)
+        .build()
+}
+
+/// Puts the capture window away (Escape in it, or a click elsewhere). What was typed is already
+/// in the graph: every key went to the engine as it was typed.
+#[tauri::command]
+fn capture_done(app: tauri::AppHandle) {
+    hide_capture(&app);
+}
+
+fn hide_capture(app: &tauri::AppHandle) {
+    let Some(w) = app.get_webview_window(CAPTURE) else { return };
+    if !w.is_visible().unwrap_or(false) {
+        return;
+    }
+    let _ = w.hide();
+    if WAS_ACTIVE.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Some(m) = app.get_webview_window("main") {
+            let _ = m.set_focus();
+        }
+    } else {
+        // Back to the app the person was in.
+        #[cfg(target_os = "macos")]
+        let _ = app.hide();
+    }
+}
 
 /// The native menu bar (spec 00 §7, DIFFS N75): (title, [(label, command id, accelerator)]). An
 /// empty label is a separator. Clipboard, select-all, minimize, zoom and full screen are the
@@ -211,26 +276,21 @@ fn run() -> Result<(), String> {
     let on_exit = Arc::clone(&shared);
     let watched = Arc::clone(&shared);
     let app = tauri::Builder::default()
-        // Capture from any app (UC-08.14): the shortcut brings TanaCraft forward with Quick add
-        // open; what is typed there goes to today's page.
+        // Capture from any app (UC-08.14): the shortcut opens the capture window; what is typed
+        // there goes to today's page.
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcuts([CAPTURE_SHORTCUT])
                 .map_err(|e| e.to_string())?
                 .with_handler(|app, _shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.unminimize();
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        }
-                        let _ = app.emit("menu", "ui.quickAdd");
+                        show_capture(app);
                     }
                 })
                 .build(),
         )
         .manage(shared)
-        .invoke_handler(tauri::generate_handler![rpc])
+        .invoke_handler(tauri::generate_handler![rpc, capture_done])
         .setup(move |app| {
             app.set_menu(menu_bar(app.handle())?)?;
             // Edits that come over HTTP (MCP, the CLI, a browser window) redraw the app too.
@@ -252,13 +312,24 @@ fn run() -> Result<(), String> {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_focus();
             }
+            // Made now, hidden, so the shortcut shows it at once.
+            if let Err(e) = capture_window(app.handle()) {
+                eprintln!("capture window: {e}");
+            }
             Ok(())
+        })
+        // A click outside the capture window puts it away, as Escape does.
+        .on_window_event(|w, event| {
+            if w.label() == CAPTURE && matches!(event, tauri::WindowEvent::Focused(false)) {
+                hide_capture(w.app_handle());
+            }
         })
         // Every menu item runs a command: the UI gets its id (spec 00 §7).
         .on_menu_event(|app, event| {
             let id = event.id().0.split('#').next().unwrap_or_default().to_string();
             if !window_action(app, &id) {
-                let _ = app.emit("menu", id);
+                // Only the main window runs menu commands; the capture window has no outline.
+                let _ = app.emit_to("main", "menu", id);
             }
         })
         .build(tauri::generate_context!())
@@ -286,6 +357,17 @@ mod tests {
     #[test]
     fn the_capture_shortcut_parses() {
         assert!(super::CAPTURE_SHORTCUT.parse::<tauri_plugin_global_shortcut::Shortcut>().is_ok());
+    }
+
+    #[test]
+    fn the_capture_window_may_call_the_engine() {
+        // Without its label in the capability, the capture window's rpc calls are refused and
+        // nothing typed there is kept (UC-08.14).
+        let caps = include_str!("../capabilities/default.json");
+        let v: serde_json::Value = serde_json::from_str(caps).unwrap();
+        assert!(v["windows"].as_array().unwrap().iter().any(|w| w == super::CAPTURE));
+        // As wide as Quick add (spec 12: 630).
+        assert_eq!(super::CAPTURE_SIZE.0, 630.0);
     }
 
     #[test]

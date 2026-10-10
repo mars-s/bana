@@ -328,6 +328,8 @@ export interface NodeRow {
   suffix: [string, boolean][]
   notes: boolean
   progress: [number, number] | null
+  /** Command buttons from its supertags (UC-06.33). */
+  buttons?: { id: number; name: string }[]
   /** An attached file's name, and whether it is a picture (UC-05.08). */
   file?: string | null
   fileImage?: boolean
@@ -358,6 +360,8 @@ export interface FieldRow {
   missing: boolean
   invalid: boolean
   boxed: boolean
+  /** Command buttons of the field (UC-06.33): run on the owner. */
+  buttons?: { id: number; name: string }[]
 }
 
 export interface MoreRow {

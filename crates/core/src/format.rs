@@ -1,5 +1,5 @@
 //! Inline formatting inside a node's text, stored as light marks (our own format, close to
-//! Markdown): `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `` `code` ``. A mark with
+//! Markdown): `**bold**`, `*italic*`, `__underline__`, `==highlight==`, `~~strike~~`, `` `code` ``. A mark with
 //! no partner later in the text is shown as typed.
 //!
 //! Inline references are `[[id:42]]` (shown as the target's name); `http(s)://` words are links.
@@ -10,6 +10,7 @@ pub enum Mark {
     Italic,
     Underline,
     Highlight,
+    Strike,
     Code,
 }
 
@@ -20,6 +21,7 @@ impl Mark {
             Mark::Italic => "*",
             Mark::Underline => "__",
             Mark::Highlight => "==",
+            Mark::Strike => "~~",
             Mark::Code => "`",
         }
     }
@@ -30,6 +32,7 @@ impl Mark {
             "italic" => Some(Mark::Italic),
             "underline" => Some(Mark::Underline),
             "highlight" => Some(Mark::Highlight),
+            "strike" | "strikethrough" => Some(Mark::Strike),
             "code" => Some(Mark::Code),
             _ => None,
         }
@@ -44,6 +47,7 @@ pub struct Span {
     pub italic: bool,
     pub underline: bool,
     pub highlight: bool,
+    pub strike: bool,
     pub code: bool,
     /// An inline reference to this node (`text` is empty; show the target's name).
     pub node: Option<u64>,
@@ -70,7 +74,7 @@ pub fn refs(s: &str) -> Vec<u64> {
 }
 
 /// Marks in matching order: longer tokens first so `**` is not read as two `*`.
-const ORDER: [Mark; 5] = [Mark::Bold, Mark::Underline, Mark::Highlight, Mark::Code, Mark::Italic];
+const ORDER: [Mark; 6] = [Mark::Bold, Mark::Underline, Mark::Highlight, Mark::Strike, Mark::Code, Mark::Italic];
 
 fn mark_at(s: &str, i: usize) -> Option<Mark> {
     let rest = s.get(i..)?;
@@ -141,6 +145,7 @@ fn is_open(s: &Span, m: Mark) -> bool {
         Mark::Italic => s.italic,
         Mark::Underline => s.underline,
         Mark::Highlight => s.highlight,
+        Mark::Strike => s.strike,
         Mark::Code => s.code,
     }
 }
@@ -151,6 +156,7 @@ fn set(s: &mut Span, m: Mark, on: bool) {
         Mark::Italic => s.italic = on,
         Mark::Underline => s.underline = on,
         Mark::Highlight => s.highlight = on,
+        Mark::Strike => s.strike = on,
         Mark::Code => s.code = on,
     }
 }

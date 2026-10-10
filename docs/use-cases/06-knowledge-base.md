@@ -12,7 +12,7 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.02 | I reorder ideas without the mouse. | Cmd+Shift+Up and Down. | The line and its children move. | WORKS | outline-editor |
 | UC-06.03 | Any line can become the page I focus on. | Cmd+. to zoom in, Cmd+, back; breadcrumbs. | The line is the page title; crumbs lead back. | WORKS | navigation |
 | UC-06.04 | Hide detail I do not need now. | Cmd+Down and Cmd+Up on a line. | Children show and hide. | WORKS | outline-editor |
-| UC-06.05 | Emphasis in a note. | Cmd+B, Cmd+I, Cmd+U, code. | Formatted text. | PARTIAL: no strikethrough (UC-06.45) | nodes-and-references |
+| UC-06.05 | Emphasis in a note. | Cmd+B, Cmd+I, Cmd+U, code, Cmd+Shift+X. | Formatted text. | WORKS (strikethrough: UC-06.45) | nodes-and-references |
 | UC-06.06 | Headings and a short description under a line. | `!` on an empty line; Ctrl+I. | Heading style; grey description. | WORKS | nodes-and-references |
 | UC-06.07 | One note in many places, edited once. | Select, Cmd+C; Cmd+V on an empty line. | A reference; edits show everywhere. | WORKS | copy-paste-and-export |
 | UC-06.08 | See how widely a note is used. | Settings, Reference counter. | A count beside referenced lines. | WORKS | nodes-and-references |
@@ -53,18 +53,18 @@ The core outliner, used as a personal knowledge base or wiki. Scenarios:
 | UC-06.34 | Merge duplicates. | Node menu Merge into…; Configure supertag or a field page, Merge into…. | Children, tags, values and every reference move to the kept one; the other goes to the trash. | WORKS | nodes-and-references (Merging duplicate nodes) |
 | UC-06.44 | Content width per page. | The panel's width button: Medium or Full width. | The page uses the column or the whole panel; kept per page. | WORKS | views (Content widths) |
 | UC-06.43 | Rolling periods in searches. | `Due:"this week"`, `Due:"NEXT 14 DAYS"`, `LAST 7 DAYS`, next or last week or month, this year. | Results follow today. | WORKS (no FOR RELATIVE DATE; on day pages PARENT is the day, UC-01.15) | dates-and-calendar-nodes; changelog 2026 wk 37-39 |
-| UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: listed by name in the command line ("Run …") and run on events (UC-02.20); no buttons on tags or fields, no node filter | command-nodes |
+| UC-06.36 | How long is this page? | Command line, Count words. | Words, characters and nodes of the page, or of the selected lines. | WORKS (`node.count`; names only, not field values) | outline-editor; changelog 2026 wk 37-39 |
+| UC-06.41 | Find text by pattern. | A search with `/pattern/` or `/pattern/i`. | Nodes whose text matches. | WORKS (spaces allowed inside the slashes; a broken pattern is refused) | search-nodes (regular expressions) |
+| UC-06.42 | Look for something inside one page. | Search and open, pick a result, Tab, type. | Only results under that node; Backspace searches everywhere again. | WORKS | sidebar (Global Search) |
+| UC-06.45 | Cross something out. | Select, Cmd+Shift+X. | `~~text~~`, drawn struck through; exports as `<s>`. | WORKS (spec-gap: the key is ours) | nodes-and-references (Formatting text) |
+| UC-06.33 | One action runs my usual steps. | A command node with steps; run it. | All steps apply to the node. | PARTIAL: listed by name in the command line ("Run …"), run on events (UC-02.20) and from buttons on a supertag's nodes or a field's rows (Configure supertag or the field page, Commands; `commandNode.button`); no node filter | command-nodes |
 
 ## Gaps (MISSING)
 
 | ID | Story | Source |
 |---|---|---|
 | UC-06.35 | Lock a node so it cannot be edited. | nodes-and-references (Lock nodes) |
-| UC-06.36 | Count words, characters and nodes. | outline-editor; changelog 2026 wk 37-39 |
 | UC-06.37 | Give an inline reference an alias, or turn it back into text. | nodes-and-references (Alias, Remove an inline reference) |
 | UC-06.38 | Type `:` and a word to pick an emoji. | nodes-and-references (Add emojis) |
 | UC-06.39 | Code blocks with a language; Mermaid diagrams. | copy-paste-and-export; changelog 2026 wk 21-22 |
 | UC-06.40 | A Part of tree searched with COMPONENTS REC. | fields (Part of) |
-| UC-06.41 | Regular expressions in searches. | search-nodes (regular expressions) |
-| UC-06.42 | Search inside one node from the search box (Tab). | sidebar (Global Search) |
-| UC-06.45 | Strikethrough. | nodes-and-references (Formatting text) |

@@ -321,6 +321,7 @@ fn query_parse_describe_round_trip() {
         "Due<2026-10-20",
         "CREATED:7 AND seeds",
         "\"seed swap\"",
+        "/^Build\\s/ AND NOT /beds?$/i",
     ] {
         let q = Query::parse(&g, text).unwrap();
         let back = Query::parse(&g, &q.describe(&g)).unwrap();
@@ -331,6 +332,21 @@ fn query_parse_describe_round_trip() {
     assert!(Query::parse(&g, "\"unclosed").is_err());
     assert!(Query::parse(&g, "a AND b OR c").is_err());
     assert!(Query::parse(&g, "CREATED:soon").is_err());
+}
+
+#[test]
+fn regular_expressions_in_searches() {
+    // UC-06.41.
+    let g = garden();
+    let names = |q: &str| {
+        let mut v: Vec<String> = Query::parse(&g, q).unwrap().run(&g, NodeId(0)).iter().map(|n| g.name(*n).to_string()).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(names("#task AND /^build\\s+\\w+ beds$/i"), ["Build four beds"]);
+    assert!(names("#task AND /^build/").is_empty(), "case matters without i");
+    assert!(Query::parse(&g, "/(unclosed/").is_err());
+    assert!(Query::parse(&g, "\"/not a regex/\"").is_ok(), "quoted is text");
 }
 
 #[test]

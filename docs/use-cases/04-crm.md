@@ -67,7 +67,8 @@ Scenarios: `web/tests/use-cases/04-crm.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/tana-capture
 - **TanaCraft:** not built.
 
-### UC-04.11 Merge duplicate contacts: MISSING
+### UC-04.11 Merge duplicate contacts: WORKS
 - **Story:** I created Robin twice; merge them keeping every link.
+- **Steps:** Node menu on the duplicate, Merge into…, pick the one to keep.
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (Merging duplicate nodes)
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS (`node.merge`, as UC-06.34): fields, children and every mention move to the kept node.

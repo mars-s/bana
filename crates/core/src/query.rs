@@ -7,6 +7,7 @@
 //! |---|---|
 //! | `#task`, `#"weekly review"` | tagged with the supertag (or one that extends it) |
 //! | `seeds`, `"seed swap"` | node text contains the words |
+//! | `/^call\s/`, `/plumb(er|ing)/i` | node text matches the regular expression (`i`: any case) |
 //! | `TODO`, `DONE` | unchecked / checked checkbox |
 //! | `Status:"In progress"` | field value equals (case-insensitive) |
 //! | `Due:*`, `Due:SET`, `Due:NOTSET` | field has a value / has none |
@@ -80,6 +81,12 @@ pub enum ClauseKind {
     },
     Text {
         text: String,
+    },
+    /// The text matches a regular expression (`/pattern/` or `/pattern/i`, UC-06.41).
+    Regex {
+        pattern: String,
+        #[serde(default)]
+        icase: bool,
     },
     Done,
     Todo,
@@ -247,6 +254,7 @@ impl Query {
                 let body = match &c.kind {
                     ClauseKind::Tagged { tag } => format!("#{}", quote(g.name(*tag))),
                     ClauseKind::Text { text } => quote(text),
+                    ClauseKind::Regex { pattern, icase } => format!("/{pattern}/{}", if *icase { "i" } else { "" }),
                     ClauseKind::Done => "DONE".into(),
                     ClauseKind::Todo => "TODO".into(),
                     ClauseKind::Field { field, op, value } => {
@@ -311,6 +319,9 @@ impl Query {
             match &c.kind {
                 ClauseKind::Tagged { tag } => out.extend([t(&format!("{not}tagged ")), tok(format!("#{}", g.name(*tag)))]),
                 ClauseKind::Text { text } => out.extend([t(if c.not { "without text " } else { "with text " }), tok(format!("\"{text}\""))]),
+                ClauseKind::Regex { pattern, icase } => {
+                    out.extend([t(if c.not { "not matching " } else { "matching " }), tok(format!("/{pattern}/{}", if *icase { "i" } else { "" }))])
+                }
                 ClauseKind::Done => out.push(t(if c.not { "not done" } else { "done" })),
                 ClauseKind::Todo => out.push(t(if c.not { "done" } else { "not done" })),
                 ClauseKind::Field { field, op, value } => {
@@ -492,6 +503,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
         }
         ClauseKind::Tagged { tag } => n.tags.iter().any(|t| g.tag_lineage(*t).contains(tag)),
         ClauseKind::Text { text } => g.text(id).to_lowercase().contains(&text.to_lowercase()),
+        ClauseKind::Regex { pattern, icase } => regex_matches(pattern, *icase, &g.text(id)),
         ClauseKind::Done => g.checkbox(id) == Some(true),
         ClauseKind::Todo => g.checkbox(id) == Some(false),
         ClauseKind::CreatedWithin { days } => {
@@ -572,6 +584,25 @@ fn tokenize(s: &str) -> Result<Vec<Token>> {
             out.push(t);
             continue;
         }
+        // A regular expression runs to its closing `/` (spaces included), then an optional `i`.
+        if chars.peek() == Some(&'/') {
+            chars.next();
+            t.text.push('/');
+            let mut esc = false;
+            for c in chars.by_ref() {
+                t.text.push(c);
+                if c == '/' && !esc {
+                    break;
+                }
+                esc = c == '\\' && !esc;
+            }
+            if chars.peek() == Some(&'i') {
+                chars.next();
+                t.text.push('i');
+            }
+            out.push(t);
+            continue;
+        }
         if chars.peek() == Some(&'#') {
             chars.next();
             t.hash = true;
@@ -606,7 +637,44 @@ fn tokenize(s: &str) -> Result<Vec<Token>> {
     Ok(out)
 }
 
+/// `/pattern/` or `/pattern/i` (unquoted).
+fn regex_token(tok: &Token) -> Option<(String, bool)> {
+    if tok.quoted || tok.hash {
+        return None;
+    }
+    let rest = tok.text.strip_prefix('/')?;
+    let (body, icase) = match rest.strip_suffix("/i") {
+        Some(b) => (b, true),
+        None => (rest.strip_suffix('/')?, false),
+    };
+    (!body.is_empty()).then(|| (body.to_string(), icase))
+}
+
+fn build_regex(pattern: &str, icase: bool) -> std::result::Result<regex::Regex, regex::Error> {
+    regex::RegexBuilder::new(pattern).case_insensitive(icase).size_limit(1 << 20).build()
+}
+
+thread_local! {
+    /// The last pattern built: a search tests one pattern against every node.
+    // ponytail: one entry; a query with several patterns rebuilds them in turn.
+    static LAST_RE: std::cell::RefCell<Option<(String, bool, Option<regex::Regex>)>> = const { std::cell::RefCell::new(None) };
+}
+
+fn regex_matches(pattern: &str, icase: bool, text: &str) -> bool {
+    LAST_RE.with(|c| {
+        let mut c = c.borrow_mut();
+        if !matches!(&*c, Some((p, i, _)) if p == pattern && *i == icase) {
+            *c = Some((pattern.to_string(), icase, build_regex(pattern, icase).ok()));
+        }
+        c.as_ref().and_then(|(_, _, r)| r.as_ref()).is_some_and(|r| r.is_match(text))
+    })
+}
+
 fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
+    if let Some((pattern, icase)) = regex_token(tok) {
+        build_regex(&pattern, icase).map_err(|e| Error::Invalid(format!("/{pattern}/: {e}")))?;
+        return Ok(ClauseKind::Regex { pattern, icase });
+    }
     if tok.hash {
         let tag = g.find_tag(&tok.text).ok_or_else(|| Error::Invalid(format!("no supertag #{}", tok.text)))?;
         return Ok(ClauseKind::Tagged { tag });

@@ -119,4 +119,18 @@ test('UC-04.08 log an interaction on today\'s page with @person; it shows on the
 
 missing('UC-04.09', 'sync contacts and deals from HubSpot or Pipedrive', 'out-of-scope')
 missing('UC-04.10', 'scan a business card on the phone into a #person', 'out-of-scope')
-missing('UC-04.11', 'merge two duplicate #person nodes into one (Merge node)')
+test('UC-04.11 merge two duplicate #person nodes into one (Merge into)', works('UC-04.11'), async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['Dana Reyes', 'Dana Reyes (dup)', 'Lunch with '], 'People')
+  for (const id of ids.slice(0, 2)) await server.run('tag.add', { node: id, tag: 'person' })
+  await server.run('field.add', { node: ids[1], field: 'Phone', value: '555 0101' })
+  // A line that mentions the duplicate.
+  await server.run('node.setName', { node: ids[2], name: `Lunch with [[id:${ids[1]}]]` })
+  await app.locator(`.row.node[data-id="${ids[1]}"] .bullet`).click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Merge into' }).click()
+  await app.keyboard.type('Dana Reyes')
+  await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Dana Reyes #person')
+  await app.keyboard.press('Enter')
+  // One Dana remains, with the phone number, and the mention points at her.
+  await expect.poll(async () => (await tree(server, page)).children.map((c: any) => c.name)).toEqual(['Dana Reyes', `Lunch with [[id:${ids[0]}]]`])
+  expect(await fieldOf(server, ids[0], 'Phone')).toBe('555 0101')
+})

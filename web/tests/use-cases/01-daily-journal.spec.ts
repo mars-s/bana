@@ -135,7 +135,9 @@ test('UC-01.13 week start and 12/24-hour time are settings; calendar views follo
   // The date picker starts its weeks on Sunday too.
   await app.keyboard.press('Escape')
   await expect(app.locator('.panel')).toHaveCount(1)
-  await server.run('nav.today')
+  // Through the sidebar, as a person would: an engine call here could reach the engine before the
+  // window's own close of the Settings panel (queued behind it under load) and open today there.
+  await app.locator('.sidebar .side-row', { hasText: 'Today' }).click()
   await app.locator('.day-nav .btn[title="Go to date"]').click()
   await expect(app.locator('.date-picker .dp-dow').first()).toHaveText('S')
   await expect(app.locator('.date-picker .dp-day').first()).toHaveText('27')

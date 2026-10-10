@@ -45,7 +45,7 @@ test('UC-06.04 fold and unfold a branch (Cmd+Up, Cmd+Down)', works('UC-06.04'), 
   await expect(app.locator('.row.node', { hasText: 'Hidden child' })).toHaveCount(0)
 })
 
-test('UC-06.05 bold, italic, underline and code; no strikethrough', partial('UC-06.05'), async ({ app, server }) => {
+test('UC-06.05 bold, italic, underline, code and strikethrough', works('UC-06.05'), async ({ app, server }) => {
   const { ids } = await pageWith(server, app, ['a b c'])
   await focus(server, app, ids[0], 0)
   await app.keyboard.press('Shift+ArrowRight')
@@ -55,7 +55,6 @@ test('UC-06.05 bold, italic, underline and code; no strikethrough', partial('UC-
   await server.run('format.code', { node: ids[0], start: 4, end: 5 })
   await expect.poll(() => nameOf(server, ids[0])).toMatch(/\*a\*|_a_|\*b\*|_b_/)
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .code`).first()).toBeVisible()
-  // Gap: no strikethrough format.
 })
 
 test('UC-06.06 headings with ! and a description under a line (Ctrl+I)', works('UC-06.06'), async ({ app, server }) => {
@@ -311,6 +310,9 @@ test('UC-06.30 a table: add a column and type in a cell', works('UC-06.30'), asy
   const { page } = await pageWith(server, app, ['Apples', 'Pears'], 'Fruit')
   await server.run('view.set', { node: page, kind: 'table' })
   await server.run('view.addColumn', { node: page, field: 'Price', type: 'number' })
+  // The column comes from the engine, not a click: wait until it is drawn, as a person would,
+  // or nth(1) is still the row's empty last cell.
+  await expect(app.getByRole('columnheader', { name: /Price/ })).toBeVisible()
   const row = app.locator('.t-row', { hasText: 'Apples' })
   await row.locator('.t-cell').nth(1).click()
   await expect(app.locator('.field-input')).toBeFocused()
@@ -354,7 +356,28 @@ test('UC-06.33 custom commands: a saved list of steps, run by name from the comm
   await palette(app, 'Run Make task')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toContainText('task')
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .checkbox`)).toBeVisible()
-  // Gap: no buttons on supertags or fields; no node filter or context parameters.
+  // A button on a supertag's nodes (Configure supertag, Commands) and one on a field's rows.
+  await server.run('commandNode.create', { name: 'Stamp', steps: ['field.add {"field": "Stamped", "value": "yes"}'] })
+  const task = (await server.run('graph.tags')).result.find((t: any) => t.name === 'task').id
+  await server.run('nav.open', { node: task })
+  await app.locator('.head-actions .btn[title="Options"]').click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await app.locator('.cfg-card-head', { hasText: 'Command nodes that run' }).click()
+  await app.locator('select[aria-label="Add a command button"]').selectOption({ label: 'Stamp' })
+  await expect.poll(async () => (await server.rpc('schema', { node: task })).buttons?.map((b: any) => b.name)).toEqual(['Stamp'])
+  await app.locator('.panel').nth(1).locator('.crumbs [title="Close panel"]').click()
+  await expect(app.locator('.panel')).toHaveCount(1)
+  const { ids: more } = await pageWith(server, app, ['Sweep the porch'], 'Chores')
+  await server.run('tag.add', { node: more[0], tag: 'task' })
+  const btn = app.locator(`.row.node[data-id="${more[0]}"] .cmd-btn`, { hasText: 'Stamp' })
+  await btn.click()
+  await expect.poll(() => fieldOf(server, more[0], 'Stamped')).toBe('yes')
+  await server.run('field.add', { node: more[0], field: 'Due', value: 'today' })
+  await server.run('commandNode.button', { command: 'Make task', field: 'Due' })
+  await server.run('node.expand', { node: more[0] })
+  await app.locator(`.row.field[data-owner="${more[0]}"]`, { hasText: 'Due' }).locator('.cmd-btn', { hasText: 'Make task' }).click()
+  await expect(app.locator(`.row.node[data-id="${more[0]}"] .checkbox.on`)).toBeVisible()
+  // Gap: no node filter or context parameters.
 })
 
 // Gaps
@@ -380,13 +403,47 @@ test('UC-06.34 merge duplicate nodes, supertags or fields into one', works('UC-0
   await expect.poll(async () => (await tree(server, a)).tags).toEqual(['task'])
 })
 missing('UC-06.35', 'lock a node so it cannot be edited')
-missing('UC-06.36', 'count words, characters and nodes of a page or selection')
+test('UC-06.36 count words, characters and nodes of a page or selection', works('UC-06.36'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['The shed needs a new roof', 'and gutters'], 'Shed')
+  await palette(app, 'Count words')
+  await expect(app.locator('.toast')).toContainText('8 words, 36 characters, 2 nodes')
+  // A selection counts only its lines.
+  await focus(server, app, ids[1], 0)
+  await app.keyboard.press('Escape')
+  await palette(app, 'Count words')
+  await expect(app.locator('.toast').last()).toContainText('2 words, 11 characters, 1 node')
+})
 missing('UC-06.37', 'give an inline reference its own alias text, or turn it back into plain text')
 missing('UC-06.38', 'type : and a word to pick an emoji')
 missing('UC-06.39', 'code blocks with a language and Mermaid diagrams')
 missing('UC-06.40', 'a Part of hierarchy with a search that finds everything beneath a node (COMPONENTS REC)')
-missing('UC-06.41', 'search with a regular expression')
-missing('UC-06.42', 'search inside one node from the search box (Tab on a result)')
+test('UC-06.41 search with a regular expression', works('UC-06.41'), async ({ app, server }) => {
+  const s = (await server.run('search.create', { query: '#task /^(build|fill) /i', name: 'Bed work' })).result.id
+  await server.run('nav.open', { node: s })
+  await expect(app.locator('.row.node', { hasText: 'Build four beds' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Fill with compost' })).toBeVisible()
+  await expect(app.locator('.row.node', { hasText: 'Order cedar boards' })).toHaveCount(0)
+  // A broken pattern is refused with a reason.
+  const bad = await server.run('search.setQuery', { node: s, query: '/(oops/' })
+  expect(bad.error).toContain('/(oops/')
+})
+test('UC-06.42 search inside one node from the search box (Tab on a result)', works('UC-06.42'), async ({ app, server }) => {
+  await pageWith(server, app, ['Compost tea recipe'], 'Kitchen')
+  await pageWith(server, app, ['Compost bins', 'Bean poles'], 'Allotment')
+  await app.keyboard.press('Meta+s')
+  await app.keyboard.type('Allotment')
+  await expect(app.locator('.dialog.search .dialog-item.sel')).toContainText('Allotment')
+  await app.keyboard.press('Tab')
+  await expect(app.locator('.search-scope')).toHaveText('Allotment')
+  await app.keyboard.type('compost')
+  await expect(app.locator('.dialog.search .dialog-item')).toHaveCount(1)
+  await expect(app.locator('.dialog.search .dialog-item')).toContainText('Compost bins')
+  // Backspace in the empty box searches everywhere again.
+  for (let i = 0; i < 8; i++) await app.keyboard.press('Backspace')
+  await expect(app.locator('.search-scope')).toHaveCount(0)
+  await app.keyboard.type('compost')
+  await expect(app.locator('.dialog.search .dialog-item', { hasText: 'Compost tea recipe' })).toBeVisible()
+})
 test('UC-06.43 rolling periods in searches: this week, NEXT 14 DAYS', works('UC-06.43'), async ({ app, server }) => {
   await server.run('field.set', { node: await idOf(server, 'Build four beds'), field: 'Due', value: '2026-10-11' })
   await server.run('field.set', { node: await idOf(server, 'Fill with compost'), field: 'Due', value: '2026-10-20' })
@@ -412,4 +469,15 @@ test('UC-06.44 content width per page: medium or full from the panel button', wo
   await expect.poll(async () => (await app.locator('.page-main').first().boundingBox())!.width).toBeLessThan(before + 1)
   void page
 })
-missing('UC-06.45', 'strikethrough text')
+test('UC-06.45 strikethrough text (Cmd+Shift+X)', works('UC-06.45'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['call the plumber'])
+  await focus(server, app, ids[0], 0)
+  await app.keyboard.press('Shift+End')
+  await app.keyboard.press('Meta+Shift+x')
+  await expect.poll(() => nameOf(server, ids[0])).toBe('~~call the plumber~~')
+  await app.keyboard.press('Escape')
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .text .st`)).toHaveText('call the plumber')
+  // Exports keep it: <s> in HTML.
+  const html = (await server.run('export.clipboard', { nodes: [ids[0]] })).result
+  expect(JSON.stringify(html)).toContain('<s>call the plumber</s>')
+})

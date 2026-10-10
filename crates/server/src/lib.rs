@@ -141,9 +141,11 @@ impl Host {
                 }
                 self.version += 1;
                 self.note_change();
+                // `version`: a page read at least this new already shows this edit (an editor never
+                // takes text from an older read, which would put its caret back).
                 match r {
-                    Ok(v) => json!({"result": v}),
-                    Err(e) => json!({"error": e.to_string()}),
+                    Ok(v) => json!({"result": v, "version": self.version}),
+                    Err(e) => json!({"error": e.to_string(), "version": self.version}),
                 }
             }
             "page" => {

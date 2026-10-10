@@ -431,11 +431,9 @@ function OfflineBanner() {
   ) : null
 }
 
-export function App() {
+/** The page follows the theme setting, or the system's appearance (N56). */
+export function useTheme() {
   const theme = useStore((s) => s.theme)
-  const tabs = useStore((s) => s.tabs)
-  const tab = useStore((s) => s.tab)
-  const panels = tabs[tab]?.panels ?? []
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
@@ -449,6 +447,27 @@ export function App() {
     mq?.addEventListener('change', on)
     return () => mq?.removeEventListener('change', on)
   }, [followSystem])
+  // A theme picked in another window of this app (the capture window follows the main one).
+  useEffect(() => {
+    const on = (e: StorageEvent) => {
+      if (e.key !== 'tanacraft.view' || !e.newValue) return
+      try {
+        const v = JSON.parse(e.newValue)
+        if (v.theme === 'light' || v.theme === 'dark') setState({ theme: v.theme, followSystem: !!v.followSystem })
+      } catch {
+        /* not ours */
+      }
+    }
+    window.addEventListener('storage', on)
+    return () => window.removeEventListener('storage', on)
+  }, [])
+}
+
+export function App() {
+  const tabs = useStore((s) => s.tabs)
+  const tab = useStore((s) => s.tab)
+  const panels = tabs[tab]?.panels ?? []
+  useTheme()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (['Shift', 'Meta', 'Control', 'Alt', 'CapsLock'].includes(e.key) || e.isComposing) return

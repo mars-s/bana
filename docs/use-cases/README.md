@@ -31,20 +31,20 @@ Everything here comes from Tana's public pages, written in our own words:
 | File | Area | Works | Partial | Missing | Out of scope | AI |
 |---|---|---|---|---|---|---|
 | [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 12 | 2 | 2 | 0 | 0 |
-| [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 18 | 1 | 1 | 0 | 0 |
+| [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 19 | 1 | 0 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
-| [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
+| [04-crm.md](04-crm.md) | People, companies, pipeline | 9 | 0 | 0 | 2 | 0 |
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 6 | 1 | 2 | 0 | 1 |
-| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 33 | 3 | 9 | 0 | 0 |
+| [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 38 | 2 | 5 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 3 | 1 | 5 | 2 | 0 |
-| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 2 | 3 | 1 | 1 |
+| [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 11 | 1 | 3 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **102** | **12** | **29** | **14** | **24** |
+| **Total (181)** | | **110** | **10** | **23** | **14** | **24** |
 
-Out of the 143 use cases that need neither AI nor a cloud or mobile service, 114 work fully or in
-part (102 + 12) and 29 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 120 work fully or in
+part (110 + 10) and 23 are missing.
 
 ## Top 15 gaps by user value
 
@@ -63,7 +63,7 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
    (stdio and streamable HTTP), plus a remote connector for claude.ai and ChatGPT (docs/mcp.md).
 7. ~~**Tag a whole selection** (UC-02.15).~~ Done: # Tag and Add tag tag every selected line.
 8. ~~**Automation** (UC-02.20, UC-06.33).~~ Done: commands on events, command nodes by name in the
-   command line; buttons on tags and fields remain.
+   command line, command buttons on supertags and fields; a node filter remains.
 9. **Publish a page** (UC-07.08). A read-only web page or article; a local static export would
    cover most of it.
 10. ~~**Rolling dates in searches** (UC-06.43).~~ Done: this week, NEXT 14 DAYS, LAST 7 DAYS and more.
@@ -72,8 +72,12 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 13. ~~**Merge duplicates** (UC-06.34).~~ Done: nodes, supertags and fields (`node.merge`).
 14. ~~**Progress at a glance** (UC-02.03, UC-02.04).~~ Done: bars by themselves, rings on pinned
     projects.
-15. ~~**Capture from anywhere** (UC-08.14).~~ Partly done: Cmd+Shift+E brings the desktop app
-    forward with Quick add open; a small window of its own is next.
+15. ~~**Capture from anywhere** (UC-08.14).~~ Done: Cmd+Shift+E in any app opens a small Quick add
+    window of its own; Escape or a click elsewhere puts it away and gives the keyboard back.
+
+Also done since: Cmd+Shift+M opens Move to (UC-02.19), merging duplicate contacts (UC-04.11),
+strikethrough (UC-06.45), counting words (UC-06.36), regular expressions in searches (UC-06.41)
+and searching inside one node from the search box (UC-06.42).
 
 Smaller defects found on the way, all fixed since: the Content width button sets Medium or Full
 width per page (UC-06.44); side menu and tabs views show the item in place (UC-06.14); table and

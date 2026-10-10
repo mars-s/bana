@@ -126,13 +126,15 @@ function Palette() {
 function SearchOpen() {
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<Json[]>([])
+  // Tab on a result searches inside it (UC-06.42); Backspace in an empty box leaves it.
+  const [scope, setScope] = useState<{ id: number; title: string } | null>(null)
   useEffect(() => {
     let live = true
-    void call('find', { query: q, limit: 12 }).then((r) => live && setHits(Array.isArray(r) ? r : []))
+    void call('find', { query: q, limit: 12, ...(scope ? { under: scope.id } : {}) }).then((r) => live && setHits(Array.isArray(r) ? r : []))
     return () => {
       live = false
     }
-  }, [q])
+  }, [q, scope])
   const pick = (i: number, tab = false) => {
     const h = hits[i]
     close()
@@ -147,10 +149,15 @@ function SearchOpen() {
       <div className="search-head">Search and open</div>
       <div className="dialog-input">
         <Icon name="search" />
+        {scope && (
+          <span className="search-scope" title="Searching inside this node; Backspace to leave">
+            {scope.title || 'Untitled'}
+          </span>
+        )}
         <input
           autoFocus
           value={q}
-          placeholder="Search..."
+          placeholder={scope ? 'Search inside…' : 'Search...'}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
             if (shortcut(keyInfo(e)) === 'Mod+Enter') {
@@ -158,12 +165,24 @@ function SearchOpen() {
               pick(sel, true)
               return
             }
+            if (e.key === 'Tab' && !e.shiftKey && hits[sel]) {
+              e.preventDefault()
+              setScope({ id: hits[sel].id, title: hits[sel].title })
+              setQ('')
+              setSel(0)
+              return
+            }
+            if (e.key === 'Backspace' && !q && scope) {
+              e.preventDefault()
+              setScope(null)
+              return
+            }
             onKeyDown(e)
           }}
         />
       </div>
       <div className="dialog-list">
-        {!q && <div className="dialog-head">Recently viewed</div>}
+        {!q && !scope && <div className="dialog-head">Recently viewed</div>}
         {hits.map((h, i) => (
           <div key={h.id} className={`dialog-item${i === sel ? ' sel' : ''}`} onMouseEnter={() => setSel(i)} onMouseDown={(e) => (e.preventDefault(), pick(i))}>
             <span className="grow">
@@ -172,14 +191,17 @@ function SearchOpen() {
             </span>
           </div>
         ))}
-        {q && hits.length === 0 && <div className="dialog-empty">Nothing found</div>}
+        {(q || scope) && hits.length === 0 && <div className="dialog-empty">Nothing found</div>}
       </div>
     </div>
   )
 }
 
-function QuickAdd() {
+/** Quick add: each line becomes a node on today's page as it is typed. `onDone` is the capture
+ * window's way out (UC-08.14); without it Escape closes the overlay. */
+export function QuickAdd({ onDone }: { onDone?: () => void } = {}) {
   const [text, setText] = useState('')
+  const input = useRef<HTMLInputElement>(null)
   // The node being typed: made on the first letter, then renamed as typed (the text is never held
   // only here).
   const node = useRef<Promise<number | null> | null>(null)
@@ -195,15 +217,30 @@ function QuickAdd() {
   const next = () => {
     node.current = null
     setText('')
-    void refresh()
+    if (!onDone) void refresh()
   }
+  // The capture window is kept between uses: each time it shows, it starts empty with the caret in.
+  useEffect(() => {
+    if (!onDone) return
+    const again = () => {
+      next()
+      input.current?.focus()
+    }
+    window.addEventListener('focus', again)
+    return () => window.removeEventListener('focus', again)
+  })
   return (
-    <div className="dialog quick" role="dialog" aria-label="Quick add">
-      <div className="dialog-head">Quick add</div>
+    <div className={`dialog quick${onDone ? ' standalone' : ''}`} role="dialog" aria-label="Quick add">
+      {/* The capture window has no title bar: its title moves it. */}
+      <div className="dialog-head" data-tauri-drag-region={onDone ? true : undefined}>
+        Quick add
+      </div>
       <div className="dialog-input">
         <span className="dot" />
         <input
+          ref={input}
           autoFocus
+          aria-label="New line"
           value={text}
           onChange={(e) => {
             setText(e.target.value)
@@ -217,7 +254,8 @@ function QuickAdd() {
             } else if (e.key === 'Escape') {
               e.preventDefault()
               next()
-              close()
+              if (onDone) onDone()
+              else close()
             }
           }}
         />
@@ -225,7 +263,7 @@ function QuickAdd() {
       <div className="quick-help">
         Each line becomes a node on today's page as you type.
         <br />
-        Enter for the next line, Escape to close. Open quick add with ⌘E.
+        {onDone ? 'Enter for the next line, Escape to close. Open it from any app with ⌘⇧E.' : 'Enter for the next line, Escape to close. Open quick add with ⌘E.'}
       </div>
     </div>
   )

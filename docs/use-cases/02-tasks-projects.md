@@ -83,7 +83,7 @@ calendars. Scenarios: `web/tests/use-cases/02-tasks-projects.spec.ts`.
 - **Steps:** Select the line, Move in the toolbar, type the target, Enter.
 - **Expected:** The line moves (optionally leaving a reference).
 - **Source:** https://outliner.tana.inc/learn/features/outline-editor (The Move to menu)
-- **TanaCraft:** WORKS. Cmd+Shift+M is not bound (UC-02.19).
+- **TanaCraft:** WORKS. Cmd+Shift+M opens it from the keyboard (UC-02.19).
 
 ### UC-02.13 Calendar of tasks: WORKS
 - **Story:** I see my tasks on a month calendar and reschedule by dragging.
@@ -127,10 +127,10 @@ calendars. Scenarios: `web/tests/use-cases/02-tasks-projects.spec.ts`.
 - **Source:** https://outliner.tana.inc/changelog (Oct 9, 2026: Lanes view)
 - **TanaCraft:** WORKS.
 
-### UC-02.19 Move to from the keyboard: MISSING
+### UC-02.19 Move to from the keyboard: WORKS
 - **Story:** Cmd+Shift+M opens Move to on the focused line.
 - **Source:** https://outliner.tana.inc/learn/features/outline-editor
-- **TanaCraft:** MISSING (the menu works from the toolbar and the command line step).
+- **TanaCraft:** WORKS. Cmd+Shift+M (`ui.moveTo`) opens the Move to picker under the line, as the toolbar and the command line step do.
 
 ### UC-02.20 Commands on events: WORKS
 - **Story:** When a task is checked, stamp a field; when a child is added to my Inbox, tag it.

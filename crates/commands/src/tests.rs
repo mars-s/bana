@@ -893,6 +893,35 @@ fn enter_at_the_end_of_a_heading_makes_its_first_child() {
 }
 
 #[test]
+fn files_attach_beside_the_graph_and_read_back() {
+    // UC-05.08.
+    let dir = std::env::temp_dir().join(format!("tanacraft-files-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut s = blank();
+    s.path = Some(dir.join("graph.tanacraft"));
+    let line = id(&run(&mut s, "node.add", json!({"name": "Soil paper"})), "id");
+    let bytes: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
+    let data = tanacraft_core::base64::encode(&bytes);
+    let r = run(&mut s, "file.attach", json!({"name": "../../evil/paper.pdf", "data": data, "after": line.0}));
+    let fid = tanacraft_core::NodeId(r["id"].as_u64().unwrap());
+    assert_eq!(s.graph.name(fid), "paper.pdf", "only the file name is kept");
+    assert_eq!(s.graph.index_in_parent(fid), s.graph.index_in_parent(line).map(|i| i + 1));
+    let stored = r["file"].as_str().unwrap();
+    assert!(dir.join("graph.tanacraft.files").join(stored).exists());
+    let back = run(&mut s, "file.read", json!({"node": fid.0}));
+    assert_eq!(back["mime"], "application/pdf");
+    assert_eq!(tanacraft_core::base64::decode(back["data"].as_str().unwrap()).unwrap(), bytes);
+    assert!(s.run("file.attach", &json!({"name": "x.png", "data": "not base64!"})).is_err());
+    // base64 round trips at every length.
+    for n in 0..8 {
+        let b: Vec<u8> = (0..n as u8).collect();
+        assert_eq!(tanacraft_core::base64::decode(&tanacraft_core::base64::encode(&b)).unwrap(), b);
+    }
+    assert_eq!(tanacraft_core::base64::encode(b"Man"), "TWFu");
+    assert_eq!(tanacraft_core::base64::encode(b"Ma"), "TWE=");
+}
+
+#[test]
 fn command_nodes_run_on_events() {
     // UC-02.20: tag added, checked, child added.
     let mut s = blank();

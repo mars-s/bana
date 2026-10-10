@@ -82,6 +82,55 @@ pub fn live_file(graph: &std::path::Path) -> std::path::PathBuf {
     graph.with_file_name(name)
 }
 
+/// Where files attached to nodes are kept for `graph`: a folder beside it (`graph.tanacraft.files`).
+pub fn files_dir(graph: &std::path::Path) -> std::path::PathBuf {
+    let mut name = graph.file_name().unwrap_or_default().to_os_string();
+    name.push(".files");
+    graph.with_file_name(name)
+}
+
+/// Standard base64 (RFC 4648, with padding): attached files travel as text through the API.
+pub mod base64 {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    pub fn encode(data: &[u8]) -> String {
+        let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+        for chunk in data.chunks(3) {
+            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+            let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+            for i in 0..4 {
+                if i <= chunk.len() {
+                    out.push(ABC[(n >> (18 - 6 * i) & 63) as usize] as char);
+                } else {
+                    out.push('=');
+                }
+            }
+        }
+        out
+    }
+
+    pub fn decode(text: &str) -> Option<Vec<u8>> {
+        let clean: Vec<u8> = text.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
+        if !clean.len().is_multiple_of(4) {
+            return None;
+        }
+        let val = |c: u8| ABC.iter().position(|x| *x == c).map(|p| p as u32);
+        let mut out = Vec::with_capacity(clean.len() / 4 * 3);
+        for q in clean.chunks(4) {
+            let pad = q.iter().rev().take_while(|c| **c == b'=').count();
+            if pad > 2 {
+                return None;
+            }
+            let mut n = 0u32;
+            for (i, c) in q.iter().enumerate() {
+                n |= if *c == b'=' { 0 } else { val(*c)? } << (18 - 6 * i);
+            }
+            out.extend_from_slice(&[(n >> 16) as u8, (n >> 8) as u8, n as u8][..3 - pad]);
+        }
+        Some(out)
+    }
+}
+
 /// Loads `path`; when it does not exist yet but an older `graph.json` sits beside it (versions
 /// before the Loro store), that one is loaded instead (and saved to `path` from then on). `None`
 /// when there is nothing to load.

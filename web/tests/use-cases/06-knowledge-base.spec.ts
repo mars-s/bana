@@ -1,7 +1,7 @@
 // Use cases: the outliner as a personal knowledge base (docs/use-cases/06-knowledge-base.md):
 // writing, structure, references, supertags and fields, search, views and navigation.
 import { test, expect, missing, works, partial, tree, fieldOf, idOf, palette, rowOf, page as pageOf } from './helpers'
-import { pageWith, focus, nameOf, lines } from '../fixtures'
+import { pageWith, focus, nameOf, lines, settle } from '../fixtures'
 
 // Writing and structure
 
@@ -64,6 +64,9 @@ test('UC-06.06 headings with ! and a description under a line (Ctrl+I)', works('
   await app.keyboard.type('!')
   await app.keyboard.type('Overview')
   await expect.poll(async () => (await rowOf(server, ids[0]))?.heading).toBe(true)
+  // Every key typed so far is in before the caret is moved from outside the window.
+  await expect.poll(() => nameOf(server, ids[0])).toBe('Overview')
+  await settle(app)
   await focus(server, app, ids[1], 4)
   await app.keyboard.press('Control+i')
   await app.keyboard.type('the main text')

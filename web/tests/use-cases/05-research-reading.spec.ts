@@ -86,6 +86,24 @@ test('UC-05.06 unlinked mentions: lines that name this page without linking it, 
   await expect(app.locator('.references:not(.mentions) .reference-row')).toHaveCount(1)
 })
 missing('UC-05.07', 'Readwise sync of book and article highlights')
-missing('UC-05.08', 'attach a PDF or an image to a node and preview it')
+test('UC-05.08 drop a picture or a PDF on a line: it is kept beside the graph and previewed', works('UC-05.08'), async ({ app, server }) => {
+  const { page, ids } = await pageWith(server, app, ['Soil paper'], 'Reading')
+  // A 1x1 PNG and a small PDF dropped from the desktop onto the line.
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  await app.locator(`.row.node[data-id="${ids[0]}"]`).evaluate((row, png) => {
+    const dt = new DataTransfer()
+    const bytes = Uint8Array.from(atob(png), (c) => c.charCodeAt(0))
+    dt.items.add(new File([bytes], 'diagram.png', { type: 'image/png' }))
+    dt.items.add(new File(['%PDF-1.4 tiny'], 'paper.pdf', { type: 'application/pdf' }))
+    row.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
+  }, png)
+  await expect.poll(async () => ((await tree(server, page)).children ?? []).map((c: any) => c.name)).toEqual(['Soil paper', 'diagram.png', 'paper.pdf'])
+  await expect(app.locator('.file-preview')).toHaveJSProperty('naturalWidth', 1)
+  await expect(app.locator('.file-chip', { hasText: 'paper.pdf' })).toBeVisible()
+  const pdf = (await tree(server, page)).children[2].id
+  const back = (await server.run('file.read', { node: pdf })).result
+  expect(back.mime).toBe('application/pdf')
+  expect(Buffer.from(back.data, 'base64').toString()).toBe('%PDF-1.4 tiny')
+})
 missing('UC-05.09', 'expand an inline reference in place (Shift+click) to read it without leaving the line')
 missing('UC-05.10', 'record a lecture and get a transcript and summary (AI)', 'ai')

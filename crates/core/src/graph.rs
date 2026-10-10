@@ -1503,6 +1503,12 @@ impl Graph {
         Ok(())
     }
 
+    /// Marks `id` as holding attached file `stored` (a name in the files folder, UC-05.08).
+    pub fn set_file(&mut self, id: NodeId, stored: Option<String>) -> Result<()> {
+        self.node_mut(id)?.file = stored;
+        Ok(())
+    }
+
     /// A page's content width: `medium` (the column) or `full` (UC-06.44).
     pub fn set_width(&mut self, id: NodeId, width: &str) -> Result<()> {
         let w = match width {

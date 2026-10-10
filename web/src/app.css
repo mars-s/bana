@@ -4061,3 +4061,40 @@ kbd {
   min-height: var(--row-h);
   cursor: pointer;
 }
+
+/* Files on nodes (UC-05.08): under the line's text, like a description. */
+.attachment {
+  display: block;
+  width: 100%;
+  padding-left: var(--text-from-bullet);
+}
+
+.file-preview {
+  display: block;
+  max-width: min(100%, var(--file-preview-w));
+  max-height: var(--file-preview-h);
+  margin: var(--q1) 0;
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 1px var(--c-outline);
+}
+
+.file-preview.loading {
+  width: var(--file-preview-w);
+  height: var(--q10);
+  background: var(--c-raised);
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--q1);
+  margin: var(--q1) 0 0;
+  padding: var(--q-half) var(--q2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--c-raised);
+  color: var(--c-secondary);
+  font: inherit;
+  font-size: var(--fs-label);
+  cursor: pointer;
+}

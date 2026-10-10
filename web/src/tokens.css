@@ -21,6 +21,9 @@
   --filter-gap: 3.2px;
   /* The custom-colour swatch (Configure supertag, N59.32). */
   --rainbow: conic-gradient(#f04452, #da6e00, #a18b00, #00a46a, #0093ea, #a073ee, #fc19d4, #f04452);
+  /* Picture previews on file nodes (UC-05.08). */
+  --file-preview-w: 480px;
+  --file-preview-h: 320px;
   /* A side menu view's menu column (UC-06.14). */
   --nav-menu-w: 240px;
   /* Day toolbar "Workspaces" button (spec 12). */

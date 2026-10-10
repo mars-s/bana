@@ -341,6 +341,12 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
         placeholder=""
         onChange={(e) => textChanged(e.target.value, e.target.selectionEnd)}
         onPaste={(e) => {
+          // Pasted pictures or files become file nodes after the line (UC-05.08).
+          if (e.clipboardData.files.length) {
+            e.preventDefault()
+            void attachFiles(e.clipboardData.files, row.id, panel)
+            return
+          }
           const text = e.clipboardData.getData('text/plain')
           if (pasteInto(panel, row.id, valueRef.current, text)) e.preventDefault()
         }}
@@ -544,9 +550,34 @@ function useDrop(id: number): { drop: Drop | null; dragged: boolean } {
   return { drop: dropState?.id === id ? dropState : null, dragged: dragging.includes(id) }
 }
 
+/** Files dropped or pasted on a line: each becomes a node after it holding the file (UC-05.08). */
+export async function attachFiles(files: FileList, after: number, panel: string) {
+  for (const f of Array.from(files)) {
+    if (f.size > 20 * 1024 * 1024) {
+      showToast(`${f.name} is larger than 20 MB`)
+      continue
+    }
+    const data = await new Promise<string>((done, fail) => {
+      const r = new FileReader()
+      r.onload = () => done(String(r.result).replace(/^data:[^,]*,/, ''))
+      r.onerror = () => fail(r.error)
+      r.readAsDataURL(f)
+    })
+    // Several files keep their order: each goes after the one before.
+    const r = await exec('file.attach', { name: f.name, data, after }, panel)
+    if (r?.result?.id != null) after = r.result.id
+  }
+}
+
 function dropHandlers(row: NodeRow, panel: string) {
   return {
     onDragOver(e: React.DragEvent) {
+      // Files from the desktop drop after this line.
+      if (!dragging.length && e.dataTransfer.types.includes('Files')) {
+        e.preventDefault()
+        setDrop({ id: row.id, where: 'below' })
+        return
+      }
       if (!dragging.length || dragging.includes(row.id)) return
       e.preventDefault()
       const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -562,6 +593,10 @@ function dropHandlers(row: NodeRow, panel: string) {
       e.preventDefault()
       const d = dropState
       setDrop(null)
+      if (!dragging.length && e.dataTransfer.files.length) {
+        void attachFiles(e.dataTransfer.files, row.id, panel)
+        return
+      }
       const nodes = dragging
       dragging = []
       dropSubs.forEach((f) => f())
@@ -691,11 +726,48 @@ function NodeLine({ row, panel, page, selected, editing }: { row: NodeRow; panel
           )}
         </span>
         {row.link && !editing && <LinkCard text={row.name} />}
+        {row.file && (
+          <span className="attachment">
+            <Attachment row={row} panel={panel} />
+          </span>
+        )}
         {(row.description || describing) && (
           <span className="desc">{describing ? <DescEditor row={row} panel={panel} /> : <span onMouseDown={(e) => (e.preventDefault(), setState({ descEdit: { panel, node: row.id } }))}>{row.description}</span>}</span>
         )}
       </div>
     </div>
+  )
+}
+
+/** A file on a node (UC-05.08): a picture shows as a preview, anything else as a chip that opens
+ * it. The bytes come from the engine (`file.read`) when the row is drawn. */
+function Attachment({ row, panel }: { row: NodeRow; panel: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const read = async () => {
+    const r = await call('run', { command: 'file.read', params: { node: row.target }, panel })
+    if (!r?.result) return null
+    const bytes = Uint8Array.from(atob(r.result.data), (c) => c.charCodeAt(0))
+    return URL.createObjectURL(new Blob([bytes], { type: r.result.mime }))
+  }
+  useEffect(() => {
+    if (!row.fileImage) return
+    let gone = false
+    let made: string | null = null
+    void read().then((u) => {
+      made = u
+      if (!gone) setUrl(u)
+    })
+    return () => {
+      gone = true
+      if (made) URL.revokeObjectURL(made)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.target, row.file])
+  if (row.fileImage) return url ? <img className="file-preview" src={url} alt={row.file ?? ''} /> : <span className="file-preview loading" />
+  return (
+    <button className="file-chip" title="Open the file" onClick={() => void read().then((u) => u && window.open(u, '_blank'))}>
+      <Icon name="link" size={12} /> {row.file}
+    </button>
   )
 }
 

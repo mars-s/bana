@@ -34,17 +34,17 @@ Everything here comes from Tana's public pages, written in our own words:
 | [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 18 | 1 | 1 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
-| [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 5 | 1 | 3 | 0 | 1 |
+| [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 6 | 1 | 2 | 0 | 1 |
 | [06-knowledge-base.md](06-knowledge-base.md) | Outline editing, references, supertags, fields, search, views, navigation | 33 | 3 | 9 | 0 | 0 |
 | [07-teams-sharing.md](07-teams-sharing.md) | Workspaces, collaboration, publishing | 3 | 1 | 5 | 2 | 0 |
 | [08-capture-import.md](08-capture-import.md) | Capture, import, export, data safety | 10 | 2 | 3 | 1 | 1 |
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 2 | 3 | 2 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **101** | **12** | **30** | **14** | **24** |
+| **Total (181)** | | **102** | **12** | **29** | **14** | **24** |
 
-Out of the 143 use cases that need neither AI nor a cloud or mobile service, 113 work fully or in
-part (101 + 12) and 30 are missing.
+Out of the 143 use cases that need neither AI nor a cloud or mobile service, 114 work fully or in
+part (102 + 12) and 29 are missing.
 
 ## Top 15 gaps by user value
 
@@ -57,7 +57,8 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 3. ~~**Dates typed in words** (UC-01.08b).~~ Done: `@` reads dates and ranges in words.
 4. ~~**Moving in from Tana and others** (UC-08.11, UC-08.10).~~ Done: Tana Paste, Notion and
    Logseq folders, Roam JSON.
-5. **Files on nodes** (UC-05.08). Images and PDFs dropped on a node, with previews.
+5. ~~**Files on nodes** (UC-05.08).~~ Done: dropped or pasted files, kept beside the graph, with
+   picture previews.
 6. ~~**MCP on the running app** (UC-10.11, UC-10.01).~~ Done: MCP works on the running app
    (stdio and streamable HTTP), plus a remote connector for claude.ai and ChatGPT (docs/mcp.md).
 7. ~~**Tag a whole selection** (UC-02.15).~~ Done: # Tag and Add tag tag every selected line.

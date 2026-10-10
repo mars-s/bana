@@ -487,6 +487,9 @@ pub struct Node {
     /// The page's content width: `full` across the panel; absent is the medium column (UC-06.44).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub width: Option<String>,
+    /// An attached file (UC-05.08): its name in the graph's files folder (see `files_dir`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
     /// Page decorations: an icon (a short text, usually one emoji) and a banner colour.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
@@ -537,6 +540,7 @@ impl Node {
             heading: false,
             on_child: Vec::new(),
             width: None,
+            file: None,
             icon: None,
             banner: None,
             pinned: false,

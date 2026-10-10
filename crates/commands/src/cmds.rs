@@ -128,6 +128,18 @@ pub fn registry() -> Registry {
             Ok(json!({"node": id.0, "banner": color}))
         })
         .params(r#"{"node"?: id, "color": string}  (a colour name, #rrggbb or picture:orbit; empty removes it)"#),
+        // Files on nodes (UC-05.08): kept in a folder beside the graph, one node per file.
+        C::new("file.attach", "Attach a file", "File", file_attach)
+            .params(r#"{"name": string, "data": base64, "after"?: id, "parent"?: id}  (a new node for the file after a line or under a parent; up to 20 MB)"#),
+        C::new("file.read", "Read an attached file", "File", |s, v| {
+            let id = s.graph.resolve(s.target(v)?);
+            let stored = s.graph.get(id).and_then(|n| n.file.clone()).ok_or_else(|| CmdError::Params("this node holds no file".into()))?;
+            let dir = files_dir(s)?;
+            let bytes = std::fs::read(dir.join(&stored)).map_err(|e| CmdError::Failed(format!("{stored}: {e}")))?;
+            Ok(json!({"name": s.graph.name(id), "mime": mime_of(&stored), "size": bytes.len(), "data": tanacraft_core::base64::encode(&bytes)}))
+        })
+        .params(r#"{"node"?: id}"#)
+        .pure(),
         C::new("node.setWidth", "Content width", "Node", |s, v| {
             let id = s.graph.resolve(p::node(v, "node")?.unwrap_or(s.zoom));
             s.graph.set_width(id, p::req_str(v, "width")?)?;
@@ -984,6 +996,59 @@ fn join_next(s: &mut Session, v: &Value) -> CmdResult {
 /// Builds nodes from Markdown under `parent` (default: the Library): bullet lists nest by indent,
 /// `#` headings become heading nodes that hold what follows, `[ ]` / `[x]` make checkboxes and
 /// trailing `#tags` become supertags.
+/// Largest attached file.
+const MAX_FILE: usize = 20 * 1024 * 1024;
+
+/// The graph's files folder (only a graph saved to a file has one).
+fn files_dir(s: &Session) -> Result<std::path::PathBuf, CmdError> {
+    let path = s.path.as_ref().ok_or_else(|| CmdError::Disabled("files need a graph saved to a file".into()))?;
+    Ok(tanacraft_core::files_dir(path))
+}
+
+fn mime_of(name: &str) -> &'static str {
+    match name.rsplit('.').next().unwrap_or_default().to_ascii_lowercase().as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        "txt" | "md" => "text/plain",
+        _ => "application/octet-stream",
+    }
+}
+
+fn file_attach(s: &mut Session, v: &Value) -> CmdResult {
+    let raw = p::req_str(v, "name")?;
+    // Only a plain file name: no folders, no way out of the files folder.
+    let name: String = raw.rsplit(['/', '\\']).next().unwrap_or_default().chars().filter(|c| !c.is_control()).take(120).collect();
+    let name = name.trim().trim_start_matches('.').to_string();
+    if name.is_empty() {
+        return Err(CmdError::Params("`name` must be a file name".into()));
+    }
+    let bytes = tanacraft_core::base64::decode(p::req_str(v, "data")?).ok_or_else(|| CmdError::Params("`data` must be base64".into()))?;
+    if bytes.len() > MAX_FILE {
+        return Err(CmdError::Params("files up to 20 MB can be attached".into()));
+    }
+    let (parent, index) = match (p::node(v, "after")?, p::node(v, "parent")?) {
+        (Some(a), _) => {
+            let parent = s.graph.parent(a).ok_or_else(|| CmdError::Params("`after` has no parent".into()))?;
+            (parent, s.graph.index_in_parent(a).map(|i| i + 1))
+        }
+        (None, Some(p)) => (p, None),
+        (None, None) => (s.zoom, None),
+    };
+    let dir = files_dir(s)?;
+    std::fs::create_dir_all(&dir).map_err(|e| CmdError::Failed(format!("{}: {e}", dir.display())))?;
+    let stored = format!("{}-{name}", &tanacraft_core::random_hex()[..12]);
+    // Written whole before the node points at it (a crash leaves at most an unused file).
+    let tmp = dir.join(format!(".{stored}.part"));
+    std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, dir.join(&stored))).map_err(|e| CmdError::Failed(format!("{stored}: {e}")))?;
+    let id = s.graph.create(parent, index, &name)?;
+    s.graph.set_file(id, Some(stored.clone()))?;
+    Ok(json!({"id": id.0, "file": stored, "size": bytes.len()}))
+}
+
 /// Roam's JSON export (UC-08.10): `[{"title", "children": [{"string", "children"}]}]`. Each page
 /// becomes a node with its blocks below; `[[links]]` and `#tags` work as in Markdown.
 fn import_roam(s: &mut Session, v: &Value) -> CmdResult {

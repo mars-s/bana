@@ -48,10 +48,10 @@ Books, articles, quotes and concepts linked into a graph. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/readwise-integration
 - **TanaCraft:** MISSING (needs a Readwise token; could run locally).
 
-### UC-05.08 Attach a PDF or an image: MISSING
+### UC-05.08 Attach a PDF or an image: WORKS
 - **Story:** I drop a paper's PDF on its node and preview it.
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (Storing files on nodes)
-- **TanaCraft:** MISSING (no file store).
+- **TanaCraft:** WORKS. Files dropped on a line or pasted into it become nodes after it; the file is kept in a folder beside the graph (`graph.tanacraft.files`), pictures show a preview, other files a chip that opens them (`file.attach`, `file.read`, up to 20 MB). Not built: a PDF viewer inside the page, files in sync.
 
 ### UC-05.09 Peek into an inline reference: MISSING
 - **Story:** Shift+click an inline link to read its content in place.

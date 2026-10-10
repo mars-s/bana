@@ -117,6 +117,9 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
         "notes": notes,
         "notesHead": notes_head,
         // The bar shows by itself once a checkbox sits below (UC-02.03), or when switched on.
+        // An attached file: its name and kind (UC-05.08); the bytes come with `file.read`.
+        "file": n.file.as_ref().map(|f| f.split_once('-').map(|(_, n)| n).unwrap_or(f).to_string()),
+        "fileImage": n.file.as_deref().is_some_and(|f| [".png", ".jpg", ".jpeg", ".gif", ".webp"].iter().any(|e| f.to_ascii_lowercase().ends_with(e))),
         "progress": match g.progress(target) {
             (d, t) if t > 0 || n.progress => json!([d, t]),
             _ => Value::Null,

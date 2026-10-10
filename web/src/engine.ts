@@ -164,7 +164,9 @@ export function call(method: string, params: Json = {}): Promise<Json> {
       return
     }
     const it: Item = { method, params, done: [resolve], fail: [reject] }
-    if (EDITS.has(method)) {
+    // An attached file's bytes are too big for the session log; the request itself still goes in
+    // order and the engine writes the file before answering.
+    if (EDITS.has(method) && !(method === 'run' && params?.command === 'file.attach')) {
       it.wal = [client, ++walSeq]
       wal.push({ method, params, wal: it.wal })
       writeWal()
@@ -326,6 +328,9 @@ export interface NodeRow {
   suffix: [string, boolean][]
   notes: boolean
   progress: [number, number] | null
+  /** An attached file's name, and whether it is a picture (UC-05.08). */
+  file?: string | null
+  fileImage?: boolean
   /** On the first line of a reference's notes: their heading. */
   notesHead?: string | null
   /** Places that point at this node (only with the reference counter on). */

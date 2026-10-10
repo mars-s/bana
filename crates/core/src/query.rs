@@ -23,6 +23,7 @@
 //! | `IS:COMMAND` | command nodes |
 //! | `Effort>2`, `Due<2026-10-20`, `Due<today` | number or date comparison |
 //! | `CREATED:7` | created in the last 7 days |
+//! | `BY:*`, `BY:claude` | made or last changed by an assistant (any, or that one) |
 //! | `UNDER:42` | inside node 42 |
 //! | `TYPE:task` | tagged with a supertag of that base type |
 //! | `NOT clause` | negation; `OR` between clauses switches to any-of |
@@ -101,6 +102,10 @@ pub enum ClauseKind {
     },
     EditedWithin {
         days: u32,
+    },
+    /// Made or last changed by an assistant: `*` any, else that client's name (any case).
+    By {
+        who: String,
     },
     DoneWithin {
         days: u32,
@@ -284,6 +289,7 @@ impl Query {
                     ClauseKind::Sibling { name } => format!("SIBLING:{}", quote(name)),
                     ClauseKind::CreatedWithin { days } => format!("CREATED:{days}"),
                     ClauseKind::EditedWithin { days } => format!("EDITED:{days}"),
+                    ClauseKind::By { who } => format!("BY:{}", if who == "*" { who.clone() } else { quote(who) }),
                     ClauseKind::DoneWithin { days } => format!("DONE:{days}"),
                     ClauseKind::Under { node } => format!("UNDER:{node}"),
                     ClauseKind::HasTag => "HAS:TAG".into(),
@@ -345,6 +351,8 @@ impl Query {
                 }
                 ClauseKind::CreatedWithin { days } => out.push(t(&format!("{not}created in the last {days} days"))),
                 ClauseKind::EditedWithin { days } => out.push(t(&format!("{not}edited in the last {days} days"))),
+                ClauseKind::By { who } if who == "*" => out.push(t(&format!("{not}changed by an assistant"))),
+                ClauseKind::By { who } => out.extend([t(&format!("{not}changed by ")), tok(who.clone())]),
                 ClauseKind::DoneWithin { days } => out.push(t(&format!("{not}done in the last {days} days"))),
                 ClauseKind::Under { node } => out.extend([t(&format!("{not}under ")), tok(g.name(*node).to_string())]),
                 ClauseKind::ChildOf { node } => out.extend([t(&format!("{not}child of ")), tok(g.name(*node).to_string())]),
@@ -485,6 +493,7 @@ fn clause_matches(g: &Graph, id: NodeId, k: &ClauseKind) -> bool {
     let Some(n) = g.get(id) else { return false };
     match k {
         ClauseKind::EditedWithin { days } => within(n.edited.max(n.created), *days),
+        ClauseKind::By { who } => n.by.as_deref().is_some_and(|b| who == "*" || b.eq_ignore_ascii_case(who)),
         ClauseKind::DoneWithin { days } => g.checkbox(id) == Some(true) && n.done_at.is_some_and(|t| within(t, *days)),
         ClauseKind::HasTag => n.tags.iter().any(|t| *t != g.sys.day_tag),
         ClauseKind::HasField => !n.fields.is_empty(),
@@ -700,6 +709,13 @@ fn clause(g: &Graph, tok: &Token) -> Result<ClauseKind> {
         ("EDITED", ':') | ("DONE", ':') => {
             let days = value.trim().parse().map_err(|_| Error::Invalid(format!("{name} needs a number of days, not `{value}`")))?;
             return Ok(if name == "EDITED" { ClauseKind::EditedWithin { days } } else { ClauseKind::DoneWithin { days } });
+        }
+        ("BY", ':') => {
+            let who = value.trim();
+            if who.is_empty() {
+                return Err(Error::Invalid("BY needs an assistant's name, or * for any".into()));
+            }
+            return Ok(ClauseKind::By { who: who.to_string() });
         }
         ("HAS", ':') => {
             return match value.as_str() {

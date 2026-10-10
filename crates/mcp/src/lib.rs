@@ -12,6 +12,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use bana_commands::Session;
+use bana_commands::agents::Agent;
 use bana_core::PRODUCT_NAME;
 use serde_json::{Value, json};
 
@@ -102,29 +103,33 @@ impl Backend {
         serde_json::from_str(body).map_err(|e| format!("bad reply: {e}"))
     }
 
-    /// Runs a command by id.
-    pub fn run(&mut self, command: &str, params: Value) -> Result<Value, String> {
+    /// Runs a command by id for the assistant `agent` (its MCP client name): the engine checks it
+    /// against the agent policy and marks what it changes with the name (`bana_commands::agents`).
+    pub fn run(&mut self, agent: &str, command: &str, params: Value) -> Result<Value, String> {
         match self {
             Backend::Local(s) => {
                 let mutates = s.registry.get(command).is_some_and(|c| c.mutates)
                     || command.starts_with("nav.")
                     || command == "edit.undo"
                     || command == "edit.redo";
-                let r = s.run(command, &params).map_err(|e| e.to_string())?;
+                s.agent = Some(Agent::load(agent, &bana_commands::agents::config_file()));
+                let r = s.run(command, &params);
+                s.agent = None;
+                let r = r.map_err(|e| e.to_string())?;
                 if mutates && s.path.is_some() && s.graph.is_dirty() {
                     s.run("file.save", &json!({})).map_err(|e| format!("saved nothing: {e}"))?;
                 }
                 Ok(r)
             }
             Backend::Engine(f) => {
-                let v = f("run", json!({"command": command, "params": params, "window": "mcp"}));
+                let v = f("run", json!({"command": command, "params": params, "window": "mcp", "agent": agent}));
                 match v.get("error") {
                     Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
                     None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
                 }
             }
             Backend::Live { .. } => {
-                let v = self.post(&json!({"method": "run", "params": {"command": command, "params": params}}))?;
+                let v = self.post(&json!({"method": "run", "params": {"command": command, "params": params, "agent": agent}}))?;
                 match v.get("error") {
                     Some(e) => Err(e.as_str().unwrap_or("error").to_string()),
                     None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
@@ -180,39 +185,40 @@ fn params_hint(b: &mut Backend, id: &str) -> String {
     }
 }
 
-fn call_tool(b: &mut Backend, name: &str, args: &Value) -> Result<Value, String> {
+fn call_tool(b: &mut Backend, agent: &str, name: &str, args: &Value) -> Result<Value, String> {
     let arg = |k: &str| args.get(k).cloned().unwrap_or(Value::Null);
     match name {
         "list_commands" => b.commands(),
         "execute" => {
             let id = args.get("command").and_then(Value::as_str).ok_or("missing `command`: a command id from list_commands")?;
-            b.run(id, args.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}))).map_err(|e| format!("{e}{}", params_hint(b, id)))
+            let params = args.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}));
+            b.run(agent, id, params).map_err(|e| if e.starts_with("refused:") { e } else { format!("{e}{}", params_hint(b, id)) })
         }
-        "view" => b.run("graph.view", json!({})),
-        "inspect" => b.run("graph.inspect", json!({"node": arg("node")})),
+        "view" => b.run(agent, "graph.view", json!({})),
+        "inspect" => b.run(agent, "graph.inspect", json!({"node": arg("node")})),
         "search" => {
             let q = args.get("query").and_then(Value::as_str).unwrap_or_default();
             if q.trim().is_empty() {
                 return Err("`query` is empty: give a word or phrase to look for".into());
             }
-            b.run("graph.search", json!({"query": q}))
+            b.run(agent, "graph.search", json!({"query": q}))
         }
-        "export_markdown" => b.run("export.markdown", json!({"node": arg("node")})),
+        "export_markdown" => b.run(agent, "export.markdown", json!({"node": arg("node")})),
         "add_node" => {
             // A typo must not make a supertag (DIFFS N89): only an existing one, unless asked.
             let tag = args.get("tag").and_then(Value::as_str).map(|t| t.trim().trim_start_matches('#').to_string()).filter(|t| !t.is_empty());
             if let Some(t) = &tag
                 && args.get("create_tag").and_then(Value::as_bool) != Some(true)
             {
-                let tags = b.run("graph.tags", json!({}))?;
+                let tags = b.run(agent, "graph.tags", json!({}))?;
                 let known = tags.as_array().is_some_and(|a| a.iter().any(|x| x["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(t))));
                 if !known {
                     return Err(format!("no supertag #{t}; pass create_tag: true to make it (execute graph.tags lists them)"));
                 }
             }
-            let r = b.run("node.add", json!({"name": arg("name"), "parent": arg("parent")}))?;
+            let r = b.run(agent, "node.add", json!({"name": arg("name"), "parent": arg("parent")}))?;
             if let Some(t) = tag {
-                b.run("tag.add", json!({"node": r["id"], "tag": t}))?;
+                b.run(agent, "tag.add", json!({"node": r["id"], "tag": t}))?;
             }
             Ok(r)
         }
@@ -223,6 +229,9 @@ fn call_tool(b: &mut Backend, name: &str, args: &Value) -> Result<Value, String>
 /// An MCP server bound to one backend.
 pub struct Server {
     pub backend: Backend,
+    /// Who is asking: a connector's header (`X-Bana-Agent`), else the client's name from
+    /// `initialize` (`clientInfo`). Recorded on what it changes; "assistant" when unknown.
+    pub client: Option<String>,
 }
 
 fn error(id: Value, code: i64, msg: impl Into<String>) -> Value {
@@ -231,7 +240,7 @@ fn error(id: Value, code: i64, msg: impl Into<String>) -> Value {
 
 impl Server {
     pub fn new(backend: Backend) -> Server {
-        Server { backend }
+        Server { backend, client: None }
     }
 
     /// Serves newline-delimited JSON-RPC until `input` closes. stdout is the protocol stream.
@@ -260,6 +269,10 @@ impl Server {
         let params = msg.get("params").cloned().unwrap_or(Value::Null);
         let result = match method {
             "initialize" => {
+                if self.client.is_none() {
+                    let info = &params["clientInfo"];
+                    self.client = info["name"].as_str().or(info["title"].as_str()).map(bana_commands::agents::clean_name);
+                }
                 let asked = params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL_VERSION);
                 let version = if SUPPORTED.contains(&asked) { asked } else { PROTOCOL_VERSION };
                 json!({
@@ -278,7 +291,8 @@ impl Server {
                     return Some(error(id, -32602, format!("unknown tool `{name}`")));
                 }
                 let args = params.get("arguments").cloned().unwrap_or(json!({}));
-                match call_tool(&mut self.backend, name, &args) {
+                let agent = self.client.clone().unwrap_or_else(|| "assistant".into());
+                match call_tool(&mut self.backend, &agent, name, &args) {
                     Ok(v) => {
                         json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}], "structuredContent": wrap(v), "isError": false})
                     }
@@ -295,7 +309,7 @@ impl Server {
                     "bana://commands" => ("application/json", self.backend.commands().map(|v| v.to_string())),
                     "bana://page" => (
                         "text/markdown",
-                        self.backend.run("export.markdown", json!({})).map(|v| v["markdown"].as_str().unwrap_or_default().to_string()),
+                        self.backend.run("assistant", "export.markdown", json!({})).map(|v| v["markdown"].as_str().unwrap_or_default().to_string()),
                     ),
                     _ => return Some(error(id, -32002, format!("resource not found: {uri}"))),
                 };
@@ -345,12 +359,12 @@ mod tests {
         let s2 = std::sync::Arc::clone(&shared);
         std::thread::spawn(move || bana_server::http::serve_on(s2, listener, dir.clone()));
         let mut b = Backend::find_live_with(&file, "t".repeat(32)).unwrap();
-        let r = b.run("node.add", json!({"name": "From MCP"})).unwrap();
+        let r = b.run("test", "node.add", json!({"name": "From MCP"})).unwrap();
         let id = bana_core::NodeId(r["id"].as_u64().unwrap());
         assert_eq!(shared.host.lock().unwrap().session.graph.name(id), "From MCP");
         // A wrong token is refused.
         let mut bad = Backend::Live { port, token: "nope".into() };
-        assert!(bad.run("graph.view", json!({})).is_err());
+        assert!(bad.run("test", "graph.view", json!({})).is_err());
     }
 
     #[test]
@@ -408,5 +422,71 @@ mod tests {
         let unknown = call(&mut s, json!({"jsonrpc": "2.0", "id": 7, "method": "nope"}));
         assert_eq!(unknown["error"]["code"], -32601);
         assert_eq!(s.handle_line("{not json").unwrap()["error"]["code"], -32700);
+    }
+
+    #[test]
+    fn never_commands_are_refused_through_mcp_and_the_file_stays_byte_identical() {
+        let dir = std::env::temp_dir().join(format!("bana-mcp-never-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("graph.bana");
+        let _ = std::fs::remove_file(&file);
+        let today = Date::new(2026, 10, 10).unwrap();
+        let mut session = Session::with_today(sample::sample(today).unwrap(), today);
+        session.path = Some(file.clone());
+        let a = session.run("node.add", &json!({"name": "Signed contract"})).unwrap()["id"].as_u64().unwrap();
+        session.run("node.toggleLock", &json!({"node": a})).unwrap();
+        session.run("commandNode.create", &json!({"name": "Tidy", "steps": ["tag.add {\"tag\": \"task\"}"]})).unwrap();
+        session.run("file.save", &json!({})).unwrap();
+        let bytes = std::fs::read(&file).unwrap();
+        let mut s = Server::new(Backend::Local(Box::new(session)));
+        call(&mut s, json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "claude-code", "version": "1"}}}));
+        let exec = |s: &mut Server, command: &str, params: Value| {
+            call(
+                s,
+                json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": command, "params": params}}}),
+            )
+        };
+        for (command, params) in [
+            ("node.hardDelete", json!({"node": a})),
+            ("trash.empty", json!({})),
+            ("node.toggleLock", json!({"node": a})),
+            ("file.save", json!({"path": dir.join("other.bana").to_string_lossy()})),
+            ("file.open", json!({"path": file.to_string_lossy()})),
+            ("file.read", json!({"node": a})),
+            ("import.folder", json!({"path": dir.to_string_lossy()})),
+            ("import.file", json!({"path": file.to_string_lossy()})),
+            ("settings.set", json!({"key": "time_12h", "value": true})),
+            ("settings.get", json!({})),
+            ("workspace.create", json!({"name": "Planted"})),
+            ("workspace.switch", json!({"name": "Planted"})),
+            ("commandNode.create", json!({"name": "Plant", "steps": ["trash.empty"]})),
+            ("commandNode.on", json!({"command": "Tidy", "event": "added", "tag": "task"})),
+            ("commandNode.run", json!({"command": "Tidy", "node": a})),
+            ("view.deleteColumn", json!({"node": a, "field": "Due"})),
+        ] {
+            let r = exec(&mut s, command, params);
+            assert_eq!(r["result"]["isError"], true, "{command}: {r}");
+            let text = r["result"]["content"][0]["text"].as_str().unwrap();
+            assert!(text.starts_with(&format!("refused: assistants may not run `{command}` (rule `")), "{text}");
+        }
+        // A locked node refuses an assistant's rename and field edit.
+        assert_eq!(exec(&mut s, "node.setName", json!({"node": a, "name": "x"}))["result"]["isError"], true);
+        assert_eq!(exec(&mut s, "field.add", json!({"node": a, "field": "Due", "value": "today"}))["result"]["isError"], true);
+        assert_eq!(std::fs::read(&file).unwrap(), bytes, "nothing reached the file");
+        assert!(!dir.join("other.bana").exists());
+        // Normal edits work, and carry the client's name.
+        let add = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "add_node", "arguments": {"name": "From Claude", "tag": "task"}}}),
+        );
+        assert_eq!(add["result"]["isError"], false, "{add}");
+        let id = bana_core::NodeId(add["result"]["structuredContent"]["id"].as_u64().unwrap());
+        assert_ne!(std::fs::read(&file).unwrap(), bytes);
+        let by = match &s.backend {
+            Backend::Local(session) => session.graph.get(id).and_then(|n| n.by.clone()),
+            _ => None,
+        };
+        assert_eq!(by.as_deref(), Some("claude-code"));
+        assert_eq!(bana_core::Graph::load(&file).unwrap().get(id).unwrap().by.clone(), Some("claude-code".into()), "kept in the file");
     }
 }

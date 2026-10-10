@@ -52,6 +52,9 @@ pub struct Host {
     /// Recent splits (line, new line, the text before, where): another window typing at the end of
     /// a line that was split goes on in the second half (DIFFS N74).
     splits: Vec<(NodeId, NodeId, String, usize)>,
+    /// The person's hand-edited agent opt-outs (`bana_commands::agents`), read on every
+    /// assistant command so an edit applies at once.
+    pub agents_file: std::path::PathBuf,
 }
 
 impl Host {
@@ -71,6 +74,7 @@ impl Host {
             draft_window: None,
             primary: None,
             splits: Vec::new(),
+            agents_file: bana_commands::agents::config_file(),
         }
     }
 
@@ -142,7 +146,13 @@ impl Host {
                     }
                     self.revs.insert(key, rev);
                 }
+                // An assistant (the MCP window): the agent policy applies and its edits carry its name.
+                if params.get("window").and_then(Value::as_str) == Some("mcp") {
+                    let name = params.get("agent").and_then(Value::as_str).unwrap_or_default();
+                    self.session.agent = Some(bana_commands::agents::Agent::load(name, &self.agents_file));
+                }
                 let r = self.session.run(id, &p);
+                self.session.agent = None;
                 if let (Some((line, before)), Ok(_)) = (split_from, &r) {
                     self.note_split(line, before);
                 }

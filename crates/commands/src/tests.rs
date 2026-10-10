@@ -1780,3 +1780,136 @@ fn view_filters_merge_into_the_search() {
     let words: String = s.graph.query(open).unwrap().sentence(&s.graph).into_iter().map(|(w, _)| w).collect();
     assert!(words.ends_with("and where Status set to Not started"), "{words}");
 }
+
+fn as_agent(s: &mut Session, name: &str, allow: &[&str], id: &str, v: Value) -> Result<Value, crate::CmdError> {
+    s.agent = Some(crate::agents::Agent { name: name.into(), allow: allow.iter().map(|a| a.to_string()).collect() });
+    let r = s.run(id, &v);
+    s.agent = None;
+    r
+}
+
+#[test]
+fn assistants_never_run_the_never_list_and_the_person_still_can() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Keep me"})), "id");
+    let cmd = id(&run(&mut s, "commandNode.create", json!({"name": "Tidy", "steps": ["tag.add {\"tag\": \"done\"}"]})), "id");
+    let step = s.graph.children(cmd)[0];
+    let tries = [
+        ("node.hardDelete", json!({"node": a.0}), "node.hardDelete"),
+        ("trash.empty", json!({}), "trash.empty"),
+        ("node.toggleLock", json!({"node": a.0}), "node.toggleLock"),
+        ("file.save", json!({"path": "/tmp/elsewhere.bana"}), "file.*"),
+        ("file.open", json!({"path": "/tmp/elsewhere.bana"}), "file.*"),
+        ("import.folder", json!({"path": "/tmp"}), "import.folder"),
+        ("import.file", json!({"path": "/etc/hosts"}), "import.file"),
+        ("settings.set", json!({"key": "time_12h", "value": true}), "settings.*"),
+        ("workspace.create", json!({"name": "Mine"}), "workspace.*"),
+        ("commandNode.create", json!({"name": "Plant", "steps": ["trash.empty"]}), "commandNode.create"),
+        ("commandNode.on", json!({"command": "Tidy", "event": "child", "node": a.0}), "commandNode.on"),
+        ("commandNode.run", json!({"command": "Tidy", "node": a.0}), "commandNode.run"),
+        ("view.deleteColumn", json!({"node": a.0, "field": "Due"}), "destructive"),
+        ("node.setName", json!({"node": step.0, "name": "trash.empty"}), "command nodes"),
+        ("node.add", json!({"name": "node.hardDelete", "parent": cmd.0}), "command nodes"),
+        ("node.delete", json!({"node": cmd.0}), "command nodes"),
+    ];
+    let before = s.graph.clone();
+    for (cmd_id, p, rule) in &tries {
+        let e = as_agent(&mut s, "claude", &[], cmd_id, p.clone()).expect_err(cmd_id);
+        assert_eq!(e, crate::CmdError::Refused { command: cmd_id.to_string(), rule: rule.to_string() });
+        assert!(e.to_string().starts_with("refused: "), "{e}");
+    }
+    assert_eq!(s.graph.len(), before.len());
+    assert_eq!(s.graph.name(step), "tag.add {\"tag\": \"done\"}");
+    assert!(s.graph.get(a).is_some() && !s.graph.locked(a));
+    // Normal edits go through, marked with the assistant's name.
+    let n = id(&as_agent(&mut s, "claude", &[], "node.add", json!({"name": "From Claude"})).unwrap(), "id");
+    as_agent(&mut s, "claude", &[], "tag.add", json!({"node": n.0, "tag": "task"})).unwrap();
+    assert_eq!(s.graph.get(n).unwrap().by.as_deref(), Some("claude"));
+    // The person's own edits are not limited, and clear the mark.
+    run(&mut s, "node.setName", json!({"node": n.0, "name": "Mine now"}));
+    assert_eq!(s.graph.get(n).unwrap().by, None);
+    run(&mut s, "node.toggleLock", json!({"node": a.0}));
+    run(&mut s, "node.toggleLock", json!({"node": a.0}));
+    // The hand-edited opt-out: for everyone, or for one client by name.
+    let dir = std::env::temp_dir().join(format!("bana-agents-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("agents.json");
+    std::fs::write(&file, r#"{"allow": ["node.toggleLock"], "clients": {"gateway": ["trash.*"]}}"#).unwrap();
+    let gw = crate::agents::Agent::load("gateway", &file);
+    assert_eq!(gw.allow, vec!["node.toggleLock", "trash.*"]);
+    assert_eq!(crate::agents::Agent::load("claude", &file).allow, vec!["node.toggleLock"]);
+    assert_eq!(crate::agents::Agent::load(" \u{7}", &dir.join("none.json")), crate::agents::Agent { name: "assistant".into(), allow: vec![] });
+    s.agent = Some(gw);
+    s.run("node.toggleLock", &json!({"node": a.0})).unwrap();
+    s.run("trash.empty", &json!({})).unwrap();
+    assert!(s.run("file.save", &json!({"path": "/tmp/x.bana"})).is_err());
+    s.agent = None;
+}
+
+#[test]
+fn a_locked_node_refuses_an_assistant_too() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Mirror", "parent": "today"})), "id");
+    run(&mut s, "field.add", json!({"node": a.0, "field": "Status", "value": "open"}));
+    run(&mut s, "node.toggleLock", json!({"node": a.0}));
+    for (cmd, p) in [
+        ("node.setName", json!({"node": a.0, "name": "oops"})),
+        ("node.setDescription", json!({"node": a.0, "text": "oops"})),
+        ("field.set", json!({"node": a.0, "field": "Status", "value": "closed"})),
+        ("field.add", json!({"node": a.0, "field": "Due", "value": "today"})),
+        ("field.remove", json!({"node": a.0, "field": "Status"})),
+        ("tag.add", json!({"node": a.0, "tag": "task"})),
+        ("node.toggleDone", json!({"node": a.0})),
+        ("import.tanaPaste", json!({"text": "- child", "parent": a.0})),
+    ] {
+        assert!(as_agent(&mut s, "claude", &[], cmd, p.clone()).is_err(), "{cmd} by an assistant on a locked node");
+        assert!(s.run(cmd, &p).is_err(), "{cmd} on a locked node");
+    }
+    assert_eq!(s.graph.name(a), "Mirror");
+    let status = s.graph.find_field("Status").unwrap();
+    assert_eq!(bana_core::export::display_value(&s.graph, s.graph.get(a).unwrap().field_value(status).unwrap()), "open");
+}
+
+#[test]
+fn the_agent_notebook_template_sets_up_its_supertags_and_searches() {
+    let mut s = blank();
+    let page = id(&run(&mut s, "template.install", json!({"name": "Agent notebook"})), "id");
+    let g = &s.graph;
+    let fields = |tag: &str| -> Vec<String> {
+        let t = g.find_tag(tag).unwrap_or_else(|| panic!("#{tag}"));
+        g.tag_def(t).unwrap().fields.iter().map(|f| g.name(*f).to_string()).collect()
+    };
+    assert_eq!(fields("capture"), ["Capture ID", "Source hash", "Status"]);
+    assert_eq!(fields("interpretation"), ["Revision hash"]);
+    assert_eq!(fields("suggested-action"), ["Evidence", "Status", "Things ID"]);
+    assert_eq!(fields("question"), ["Evidence"]);
+    assert_eq!(fields("meeting"), ["Date", "Attendees"]);
+    assert_eq!(fields("thing"), ["Things ID", "Things link", "Status", "When", "Deadline", "Project", "Area", "Synced at"]);
+    assert_eq!(fields("event"), ["Event ID", "Start", "End", "Calendar", "Synced at"]);
+    assert_eq!(fields("proposal"), ["Proposal ID", "Revision hash", "State"]);
+    assert!(fields("in-things").is_empty() && fields("ask-agent").is_empty());
+    assert_eq!(g.field_def(g.find_field("Start").unwrap()).unwrap().field_type, bana_core::FieldType::Date);
+    assert_eq!(g.field_def(g.find_field("Things link").unwrap()).unwrap().field_type, bana_core::FieldType::Url);
+    let search = |name: &str| g.children(page).iter().copied().find(|c| g.name(*c) == name).unwrap_or_else(|| panic!("{name}"));
+    for name in ["Agent inbox", "Pending proposals", "Captures this week", "Agent activity"] {
+        assert!(g.query(search(name)).is_some(), "{name} is a search node");
+    }
+    assert_eq!(g.view_def(search("Agent activity")).group, Some(bana_core::GroupBy::Edited));
+    // A line tagged #capture gets its field rows; an assistant's note shows in Agent activity,
+    // a person's does not; #ask-agent lines show in the Agent inbox; installing twice is fine.
+    let line = id(&run(&mut s, "node.add", json!({"name": "Voice memo", "parent": "today"})), "id");
+    run(&mut s, "tag.add", json!({"node": line.0, "tag": "capture"}));
+    assert_eq!(s.graph.get(line).unwrap().fields.len(), 3);
+    let ask = id(&as_agent(&mut s, "chatgpt", &[], "node.add", json!({"name": "Summarise the week", "parent": "today"})).unwrap(), "id");
+    as_agent(&mut s, "chatgpt", &[], "tag.add", json!({"node": ask.0, "tag": "ask-agent"})).unwrap();
+    let results = |s: &mut Session, name: &str| {
+        let n = s.graph.children(page).iter().copied().find(|c| s.graph.name(*c) == name).unwrap();
+        s.graph.view_items(n)
+    };
+    assert_eq!(results(&mut s, "Agent activity"), vec![ask]);
+    assert_eq!(results(&mut s, "Agent inbox"), vec![ask]);
+    assert_eq!(results(&mut s, "Captures this week"), vec![line]);
+    let q = bana_core::query::Query::parse(&s.graph, "BY:chatgpt").unwrap();
+    assert_eq!(q.describe(&s.graph), "BY:chatgpt");
+    run(&mut s, "template.install", json!({"name": "Agent notebook"}));
+}

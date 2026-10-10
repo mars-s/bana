@@ -1,5 +1,6 @@
 //! Ready-made setups to start from (UC-08.15): our own content, written as Tana Paste and imported
-//! with `import.tanaPaste` into the Library. Each one is a single page.
+//! with `import.tanaPaste` into the Library. Each one is a single page. A template may also set up
+//! supertags with fields ([`SCHEMAS`]), made before its page, so tagging a line shows the rows.
 
 /// (name, description, Tana Paste).
 pub const TEMPLATES: &[(&str, &str, &str)] = &[
@@ -89,4 +90,59 @@ pub const TEMPLATES: &[(&str, &str, &str)] = &[
       - [ ] Send the summary #task
 ",
     ),
+    (
+        "Agent notebook",
+        "Supertags and searches for assistants that capture, interpret and propose: captures, suggested actions, questions, mirrored to-dos and events, proposals, an agent inbox and agent activity.",
+        "%%tana%%
+- Agent notebook
+  - Assistants write here. Tag a line with ask-agent to leave work for one; proposals wait for you to approve them outside the notes.
+  - Agent inbox %%search%%
+    - #ask-agent
+  - Pending proposals %%search%% %%view:table%%
+    - #proposal
+    - NOT State:applied
+    - NOT State:rejected
+  - Captures this week %%search%% %%view:table%%
+    - #capture
+    - CREATED:7
+  - Agent activity %%search%% %%group:edited%%
+    - BY:*
+    - EDITED:30
+",
+    ),
 ];
+
+/// A field on a template's supertag: (name, type), the type as `field.setType` takes it.
+pub type FieldSpec = (&'static str, &'static str);
+
+/// A supertag a template sets up, with its fields.
+pub type TagSpec = (&'static str, &'static [FieldSpec]);
+
+/// Supertags a template sets up before its page: (template, supertags).
+pub const SCHEMAS: &[(&str, &[TagSpec])] = &[(
+    "Agent notebook",
+    &[
+        ("capture", &[("Capture ID", "plain"), ("Source hash", "plain"), ("Status", "plain")]),
+        ("interpretation", &[("Revision hash", "plain")]),
+        ("suggested-action", &[("Evidence", "plain"), ("Status", "plain"), ("Things ID", "plain")]),
+        ("question", &[("Evidence", "plain")]),
+        ("meeting", &[("Date", "date"), ("Attendees", "plain")]),
+        (
+            "thing",
+            &[
+                ("Things ID", "plain"),
+                ("Things link", "url"),
+                ("Status", "plain"),
+                ("When", "date"),
+                ("Deadline", "date"),
+                ("Project", "plain"),
+                ("Area", "plain"),
+                ("Synced at", "date"),
+            ],
+        ),
+        ("event", &[("Event ID", "plain"), ("Start", "date"), ("End", "date"), ("Calendar", "plain"), ("Synced at", "date")]),
+        ("proposal", &[("Proposal ID", "plain"), ("Revision hash", "plain"), ("State", "plain")]),
+        ("in-things", &[]),
+        ("ask-agent", &[]),
+    ],
+)];

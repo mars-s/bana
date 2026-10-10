@@ -304,3 +304,63 @@ fn an_answered_edit_survives_a_crash_before_the_next_save() {
     assert_eq!(bana_core::Graph::load(&path).unwrap().name(bana_core::NodeId(id)), "after save");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn assistants_over_http_mcp_meet_the_agent_policy_and_are_named() {
+    // Agent permission tiers: what comes in at /mcp (a local tool, a gateway, the remote connector)
+    // is checked; a refusal leaves the files byte for byte; edits carry the connector's name. The
+    // person's own windows are not limited.
+    let dir = std::env::temp_dir().join(format!("bana-http-agents-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("graph.bana");
+    let _ = std::fs::remove_file(&file);
+    let mut h = host();
+    h.session.path = Some(file.clone());
+    h.agents_file = dir.join("agents.json");
+    h.save().unwrap();
+    let token = "a".repeat(32);
+    let shared = http::Shared::with_token(h, token.clone());
+    let listener = http::bind(0).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s2 = std::sync::Arc::clone(&shared);
+    std::thread::spawn(move || http::serve_on(s2, listener, std::env::temp_dir()));
+    let snapshot = || {
+        let mut all: Vec<(String, Vec<u8>)> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| (e.file_name().to_string_lossy().into_owned(), std::fs::read(e.path()).unwrap_or_default()))
+            .collect();
+        all.sort();
+        all
+    };
+    let before = snapshot();
+    let auth = format!("Authorization: Bearer {token}\r\nContent-Type: application/json\r\nX-Bana-Agent: lifeos\r\n");
+    let exec = |command: &str, params: Value| {
+        let msg = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": command, "params": params}}});
+        let (_, body) = http(port, "POST", "/mcp", &auth, &msg.to_string());
+        serde_json::from_str::<Value>(&body).unwrap()["result"].clone()
+    };
+    for command in ["trash.empty", "node.hardDelete", "workspace.create", "commandNode.on", "settings.set", "file.save", "import.folder"] {
+        let r = exec(command, json!({"name": "x", "path": dir.join("x").to_string_lossy()}));
+        assert_eq!(r["isError"], true, "{command}: {r}");
+        assert!(r["content"][0]["text"].as_str().unwrap().starts_with("refused:"), "{r}");
+    }
+    assert_eq!(snapshot(), before, "the graph file and its edit log are untouched");
+    let r = exec("node.add", json!({"name": "Captured"}));
+    assert_eq!(r["isError"], false, "{r}");
+    let id = bana_core::NodeId(r["structuredContent"]["id"].as_u64().unwrap());
+    assert_eq!(shared.host.lock().unwrap().session.graph.get(id).unwrap().by.as_deref(), Some("lifeos"));
+    // Without the header, the name from initialize in the same request.
+    let batch = r#"[{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"ChatGPT"}}},{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_node","arguments":{"name":"Asked"}}}]"#;
+    let plain = format!("Authorization: Bearer {token}\r\nContent-Type: application/json\r\n");
+    let (_, body) = http(port, "POST", "/mcp", &plain, batch);
+    let v: Value = serde_json::from_str(&body).unwrap();
+    let asked = bana_core::NodeId(v[1]["result"]["structuredContent"]["id"].as_u64().unwrap());
+    assert_eq!(shared.host.lock().unwrap().session.graph.get(asked).unwrap().by.as_deref(), Some("ChatGPT"));
+    // The app's own pages: no policy, no name.
+    let mut host = shared.host.lock().unwrap();
+    assert!(host.handle("run", &json!({"command": "trash.empty", "params": {}})).get("error").is_none());
+    let r = host.handle("run", &json!({"window": "w1", "command": "node.add", "params": {"name": "Typed"}}));
+    let typed = bana_core::NodeId(r["result"]["id"].as_u64().unwrap());
+    assert_eq!(host.session.graph.get(typed).unwrap().by, None);
+}

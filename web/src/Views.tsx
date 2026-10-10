@@ -403,6 +403,7 @@ const OPERATORS: [string, string][] = [
   ['TODO', 'TODO'], ['DONE', 'DONE'], ['NOT DONE', 'NOT DONE'], ['DONE LAST 7 DAYS', 'DONE:7'], ['CREATED LAST 7 DAYS', 'CREATED:7'], ['EDITED LAST 7 DAYS', 'EDITED:7'],
   ['HAS TAG', 'HAS:TAG'], ['HAS FIELD', 'HAS:FIELD'], ['IS TAG', 'IS:TAG'], ['IS FIELD', 'IS:FIELD'], ['IS SEARCH NODE', 'IS:SEARCH'], ['IS CALENDAR NODE', 'IS:CALENDAR'],
   ['IS COMMAND', 'IS:COMMAND'], ['PARENTS DESCENDANTS', 'SCOPE:PARENT'], ['GRANDPARENTS DESCENDANTS', 'SCOPE:GRANDPARENT'], ['IN LIBRARY', 'IN:LIBRARY'], ['ON DAY NODE', 'ON:DAY'], ['FOR DATE today', 'DATE:today'],
+  ['CHANGED BY AN ASSISTANT', 'BY:*'],
 ]
 const SYSTEM: [string, string][] = [['Created time: last 7 days', 'CREATED:7'], ['Last edited time: last 7 days', 'EDITED:7'], ['Done time: last 7 days', 'DONE:7'], ['Tags: any', 'HAS:TAG'], ['Date from calendar node: today', 'DATE:today']]
 const VALUES: [string, string][] = [['PARENT', 'PARENT'], ['GRANDPARENT', 'GRANDPARENT'], ['FOR RELATIVE DATE: today', 'today'], ['FOR RELATIVE DATE: yesterday', 'yesterday'], ['FOR RELATIVE DATE: tomorrow', 'tomorrow'], ['Set', 'SET'], ['Not Set', 'NOTSET'], ['Defined', 'DEFINED'], ['Not Defined', 'UNDEFINED']]

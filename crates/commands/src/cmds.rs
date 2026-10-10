@@ -79,15 +79,20 @@ pub fn registry() -> Registry {
             }
             Ok(json!({"trashed": id.0, "references_removed": refs.len()}))
         })
-        .params(r#"{"node"?: id}"#),
+        .params(r#"{"node"?: id}"#)
+        .destructive(),
         C::new("node.editLog", "Show edit log", "Node", |s, v| {
-            // ponytail: one local editor, so the log is the node's created / edited / done times.
+            // ponytail: one local editor, so the log is the node's created / edited / done times
+            // (and the assistant whose edit was last, when one was).
             let id = s.graph.resolve(s.target(v)?);
             let n = s.graph.node(id)?;
             let when = Date::local_time;
             let mut log = vec![json!({"event": "created", "at": when(n.created)})];
             if n.edited > n.created {
                 log.push(json!({"event": "edited", "at": when(n.edited)}));
+            }
+            if let Some(by) = &n.by {
+                log.push(json!({"event": "changed by an assistant", "by": by}));
             }
             if let Some(d) = n.done_at {
                 log.push(json!({"event": "done", "at": when(d)}));
@@ -325,7 +330,7 @@ pub fn registry() -> Registry {
         C::new("node.reference", "Add reference", "Node", reference)
             .params(r#"{"target": id, "parent"?: id, "index"?: number, "replace"?: id}  (replace: an empty node the reference takes the place of)"#),
         C::new("node.restore", "Restore from trash", "Node", restore).params(r#"{"node": id}"#),
-        C::new("trash.empty", "Empty trash", "Node", empty_trash),
+        C::new("trash.empty", "Empty trash", "Node", empty_trash).destructive(),
         C::new("node.joinNext", "Join with the next node", "Node", join_next).key("Delete").params(r#"{"node"?: id}"#),
         C::new("node.paste", "Paste as nodes", "Node", paste).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.toggleHeading", "Toggle heading", "Node", toggle_heading).params(r#"{"node"?: id}"#),
@@ -537,7 +542,8 @@ pub fn registry() -> Registry {
             s.graph.view_mut(id)?.columns = cols;
             Ok(json!({"node": id.0, "field": f.0, "values_removed": removed}))
         })
-        .params(r#"{"node"?: id, "field": name | id}  (removes the field from every item in the view)"#),
+        .params(r#"{"node"?: id, "field": name | id}  (removes the field from every item in the view)"#)
+        .destructive(),
         C::new("view.dayLength", "Calendar day length", "Views", |s, v| {
             let id = view_target(s, v)?;
             let hours = match (p::usize(v, "start"), p::usize(v, "end")) {
@@ -765,6 +771,21 @@ pub fn registry() -> Registry {
                 .ok_or_else(|| CmdError::Params(format!("no template `{name}` (see template.list)")))?;
             let lib = s.graph.workspace_library(here_workspace(s, v));
             let before = s.graph.children(lib).len();
+            // Its supertags and their fields first, so the page's searches find them.
+            for (_, tags) in crate::templates::SCHEMAS.iter().filter(|(t, _)| t.eq_ignore_ascii_case(name.trim())) {
+                for (tag, fields) in *tags {
+                    if s.graph.find_tag(tag).is_none() {
+                        tag_create(s, &json!({"name": tag}))?;
+                    }
+                    for (field, ty) in *fields {
+                        let fresh = s.graph.find_field(field).is_none();
+                        tag_add_field(s, &json!({"tag": tag, "field": field}))?;
+                        if fresh && *ty != "plain" {
+                            field_set_type(s, &json!({"field": field, "type": ty}))?;
+                        }
+                    }
+                }
+            }
             import_tana_paste(s, &json!({"text": text, "parent": lib.0}))?;
             let page = s.graph.children(lib).get(before).copied().ok_or_else(|| CmdError::Failed("the template made nothing".into()))?;
             Ok(json!({"id": page.0}))
@@ -1309,7 +1330,7 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
     let before: Vec<NodeId> = s.graph.children(root).to_vec();
     let mut stack: Vec<(usize, Open)> = Vec::new();
     // (parent, index, name, query parts, view) of each search, made at the end.
-    type Pending = (NodeId, usize, String, Vec<String>, Option<String>);
+    type Pending = (NodeId, usize, String, Vec<String>, Option<String>, Option<GroupBy>);
     let mut searches: Vec<Pending> = Vec::new();
     let mut made = 0usize;
     for line in text.lines().take(50_000) {
@@ -1356,10 +1377,17 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
             continue;
         }
         if body.contains("%%search%%") {
-            let view = body.split("%%view:").nth(1).and_then(|r| r.split("%%").next()).map(str::to_string);
-            let name = body.replace("%%search%%", "").split("%%view:").next().unwrap_or_default().trim().to_string();
+            let opt = |k: &str| body.split(k).nth(1).and_then(|r| r.split("%%").next()).map(str::to_string);
+            // Our own addition: `%%group:edited%%` / `%%group:created%%` groups the results by day.
+            let view = opt("%%view:");
+            let group = match opt("%%group:").as_deref() {
+                Some("edited") => Some(GroupBy::Edited),
+                Some("created") => Some(GroupBy::Created),
+                _ => None,
+            };
+            let name = body.split("%%").next().unwrap_or_default().trim().to_string();
             let at = s.graph.children(parent).len();
-            searches.push((parent, at, name, Vec::new(), view));
+            searches.push((parent, at, name, Vec::new(), view, group));
             stack.push((indent, Open::Search(searches.len() - 1)));
             continue;
         }
@@ -1376,11 +1404,17 @@ fn import_tana_paste(s: &mut Session, v: &Value) -> CmdResult {
         made += 1;
     }
     // Searches last, in the places they were written (later ones first, so indexes hold).
-    for (parent, at, name, parts, view) in searches.into_iter().rev() {
+    for (parent, at, name, parts, view, group) in searches.into_iter().rev() {
         let q = bana_core::query::Query::parse(&s.graph, &parts.join(" ")).map_err(|e| CmdError::Params(format!("search `{name}`: {e}")))?;
         let id = s.graph.create_search(parent, Some(at), if name.is_empty() { "Search" } else { &name }, q)?;
         if let Some(kind) = view.as_deref().and_then(ViewKind::parse) {
             s.graph.view_mut(id)?.kind = kind;
+        }
+        if let Some(g) = group {
+            let by = if g == GroupBy::Edited { SortBy::Edited } else { SortBy::Created };
+            let v = s.graph.view_mut(id)?;
+            v.group = Some(g);
+            v.sort = vec![Sort { by, desc: true }];
         }
         made += 1;
     }

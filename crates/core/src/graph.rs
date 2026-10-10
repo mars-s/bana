@@ -688,6 +688,33 @@ impl Graph {
         }
     }
 
+    /// Notes who made the open step's content changes: nodes it made, or whose text, tags, fields
+    /// or checkbox it changed, get `by = who` (an assistant's name; `None` for a person). Structure
+    /// alone (a parent gaining a child) and calendar or built-in nodes are not marked.
+    pub fn stamp_by(&mut self, who: Option<&str>) {
+        let Some(pre) = &self.txn else { return };
+        let marked: Vec<NodeId> = pre
+            .iter()
+            .filter(|(id, before)| {
+                let Some(a) = self.nodes.get(id) else { return false };
+                let content = match before {
+                    None => true,
+                    Some(b) => b.name != a.name || b.description != a.description || b.tags != a.tags || b.fields != a.fields || b.done != a.done,
+                };
+                content
+                    && a.by.as_deref() != who
+                    && !self.is_system(**id)
+                    && !matches!(a.kind, Kind::Day { .. } | Kind::Week { .. } | Kind::Year { .. })
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        for id in marked {
+            if let Some(n) = self.nodes.get_mut(&id) {
+                n.by = who.map(|w| w.to_string());
+            }
+        }
+    }
+
     /// Closes the open step. Empty steps are dropped.
     pub fn commit(&mut self, label: &str) {
         self.commit_keyed(label, None);

@@ -191,7 +191,7 @@ test('UC-08.15 browse and install templates from a gallery', works('UC-08.15'), 
   await app.locator('.topbar [title="Account"]').click()
   await app.locator('.account-menu .menu-item', { hasText: 'Browse templates' }).click()
   const dialog = app.getByRole('dialog', { name: 'Templates' })
-  await expect(dialog.locator('.template-row')).toHaveCount(5)
+  await expect(dialog.locator('.template-row')).toHaveCount(6)
   await dialog.locator('.template-row', { hasText: 'Reading list' }).getByRole('button', { name: 'Install' }).click()
   // The new page opens, with its search showing the books to read.
   await expect(app.locator('.panel .title-input')).toHaveValue('Reading list')

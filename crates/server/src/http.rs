@@ -146,6 +146,8 @@ struct Request {
     host: Option<String>,
     /// `Authorization: Bearer <token>`.
     token: Option<String>,
+    /// `X-Bana-Agent`: which assistant a connector or gateway is passing on (MCP attribution).
+    agent: Option<String>,
     body: Vec<u8>,
 }
 
@@ -163,6 +165,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
     let mut origin = None;
     let mut host = None;
     let mut token = None;
+    let mut agent = None;
     for _ in 0..200 {
         let mut h = String::new();
         if r.read_line(&mut h).map_err(|e| e.to_string())? == 0 || h.trim().is_empty() {
@@ -174,6 +177,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
                 "origin" => origin = Some(v.trim().to_string()),
                 "host" => host = Some(v.trim().to_string()),
                 "authorization" => token = v.trim().strip_prefix("Bearer ").map(str::to_string),
+                "x-bana-agent" => agent = Some(bana_commands::agents::clean_name(v)),
                 _ => {}
             }
         }
@@ -183,7 +187,7 @@ fn read_request(stream: &TcpStream) -> Result<Option<Request>, String> {
     }
     let mut body = vec![0; len];
     r.read_exact(&mut body).map_err(|e| e.to_string())?;
-    Ok(Some(Request { method, path, query, origin, host, token, body }))
+    Ok(Some(Request { method, path, query, origin, host, token, agent, body }))
 }
 
 /// Pages on this machine's own server (any port: the Vite dev server too) and the Tauri app.
@@ -276,6 +280,7 @@ fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(
     let me = Arc::clone(shared);
     let engine = move |method: &str, params: Value| me.handle(&json!({"method": method, "params": params}));
     let mut server = bana_mcp::Server::new(bana_mcp::Backend::Engine(Box::new(engine)));
+    server.client = req.agent.clone();
     let replies: Vec<Value> = match &msg {
         Value::Array(all) => all.iter().take(1000).filter_map(|m| server.handle_line(&m.to_string())).collect(),
         one => server.handle_line(&one.to_string()).into_iter().collect(),

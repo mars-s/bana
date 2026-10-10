@@ -278,6 +278,9 @@ fn json_node(g: &Graph, id: NodeId, depth: usize) -> Value {
     if !n.description.is_empty() {
         v["description"] = json!(n.description);
     }
+    if let Some(by) = &n.by {
+        v["by"] = json!(by);
+    }
     if !n.tags.is_empty() {
         v["tags"] = json!(n.tags.iter().map(|t| g.name(*t)).collect::<Vec<_>>());
     }

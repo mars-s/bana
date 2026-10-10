@@ -6,6 +6,7 @@
 //! all call [`Session::run`].
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod agents;
 pub mod cmds;
 mod session;
 mod templates;
@@ -27,6 +28,11 @@ pub enum CmdError {
     Disabled(String),
     #[error("{0}")]
     Failed(String),
+    /// An assistant asked for something the agent policy never lets it do (see [`agents`]).
+    #[error(
+        "refused: assistants may not run `{command}` (rule `{rule}`). The person can do it in the app, or allow it by hand in agents.json in the Bana data folder"
+    )]
+    Refused { command: String, rule: String },
 }
 
 impl From<bana_core::Error> for CmdError {
@@ -51,12 +57,14 @@ pub struct CommandSpec {
     pub params: &'static str,
     /// Changes the graph (undoable).
     pub mutates: bool,
+    /// Loses data for good or cannot be taken back with undo: never run for assistants.
+    pub destructive: bool,
     pub run: fn(&mut Session, &Value) -> CmdResult,
 }
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, run }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", mutates: true, destructive: false, run }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -64,6 +72,10 @@ impl CommandSpec {
     }
     pub const fn params(mut self, p: &'static str) -> Self {
         self.params = p;
+        self
+    }
+    pub const fn destructive(mut self) -> Self {
+        self.destructive = true;
         self
     }
     /// Doesn't change the graph (navigation, view, export).
@@ -95,7 +107,7 @@ impl Registry {
         Value::Array(
             self.specs
                 .iter()
-                .map(|s| json!({"id": s.id, "label": s.label, "location": s.location, "shortcut": s.shortcut, "params": s.params, "mutates": s.mutates}))
+                .map(|s| json!({"id": s.id, "label": s.label, "location": s.location, "shortcut": s.shortcut, "params": s.params, "mutates": s.mutates, "destructive": s.destructive}))
                 .collect(),
         )
     }

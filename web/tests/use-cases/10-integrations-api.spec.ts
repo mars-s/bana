@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { dirname, join, resolve } from 'node:path'
 import { test, expect, missing, works, partial, tree } from './helpers'
-import { pageWith, liveToken } from '../fixtures'
+import { pageWith, focus, liveToken } from '../fixtures'
 
 const bin = join(process.env.CARGO_TARGET_DIR ?? resolve(import.meta.dirname, '../../../target'), 'debug', 'bana')
 
@@ -101,6 +101,36 @@ test('UC-10.04 the API only listens on this computer and asks local tools for th
   expect(r.ok).toBe(true)
   // Gap: one token per running app (in the live file beside the graph), not tokens per workspace;
   // no hosted (remote) MCP.
+})
+
+test('the Agent notebook template: a line tagged #capture shows its field rows', async ({ app, server }) => {
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Browse templates' }).click()
+  const dialog = app.getByRole('dialog', { name: 'Templates' })
+  await dialog.locator('.template-row', { hasText: 'Agent notebook' }).getByRole('button', { name: 'Install' }).click()
+  await expect(app.locator('.panel .title-input')).toHaveValue('Agent notebook')
+  for (const s of ['Agent inbox', 'Pending proposals', 'Captures this week', 'Agent activity']) await expect(app.locator('.row.node', { hasText: s })).toBeVisible()
+  const { ids } = await pageWith(server, app, ['Voice memo'])
+  await focus(server, app, ids[0], 10)
+  await app.keyboard.type(' #capture')
+  await expect(app.locator('.menu-item.sel')).toContainText('capture')
+  await app.keyboard.press('Enter')
+  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .chip`)).toContainText('capture')
+  await server.run('node.expand', { node: ids[0] })
+  for (const f of ['Capture ID', 'Source hash', 'Status']) await expect(app.locator('.row.field', { hasText: f })).toBeVisible()
+})
+
+test('an assistant over MCP is refused the Never list; its edits carry its name', async ({ server }) => {
+  const c = mcp(server.file)
+  await c.call('initialize', { protocolVersion: '2025-06-18', clientInfo: { name: 'test-agent', version: '1' } })
+  const r = await c.call('tools/call', { name: 'execute', arguments: { command: 'trash.empty' } })
+  expect(r.result.isError).toBe(true)
+  expect(r.result.content[0].text).toMatch(/^refused: assistants may not run `trash.empty` \(rule `trash.empty`\)/)
+  const add = await c.call('tools/call', { name: 'add_node', arguments: { name: 'Written by an agent', parent: 'today' } })
+  const id = add.result.structuredContent.id
+  const log = (await server.run('node.editLog', { node: id })).result.log
+  expect(log).toEqual(expect.arrayContaining([expect.objectContaining({ by: 'test-agent' })]))
+  c.close()
 })
 
 // UC-10.05 (remote MCP for claude.ai and ChatGPT) is tested in cloudflare/test.mjs: the Worker on

@@ -520,6 +520,10 @@ pub struct Node {
     /// When the checkbox was checked (Unix seconds).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub done_at: Option<u64>,
+    /// The assistant (MCP client) whose edit made or last changed this node's content; `None`
+    /// when a person did (see [`crate::Graph::stamp_by`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<String>,
 }
 
 fn is_zero(x: &u64) -> bool {
@@ -562,6 +566,7 @@ impl Node {
             created,
             edited: created,
             done_at: None,
+            by: None,
         }
     }
 

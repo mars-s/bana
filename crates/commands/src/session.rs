@@ -70,6 +70,9 @@ pub struct Session {
     /// Where the engine's web UI answers (`http://127.0.0.1:PORT/`), once it serves one: node
     /// links point there (UC-07.10).
     pub web_url: Option<String>,
+    /// Set while an assistant's command runs (MCP): checked against the agent policy, and what it
+    /// changes is marked with its name (see [`crate::agents`]). `None` for the person.
+    pub agent: Option<crate::agents::Agent>,
     command_count: u64,
 }
 
@@ -100,6 +103,7 @@ impl Session {
             config_view: false,
             status: String::new(),
             web_url: None,
+            agent: None,
             command_count: 0,
         }
     }
@@ -127,6 +131,9 @@ impl Session {
     /// untouched, and so does a panic (last-resort guard, not a licence).
     pub fn run(&mut self, id: &str, params: &Value) -> CmdResult {
         let spec = self.registry.get(id).cloned().ok_or_else(|| CmdError::Unknown(id.to_string()))?;
+        if let Some(agent) = &self.agent {
+            crate::agents::check(self, agent, &spec, params)?;
+        }
         self.check_lock(&spec, params)?;
         // Every command is a transaction: "pure" ones can still make built-in structure (today's
         // day node, the inbox). That is not an undo step, but history must learn about it, or a
@@ -158,6 +165,7 @@ impl Session {
         match &result {
             Ok(_) if !spec.mutates => self.graph.commit_silent(),
             Ok(_) => {
+                self.graph.stamp_by(self.agent.as_ref().map(|a| a.name.as_str()));
                 // Typing into one bullet is one undo step, until any other command runs.
                 // Typing into a field value (saved as typed, DIFFS N15) is one step the same way.
                 let node = || crate::p::node(params, "node").ok().flatten().or(self.focus);

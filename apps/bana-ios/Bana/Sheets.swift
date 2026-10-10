@@ -217,6 +217,20 @@ struct ManageSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        ProfileView(pair: {})
+                    } label: {
+                        HStack(spacing: T.q3) {
+                            AvatarView(name: store.profile?.name ?? "", avatar: store.profile?.avatar, size: 40)
+                            VStack(alignment: .leading) {
+                                Text(store.profile?.name.isEmpty == false ? store.profile?.name ?? "" : "Your profile")
+                                Text(store.bana?.signedIn == true ? "Bana ID: signed in" : "Bana ID: optional").font(.caption).foregroundStyle(T.cMuted)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("manage.profile")
+                }
                 Picker("Theme", selection: $theme) {
                     Text("System").tag("system")
                     Text("Light").tag("light")

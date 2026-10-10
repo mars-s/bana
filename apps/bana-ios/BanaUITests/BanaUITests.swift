@@ -10,8 +10,8 @@ class UITestCase: XCTestCase {
         app = XCUIApplication()
     }
 
-    func launch(sample: Bool, reset: Bool = true) {
-        app.launchArguments = ["-today", "2026-10-10", "-sample", sample ? "YES" : "NO", "-reset", reset ? "YES" : "NO"]
+    func launch(sample: Bool, reset: Bool = true, onboarded: Bool = true, extra: [String] = []) {
+        app.launchArguments = ["-today", "2026-10-10", "-sample", sample ? "YES" : "NO", "-reset", reset ? "YES" : "NO", "-onboarded", onboarded ? "YES" : "NO"] + extra
         app.launch()
         dismissSystemAlerts()
         XCTAssertTrue(app.descendants(matching: .any)["title"].waitForExistence(timeout: 10))

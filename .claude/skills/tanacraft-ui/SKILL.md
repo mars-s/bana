@@ -75,3 +75,5 @@ The UI is `web/` (Vite + React + TypeScript, plain CSS). It runs inside the Taur
 - Playwright HTML5 drags with `mouse.down/move/up`: the first moves start the drag, and a pause before `mouse.up` loses the drop unless one more `mouse.move` comes first. Measure boxes after the 250 ms modal entry (scale 0.95 to 1).
 - Never rebuild `web/dist` while another agent's Playwright run is going: the tests serve it, and a rebuild mid-run fails tests that pass alone.
 - DIFFS gives newer measurements than spec 12 (round 10: the page menu opens right under its button, not 7 px below); the newer reading wins.
+- Local tools and tests reach the engine with the install's token (`TANACRAFT_HOME/token`; the fixtures give each test engine its own `TANACRAFT_HOME`). A request from a page carries its Origin and needs no token.
+- Files on nodes travel as base64 in `file.attach` and are not written to the session log (too big); everything else still is.

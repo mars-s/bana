@@ -131,8 +131,9 @@ cd apps/tanacraft-desktop && ../../web/node_modules/.bin/tauri build --bundles a
 Then press **Cmd+K** for every command, **Cmd+S** to search and open, **Cmd+E** for quick add and
 **Cmd+/** for the shortcut sheet.
 
-Tests: `cargo xtask ci` (Rust: fmt, clippy, 149 tests) and `cargo xtask web` (typecheck, build,
-Playwright: 121 tests plus the use cases in `web/tests/use-cases/`, each against its own engine). Screenshots: `cargo xtask shots`.
+Tests: `cargo xtask ci` (Rust: fmt, clippy, 163 tests), `cargo xtask web` (typecheck, build,
+Playwright: 121 tests plus 179 use-case scenarios, each against its own engine) and
+`cargo xtask connector` (the remote MCP connector). Screenshots: `cargo xtask shots`.
 
 ## For agents: CLI, MCP and the JSON API
 

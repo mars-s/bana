@@ -16,6 +16,12 @@ once, in its own window of the engine, so your page and caret stay where they ar
 
 `list_commands`, `execute` (any command by id, see `tanacraft-cli commands`), `view`, `inspect`,
 `search`, `add_node`, `export_markdown`; resources `tanacraft://commands` and `tanacraft://page`.
+Each tool has a title starting "TanaCraft:" so a client with several servers tells them apart.
+The assistant has a page of its own (not what your windows show); `view`, and tools without a
+node, use it. `add_node` takes a node id or a day in words as `parent` ("today", "next friday"),
+and only an existing supertag unless `create_tag` is set, so a typo makes no tag. A failed
+`execute` says what the command takes. `tanacraft-mcp --help` lists the flags; it refuses unknown
+ones and says on stderr which graph or app it works on.
 Tana Paste (`execute import.tanaPaste`) is the quickest way for an assistant to write structure.
 
 ## On this Mac: stdio

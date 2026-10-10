@@ -210,7 +210,9 @@ function drain() {
         continue
       }
       // A page title with the keyboard (and no line caret) takes the key as if typed there.
-      const title = editor ? undefined : [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))
+      // A title with the keyboard takes it even while a line editor is still registered (a line
+      // that had the caret before the click on the title): the fuzz test sent words to that line.
+      const title = [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))
       if (title && !getState().overlay) title.key(k)
       else if (!handleKey(k)) {
         if (editor && isTextKey(k)) editor.insert(k.key)

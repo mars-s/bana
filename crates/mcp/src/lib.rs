@@ -133,6 +133,18 @@ impl Backend {
         }
     }
 
+    /// Where this server works, for the person starting it (DIFFS N89).
+    pub fn describe(&self) -> String {
+        match self {
+            Backend::Local(s) => match &s.path {
+                Some(p) => format!("the file {} (no app has it open)", p.display()),
+                None => "a graph in memory".into(),
+            },
+            Backend::Live { port, .. } => format!("the running app at 127.0.0.1:{port}"),
+            Backend::Engine(_) => "the app's own engine".into(),
+        }
+    }
+
     pub fn commands(&mut self) -> Result<Value, String> {
         match self {
             Backend::Local(s) => Ok(s.registry.describe()),
@@ -142,18 +154,30 @@ impl Backend {
     }
 }
 
-/// Tool definitions (MCP `tools/list`).
+/// Tool definitions (MCP `tools/list`). Each has a `title` naming the app, so a client with
+/// several servers tells them apart (DIFFS N89); the names stay as connectors already use them.
 pub fn tools() -> Value {
-    let node = json!({"type": ["integer", "string"], "description": "node id"});
+    let node = json!({"type": ["integer", "string"], "description": "a node id (from search, inspect or add_node)"});
+    let open = "The assistant has a page of its own in the app (separate from the person's windows): open a page there with execute nav.open {node} or nav.today.";
     json!([
-        {"name": "list_commands", "description": "Every command: id, label, shortcut, params, whether it changes the graph.", "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "execute", "description": "Run a command by id with its params (see list_commands).", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}, "params": {"type": "object"}}, "required": ["command"]}},
-        {"name": "view", "description": "The page currently open: title and visible bullets (> marks the focused one).", "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "inspect", "description": "A node and its subtree as JSON (ids, tags, fields, children). Default: the open page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
-        {"name": "search", "description": "Find nodes whose text contains the query.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}},
-        {"name": "add_node", "description": "Add a node under parent (default: the open page). Optional supertag.", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "parent": node, "tag": {"type": "string"}}, "required": ["name"]}},
-        {"name": "export_markdown", "description": "A node and its subtree as a Markdown outline. Default: the open page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+        {"name": "list_commands", "title": "TanaCraft: list commands", "description": "Every TanaCraft command: id, label, shortcut, params, whether it changes the graph. Run one with execute.", "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "execute", "title": "TanaCraft: run a command", "description": format!("Run a TanaCraft command by id with its params (see list_commands). Commands without a node act on the assistant's page. {open}"), "inputSchema": {"type": "object", "properties": {"command": {"type": "string", "description": "a command id, e.g. tag.add"}, "params": {"type": "object"}}, "required": ["command"]}},
+        {"name": "view", "title": "TanaCraft: view the page", "description": format!("The assistant's page in TanaCraft: title and visible bullets with ids (> marks the focused one). {open}"), "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "inspect", "title": "TanaCraft: inspect a node", "description": "A TanaCraft node and its subtree as JSON (ids, tags, fields, children). Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
+        {"name": "search", "title": "TanaCraft: search notes", "description": "TanaCraft nodes whose text contains the query (case-insensitive), with ids.", "inputSchema": {"type": "object", "properties": {"query": {"type": "string", "minLength": 1}}, "required": ["query"]}},
+        {"name": "add_node", "title": "TanaCraft: add a node", "description": "Add a TanaCraft node. parent: a node id, or a day in words (\"today\", \"tomorrow\", \"next friday\", \"2026-10-20\"); without it, the assistant's page. tag: an existing supertag (set create_tag to make a new one).", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}, "parent": {"type": ["integer", "string"], "description": "a node id or a day in words"}, "tag": {"type": "string"}, "create_tag": {"type": "boolean", "description": "make the supertag if there is none by that name"}}, "required": ["name"]}},
+        {"name": "export_markdown", "title": "TanaCraft: read as Markdown", "description": "A TanaCraft node and its subtree as a Markdown outline. Without node: the assistant's page.", "inputSchema": {"type": "object", "properties": {"node": node}}},
     ])
+}
+
+/// What an `execute` that failed on its params should have sent: the command's params line.
+fn params_hint(b: &mut Backend, id: &str) -> String {
+    let Ok(list) = b.commands() else { return String::new() };
+    let found = list.as_array().and_then(|a| a.iter().find(|c| c["id"] == id).cloned());
+    match found {
+        Some(c) => format!(" ({id} takes {})", c["params"].as_str().unwrap_or("{}")),
+        None => format!(" (no command `{id}`; list_commands shows them all)"),
+    }
 }
 
 fn call_tool(b: &mut Backend, name: &str, args: &Value) -> Result<Value, String> {
@@ -161,17 +185,34 @@ fn call_tool(b: &mut Backend, name: &str, args: &Value) -> Result<Value, String>
     match name {
         "list_commands" => b.commands(),
         "execute" => {
-            let id = args.get("command").and_then(Value::as_str).ok_or("missing `command`")?;
-            b.run(id, args.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({})))
+            let id = args.get("command").and_then(Value::as_str).ok_or("missing `command`: a command id from list_commands")?;
+            b.run(id, args.get("params").cloned().filter(|v| !v.is_null()).unwrap_or(json!({}))).map_err(|e| format!("{e}{}", params_hint(b, id)))
         }
         "view" => b.run("graph.view", json!({})),
         "inspect" => b.run("graph.inspect", json!({"node": arg("node")})),
-        "search" => b.run("graph.search", json!({"query": arg("query")})),
+        "search" => {
+            let q = args.get("query").and_then(Value::as_str).unwrap_or_default();
+            if q.trim().is_empty() {
+                return Err("`query` is empty: give a word or phrase to look for".into());
+            }
+            b.run("graph.search", json!({"query": q}))
+        }
         "export_markdown" => b.run("export.markdown", json!({"node": arg("node")})),
         "add_node" => {
+            // A typo must not make a supertag (DIFFS N89): only an existing one, unless asked.
+            let tag = args.get("tag").and_then(Value::as_str).map(|t| t.trim().trim_start_matches('#').to_string()).filter(|t| !t.is_empty());
+            if let Some(t) = &tag
+                && args.get("create_tag").and_then(Value::as_bool) != Some(true)
+            {
+                let tags = b.run("graph.tags", json!({}))?;
+                let known = tags.as_array().is_some_and(|a| a.iter().any(|x| x["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(t))));
+                if !known {
+                    return Err(format!("no supertag #{t}; pass create_tag: true to make it (execute graph.tags lists them)"));
+                }
+            }
             let r = b.run("node.add", json!({"name": arg("name"), "parent": arg("parent")}))?;
-            if let Some(tag) = args.get("tag").and_then(Value::as_str) {
-                b.run("tag.add", json!({"node": r["id"], "tag": tag}))?;
+            if let Some(t) = tag {
+                b.run("tag.add", json!({"node": r["id"], "tag": t}))?;
             }
             Ok(r)
         }
@@ -225,13 +266,17 @@ impl Server {
                     "protocolVersion": version,
                     "capabilities": {"tools": {}, "resources": {}},
                     "serverInfo": {"name": PRODUCT_NAME.to_lowercase(), "title": PRODUCT_NAME, "version": env!("CARGO_PKG_VERSION")},
-                    "instructions": INSTRUCTIONS,
+                    "instructions": format!("{INSTRUCTIONS} This server works on {}.", self.backend.describe()),
                 })
             }
             "ping" => json!({}),
             "tools/list" => json!({"tools": tools()}),
             "tools/call" => {
                 let name = params.get("name").and_then(Value::as_str).unwrap_or_default();
+                // An unknown tool is a protocol error, not a tool result (MCP spec).
+                if !tools().as_array().is_some_and(|t| t.iter().any(|x| x["name"] == name)) {
+                    return Some(error(id, -32602, format!("unknown tool `{name}`")));
+                }
                 let args = params.get("arguments").cloned().unwrap_or(json!({}));
                 match call_tool(&mut self.backend, name, &args) {
                     Ok(v) => {
@@ -336,6 +381,30 @@ mod tests {
         assert_eq!(bad["result"]["isError"], true);
         let page = call(&mut s, json!({"jsonrpc": "2.0", "id": 6, "method": "resources/read", "params": {"uri": "tanacraft://page"}}));
         assert!(page["result"]["contents"][0]["text"].as_str().unwrap().contains("Community garden"));
+        // DIFFS N89: a typo does not make a supertag; "today" is a parent; an empty search and an
+        // unknown tool are refused; a failed execute says what the command takes.
+        let typo = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "add_node", "arguments": {"name": "x", "tag": "tsak"}}}),
+        );
+        assert_eq!(typo["result"]["isError"], true);
+        assert!(typo["result"]["content"][0]["text"].as_str().unwrap().contains("create_tag"));
+        let made = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "add_node", "arguments": {"name": "y", "tag": "errand", "create_tag": true, "parent": "today"}}}),
+        );
+        assert_eq!(made["result"]["isError"], false, "{made}");
+        let empty =
+            call(&mut s, json!({"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "search", "arguments": {"query": ""}}}));
+        assert_eq!(empty["result"]["isError"], true);
+        let nope = call(&mut s, json!({"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "nope", "arguments": {}}}));
+        assert_eq!(nope["error"]["code"], -32602);
+        let hint = call(
+            &mut s,
+            json!({"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": "node.merge", "params": {}}}}),
+        );
+        assert!(hint["result"]["content"][0]["text"].as_str().unwrap().contains("node.merge takes"), "{hint}");
+        assert!(init["result"]["instructions"].as_str().unwrap().contains("works on"));
         let unknown = call(&mut s, json!({"jsonrpc": "2.0", "id": 7, "method": "nope"}));
         assert_eq!(unknown["error"]["code"], -32601);
         assert_eq!(s.handle_line("{not json").unwrap()["error"]["code"], -32700);

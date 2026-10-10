@@ -244,6 +244,10 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
                 Some(addr) => tanacraft_mcp::Backend::connect(&addr, token)?,
                 None => tanacraft_mcp::Backend::open(&file)?,
             };
+            if let Some(extra) = args.first() {
+                return Err(format!("mcp: unknown argument `{extra}` (mcp [--connect HOST:PORT --token T])"));
+            }
+            eprintln!("tanacraft mcp: working on {}", backend.describe());
             let stdin = std::io::stdin();
             tanacraft_mcp::Server::new(backend).serve(stdin.lock(), std::io::stdout().lock()).map_err(|e| e.to_string())?;
             Ok(String::new())

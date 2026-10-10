@@ -172,11 +172,12 @@ test('UC-01.12 Add to day from the command line asks which day, typed words too 
   await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Fri, 16 Oct')
   await app.keyboard.press('Enter')
   await expect(app.locator('.toast').last()).toContainText('Added a reference to Fri, 16 Oct')
-  const fri = (await server.run('nav.day', { date: '2026-10-16' })).result.zoom
+  // Looked up in a window of its own, so the page the person sees stays put.
+  const fri = (await server.rpc('run', { command: 'nav.day', params: { date: '2026-10-16' }, window: 'probe' })).result.zoom
   await expect.poll(async () => ((await server.run('export.json', { node: fri })).result.children ?? []).map((c: any) => c.name)).toContain('Call the council')
   // Merge from the command line opens its picker instead of failing (DIFFS N83).
-  await server.run('nav.today')
-  await focus(server, app, id, 0)
+  await app.locator(`.row.node[data-id="${id}"] .text, .editor-input[data-node="${id}"]`).first().click()
+  await expect(app.locator(`.editor-input[data-node="${id}"]`)).toBeFocused()
   await palette(app, 'merge')
   await expect(app.locator('.menu.picker')).toBeVisible()
 })

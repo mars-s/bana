@@ -257,7 +257,7 @@ pub fn registry() -> Registry {
         C::new("node.cloneReference", "Clone reference", "Node", clone_reference)
             .key("Mod+Shift+C")
             .params(r#"{"node"?: id}  (a reference becomes an independent copy of what it points at)"#),
-        C::new("node.add", "Add node", "Node", add).params(r#"{"name": string, "parent"?: id, "index"?: number}"#),
+        C::new("node.add", "Add node", "Node", add).params(r#"{"name": string, "parent"?: id | "today" | date in words, "index"?: number}  (default: the open page)"#),
         C::new("node.setName", "Rename node", "Node", set_name).params(r#"{"node"?: id, "name": string, "caret"?: chars}"#),
         C::new("node.setDescription", "Set description", "Node", set_description).params(r#"{"node"?: id, "text": string}"#),
         C::new("node.move", "Move to", "Node", move_to).params(
@@ -1890,7 +1890,18 @@ fn create_new(s: &mut Session, _: &Value) -> CmdResult {
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
-    let parent = p::node(v, "parent")?.unwrap_or(s.zoom);
+    // A day as a parent (DIFFS N89): "today", "tomorrow", "next friday", "2026-10-20".
+    let day = match v.get("parent") {
+        Some(Value::String(t)) if t.parse::<u64>().is_err() => {
+            let (d, _) = Date::from_words(t, s.today).ok_or_else(|| CmdError::Params(format!("`parent`: `{t}` is neither a node id nor a date")))?;
+            Some(s.graph.day(d)?)
+        }
+        _ => None,
+    };
+    let parent = match day {
+        Some(d) => d,
+        None => p::node(v, "parent")?.unwrap_or(s.zoom),
+    };
     let name = p::str(v, "name").unwrap_or("");
     let id = s.graph.create(parent, p::usize(v, "index"), name)?;
     Ok(json!({"id": id.0}))

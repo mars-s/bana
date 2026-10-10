@@ -393,8 +393,7 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
           el.value = next
           el.setSelectionRange(s0, s0)
           sendName(next, toChars(next, s0), v)
-        } else if (k.key === 'ArrowLeft') el.setSelectionRange(Math.max(0, s0 - 1), Math.max(0, s0 - 1))
-        else if (k.key === 'ArrowRight') el.setSelectionRange(Math.min(v.length, s1 + 1), Math.min(v.length, s1 + 1))
+        } else moveCaret(el, v, k)
       },
     }
     registerEditor(h)
@@ -437,6 +436,35 @@ function LineEditor({ row, panel, page }: { row: NodeRow; panel: string; page: P
       />
     </span>
   )
+}
+
+/** A caret key that waited behind a command, replayed as the textarea would have done it (Left,
+ * Right, Home, End; Alt by words, Cmd to the ends; Shift extends the selection). A replayed
+ * Shift+Alt+Right that only moved one letter made Cmd+B bold nothing. */
+function moveCaret(el: HTMLTextAreaElement, v: string, k: KeyInfo) {
+  const back = el.selectionDirection === 'backward'
+  const anchor = back ? el.selectionEnd : el.selectionStart
+  const head = back ? el.selectionStart : el.selectionEnd
+  const word = (from: number, dir: number) => {
+    let i = from
+    if (dir < 0) {
+      while (i > 0 && /\s/.test(v[i - 1])) i--
+      while (i > 0 && !/\s/.test(v[i - 1])) i--
+    } else {
+      while (i < v.length && /\s/.test(v[i])) i++
+      while (i < v.length && !/\s/.test(v[i])) i++
+    }
+    return i
+  }
+  const [lo, hi] = [el.selectionStart, el.selectionEnd]
+  let to: number
+  if (k.key === 'Home' || (k.key === 'ArrowLeft' && k.metaKey)) to = 0
+  else if (k.key === 'End' || (k.key === 'ArrowRight' && k.metaKey)) to = v.length
+  else if (k.key === 'ArrowLeft') to = k.altKey ? word(head, -1) : !k.shiftKey && lo !== hi ? lo : Math.max(0, head - 1)
+  else if (k.key === 'ArrowRight') to = k.altKey ? word(head, 1) : !k.shiftKey && lo !== hi ? hi : Math.min(v.length, head + 1)
+  else return
+  if (k.shiftKey) el.setSelectionRange(Math.min(anchor, to), Math.max(anchor, to), to < anchor ? 'backward' : 'forward')
+  else el.setSelectionRange(to, to)
 }
 
 /** Where char `i` of a single-line editor sits on screen (for menus opened from the text). */

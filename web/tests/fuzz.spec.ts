@@ -161,7 +161,8 @@ for (let seed = 1; seed <= SEEDS; seed++) {
         if (!shown) return null
         if (a.dataset.node) return { node: Number(a.dataset.node) }
         if (a.dataset.fieldEdit) return { node: Number(a.dataset.fieldEdit.split(':')[0]) }
-        if (a.classList.contains('title-input')) return { title: true }
+        // The title of whichever panel it is in (a second panel's field page has one too).
+        if (a.classList.contains('title-input')) return { title: true, node: Number(a.dataset.titleOf) }
         return { other: true }
       })
       const page = await server.rpc('page', { panel: 'main' })

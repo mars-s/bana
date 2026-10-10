@@ -218,3 +218,22 @@ test('the view toolbar: text filter, filter chips with x, sort rules; no Group i
   await app.locator('.view-toolbar .tool[title="Sort by"]').click()
   await expect(app.locator('.menu.pop .sort-rule', { hasText: 'Name' })).toContainText('Ascending')
 })
+
+test('board column + Add makes a card at the top with its name typed in place; a drop low in a column counts (N49)', async ({ app, server }) => {
+  const view = await openTasks(server, app)
+  await server.run('view.set', { node: view, kind: 'cards' })
+  await server.run('view.group', { node: view, by: 'Status' })
+  const col = app.locator('.board-col', { hasText: 'In progress' })
+  await col.locator('.ghost-btn', { hasText: '+ Add' }).click()
+  await expect(col.locator('.card-name-input')).toBeFocused()
+  await app.keyboard.type('Water seedlings')
+  await app.keyboard.press('Enter')
+  await expect(col.locator('.card', { hasText: 'Water seedlings' })).toBeVisible()
+  const hit = (await server.run('graph.search', { query: 'Water seedlings' })).result
+  expect(hit.length).toBe(1)
+  // Drop far below the cards of a column.
+  const target = app.locator('.board-col', { hasText: 'Not started' })
+  const box = (await target.boundingBox())!
+  await col.locator('.card', { hasText: 'Water seedlings' }).dragTo(target, { targetPosition: { x: 100, y: box.height - 20 } })
+  await expect(target.locator('.card', { hasText: 'Water seedlings' })).toBeVisible()
+})

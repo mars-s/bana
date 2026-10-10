@@ -758,9 +758,9 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
 
 // ---- cards and board ---------------------------------------------------------------------------
 
-function Card({ it, panel, refs, onDragStart }: { it: ViewItem; panel: string; refs: Record<string, string>; onDragStart?: (e: React.DragEvent) => void }) {
+function Card({ it, panel, refs, onDragStart, dragged }: { it: ViewItem; panel: string; refs: Record<string, string>; onDragStart?: (e: React.DragEvent) => void; dragged?: boolean }) {
   return (
-    <div className="card" draggable={!!onDragStart} onDragStart={onDragStart} data-id={it.id}>
+    <div className={`card${dragged ? ' dragged' : ''}`} draggable={!!onDragStart} onDragStart={onDragStart} onDragEnd={(e) => e.currentTarget.classList.remove('dragged')} data-id={it.id}>
       <div className="card-head">
         <ItemBullet it={it} panel={panel} />
         {it.tags.map((t) => (
@@ -775,8 +775,32 @@ function Card({ it, panel, refs, onDragStart }: { it: ViewItem; panel: string; r
   )
 }
 
+/** A new card's name, typed in place (N49): every key goes to the engine at once. */
+function CardNameEditor({ id, panel, done }: { id: number; panel: string; done: () => void }) {
+  const [text, setText] = useState('')
+  return (
+    <input
+      className="card-name-input"
+      autoFocus
+      placeholder="Untitled"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value)
+        void call('run', { command: 'node.setName', params: { node: id, name: e.target.value }, panel })
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' || e.key === 'Escape') done()
+      }}
+      onBlur={done}
+    />
+  )
+}
+
 function Board({ v, panel }: { v: ViewSnap; panel: string }) {
   const [over, setOver] = useState<string | null>(null)
+  const [dragged, setDragged] = useState<number | null>(null)
+  const [fresh, setFresh] = useState<number | null>(null)
   const groupField = v.columns.find((c) => v.groups.some((g) => g.items.some((it) => (it.cells[String(c.id)] ?? []).includes(g.label))))
   if (!v.grouped) {
     return (
@@ -792,34 +816,68 @@ function Board({ v, panel }: { v: ViewSnap; panel: string }) {
       </div>
     )
   }
+  // "+ Add" in a column: a card at the top of that column, its name typed in place (spec 04 §5).
+  const addTo = async (label: string) => {
+    const r = await exec('view.addItem', { node: v.node, name: '', stay: true, ...(groupField ? { field: groupField.id, value: label === 'Not defined' ? '' : label } : {}) }, panel)
+    const id = r?.result?.id
+    if (id != null) setFresh(id)
+  }
   return (
     <div className="board">
-      {v.groups.map((g) => (
-        <div
-          key={g.label}
-          className={`board-col${over === g.label ? ' over' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setOver(g.label)
-          }}
-          onDragLeave={() => setOver(null)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setOver(null)
-            const id = Number(e.dataTransfer.getData('text/x-node'))
-            // Dropping a card on a column gives it that column's value (spec 04 §5).
-            if (id && groupField) void exec('field.set', { node: id, field: groupField.id, value: g.label === 'Not defined' ? '' : g.label }, panel)
-          }}
-        >
-          <div className="board-head">
-            <span className="board-name">{g.label}</span>
-            <AddItem v={v} panel={panel} preset={groupField ? { field: groupField.id, value: g.label } : undefined} />
+      {v.groups.map((g) => {
+        const items = fresh != null ? [...g.items.filter((it) => it.target === fresh), ...g.items.filter((it) => it.target !== fresh)] : g.items
+        const label = g.label === 'Not defined' && groupField ? `${groupField.name} not set` : g.label
+        return (
+          <div
+            key={g.label}
+            className={`board-col${over === g.label ? ' over' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault()
+              setOver(g.label)
+            }}
+            onDragLeave={() => setOver(null)}
+            onDrop={(e) => {
+              e.preventDefault()
+              setOver(null)
+              setDragged(null)
+              const id = Number(e.dataTransfer.getData('text/x-node'))
+              // Dropping a card on a column gives it that column's value (spec 04 §5).
+              if (id && groupField) void exec('field.set', { node: id, field: groupField.id, value: g.label === 'Not defined' ? '' : g.label }, panel)
+            }}
+          >
+            <div className="board-head">
+              <span className="board-name">{label}</span>
+              <button className="ghost-btn board-hide" title="Hide column" onClick={() => void exec('view.toggleGroupHidden', { node: v.node, group: g.label }, panel)}>
+                Hide
+              </button>
+              <button className="ghost-btn" onClick={() => void addTo(g.label)}>
+                + Add
+              </button>
+            </div>
+            {items.map((it) =>
+              it.target === fresh ? (
+                <div key={it.id} className="card" data-id={it.id}>
+                  <div className="card-body">
+                    <CardNameEditor id={it.target} panel={panel} done={() => setFresh(null)} />
+                  </div>
+                </div>
+              ) : (
+                <Card
+                  key={it.id}
+                  it={it}
+                  panel={panel}
+                  refs={v.refs}
+                  dragged={dragged === it.target}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/x-node', String(it.target))
+                    setDragged(it.target)
+                  }}
+                />
+              ),
+            )}
           </div>
-          {g.items.map((it) => (
-            <Card key={it.id} it={it} panel={panel} refs={v.refs} onDragStart={(e) => e.dataTransfer.setData('text/x-node', String(it.target))} />
-          ))}
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

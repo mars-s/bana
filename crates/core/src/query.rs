@@ -368,7 +368,13 @@ impl Query {
 
     /// Every searchable node that matches, oldest first.
     pub fn run(&self, g: &Graph, exclude: NodeId) -> Vec<NodeId> {
-        let bound = self.bind(g, exclude);
+        self.run_in(g, exclude, g.parent(exclude))
+    }
+
+    /// Runs with PARENT taken as `parent` (a search in a supertag's template or related content
+    /// runs for the page it shows on, UC-03.05).
+    pub fn run_in(&self, g: &Graph, exclude: NodeId, parent: Option<NodeId>) -> Vec<NodeId> {
+        let bound = self.bind_to(g, parent);
         let this = &bound;
         let types = this.wants_types();
         let ok = |id: NodeId| if types { candidate(g, id) } else { searchable(g, id) };
@@ -382,17 +388,44 @@ impl Query {
 impl Query {
     /// Ties PARENT / GRANDPARENT to the search node `at` (its parent, its parent's parent).
     pub fn bind(&self, g: &Graph, at: NodeId) -> Query {
+        self.bind_to(g, g.parent(at))
+    }
+
+    /// Ties PARENT to `parent` and GRANDPARENT to its parent. A day node stands for its date, so
+    /// `Due:PARENT`, `Due<PARENT` on a day page compare with that day (UC-01.15).
+    pub fn bind_to(&self, g: &Graph, parent: Option<NodeId>) -> Query {
+        let grand = parent.and_then(|p| g.parent(p));
+        let day = |n: Option<NodeId>| match n.and_then(|n| g.get(n)).map(|n| &n.kind) {
+            Some(Kind::Day { date }) => Some(*date),
+            _ => None,
+        };
         let mut q = self.clone();
         for c in &mut q.clauses {
             match &mut c.kind {
                 ClauseKind::Field { op, value, .. } if matches!(op, Op::Parent | Op::Grandparent) => {
-                    let up = if *op == Op::Parent { g.parent(at) } else { g.parent(at).and_then(|p| g.parent(p)) };
-                    *op = Op::Node;
-                    *value = up.map(|u| u.0.to_string()).unwrap_or_default();
+                    let up = if *op == Op::Parent { parent } else { grand };
+                    match day(up) {
+                        Some(d) => {
+                            *op = Op::Eq;
+                            *value = d.to_string();
+                        }
+                        None => {
+                            *op = Op::Node;
+                            *value = up.map(|u| u.0.to_string()).unwrap_or_default();
+                        }
+                    }
                 }
-                ClauseKind::Group { query } => *query = query.bind(g, at),
+                // `Due<PARENT`, `Due>GRANDPARENT`: the ancestor's date (or name).
+                ClauseKind::Field { op, value, .. } if matches!(op, Op::Lt | Op::Gt) && matches!(value.as_str(), "PARENT" | "GRANDPARENT") => {
+                    let up = if value == "PARENT" { parent } else { grand };
+                    *value = match day(up) {
+                        Some(d) => d.to_string(),
+                        None => up.map(|u| g.name(u).to_string()).unwrap_or_default(),
+                    };
+                }
+                ClauseKind::Group { query } => *query = query.bind_to(g, parent),
                 ClauseKind::Scope { up } => {
-                    let anc = if *up > 1 { g.parent(at).and_then(|p| g.parent(p)) } else { g.parent(at) };
+                    let anc = if *up > 1 { grand } else { parent };
                     // No such ancestor: nothing matches (a node cannot be under itself).
                     c.kind = ClauseKind::ChildOf { node: NodeId(0) };
                     if let Some(a) = anc {

@@ -120,4 +120,16 @@ test('UC-01.13 week start and 12/24-hour time are settings; calendar views follo
 missing('UC-01.09', 'journal prompts: a field that auto-fills with a random node of a supertag')
 missing('UC-01.12', 'Add to day (Remind me): send a reference of a node to a chosen day')
 missing('UC-01.14', 'daily notes for a second workspace (Today follows the main workspace only)')
-missing('UC-01.15', 'tasks due on this day: a search on a day node comparing a date field with PARENT')
+test('UC-01.15 every day page lists the tasks due that day and the overdue ones (PARENT is the day)', works('UC-01.15'), async ({ app, server }) => {
+  await server.run('field.set', { node: await idOf(server, 'Build four beds'), field: 'Due', value: '2026-10-12' })
+  await server.run('field.set', { node: await idOf(server, 'Fill with compost'), field: 'Due', value: '2026-10-02' })
+  await server.run('tag.addRelated', { tag: 'day', query: '#task Due:PARENT', name: 'Due this day' })
+  await server.run('tag.addRelated', { tag: 'day', query: '#task NOT DONE Due<PARENT', name: 'Overdue' })
+  await server.run('nav.day', { date: '2026-10-12' })
+  await expect(app.locator('.side-card', { hasText: 'Due this day' })).toContainText('Build four beds')
+  await expect(app.locator('.side-card', { hasText: 'Overdue' })).toContainText('Fill with compost')
+  // A past day: what was due then.
+  await server.run('nav.day', { date: '2026-10-02' })
+  await expect(app.locator('.side-card', { hasText: 'Due this day' })).toContainText('Fill with compost')
+  await expect(app.locator('.side-card', { hasText: 'Overdue' })).not.toContainText('Fill with compost')
+})

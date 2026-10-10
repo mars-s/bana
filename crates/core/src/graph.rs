@@ -1874,6 +1874,19 @@ impl Graph {
             .collect()
     }
 
+    /// What related content `related` shows on `page`: a search runs for that page (its PARENT is
+    /// the page, so "#meeting Attendees:PARENT" on #person lists each person's meetings, UC-03.05).
+    pub fn related_items(&self, related: NodeId, page: NodeId) -> Vec<NodeId> {
+        let r = self.resolve(related);
+        match self.get(r).map(|n| &n.kind) {
+            Some(Kind::Search(q)) => {
+                let v = self.view_def(r);
+                q.run_in(self, r, Some(self.resolve(page))).into_iter().filter(|i| v.filter.filter(self, self.resolve(*i))).collect()
+            }
+            _ => self.view_groups(r).into_iter().flat_map(|g| g.items).collect(),
+        }
+    }
+
     pub fn set_progress(&mut self, id: NodeId, on: bool) -> Result<()> {
         let id = self.resolve(id);
         self.node_mut(id)?.progress = on;

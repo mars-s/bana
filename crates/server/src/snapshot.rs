@@ -347,7 +347,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         .related_for(zoom)
         .into_iter()
         .map(|r| {
-            let items: Vec<Value> = g.view_groups(r).into_iter().flat_map(|gr| gr.items).take(50).map(|i| node_info(s, i, &mut refs)).collect();
+            let items: Vec<Value> = g.related_items(r, zoom).into_iter().take(50).map(|i| node_info(s, i, &mut refs)).collect();
             json!({"id": r.0, "name": g.name(r), "items": items})
         })
         .collect();

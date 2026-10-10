@@ -599,6 +599,37 @@ fn queries_read_as_sentences() {
 }
 
 #[test]
+fn parent_is_the_day_on_day_pages_and_the_page_in_related_content() {
+    // UC-01.15: tasks due on this day and overdue ones, on any day page.
+    let mut g = Graph::new();
+    let due = g.create_field("Due", FieldType::Date).unwrap();
+    let who = g.create_field("Attendees", FieldType::Plain).unwrap();
+    let lib = g.sys.library;
+    let d10 = Date::new(2026, 10, 10).unwrap();
+    let d12 = Date::new(2026, 10, 12).unwrap();
+    let on12 = g.create(lib, None, "on the 12th").unwrap();
+    let on10 = g.create(lib, None, "on the 10th").unwrap();
+    g.set_field(on12, due, Some(FieldValue::Date(d12))).unwrap();
+    g.set_field(on10, due, Some(FieldValue::Date(d10))).unwrap();
+    let day12 = g.day(d12).unwrap();
+    let s = g.create_search(day12, None, "due", Query::parse(&g, "Due:PARENT").unwrap()).unwrap();
+    assert_eq!(g.query(s).unwrap().run(&g, s), [on12]);
+    let late = g.create_search(day12, None, "late", Query::parse(&g, "Due<PARENT").unwrap()).unwrap();
+    assert_eq!(g.query(late).unwrap().run(&g, late), [on10]);
+    // UC-03.05: a related search on #person runs for each person page.
+    let person = g.create_tag("person", "blue").unwrap();
+    let robin = g.create(lib, None, "Robin").unwrap();
+    let mia = g.create(lib, None, "Mia").unwrap();
+    g.add_tag(robin, person).unwrap();
+    g.add_tag(mia, person).unwrap();
+    let m = g.create(lib, None, "Tool chat").unwrap();
+    g.set_field(m, who, Some(FieldValue::Node(robin))).unwrap();
+    let r = g.tag_add_related(person, "Met with", Query::parse(&g, "Attendees:PARENT").unwrap()).unwrap();
+    assert_eq!(g.related_items(r, robin), [m]);
+    assert!(g.related_items(r, mia).is_empty());
+}
+
+#[test]
 fn query_field_value_operators_and_workspace() {
     // DIFFS N13: Field values (PARENT, GRANDPARENT, relative date, Set / Not Set, Defined) and
     // Workspace.

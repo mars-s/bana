@@ -1,6 +1,6 @@
 // Use cases: meetings (docs/use-cases/03-meetings.md). Recording, transcripts and the meeting bot
 // need AI or a cloud calendar and are listed as gaps.
-import { test, expect, missing, works, partial, tree, fieldOf, idOf } from './helpers'
+import { test, expect, missing, works, tree, fieldOf, idOf } from './helpers'
 import { focus } from '../fixtures'
 import type { Page } from '@playwright/test'
 import type { Server } from '../fixtures'
@@ -69,19 +69,15 @@ test('UC-03.04 action items written in a meeting show up with all other open tas
   await expect(app.locator('.row.node', { hasText: 'Email the council' })).toBeVisible()
 })
 
-test('UC-03.05 a person page lists the meetings they attended (a search on that page; not yet from the #person template)', partial('UC-03.05'), async ({ app, server }) => {
+test('UC-03.05 each person page lists the meetings they attended (related content on #person)', works('UC-03.05'), async ({ app, server }) => {
   await meetingSchema(server)
   const id = await newMeeting(server, app, 'Tool library chat')
   await server.run('field.set', { node: id, field: 'Attendees', value: 'Robin Ash' })
   const robin = await idOf(server, 'Robin Ash')
-  const s = (await server.run('search.create', { query: '#meeting Attendees:PARENT', name: 'Meetings', parent: robin })).result.id
-  await server.run('nav.open', { node: robin })
-  await server.run('node.expand', { node: s })
-  await expect(app.locator('.row.node', { hasText: 'Tool library chat' })).toBeVisible()
-  // Gap: the same search as related content on #person (tag.addRelated) finds nothing, as PARENT
-  // is not bound to each person.
+  // PARENT is each person the related content shows on.
   await server.run('tag.addRelated', { tag: 'person', query: '#meeting Attendees:PARENT', name: 'Met with' })
-  await expect(app.locator('.side-card', { hasText: 'Met with' })).toContainText('Nothing here yet')
+  await server.run('nav.open', { node: robin })
+  await expect(app.locator('.side-card', { hasText: 'Met with' })).toContainText('Tool library chat')
 })
 
 test('UC-03.06 meeting titles built from fields (title expression)', works('UC-03.06'), async ({ app, server }) => {
@@ -102,7 +98,16 @@ test('UC-03.07 copy the meeting notes out as text to paste in an email', works('
   expect(await app.evaluate(() => navigator.clipboard.readText())).toContain('Agenda')
 })
 
-missing('UC-03.08', 'meetings of the day on each day page (a #day search with Date = PARENT)')
+test('UC-03.08 each day page lists the meetings dated that day (related content on #day)', works('UC-03.08'), async ({ app, server }) => {
+  await meetingSchema(server)
+  await newMeeting(server, app, 'Seed swap planning')
+  await server.run('tag.addRelated', { tag: 'day', query: '#meeting Date:PARENT', name: 'Meetings of the day' })
+  await server.run('nav.today')
+  await expect(app.locator('.side-card', { hasText: 'Meetings of the day' })).toContainText('Seed swap planning')
+  // Another day lists its own (none).
+  await server.run('nav.day', { date: '2026-10-11' })
+  await expect(app.locator('.side-card', { hasText: 'Meetings of the day' })).not.toContainText('Seed swap planning')
+})
 missing('UC-03.09', 'calendar events (Google or Outlook) appear on the day page as an Agenda', 'out-of-scope')
 missing('UC-03.10', 'record a meeting without a bot and get a transcript and summary (AI notetaker)', 'ai')
 missing('UC-03.11', 'a meeting agent bot joins the call and files notes, tasks and people (AI)', 'ai')

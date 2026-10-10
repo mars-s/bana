@@ -102,9 +102,9 @@ with an optional `#day` template. Scenarios: `web/tests/use-cases/01-daily-journ
 - **Source:** https://outliner.tana.inc/learn/features/workspaces
 - **TanaCraft:** MISSING (Today follows the main workspace, see ROADMAP).
 
-### UC-01.15 Tasks due on this day: MISSING
+### UC-01.15 Tasks due on this day: WORKS
 - **Story:** Each day page lists the tasks due that day, past days too.
 - **Steps:** A search in the `#day` template with Due = PARENT (or LT PARENT for overdue).
 - **Expected:** Results follow the page's own date.
 - **Source:** https://outliner.tana.inc/learn/features/search-nodes (PARENT field values)
-- **TanaCraft:** MISSING. A search on a day page with `Due:PARENT` or `Due<PARENT` finds nothing; `Due<today` (relative to the real today) works.
+- **TanaCraft:** WORKS. On a day page PARENT is that day's date: `Due:PARENT` and `Due<PARENT` in a search under the day, or as related content on `#day` (`tag.addRelated`), list what is due that day and what is overdue, past days too.

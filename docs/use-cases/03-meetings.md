@@ -32,12 +32,12 @@ transcripts and meeting bot are AI and cloud features. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/nodes-and-references (overview)
 - **TanaCraft:** WORKS.
 
-### UC-03.05 A person's meetings on their page: PARTIAL
+### UC-03.05 A person's meetings on their page: WORKS
 - **Story:** Opening a person shows every meeting they attended.
 - **Steps:** Related content on `#person` with a search: `#meeting`, Attendees = PARENT.
 - **Expected:** Each person page lists their own meetings.
 - **Source:** https://outliner.tana.inc/learn/features/related-content, https://outliner.tana.inc/learn/features/search-nodes (Searches in supertag template)
-- **TanaCraft:** PARTIAL. The same search placed on one person's page works; added as related content on the supertag it finds nothing, because PARENT is not bound to each person.
+- **TanaCraft:** WORKS. Related content on `#person` runs for each person page (PARENT is that person).
 
 ### UC-03.06 Meeting titles from fields: WORKS
 - **Story:** "Catch-up with Mia Chen" built from the title and the Attendees field.
@@ -53,10 +53,10 @@ transcripts and meeting bot are AI and cloud features. Scenarios:
 - **Source:** https://outliner.tana.inc/learn/features/copy-paste-and-export
 - **TanaCraft:** WORKS.
 
-### UC-03.08 Today's meetings on the day page: MISSING
+### UC-03.08 Today's meetings on the day page: WORKS
 - **Story:** My day page lists the meetings dated that day.
 - **Source:** https://outliner.tana.inc/learn/features/related-content (Meetings of the day)
-- **TanaCraft:** MISSING (needs PARENT dates on day pages, UC-01.15).
+- **TanaCraft:** WORKS. Related content on `#day` with `#meeting Date:PARENT` (PARENT is the day's date).
 
 ### UC-03.09 Calendar events as the day's agenda: OUT OF SCOPE candidate (cloud)
 - **Story:** My Google or Outlook events appear on today's page, ready for notes.

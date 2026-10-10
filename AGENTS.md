@@ -35,6 +35,8 @@ the CLI and MCP is hostile: validate ids, clamp indexes, bound recursion.
 | `crates/commands` (`tanacraft-commands`) | `Session` (graph + focus/zoom/selection), `CommandSpec` registry: ids, labels, shortcuts, params, `run` |
 | `crates/mcp` (`tanacraft-mcp`) | MCP server (JSON-RPC 2.0 over stdio) exposing the commands; `tanacraft-mcp` binary |
 | `crates/server` (`tanacraft-server`) | `Host`: the Session plus one navigation state per panel; view snapshots as JSON; a std-only localhost HTTP server (`POST /rpc`, `GET /events`, static web UI) |
+| `crates/ffi` (`tanacraft-ffi`) | UniFFI binding of the `Host` for Swift: `Engine.open`, `rpc`/`run` with JSON, `save`, change listeners, autosave thread. `scripts/build-ios-core.sh` builds the XCFramework |
+| `apps/tanacraft-ios` | **The iPhone app**: SwiftUI, xcodegen `project.yml`, draws the same snapshots; tokens generated from `web/src/tokens.css` (`scripts/gen-ios-tokens.py`); UI tests `scripts/ios-test.sh`. See its README |
 | `apps/tanacraft-desktop` | **The desktop app**: Tauri 2, holds the `Host` behind a mutex, IPC `rpc` command plus `changed` events |
 | `web/` | The UI: Vite + React + TypeScript, plain CSS with every design token in `web/src/tokens.css`; runs in the Tauri app or in a browser against `tanacraft-cli serve` |
 | `apps/tanacraft-cli` | CLI: inspect, add, export, run commands, `mcp`, `serve` (web UI + JSON API on 127.0.0.1) |

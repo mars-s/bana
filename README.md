@@ -135,6 +135,32 @@ Tests: `cargo xtask ci` (Rust: fmt, clippy, 163 tests), `cargo xtask web` (typec
 Playwright: 121 tests plus 179 use-case scenarios, each against its own engine) and
 `cargo xtask connector` (the remote MCP connector). Screenshots: `cargo xtask shots`.
 
+## iPhone app
+
+A native SwiftUI app (`apps/tanacraft-ios`, iOS 26, simulator only for now) on the same
+Rust engine: `crates/ffi` exposes it to Swift with UniFFI (open a graph, run any command by id with
+JSON params, read the same view snapshots the web UI draws, hear about changes). The graph lives in
+the app's Documents folder as `graph.tanacraft`, the same Loro file the desktop app writes.
+
+<p><img src="docs/images/ios/scrolled-dark.png" width="200" alt="The outline scrolling under the Liquid Glass bars, dark">
+<img src="docs/images/ios/editing-light.png" width="200" alt="Editing a line: the tab bar turns into the editing bar, light">
+<img src="docs/images/ios/supertag-dark.png" width="200" alt="A supertag page listing its tagged nodes"></p>
+
+```sh
+scripts/build-ios-core.sh                 # engine for device and simulator, Swift bindings, XCFramework
+scripts/ios-test.sh                       # generate the Xcode project (xcodegen), run the UI tests
+scripts/ios-test.sh shots                 # screenshots of the main screens into docs/images/ios/
+```
+
+What works: the day page with previous and next day, the outline with bullets, tap to edit, Return
+for a new line, Backspace to merge, indent, outdent, move, collapse, checkbox, supertag and undo
+on an editing bar, zoom in with breadcrumbs and Back, tags and fields (text, options, checkbox), search,
+quick capture, supertag pages, and the sidebar as a Home sheet. Every keystroke goes to the engine;
+the file is written within half a second and at once when the app leaves the foreground. The
+chrome (top bar, tab bar, editing bar, Capture button, sheets, search) is iOS 26 Liquid Glass
+floating over the page; the outline itself stays flat. Build and
+run details: [apps/tanacraft-ios/README.md](apps/tanacraft-ios/README.md).
+
 ## For agents: CLI, MCP and the JSON API
 
 Every action is a command with an id (`node.indent`, `tag.add`, `field.addValue`, `search.addGroup`,
@@ -169,6 +195,8 @@ Everything is in [docs/mcp.md](docs/mcp.md).
 | `crates/commands` | `Session` (graph, focus, panels' navigation) and the command registry (ids, labels, shortcuts, params) |
 | `crates/mcp` | MCP server library and the `tanacraft-mcp` binary |
 | `crates/server` | `Host` (the Session plus each panel's navigation), JSON view snapshots, a localhost HTTP server |
+| `crates/ffi` | The engine for Swift (UniFFI): the `Host` behind `Engine.rpc`, change listeners, autosave |
+| `apps/tanacraft-ios` | The iPhone app: SwiftUI on `crates/ffi` (built with Xcode, not cargo) |
 | `apps/tanacraft-desktop` | The desktop app: Tauri 2 around the `Host` |
 | `web/` | The UI (React + TypeScript); runs in the desktop app or a browser |
 | `apps/tanacraft-cli` | Command line, including `serve` |

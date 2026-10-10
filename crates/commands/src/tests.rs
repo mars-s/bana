@@ -397,6 +397,13 @@ fn insert_quick_add_and_formatting() {
     assert_eq!(s.zoom, s.graph.sys.library, "quick add stays on the page");
     assert_eq!(s.graph.name(s.graph.parent(id(&r, "id")).unwrap()), "Sat, 10 Oct");
     assert!(s.run("node.quickAdd", &json!({"name": "  "})).is_err());
+    // Other destinations (the phone's capture): another day, or under a given node.
+    let r = run(&mut s, "node.quickAdd", json!({"name": "Buy seeds", "date": "tomorrow"}));
+    assert_eq!(s.graph.name(s.graph.parent(id(&r, "id")).unwrap()), "Sun, 11 Oct");
+    let r = run(&mut s, "node.quickAdd", json!({"name": "Under a", "parent": a.0}));
+    assert_eq!(s.graph.parent(id(&r, "id")), Some(a));
+    assert!(s.run("node.quickAdd", &json!({"name": "x", "parent": 999_999})).is_err());
+    assert!(s.run("node.quickAdd", &json!({"name": "x", "date": "someday maybe"})).is_err());
 
     run(&mut s, "format.bold", json!({"node": a.0, "start": 6, "end": 11}));
     assert_eq!(s.graph.name(a), "Hello **world**");

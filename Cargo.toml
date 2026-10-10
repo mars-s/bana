@@ -1,8 +1,9 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
-# The old egui front end: kept as a porting reference, not built (see legacy/egui/README.md).
-exclude = ["legacy"]
+# legacy: the old egui front end, kept as a porting reference, not built (see legacy/egui/README.md).
+# apps/tanacraft-ios: the SwiftUI iPhone app (Xcode, not cargo); its engine is crates/ffi.
+exclude = ["legacy", "apps/tanacraft-ios"]
 
 [workspace.package]
 version = "0.1.0"

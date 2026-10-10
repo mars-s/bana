@@ -263,8 +263,16 @@ export function App() {
       }
       if (handleKey(k)) e.preventDefault()
     }
+    // A click anywhere lets go of a selected field row.
+    const onDown = () => {
+      if (getState().fieldSel) setState({ fieldSel: null })
+    }
     window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+    window.addEventListener('mousedown', onDown, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('mousedown', onDown, true)
+    }
   }, [])
   const sidebarMode = useStore((s) => s.sidebarMode)
   return (

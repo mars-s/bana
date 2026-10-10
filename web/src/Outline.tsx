@@ -591,6 +591,8 @@ const FIELD_ICONS: Record<string, IconName> = { date: 'fieldDate', checkbox: 'fi
 
 function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
   const fe = useStore((s) => s.fieldEdit)
+  const fs = useStore((s) => s.fieldSel)
+  const selected = !!fs && fs.panel === panel && fs.owner === row.owner && fs.field === row.field
   const editing = fe && fe.panel === panel && fe.owner === row.owner && fe.field === row.field ? fe.index : null
   const edit = (i: number) => {
     setActivePanel(panel)
@@ -599,7 +601,7 @@ function FieldLine({ row, panel }: { row: FieldRow; panel: string }) {
   const values = row.values
   const lines = editing !== null && editing >= values.length ? [...values, null] : values
   return (
-    <div className={`row field${row.boxed ? ' boxed' : ''}`} style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }} data-owner={row.owner} data-field={row.field}>
+    <div className={`row field${row.boxed ? ' boxed' : ''}${selected ? ' selected' : ''}`} style={{ paddingLeft: `calc(${row.depth} * var(--indent))` }} data-owner={row.owner} data-field={row.field}>
       <Guides depth={row.depth} />
       <div className="row-inner">
         <span className="field-icon-slot">

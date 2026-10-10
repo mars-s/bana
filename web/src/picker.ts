@@ -5,9 +5,9 @@
 // picking removes it again and runs the commands.
 
 import { call } from './engine'
-import { type KeyInfo, shortcut } from './keys'
-import { type PickItem, type PickerState, getState, setState } from './store'
-import { exec, holdKeysForEditor, withBarrier, runUiCommand } from './controller'
+import { type KeyInfo, isTextKey, shortcut } from './keys'
+import { type PickItem, type PickerState, getState, scheduleRefresh, setState } from './store'
+import { exec, holdKeysForEditor, setGhost, withBarrier, runUiCommand } from './controller'
 import { charLen } from './format'
 
 let fetchSeq = 0
@@ -208,8 +208,16 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
           await exec('focus.set', { node: p.node, caret: 0 }, panel)
         } else {
           await exec('node.delete', { node: p.node }, panel)
-          if (fid != null && how === 'tab') await startFieldEdit(panel, owner, fid, 0)
-          else if (fid != null) await exec('focus.clear', {}, panel)
+          const fr = getState().pages[panel]?.rows.items.find((r) => r.k === 'field' && r.owner === owner && r.field === fid)
+          const checkbox = fr?.k === 'field' && fr.type === 'checkbox'
+          // Tab goes on to the value; a checkbox has no text, so its row stays selected (N31).
+          if (fid != null && how === 'tab' && !checkbox) await startFieldEdit(panel, owner, fid, 0)
+          else if (fid != null) {
+            // Escape keeps the name and selects the field row (DIFFS N28).
+            await exec('focus.clear', {}, panel)
+            const name = fr?.k === 'field' ? fr.name : String(field)
+            setState({ fieldSel: { panel, owner, field: fid, name, checkbox } })
+          }
         }
         break
       }
@@ -271,7 +279,7 @@ export async function applyPick(item: PickItem, how: 'enter' | 'tab' | 'escape' 
 
 export async function startFieldEdit(panel: string, owner: number, field: number, index: number) {
   holdKeysForEditor()
-  setState({ fieldEdit: { panel, owner, field, index } })
+  setState({ fieldEdit: { panel, owner, field, index }, fieldSel: null })
   await exec('focus.clear', {}, panel)
 }
 
@@ -315,6 +323,58 @@ export function fieldKey(k: KeyInfo, text: string): boolean {
       stopFieldEdit()
       void exec('field.valueToNode', { node: fe.owner, field: fe.field, index: fe.index, text }, panel)
       return true
+  }
+  return false
+}
+
+// ---- a selected field row (DIFFS N28, N31, N33) ---------------------------------------------------
+
+export function fieldRowKey(k: KeyInfo): boolean {
+  const fs = getState().fieldSel
+  if (!fs) return false
+  const sc = shortcut(k)
+  const panel = fs.panel
+  const rows = getState().pages[panel]?.rows.items ?? []
+  const at = rows.findIndex((r) => r.k === 'field' && r.owner === fs.owner && r.field === fs.field)
+  const above = rows.slice(0, Math.max(0, at)).reverse().find((r) => r.k === 'node')
+  const below = rows.slice(at + 1).find((r) => r.k === 'node')
+  const leave = () => setState({ fieldSel: null })
+  switch (sc) {
+    case 'Tab':
+      if (!fs.checkbox) void startFieldEdit(panel, fs.owner, fs.field, 0)
+      return true
+    case 'Enter': {
+      // A new line right below the field row (N33): before the owner's next child under it.
+      leave()
+      const next = rows.slice(at + 1).find((r) => r.k === 'node' && r.parent === fs.owner)
+      const prev = rows.slice(0, Math.max(0, at)).reverse().find((r) => r.k === 'node' && r.parent === fs.owner)
+      const index = next?.k === 'node' ? (next.index ?? 0) : prev?.k === 'node' ? (prev.index ?? -1) + 1 : 0
+      void withBarrier(async () => {
+        const r = await exec('node.add', { parent: fs.owner, index, name: '' }, panel)
+        if (r?.result?.id != null) await exec('focus.set', { node: r.result.id, caret: 0 }, panel)
+      })
+      return true
+    }
+    case 'Escape':
+      leave()
+      if (above?.k === 'node') setGhost(panel, above.id, false)
+      return true
+    case 'Up':
+    case 'Down': {
+      const to = sc === 'Up' ? above : below
+      if (to?.k !== 'node') return true
+      leave()
+      void exec('focus.set', { node: to.id, caret: sc === 'Up' ? 1e9 : 0 }, panel)
+      return true
+    }
+  }
+  if (isTextKey(k)) {
+    // Letters go on with the field's name; a checkbox field takes no blank (N31).
+    if (k.key === ' ' && fs.checkbox) return true
+    const name = fs.name + k.key
+    setState({ fieldSel: { ...fs, name } })
+    void call('run', { command: 'node.setName', params: { node: fs.field, name }, panel }).then(() => scheduleRefresh())
+    return true
   }
   return false
 }

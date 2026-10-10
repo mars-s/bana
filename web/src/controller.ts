@@ -9,7 +9,7 @@ import { type Json, type NodeRow, type Page, call } from './engine'
 import { type KeyInfo, UI_COMMANDS, isTextKey, matches, shortcut } from './keys'
 import { closeTab, getState, newTab, openInNewPanel, refresh, setState, showToast, switchTab, visiblePanels } from './store'
 import { charLen } from './format'
-import { fieldKey, pickerKey } from './picker'
+import { fieldKey, fieldRowKey, pickerKey } from './picker'
 import { toggleQuery } from './Views'
 
 /** What the mounted line editor exposes. */
@@ -40,6 +40,8 @@ const titles = new Map<string, TitleHandle>()
 
 export function registerEditor(h: EditorHandle) {
   editor = h
+  // A caret somewhere else means the field row is no longer selected.
+  if (getState().fieldSel) setState({ fieldSel: null })
   if (waitingEditor) {
     waitingEditor = false
     clearTimeout(waitTimer)
@@ -309,6 +311,7 @@ export function handleKey(k: KeyInfo): boolean {
   if (s.overlay) return false // overlays read their own keys
   if (s.picker && pickerKey(k)) return true
   if (s.fieldEdit) return fieldKey(k, editor?.value() ?? '')
+  if (s.fieldSel && s.fieldSel.panel === s.activePanel && fieldRowKey(k)) return true
   const sc = shortcut(k)
   // Mod+1..8 go to tab N, Mod+9 to the last tab (spec 09).
   const d = /^Mod\+(\d)$/.exec(sc)

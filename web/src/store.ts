@@ -74,6 +74,9 @@ export interface State {
   activePanel: string
   picker: PickerState | null
   fieldEdit: FieldEdit | null
+  /** A selected field row (DIFFS N28, N31, N33): Tab edits its value, Enter adds a line below,
+   * letters extend its name. `name` is the name as typed so far. */
+  fieldSel: { panel: string; owner: number; field: number; name: string; checkbox: boolean } | null
   /** The node menu (right-click a bullet, or "…" on the selection toolbar). */
   nodeMenu: { panel: string; node: number; x: number; y: number } | null
   /** Panels showing a supertag's configuration instead of its items. */
@@ -112,6 +115,7 @@ let state: State = {
   activePanel: 'main',
   picker: null,
   fieldEdit: null,
+  fieldSel: null,
   nodeMenu: null,
   special: {},
   queryOpen: {},

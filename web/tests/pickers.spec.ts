@@ -141,3 +141,56 @@ test('a date field takes a typed date and shows it as a day', async ({ app, serv
   await app.keyboard.press('Escape')
   await expect(app.locator('.row.field', { hasText: 'When' })).toContainText('Tue, 20 Oct')
 })
+
+/** A page with lines x and y; `>` + name on a new line after x, then Escape: the field row is selected. */
+async function selectedFieldRow(server: Server, app: Page, name: string) {
+  const { page, ids } = await pageWith(server, app, ['x', 'y'], 'Page')
+  await focus(server, app, ids[0], 1)
+  await app.keyboard.press('Enter')
+  await app.keyboard.type('>')
+  await expect(app.locator('.menu.picker')).toBeVisible()
+  await app.keyboard.type(name)
+  await app.keyboard.press('Escape')
+  await expect(app.locator('.row.field.selected')).toContainText(name)
+  return { page, x: ids[0], y: ids[1] }
+}
+
+test('Escape in a new field name selects the field row; Tab edits its value (N28)', async ({ app, server }) => {
+  const { page } = await selectedFieldRow(server, app, 'Ppl')
+  await expect(app.locator('.row.node.selected')).toHaveCount(0)
+  await app.keyboard.press('Tab')
+  await app.keyboard.type('Ann')
+  await expect.poll(() => valuesOf(server, page, 'Ppl')).toEqual(['Ann'])
+  await expect(app.locator('.row.field.selected')).toHaveCount(0)
+})
+
+test('Enter on a selected field row adds a line below it; letters extend its name (N33)', async ({ app, server }) => {
+  const { page, x, y } = await selectedFieldRow(server, app, 'Qq')
+  await app.keyboard.press('Enter')
+  await app.keyboard.type('N')
+  await expect.poll(() => childNames(server, page)).toEqual(['x', 'N', 'y'])
+  expect(await valuesOf(server, page, 'Qq')).toEqual([])
+  void x
+  void y
+  // Fast typing on a selected row: every letter goes on the name.
+  await selectedFieldRow(server, app, 'Qq8')
+  await app.keyboard.type('Nm')
+  const fields = async () => Object.keys((await tree(server, (await server.rpc('page', { panel: 'main' })).zoom))?.fields ?? {})
+  await expect.poll(fields).toEqual(['Qq8Nm'])
+})
+
+test('a checkbox field after > and Tab stays selected; Space does nothing (N31)', async ({ app, server }) => {
+  await server.run('field.create', { name: 'Outdoors', type: 'checkbox' })
+  const { page, ids } = await pageWith(server, app, ['x'], 'Page')
+  await focus(server, app, ids[0], 1)
+  await app.keyboard.press('Enter')
+  await app.keyboard.type('>Outdoors')
+  await expect(app.locator('.menu-item.sel')).toContainText('Outdoors')
+  await app.keyboard.press('Tab')
+  await expect(app.locator('.row.field.selected')).toContainText('Outdoors')
+  await app.keyboard.press('Space')
+  await app.keyboard.press('Shift+Tab')
+  await app.waitForTimeout(200)
+  expect(await childNames(server, page)).toEqual(['x'])
+  expect(await valuesOf(server, page, 'Outdoors')).toEqual([])
+})

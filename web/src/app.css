@@ -300,9 +300,8 @@ button:focus-visible {
 
 /* Pinned and Workspaces flyouts from the mini rail (spec 07 §1). */
 .flyout {
-  position: fixed;
-  left: calc(var(--sidebar-mini-w) + var(--q1));
-  z-index: 45;
+  /* Placed by the popover layer, --q1 right of the rail. */
+  z-index: 55;
   width: var(--flyout-w);
   max-height: 70vh;
   overflow-y: auto;
@@ -756,11 +755,6 @@ button:focus-visible {
   width: var(--ws-btn-w);
   justify-content: center;
   gap: var(--q1);
-}
-
-.ws-menu .menu.pop {
-  right: 0;
-  left: auto;
 }
 
 .banner-note {
@@ -1707,7 +1701,8 @@ kbd {
 
 .menu {
   position: fixed;
-  z-index: 45;
+  /* The popover layer: over dialogs (a menu opened in one), under toasts. */
+  z-index: 55;
   width: var(--menu-w);
   max-height: 340px;
   overflow-y: auto;
@@ -1797,10 +1792,7 @@ kbd {
 }
 
 .menu.pop {
-  position: absolute;
-  top: calc(100% + var(--q1));
-  left: 0;
-  /* Submenus hang outside it. */
+  /* Placed by the popover layer (Popover.tsx); submenus hang outside it. */
   max-height: none;
   overflow: visible;
 }
@@ -1954,19 +1946,33 @@ kbd {
 
 .t-head {
   min-height: var(--t-head-h);
+  /* Each header cell draws its own underline; no row rule under them (spec 12: Table). */
+  border-bottom: 0;
   line-height: var(--lh-label);
   color: var(--c-muted);
   font-weight: var(--fw-ui);
 }
 
-/* Each header has a 1 px underline in its colour; the tag column's is 2 px in the tag colour. */
+/* Each header has a 1 px underline in its colour, the tag column's in the tag colour (spec 12: Table; d50). */
 .t-head .t-cell[role='columnheader'] {
   box-shadow: inset 0 -1px 0 var(--tag, var(--c-divider));
 }
 
 .t-head .t-cell.t-tag {
-  box-shadow: inset 0 -2px 0 var(--tag);
-  color: var(--c-text);
+  box-shadow: inset 0 -1px 0 var(--tag);
+}
+
+/* "+ Add" right after the last column (x 639, 49.5 x 20.4 in d50), past the row rules. */
+.t-head {
+  position: relative;
+}
+
+.t-add {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  padding-left: var(--q1-5);
 }
 
 .tag-square.small {
@@ -2367,18 +2373,10 @@ kbd {
   position: relative;
 }
 
+/* Placed beside its item by the popover layer, overlapping the parent menu by about 6.6 (spec 12:
+   Menus). */
 .menu.submenu {
-  position: absolute;
-  /* Flush beside the parent menu (the item sits inside its padding), overlapping it by about 6.6
-     (spec 12: Menus). */
-  left: calc(100% + var(--q1-5) - var(--submenu-overlap));
-  top: calc(-1 * var(--q1-5));
   animation: fade-in var(--t-submenu);
-}
-
-.menu.submenu.to-left {
-  left: auto;
-  right: calc(100% + var(--q1-5) - var(--submenu-overlap));
 }
 
 .menu-item.danger {
@@ -2674,6 +2672,8 @@ kbd {
   padding: 4.2px 6px;
   border-radius: var(--r-sm);
   font-size: var(--fs-label);
+  /* The label sits centred in the tab, on "+ Add view"'s line (spec 15: text 184 to 192). */
+  line-height: var(--lh-label);
   color: var(--c-tertiary);
 }
 
@@ -3295,8 +3295,6 @@ kbd {
 /* The date picker popover (spec 03 §8). */
 .menu.pop.date-picker {
   width: var(--date-picker-w);
-  left: auto;
-  right: 0;
   padding: var(--q3);
   font-size: var(--fs-label);
 }
@@ -3764,13 +3762,14 @@ kbd {
   height: var(--cal-head-h);
 }
 
-/* Table header cells 29.9 tall; the + Add tool there is a small 21.4 button (spec 12: Table). */
+/* Table header cells 27.1 tall (spec 12: Table; d50). */
 .t-head .t-cell {
   min-height: var(--t-head-h);
 }
 
-.t-head .menu-anchor .tool {
-  height: var(--btn-small-h);
+.t-add .tool {
+  height: var(--t-add-h);
+  white-space: nowrap;
 }
 
 /* The banner sits 6 px in from the panel's sides (spec 12: Page with banner and icon). */
@@ -3817,8 +3816,9 @@ kbd {
 }
 
 /* A supertag page's view header (spec 12): name 19 px 600, small tools 6.65 apart, muted description. */
+/* Title text 235 to 248 under the strip ending at 205, description text from 264 (spec 15). */
 .view-title {
-  margin-top: var(--q5);
+  margin-top: var(--view-title-top);
 }
 
 .view-title-row {
@@ -3836,17 +3836,14 @@ kbd {
 }
 
 .view-desc {
-  margin: var(--q2) 0 0;
+  margin: var(--q1) 0 0;
   font-size: var(--fs-dense);
   color: var(--c-muted);
 }
 
 /* Search summary popover (spec 12): 360 wide under the search options button, right-aligned. */
 .search-pop {
-  position: absolute;
-  top: calc(100% + var(--q1));
-  right: 0;
-  z-index: 30;
+  z-index: 55;
   width: var(--search-pop-w);
   background: var(--c-popover);
   border-radius: var(--r-sm);
@@ -3947,11 +3944,6 @@ kbd {
   font-weight: var(--fw-semibold);
 }
 
-.picker-sub {
-  left: calc(100% + var(--q1-5) - var(--submenu-overlap));
-  top: 0;
-}
-
 /* The Supertags page title is 29 px 600 (spec 12, N69). */
 .schema-head .title {
   font-weight: var(--fw-semibold);
@@ -3983,8 +3975,6 @@ kbd {
 
 /* The account menu hangs from the right edge of the window (N66). */
 .menu.pop.account-menu {
-  left: auto;
-  right: 0;
   width: var(--menu-w);
   /* Holds the Export submenu. */
   max-height: none;
@@ -4002,8 +3992,7 @@ kbd {
   width: var(--title-check);
   height: var(--title-check);
   border-radius: var(--r-md);
-  background: var(--c-raised);
-  box-shadow: inset 0 0 0 1px var(--c-outline);
+  background: var(--c-title-slot);
 }
 
 /* Field page: selects span the control column; options sit in an outlined box (spec 12). */
@@ -4058,12 +4047,6 @@ kbd {
 
 .ring-fill {
   stroke: var(--c-done);
-}
-
-/* The content width menu opens to the left of its button (UC-06.44). */
-.width-menu .menu.pop {
-  left: auto;
-  right: 0;
 }
 
 /* A folded group shows how many items it holds (UC-06.31). */

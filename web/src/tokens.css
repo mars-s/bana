@@ -76,7 +76,8 @@
   --tg-hour: 45px;
   --cal-event-h: 18.8px;
   --title-check: 27.8px;
-  --t-head-h: 29.9px;
+  --t-head-h: 27.1px;
+  --t-add-h: 20.4px;
   --cal-head-h: 23.9px;
   --banner-h: 237px;
   --cal-head-btn: 23px;
@@ -183,6 +184,8 @@
   --search-pop-w: 360px;
   /* Gap between a view title and its tools (spec 12). */
   --view-title-gap: 6.65px;
+  /* Tab strip to view title (spec 15: title text at y 235, strip ends at 205.2). */
+  --view-title-top: 27.75px;
   /* Cards sliding aside for a dragged card (M19). */
   --t-displace: 200ms ease-in-out;
 
@@ -237,6 +240,8 @@
   --c-highlight: #615a19;
   --c-highlight-text: #f4f4f4;
   --c-checkbox: rgba(255, 255, 255, 0.15);
+  /* The supertag page's checkbox slot (spec 15: rgb 61, 62, 64 / 217). */
+  --c-title-slot: #3d3e40;
   --c-bullet: #828282;
   --c-bullet-halo: #434444;
   --c-chip-neutral: #353636;
@@ -343,6 +348,7 @@
   --c-highlight: #f8e7a2;
   --c-highlight-text: #141719;
   --c-checkbox: rgba(0, 0, 0, 0.15);
+  --c-title-slot: #d9d9d9;
   --c-bullet: #828282;
   --c-bullet-halo: #e3e3e3;
   --c-chip-neutral: #f4f4f4;

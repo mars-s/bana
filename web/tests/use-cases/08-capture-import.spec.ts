@@ -150,7 +150,7 @@ test('UC-08.12 paste spreadsheet cells as nodes with fields, shown as a table', 
 test('UC-08.13 export a whole workspace as a ZIP of Markdown files (by page, by supertag, a vault)', works('UC-08.13'), async ({ app }) => {
   await app.locator('.topbar [title="Account"]').click()
   await app.locator('.account-menu .menu-item.has-sub', { hasText: 'Export everything as Markdown' }).hover()
-  const [download] = await Promise.all([app.waitForEvent('download'), app.locator('.account-menu .submenu .menu-item', { hasText: 'As an Obsidian vault' }).click()])
+  const [download] = await Promise.all([app.waitForEvent('download'), app.locator('.submenu .menu-item', { hasText: 'As an Obsidian vault' }).click()])
   expect(download.suggestedFilename()).toMatch(/vault 2026-10-10\.zip$/)
   const zip = readFileSync(await download.path())
   // Stored entries: names and Markdown are readable in the archive itself.

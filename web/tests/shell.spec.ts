@@ -206,6 +206,6 @@ test('the day toolbar ends with Workspaces ▾ at the column edge; it opens a wo
   expect(Math.round(b.x + b.width)).toBe(1020)
   await btn.click()
   const lib = (await server.rpc('sidebar')).workspaces[0]
-  await app.locator('.ws-menu .menu-item').first().click()
+  await app.locator('.ws-list .menu-item').first().click()
   await expect.poll(async () => (await server.rpc('page', { panel: 'main', start: 0, count: 1 })).zoom).toBe(lib.library)
 })

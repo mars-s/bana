@@ -407,6 +407,8 @@ export interface SidebarItem {
   color: string | null
   hasKids: boolean
   icon: string | null
+  /** Done and total checkboxes below a pinned node (its progress ring, UC-02.04). */
+  progress?: [number, number] | null
 }
 
 export interface Sidebar {

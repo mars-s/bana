@@ -30,7 +30,7 @@ test('UC-02.02 Enter after a checkbox line starts another checkbox (a quick to-d
   ])
 })
 
-test('UC-02.03 a parent shows a progress bar of the checkboxes below it once switched on (not by itself)', partial('UC-02.03'), async ({ app, server }) => {
+test('UC-02.03 a parent shows a progress bar of the checkboxes below it by itself', works('UC-02.03'), async ({ app, server }) => {
   const { page, ids } = await pageWith(server, app, ['Build day'])
   for (const n of ['Saw boards', 'Screw frames', 'Level ground']) {
     const c = (await server.run('node.add', { name: n, parent: ids[0] })).result.id
@@ -38,10 +38,7 @@ test('UC-02.03 a parent shows a progress bar of the checkboxes below it once swi
   }
   const first = (await tree(server, ids[0])).children[0]
   await server.run('nav.open', { node: page })
-  // Gap: Tana shows the bar as soon as a checkbox sits below; here it waits for Show progress bar.
-  await expect(app.locator(`.row.node[data-id="${ids[0]}"] .progress`)).toHaveCount(0)
-  await focus(server, app, ids[0], 0)
-  await palette(app, 'Show progress bar')
+  // As soon as a checkbox sits below (no Show progress bar needed).
   await expect(app.locator(`.row.node[data-id="${ids[0]}"] .progress`)).toHaveAttribute('title', '0 of 3 done')
   await server.run('node.expand', { node: ids[0] })
   const firstId = (await server.rpc('find', { query: first.name, limit: 5 }))[0].id
@@ -208,6 +205,19 @@ test('UC-02.18 lanes: a project\'s sections side by side', works('UC-02.18'), as
   for (const n of ['Raised beds', 'Seed list', 'Water rota']) await expect(app.getByText(n, { exact: true }).first()).toBeVisible()
 })
 
-missing('UC-02.04', 'a pinned project shows its progress ring in the sidebar')
+test('UC-02.04 a pinned project shows its progress ring in the sidebar', works('UC-02.04'), async ({ app, server }) => {
+  const { ids } = await pageWith(server, app, ['Shed rebuild'])
+  const kids: number[] = []
+  for (const n of ['Order wood', 'Pour base']) {
+    const c = (await server.run('node.add', { name: n, parent: ids[0] })).result.id
+    await server.run('node.setDone', { node: c, done: false })
+    kids.push(c)
+  }
+  await server.run('node.togglePin', { node: ids[0] })
+  const ring = app.locator('.sidebar .side-row', { hasText: 'Shed rebuild' }).locator('.progress-ring')
+  await expect(ring).toHaveAttribute('aria-label', '0 of 2 done')
+  await server.run('node.setDone', { node: kids[0], done: true })
+  await expect(ring).toHaveAttribute('aria-label', '1 of 2 done')
+})
 missing('UC-02.19', 'Cmd+Shift+M opens Move to from the keyboard')
 missing('UC-02.20', 'commands that fire on events (on tag added, on checked, on child added)')

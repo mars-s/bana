@@ -155,6 +155,19 @@ function SideRow({ icon, label, onClick, active, pin, children }: { icon: React.
   )
 }
 
+/** A pinned project's progress ring (UC-02.04): done of total checkboxes below it. */
+function ProgressRing({ done, total }: { done: number; total: number }) {
+  const r = 5
+  const c = 2 * Math.PI * r
+  return (
+    <svg className="progress-ring" width="14" height="14" viewBox="0 0 14 14" role="img" aria-label={`${done} of ${total} done`}>
+      <title>{`${done} of ${total} done`}</title>
+      <circle cx="7" cy="7" r={r} className="ring-track" />
+      <circle cx="7" cy="7" r={r} className="ring-fill" strokeDasharray={`${(c * done) / Math.max(1, total)} ${c}`} transform="rotate(-90 7 7)" />
+    </svg>
+  )
+}
+
 function pinIcon(it: SidebarItem): React.ReactNode {
   if (it.icon) return <span className="emoji">{it.icon}</span>
   if (it.kind === 'tag')
@@ -252,7 +265,11 @@ function MiniRail({ sb, zoom, shows }: { sb: SidebarData; zoom?: number; shows: 
         <div className="flyout" style={{ top: fly.top }} role="menu" aria-label={fly.what === 'pinned' ? 'Pinned' : 'Workspaces'} onClick={(e) => (e.target as HTMLElement).closest('.side-row') && closeAfter()}>
           {fly.what === 'pinned' ? (
             sb.pinned.length ? (
-              sb.pinned.map((it) => <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })} />)
+              sb.pinned.map((it) => (
+                <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} active={zoom === it.id} onClick={() => void exec('nav.open', { node: it.id })}>
+                  {it.progress && <ProgressRing done={it.progress[0]} total={it.progress[1]} />}
+                </SideRow>
+              ))
             ) : (
               <p className="flyout-empty">Nothing pinned yet</p>
             )
@@ -332,7 +349,9 @@ function Sidebar() {
       </div>
       {sb.pinned.length > 0 && <div className="side-head">Pinned</div>}
       {sb.pinned.map((it) => (
-        <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} onClick={() => void exec('nav.open', { node: it.id })} />
+        <SideRow key={it.id} pin icon={pinIcon(it)} label={it.name} onClick={() => void exec('nav.open', { node: it.id })}>
+          {it.progress && <ProgressRing done={it.progress[0]} total={it.progress[1]} />}
+        </SideRow>
       ))}
       {/* Workspaces: a heading and one folding row each (N59.3). */}
       <div className="side-head">Workspaces</div>

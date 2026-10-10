@@ -116,7 +116,11 @@ pub fn node_info(s: &Session, id: NodeId, refs: &mut BTreeMap<u64, String>) -> V
         "suffix": suffix,
         "notes": notes,
         "notesHead": notes_head,
-        "progress": if n.progress { let (d, t) = g.progress(target); json!([d, t]) } else { Value::Null },
+        // The bar shows by itself once a checkbox sits below (UC-02.03), or when switched on.
+        "progress": match g.progress(target) {
+            (d, t) if t > 0 || n.progress => json!([d, t]),
+            _ => Value::Null,
+        },
         "created": n.created,
         "edited": n.edited.max(n.created),
     })
@@ -402,8 +406,13 @@ pub fn sidebar(s: &Session) -> Value {
     let pin = |id: NodeId| {
         let t = g.resolve(id);
         let color = g.tag_def(t).map(|d| d.color.clone());
+        // A pinned project shows how much of it is done (UC-02.04).
+        let progress = match g.progress(t) {
+            (d, n) if n > 0 => json!([d, n]),
+            _ => Value::Null,
+        };
         json!({"id": id.0, "name": page_title(s, id), "kind": kind_name(g, t), "color": color,
-               "hasKids": !g.children(t).is_empty(), "icon": g.get(t).and_then(|n| n.icon.clone())})
+               "hasKids": !g.children(t).is_empty(), "icon": g.get(t).and_then(|n| n.icon.clone()), "progress": progress})
     };
     let pinned: Vec<Value> = g.pinned().into_iter().map(pin).collect();
     let workspaces: Vec<Value> = g

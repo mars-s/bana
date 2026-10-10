@@ -31,7 +31,7 @@ Everything here comes from Tana's public pages, written in our own words:
 | File | Area | Works | Partial | Missing | Out of scope | AI |
 |---|---|---|---|---|---|---|
 | [01-daily-journal.md](01-daily-journal.md) | Day pages, weeks, journaling, dates | 12 | 2 | 2 | 0 | 0 |
-| [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 15 | 2 | 3 | 0 | 0 |
+| [02-tasks-projects.md](02-tasks-projects.md) | Checkboxes, tasks, projects, boards | 17 | 1 | 2 | 0 | 0 |
 | [03-meetings.md](03-meetings.md) | Meeting notes, attendees, action items | 8 | 0 | 1 | 2 | 2 |
 | [04-crm.md](04-crm.md) | People, companies, pipeline | 8 | 0 | 1 | 2 | 0 |
 | [05-research-reading.md](05-research-reading.md) | Books, quotes, links, concepts | 4 | 1 | 4 | 0 | 1 |
@@ -41,10 +41,10 @@ Everything here comes from Tana's public pages, written in our own words:
 | [09-ai.md](09-ai.md) | AI chat, commands, autofill, voice, meetings | 0 | 0 | 0 | 0 | 17 |
 | [10-integrations-api.md](10-integrations-api.md) | MCP, local API, CLI, integrations | 4 | 1 | 3 | 3 | 0 |
 | [11-new-tana.md](11-new-tana.md) | The new agent-first Tana | 0 | 0 | 2 | 5 | 3 |
-| **Total (181)** | | **89** | **15** | **38** | **15** | **24** |
+| **Total (181)** | | **91** | **14** | **37** | **15** | **24** |
 
-Out of the 142 use cases that need neither AI nor a cloud or mobile service, 104 work fully or in
-part (89 + 15) and 38 are missing.
+Out of the 142 use cases that need neither AI nor a cloud or mobile service, 105 work fully or in
+part (91 + 14) and 37 are missing.
 
 ## Top 15 gaps by user value
 
@@ -72,8 +72,8 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 11. ~~**Add to day** (UC-01.12).~~ Done: node menu Add to day, `node.addToDay`.
 12. **Unlinked mentions** (UC-05.06). Find and link notes that name a page.
 13. **Merge duplicates** (UC-06.34). Nodes, supertags and fields.
-14. **Progress at a glance** (UC-02.03, UC-02.04). The bar should appear by itself under
-    checkboxes, and pinned projects should show a ring in the sidebar.
+14. ~~**Progress at a glance** (UC-02.03, UC-02.04).~~ Done: bars by themselves, rings on pinned
+    projects.
 15. **Capture from anywhere** (UC-08.14). A system-wide quick capture in the desktop app.
 
 Smaller defects found on the way (worth a ticket each): the Content width button has no action

@@ -3987,3 +3987,22 @@ kbd {
 .ghost-btn.danger {
   color: var(--c-danger);
 }
+
+/* A pinned project's progress ring in the sidebar (UC-02.04). */
+.progress-ring {
+  flex: none;
+  margin-left: auto;
+}
+
+.progress-ring circle {
+  fill: none;
+  stroke-width: 2;
+}
+
+.ring-track {
+  stroke: var(--c-hover);
+}
+
+.ring-fill {
+  stroke: var(--c-done);
+}

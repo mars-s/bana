@@ -17,17 +17,17 @@ calendars. Scenarios: `web/tests/use-cases/02-tasks-projects.spec.ts`.
 - **Source:** https://outliner.tana.inc/learn/features/checkboxes-and-progress-bars
 - **TanaCraft:** WORKS.
 
-### UC-02.03 Progress of a list: PARTIAL
+### UC-02.03 Progress of a list: WORKS
 - **Story:** A project line should show how much of the work below it is done.
 - **Steps:** Put checkboxes under a line.
 - **Expected:** A progress bar appears by itself and fills as boxes are ticked.
 - **Source:** https://outliner.tana.inc/learn/features/checkboxes-and-progress-bars
-- **TanaCraft:** PARTIAL. The bar works and updates, but only after Show progress bar; Tana shows it as soon as a checkbox sits below. No recency colours.
+- **TanaCraft:** WORKS. The bar shows by itself once a checkbox sits below and fills as boxes are ticked. No recency colours.
 
-### UC-02.04 Project progress in the sidebar: MISSING
+### UC-02.04 Project progress in the sidebar: WORKS
 - **Story:** My pinned projects show a progress ring in the sidebar.
 - **Source:** https://outliner.tana.inc/learn/features/sidebar (Progress bars in the sidebar)
-- **TanaCraft:** MISSING.
+- **TanaCraft:** WORKS. A pinned node with checkboxes below it shows a ring of done out of all.
 
 ### UC-02.05 Make a task with #task: WORKS
 - **Story:** Typing #task on a line should give it a checkbox and my task fields.

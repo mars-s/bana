@@ -2248,6 +2248,10 @@ kbd {
   background: var(--c-raised);
 }
 
+.tag-tabs.bare {
+  background: transparent;
+}
+
 :root[data-theme='light'] .tag-tabs {
   background: var(--c-chrome);
 }

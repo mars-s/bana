@@ -8,7 +8,7 @@ import { exec, runUiCommand } from './controller'
 import { applyPick, openPicker, pickerKey, setPickerQuery } from './picker'
 import { tagStyle } from './Outline'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
-import { getState, newTab, openInNewPanel, refresh, setState, showToast, useStore } from './store'
+import { getState, newTab, openConfigure, openInNewPanel, refresh, setState, showToast, useStore } from './store'
 
 function close() {
   setState({ overlay: null })
@@ -463,6 +463,7 @@ function NodeMenu() {
       <It label="Open in new panel" icon="sideMenu" on={() => (close(), void openInNewPanel(target))} sc="Mod+M" />
       <It label={row?.expanded ? 'Collapse' : 'Expand'} on={run('node.toggleExpand')} />
       <div className="menu-sep" />
+      {row?.kind === 'tag' && <It label="Configure supertag" icon="gear" on={() => (close(), void openConfigure(target))} />}
       <It label="Add supertag" icon="hash" on={pick('tag')} />
       <It label="Add field" icon="fieldText" on={pick('field')} />
       <It label={row?.done != null ? 'Toggle done' : 'Add checkbox'} on={run('node.toggleDone')} sc="Mod+Enter" />

@@ -7,7 +7,7 @@ import { Icon } from './icons'
 import { tagStyle } from './Outline'
 import { exec } from './controller'
 import { UI_COMMANDS } from './keys'
-import { setState, useStore } from './store'
+import { closeConfigure, openConfigure, setState, useStore } from './store'
 
 interface TagInfo {
   id: number
@@ -68,7 +68,9 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
   return (
     <>
       <div className="tag-glow" style={tagStyle(color)} />
-      <div className="tag-tabs">
+      <div className={`tag-tabs${configuring ? ' bare' : ''}`}>
+        {/* The configure panel shows the tag's settings only, not its views (spec 03 §5). */}
+        {!configuring && (<>
         <button className={`view-tab${active === tag ? ' active' : ''}`} onClick={() => void exec('nav.open', { node: tag }, panel)}>
           Everything tagged
         </button>
@@ -80,13 +82,16 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
         <button className="ghost-btn" onClick={() => void exec('tag.addView', { tag, kind: 'table' }, panel)}>
           + Add view
         </button>
+        </>)}
         <span className="spacer" />
-        <button className={`btn regular${configuring ? ' on' : ''}`} onClick={() => setState((s) => ({ configure: { ...s.configure, [panel]: !s.configure[panel] } }))}>
+        <button className={`btn regular${configuring ? ' on' : ''}`} onClick={() => void (configuring ? closeConfigure(panel) : openConfigure(tag))}>
           {configuring ? 'Done' : 'Configure'}
         </button>
-        <button className="btn regular" onClick={() => void exec('view.addItem', { node: tag, name: '' }, panel)}>
-          <Icon name="plus" size={12} /> Create new
-        </button>
+        {!configuring && (
+          <button className="btn regular" onClick={() => void exec('view.addItem', { node: tag, name: '' }, panel)}>
+            <Icon name="plus" size={12} /> Create new
+          </button>
+        )}
       </div>
     </>
   )

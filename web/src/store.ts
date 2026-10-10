@@ -251,14 +251,35 @@ export async function start() {
 
 let panelSeq = 0
 
-export async function openInNewPanel(node: number) {
+export async function openInNewPanel(node: number, configure = false): Promise<string> {
   const name = `p${Date.now().toString(36)}${panelSeq++}`
   await call('panel.open', { name, node })
   setState((s) => {
     const tabs = s.tabs.map((t, i) => (i === s.tab ? { ...t, panels: [...t.panels, name], active: t.panels.length } : t))
-    return { tabs, activePanel: name }
+    return { tabs, activePanel: name, configure: configure ? { ...s.configure, [name]: true } : s.configure }
   })
   await refresh()
+  return name
+}
+
+/** Configure supertag opens in a second panel to the right of the tag page (spec 03 §5); a panel
+ * already configuring this tag is reused. */
+export async function openConfigure(tag: number) {
+  const s = state
+  const open = visiblePanels(s).find((p) => s.configure[p] && s.pages[p]?.target === tag)
+  if (open) {
+    setActivePanel(open)
+    return
+  }
+  await openInNewPanel(tag, true)
+}
+
+/** Done in a configure panel: the panel closes (or, alone, goes back to the tag page). */
+export async function closeConfigure(panel: string) {
+  if (visiblePanels().length > 1) {
+    await closePanel(panel)
+    setState((s) => ({ configure: { ...s.configure, [panel]: false } }))
+  } else setState((s) => ({ configure: { ...s.configure, [panel]: false } }))
 }
 
 export async function closePanel(name: string) {

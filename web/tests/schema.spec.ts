@@ -24,7 +24,10 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   const id = tag.tag ?? tag.id ?? tag.node
   await server.run('nav.open', { node: id })
   await app.locator('.tag-tabs .btn', { hasText: 'Configure' }).click()
-  await expect(app.locator('.configure')).toBeVisible()
+  // It opens in a second panel to the right of the tag page (spec 03 §5).
+  await expect(app.locator('.panel')).toHaveCount(2)
+  await expect(app.locator('.panel').nth(1).locator('.configure')).toBeVisible()
+  await expect(app.locator('.panel').nth(0).locator('.configure')).toHaveCount(0)
   await app.locator('.swatch[title="green"]').click()
   await expect.poll(async () => (await inspectSchema(server, id)).color).toBe('green')
   await app.locator('button[aria-label="Show a checkbox"]').click()
@@ -35,4 +38,23 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   await expect(app.locator('.menu.picker .menu-item.sel')).toContainText('Impact')
   await app.keyboard.press('Enter')
   await expect.poll(async () => (await inspectSchema(server, id)).fields.map((x: any) => x.name)).toEqual(['Impact'])
+})
+
+test('Configure supertag from the node menu opens one second panel; Done closes it', async ({ app, server }) => {
+  const tag = (await server.run('tag.create', { name: 'idea', color: 'grey' })).result
+  const id = tag.tag ?? tag.id ?? tag.node
+  const lib = (await server.rpc('sidebar')).workspaces[0].library
+  await server.run('node.move', { node: id, parent: lib })
+  await server.run('nav.open', { node: lib })
+  const bullet = app.locator(`.row.node[data-id="${id}"] .bullet`).first()
+  await bullet.click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await expect(app.locator('.panel')).toHaveCount(2)
+  await expect(app.locator('.panel').nth(1).locator('.configure')).toBeVisible()
+  // Asking again reuses the panel.
+  await bullet.click({ button: 'right' })
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
+  await expect(app.locator('.panel')).toHaveCount(2)
+  await app.locator('.panel').nth(1).locator('.tag-tabs .btn', { hasText: 'Done' }).click()
+  await expect(app.locator('.panel')).toHaveCount(1)
 })

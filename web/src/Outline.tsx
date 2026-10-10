@@ -1499,7 +1499,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
-            <div ref={head} className="page-head">
+            <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}`}>
               {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
               <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}

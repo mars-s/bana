@@ -65,6 +65,9 @@
   --cal-event-h: 18.8px;
   --title-check: 27.8px;
   --t-head-h: 29.9px;
+  --cal-head-h: 23.9px;
+  --banner-h: 237px;
+  --cal-head-btn: 23px;
   --decorate-h: 20px;
   --crumb-tool: 21.5px;
   --t-crumb-tools: 100ms linear;
@@ -141,6 +144,8 @@
   --t-sidebar: 200ms cubic-bezier(0.45, 0, 0.55, 1);
   --t-sidebar-back: 225ms cubic-bezier(0.4, -0.15, 0.4, 1);
   --t-handle: 150ms ease;
+  --t-rail: 50ms linear 100ms;
+  --rail-rest-opacity: 0.35;
   --t-toast-exit: 300ms ease-in-out;
   --toast-w: 254px;
   --toast-w-exit: 238px;

@@ -608,11 +608,15 @@ function NodeMenu() {
           <It key={f} label={f} on={run('view.toggleSystemField', { field: f })} />
         ))}
       </SubMenu>
-      <SubMenu label="Appearance">
+      {/* Icon ▸ and Banner ▸ as on Tana's page menu (N65). */}
+      <SubMenu label="Icon">
         {['📄', '🌱', '⭐', '📌'].map((e) => (
-          <It key={e} label={`Icon ${e}`} on={() => (close(), void exec('node.setIcon', { node: target, icon: e }, panel))} />
+          <It key={e} label={e} on={() => (close(), void exec('node.setIcon', { node: target, icon: e }, panel))} />
         ))}
-        {[['picture:orbit', 'Banner: Orbit picture'], ['blue', 'Banner: Blue'], ['green', 'Banner: Green'], ['', 'No banner']].map(([v, l]) => (
+        <It label="No icon" on={() => (close(), void exec('node.setIcon', { node: target, icon: '' }, panel))} />
+      </SubMenu>
+      <SubMenu label="Banner">
+        {[['picture:orbit', 'Orbit picture'], ['blue', 'Blue'], ['green', 'Green'], ['', 'No banner']].map(([v, l]) => (
           <It key={l} label={l} on={() => (close(), void exec('node.setBanner', { node: target, color: v }, panel))} />
         ))}
       </SubMenu>

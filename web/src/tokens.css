@@ -15,6 +15,12 @@
   --q8: 30px;
   --q10: 37.5px;
   --q12: 45px;
+  /* Day page AI and "..." buttons sit 3.4 above the chip row (y 150 vs 153.4, N65). */
+  --head-actions-lift: -3.4px;
+  /* Supertags filter box under the title (y 155.9, N69). */
+  --filter-gap: 3.2px;
+  /* Day toolbar "Workspaces" button (spec 12). */
+  --ws-btn-w: 98px;
 
   /* Type */
   --font: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;

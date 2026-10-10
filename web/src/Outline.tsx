@@ -1250,13 +1250,18 @@ function Crumbs({ page, panel, many }: { page: Page; panel: string; many: boolea
   const shown: ({ id: number; name: string } | null)[] = c.length > 4 ? [c[0], null, ...c.slice(-2)] : c
   return (
     <div className="crumbs">
-      <button className="icon-btn crumb-back" title="Back" disabled={!page.canBack} onClick={() => void exec('nav.back', {}, panel)}>
-        <Icon name="chevronLeft" size={14} />
-      </button>
-      {/* The workspace's 15 px initials avatar (P04; N59.5). */}
-      <button className="ws-avatar" title="Workspace: open the Library" onClick={() => void exec('nav.home', {}, panel)}>
-        <span className="ws-dot">{(wsName || 'W').slice(0, 1).toUpperCase()}</span>
-      </button>
+      {/* The Supertags overview has an empty breadcrumb row (N69). */}
+      {page.kind !== 'schema' && (
+        <>
+          <button className="icon-btn crumb-back" title="Back" disabled={!page.canBack} onClick={() => void exec('nav.back', {}, panel)}>
+            <Icon name="chevronLeft" size={14} />
+          </button>
+          {/* The workspace's 15 px initials avatar (P04; N59.5). */}
+          <button className="ws-avatar" title="Workspace: open the Library" onClick={() => void exec('nav.home', {}, panel)}>
+            <span className="ws-dot">{(wsName || 'W').slice(0, 1).toUpperCase()}</span>
+          </button>
+        </>
+      )}
       {shown.map((x, i) => (
         <span key={i} className="crumb-part">
           <span className="crumb-sep">/</span>
@@ -1418,9 +1423,9 @@ function HeadActions({ page, panel, helpOnly }: { page: Page; panel: string; hel
         title="Options"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
-          // The page's menu, 7 px under the button, its left edge at the button (N37, N65 d79).
+          // The page's menu right under the button, its left edge at the button (N37, N65 d79).
           const r = e.currentTarget.getBoundingClientRect()
-          setState({ nodeMenu: { panel, node: page.zoom, x: r.left, y: r.bottom + 7 } })
+          setState({ nodeMenu: { panel, node: page.zoom, x: r.left, y: r.bottom } })
         }}
       >
         <Icon name="more" size={12} />
@@ -1451,7 +1456,48 @@ function DayNav({ panel }: { panel: string }) {
       <button className="btn icon" title="Set up calendar sync" onClick={() => showToast('Calendar sync needs an online calendar account, which this local app does not have yet')}>
         <Icon name="calendarSync" size={12} />
       </button>
+      <WorkspacesButton panel={panel} />
     </div>
+  )
+}
+
+/** "Workspaces ▾" at the right of the day toolbar (spec 12, N59.9): each workspace's Library, and
+ * Manage workspaces. spec-gap: what Tana's menu offers is not written down; this is ours. */
+function WorkspacesButton({ panel }: { panel: string }) {
+  const [open, setOpen] = useState(false)
+  const ws = useStore((s) => s.sidebar?.workspaces) ?? []
+  const ref = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    window.addEventListener('mousedown', off)
+    return () => window.removeEventListener('mousedown', off)
+  }, [open])
+  const pick = (f: () => void) => (e: RME) => (e.preventDefault(), setOpen(false), f())
+  return (
+    <span className="menu-anchor ws-menu" ref={ref}>
+      <button className="btn ws-btn" onClick={() => setOpen((o) => !o)}>
+        Workspaces
+        <Icon name="chevronDown" size={12} />
+      </button>
+      {open && (
+        <div className="menu pop" role="menu">
+          {ws.map((w) => (
+            <div key={w.id} className="menu-item" onMouseDown={pick(() => void exec('nav.open', { node: w.library }, panel))}>
+              <span className="menu-icon">
+                <span className="ws-dot">{w.name.slice(0, 1).toUpperCase()}</span>
+              </span>
+              <span className="grow">{w.name}</span>
+            </div>
+          ))}
+          <div className="menu-sep" />
+          <div className="menu-item" onMouseDown={pick(() => setState({ overlay: { kind: 'workspaces' } }))}>
+            <span className="menu-icon" />
+            <span className="grow">Manage workspaces</span>
+          </div>
+        </div>
+      )}
+    </span>
   )
 }
 

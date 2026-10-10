@@ -139,9 +139,10 @@ test('the bullet menu fits the window; the page Options menu opens under its but
   await expect(menu).toBeVisible()
   const b = (await opts.boundingBox())!
   const mb = (await menu.boundingBox())!
-  // Its left edge at the button (round 9, d79).
+  // Its left edge at the button (round 9, d79), its top right under it (round 10: y 175.2 under a
+  // button at y 150, 25 tall; spec 12's "7 px below" was the older reading).
   expect(Math.abs(mb.x - b.x)).toBeLessThan(2)
-  expect(Math.round(mb.y - (b.y + b.height))).toBe(7)
+  expect(Math.round(mb.y - (b.y + b.height))).toBe(0)
 })
 
 test('dragging a selection moves both lines in order and they stay selected (N45)', async ({ app, server }) => {
@@ -185,6 +186,10 @@ test('page and supertag "…" menus: Tana\'s sets, left edge at the button (N65)
   await expect(menu).toBeVisible()
   const b = (await btn.boundingBox())!
   expect(Math.abs((await menu.boundingBox())!.x - b.x)).toBeLessThan(2)
+  // Right under the button (y 150 + 25 = 175, spec 12).
+  expect(Math.round(b.y)).toBe(150)
+  expect(Math.abs((await menu.boundingBox())!.y - (b.y + b.height))).toBeLessThan(1)
+  for (const label of ['Icon', 'Banner']) await expect(menu.locator('.menu-item', { hasText: new RegExp(`^${label}$`) })).toBeVisible()
   for (const label of ['Copy', 'Show edit log', 'Delete', 'More commands']) await expect(menu.locator('.menu-item', { hasText: new RegExp(`^${label}`) }).first()).toBeVisible()
   for (const label of ['Open in new panel', 'Move to…', 'Toggle heading']) await expect(menu.locator('.menu-item', { hasText: label })).toHaveCount(0)
   await menu.locator('.menu-item', { hasText: 'Show edit log' }).click()
@@ -194,4 +199,14 @@ test('page and supertag "…" menus: Tana\'s sets, left edge at the button (N65)
   await expect(app.locator('.tag-tabs')).toBeVisible()
   await app.locator('.head-actions [title="Options"]').first().click()
   await expect(menu.locator('.menu-item .grow')).toHaveText(['Configure supertag', 'Unpin tag', 'Copy node link', 'Copy', 'Duplicate', 'Move', 'Add tag', 'Add description', 'Show edit log', 'Delete', 'More commands'])
+})
+
+test('the Supertags overview: empty breadcrumb row, Browse templates at the right edge, filter under the title (N69)', async ({ app, server }) => {
+  await server.run('nav.supertags', {})
+  await expect(app.locator('.panel .title')).toHaveText('Supertags')
+  await expect(app.locator('.crumbs .crumb-back, .crumbs .ws-avatar')).toHaveCount(0)
+  const btn = (await app.locator('.head-actions .btn', { hasText: 'Browse templates' }).boundingBox())!
+  const col = (await app.locator('.supertags .filter-input').boundingBox())!
+  expect(Math.abs(btn.x + btn.width - (col.x + col.width))).toBeLessThan(1)
+  expect(Math.abs(col.y - 155.9)).toBeLessThan(1)
 })

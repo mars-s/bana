@@ -198,3 +198,14 @@ test('the sidebar button is named for what it does next; the account button read
   await expect(app.getByRole('button', { name: 'Show mini sidebar' })).toBeVisible()
   await expect(app.locator('.topbar').getByRole('button', { name: 'Settings' })).toBeVisible()
 })
+
+test('the day toolbar ends with Workspaces ▾ at the column edge; it opens a workspace (N59.9)', async ({ app, server }) => {
+  const btn = app.locator('.day-nav .ws-btn')
+  const b = (await btn.boundingBox())!
+  expect(Math.round(b.width)).toBe(98)
+  expect(Math.round(b.x + b.width)).toBe(1020)
+  await btn.click()
+  const lib = (await server.rpc('sidebar')).workspaces[0]
+  await app.locator('.ws-menu .menu-item').first().click()
+  await expect.poll(async () => (await server.rpc('page', { panel: 'main', start: 0, count: 1 })).zoom).toBe(lib.library)
+})

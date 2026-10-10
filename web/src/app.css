@@ -706,6 +706,18 @@ button:focus-visible {
   margin-top: var(--q1);
 }
 
+/* The day page's AI and "…" sit at y 150, a little above the tag chips (spec 12, N65). */
+.head-meta .head-actions {
+  position: relative;
+  top: var(--head-actions-lift);
+}
+
+/* Supertags overview: Browse templates at the column's right edge (N69). */
+.schema-head .head-actions {
+  margin-left: auto;
+  margin-top: 0;
+}
+
 .page-desc {
   margin: var(--q1) 0 var(--q1-5);
   color: var(--c-muted);
@@ -715,6 +727,22 @@ button:focus-visible {
   display: flex;
   gap: var(--q1);
   margin-top: 13px;
+}
+
+/* "Workspaces ▾" ends at the column's right edge, 98 wide (spec 12, N59.9). */
+.ws-menu {
+  margin-left: auto;
+}
+
+.ws-btn {
+  width: var(--ws-btn-w);
+  justify-content: center;
+  gap: var(--q1);
+}
+
+.ws-menu .menu.pop {
+  right: 0;
+  left: auto;
 }
 
 .banner-note {
@@ -2427,8 +2455,8 @@ kbd {
   width: 100%;
   height: 36px;
   padding: var(--q2);
-  /* y 138 under the Supertags title (N69). */
-  margin: var(--q2) 0 var(--q8);
+  /* y 155.9 under the Supertags title (N69). */
+  margin: var(--filter-gap) 0 var(--q8);
   border: 0;
   outline: 0;
   border-radius: var(--r-hair);

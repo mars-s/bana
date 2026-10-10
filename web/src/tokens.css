@@ -19,6 +19,8 @@
   --head-actions-lift: -3.4px;
   /* Supertags filter box under the title (y 155.9, N69). */
   --filter-gap: 3.2px;
+  /* The custom-colour swatch (Configure supertag, N59.32). */
+  --rainbow: conic-gradient(#f04452, #da6e00, #a18b00, #00a46a, #0093ea, #a073ee, #fc19d4, #f04452);
   /* Day toolbar "Workspaces" button (spec 12). */
   --ws-btn-w: 98px;
 
@@ -62,7 +64,7 @@
   --q-close: 15px;
   --drag-dim: 0.5;
   --table-title-w: 150px;
-  --table-title-max: 340px;
+  --table-title-max: 172px;
   --table-col-w: 128px;
   --filter-chip-h: 26.6px;
   --board-min-h: 60vh;

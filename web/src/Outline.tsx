@@ -806,7 +806,7 @@ const FIELD_PLACEHOLDER: Record<string, string> = { date: 'Add date', options: '
 const PICKS = new Set(['options', 'options_from_tag', 'user'])
 
 /** A field value being typed: saved as typed (DIFFS N15), one value per line. */
-export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow; panel: string; index: number; initial: string }) {
+export function FieldEditorCell({ row, panel, index, initial, pickDate }: { row: FieldRow; panel: string; index: number; initial: string; pickDate?: boolean }) {
   const [value, setValue] = useState(initial)
   const ref = useRef<HTMLInputElement>(null)
   const valueRef = useRef(value)
@@ -912,6 +912,7 @@ export function FieldEditorCell({ row, panel, index, initial }: { row: FieldRow;
       {input}
       <DatePicker
         value={value}
+        openAtStart={pickDate}
         onPick={(v) => {
           setValue(v)
           valueRef.current = v
@@ -936,7 +937,7 @@ function isoWeekOf(iso: string): number {
 
 /** The date picker (spec 03 §8): month grid with ISO weeks, today, the picked day, a start and
  * end time, Add end for a range of days, OK. */
-function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pick' }: { value: string; onPick: (v: string) => void; title?: string; className?: string }) {
+function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pick', openAtStart }: { value: string; onPick: (v: string) => void; title?: string; className?: string; openAtStart?: boolean }) {
   const today = useStore((s) => s.sidebar?.todayDate) ?? new Date().toISOString().slice(0, 10)
   const [open, setOpen] = useState(false)
   const parsed = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2})(?:-(\d{2}:\d{2}))?)?(?:\/(\d{4}-\d{2}-\d{2}))?/.exec(value.trim())
@@ -946,7 +947,12 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
   const [t1, setT1] = useState('')
   const [t2, setT2] = useState('')
   const [ym, setYm] = useState<[number, number]>([0, 0])
+  // Opened from a table cell it floats over the table (whose rows clip what hangs out of them).
+  const anchor = useRef<HTMLSpanElement>(null)
+  const [fixed, setFixed] = useState<CSSProperties | null>(null)
   const start = () => {
+    const r = anchor.current?.getBoundingClientRect()
+    if (openAtStart && r) setFixed({ position: 'fixed', top: r.bottom + 4, right: window.innerWidth - r.right, left: 'auto' })
     const d = parsed?.[1] ?? null
     setDay(d)
     setEnd(parsed?.[4] ?? null)
@@ -957,6 +963,11 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
     setYm([Number(base.slice(0, 4)), Number(base.slice(5, 7))])
     setOpen(true)
   }
+  // A date cell in a table opens straight into the picker (N59.21).
+  useEffect(() => {
+    if (openAtStart) start()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [y, m] = ym
   const first = isoOf(y, m || 1, 1)
   const lead = (new Date(`${first}T00:00:00Z`).getUTCDay() + 6) % 7
@@ -975,12 +986,12 @@ function DatePicker({ value, onPick, title = 'Pick a date', className = 'date-pi
     onPick(v)
   }
   return (
-    <span className="date-pick-anchor">
+    <span className="date-pick-anchor" ref={anchor}>
       <button className={className} title={title} tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => (open ? setOpen(false) : start())}>
         <Icon name="calendar" size={12} />
       </button>
       {open && (
-        <div className="menu pop date-picker" role="dialog" aria-label="Date picker" onMouseDown={(e) => e.preventDefault()}>
+        <div className="menu pop date-picker" role="dialog" aria-label="Date picker" style={fixed ?? undefined} onMouseDown={(e) => e.preventDefault()}>
           <button className="dp-close" title="Close" onClick={() => setOpen(false)}>
             <Icon name="close" size={9} />
           </button>
@@ -1666,7 +1677,8 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}${configuring || fieldPage ? ' schema-col' : ''}`}>
           <div className="page-main">
             <div ref={head} className={`page-head${page.kind === 'tag' ? ' tag-head' : ''}${fieldPage ? ' field-head' : ''}${page.kind === 'schema' ? ' schema-head' : ''}`}>
-              {(page.titleEditable || page.kind === 'day') && <Decorate page={page} panel={panel} />}
+              {/* Not in a Configure supertag panel: its header starts with the title (N59.32). */}
+              {(page.titleEditable || page.kind === 'day') && !configuring && <Decorate page={page} panel={panel} />}
               <div className={`title-row${page.kind === 'day' ? ' day' : ''}`}>
                 {page.icon && <span className="page-icon">{page.icon}</span>}
                 {/* A field definition: its type's icon, a small title (spec 12). */}

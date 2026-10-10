@@ -823,6 +823,7 @@ function Table({ v, panel }: { v: ViewSnap; panel: string }) {
                         panel={panel}
                         index={fe.index}
                         initial={vals[fe.index] ?? ''}
+                        pickDate
                       />
                     ) : vals.length ? (
                       vals.join(', ')

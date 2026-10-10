@@ -31,6 +31,10 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   await expect(app.locator('.panel').nth(0).locator('.configure')).toHaveCount(0)
   await app.locator('.swatch[title="green"]').click()
   await expect.poll(async () => (await inspectSchema(server, id)).color).toBe('green')
+  // A custom colour from the rainbow swatch; no Icon / Banner row above the title (N59.32).
+  await app.locator('.swatch.custom input').fill('#123456')
+  await expect.poll(async () => (await inspectSchema(server, id)).color).toBe('#123456')
+  await expect(app.locator('.panel').nth(1).locator('.decorate')).toHaveCount(0)
   // Sections start folded; a click on a header opens it.
   await expect(app.locator('button[aria-label="Show a checkbox"]')).toHaveCount(0)
   await app.locator('.cfg-card-head', { hasText: 'Building blocks' }).click()

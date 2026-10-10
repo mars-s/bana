@@ -251,6 +251,10 @@ export function ConfigureTag({ panel, tag }: { panel: string; tag: number }) {
             {c === 'none' && <Icon name="noColor" size={14} />}
           </button>
         ))}
+        {/* Any other colour (N59.32): the system's colour picker behind a rainbow swatch. */}
+        <label className={`swatch custom${/^#/.test(d.color ?? '') ? ' on' : ''}`} title="Custom colour" style={/^#/.test(d.color ?? '') ? tagStyle(d.color) : undefined}>
+          <input type="color" aria-label="Custom colour" value={/^#/.test(d.color ?? '') ? d.color : '#888888'} onChange={(e) => run('tag.setColor', { color: e.target.value })} />
+        </label>
       </div>
       <Section icon="blocks" title="Building blocks" help="What this supertag is and builds on.">
         <Row label="Base type" help="A built-in meaning (task, meeting, person…).">

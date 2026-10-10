@@ -1963,6 +1963,17 @@ kbd {
   overflow: hidden;
 }
 
+/* Titles stay on one line in the 150 to 172 wide first column (spec 12: Table, N59.18). */
+.t-title .item-title {
+  min-width: 0;
+}
+
+.t-title .item-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .t-title {
   gap: var(--q1-5);
 }
@@ -2243,8 +2254,9 @@ kbd {
   border-radius: 2px;
   border-left: 3px solid var(--tag, var(--c-muted));
   background: none;
-  /* A softer tag tint than the chip text (Tana: rgb(214, 119, 164) for pink, N59.28). */
-  color: color-mix(in srgb, var(--tag, var(--c-text)) 60%, var(--c-text));
+  /* A softer tag tint than the chip text (Tana: rgb(214, 119, 164) for pink, N59.28): half the
+     tag colour, half the secondary grey gives rgb(214, 119, 172). */
+  color: color-mix(in srgb, var(--tag, var(--c-text)) 50%, var(--c-secondary));
   font-size: var(--fs-label);
   font-weight: var(--fw-medium);
   height: var(--cal-event-h);
@@ -3058,6 +3070,19 @@ kbd {
 
 .swatch.on {
   box-shadow: 0 0 0 2px var(--c-panel), 0 0 0 4px var(--tag);
+}
+
+.swatch.custom {
+  position: relative;
+  background: var(--rainbow);
+  cursor: pointer;
+}
+
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .cfg-card {

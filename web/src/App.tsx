@@ -8,20 +8,12 @@ import { bufferKey, noteClick, currentEditor, exec, handleKey, holdKeysForEditor
 import { isTextKey, keyInfo } from './keys'
 import { Overlays } from './Overlays'
 import { SyncButton } from './Sync'
+import { Avatar, Onboarding, importCommand, openProfile, readProfile } from './Profile'
 import { SubMenu } from './Views'
 import type { Sidebar as SidebarData, SidebarItem } from './engine'
 
 /** What the sidebar button does next, as its accessible name (N75): full, mini, hidden, full. */
 const SIDEBAR_NEXT = ['Show mini sidebar', 'Hide sidebar', 'Show sidebar']
-
-/** Which importer reads a file (UC-08.10, UC-08.11): OPML, Roam JSON, Tana Paste, else Markdown. */
-function importCommand(name: string, text: string): string {
-  const n = name.toLowerCase()
-  if (n.endsWith('.opml')) return 'import.opml'
-  if (n.endsWith('.json')) return 'import.roam'
-  if (text.trimStart().startsWith('%%tana%%')) return 'import.tanaPaste'
-  return 'import.markdown'
-}
 
 function TopBar() {
   const tabs = useStore((s) => s.tabs)
@@ -127,6 +119,8 @@ function AccountMenu() {
   const ref = useRef<HTMLSpanElement>(null)
   const file = useRef<HTMLInputElement>(null)
   const theme = useStore((s) => s.theme)
+  const profile = useStore((s) => s.profile)
+  useEffect(() => void readProfile(), [])
   useEffect(() => {
     if (!open) return
     const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
@@ -141,7 +135,7 @@ function AccountMenu() {
   return (
     <span className="menu-anchor" ref={ref}>
       <button className={`icon-btn${open ? ' on' : ''}`} title="Account" aria-label="Settings" onClick={() => setOpen((o) => !o)}>
-        <Icon name="user" size={14} />
+        {profile?.name || profile?.avatar ? <Avatar name={profile.name} avatar={profile.avatar} /> : <Icon name="user" size={14} />}
       </button>
       {/* A Markdown, OPML, Roam JSON or Tana Paste file read here and imported by the engine (spec 07). */}
       <input
@@ -157,6 +151,7 @@ function AccountMenu() {
       />
       {open && (
         <div className="menu pop account-menu" role="menu">
+          {item('Profile and Bana ID', openProfile)}
           {item('Workspaces', () => setState({ overlay: { kind: 'workspaces' } }))}
           {item('Settings', () => runUiCommand('ui.settings'))}
           {item('Import content…', () => file.current?.click())}
@@ -572,6 +567,7 @@ export function App() {
         </main>
       </div>
       <Overlays />
+      <Onboarding />
       <DragHint />
       <Toast />
       <OfflineBanner />

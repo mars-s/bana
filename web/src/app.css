@@ -4483,3 +4483,205 @@ html.capture body {
 .sync-error {
   color: var(--c-danger);
 }
+
+/* ---- the person: avatar, onboarding, profile and Bana ID (Profile.tsx) ---- */
+
+/* The same two-tone neutral circle as the workspace initials (P04), or the picked picture. */
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--c-avatar-inner);
+  box-shadow: inset 0 0 0 1px var(--c-avatar-ring);
+  color: var(--c-avatar-text);
+  font-weight: var(--fw-semibold);
+}
+
+.avatar.small {
+  width: var(--avatar-small);
+  height: var(--avatar-small);
+  font-size: var(--fs-meta);
+}
+
+.avatar.large {
+  width: var(--avatar-large);
+  height: var(--avatar-large);
+  font-size: var(--fs-section);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--q3);
+}
+
+.profile-me {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--q3);
+}
+
+.profile-settings,
+.bana-id-start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q2);
+  max-width: 640px;
+}
+
+.profile-settings .btn,
+.bana-id-start .btn {
+  white-space: nowrap;
+}
+
+.bana-id-start .sync-row {
+  flex-wrap: wrap;
+}
+
+.relay-choice {
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.relay-choice summary {
+  cursor: pointer;
+}
+
+.relay-choice .cfg-input {
+  margin-top: var(--q1-5);
+  width: 100%;
+}
+
+.recovery-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q2);
+  padding: var(--q3) var(--q4);
+  border-radius: var(--r-lg);
+  background: var(--c-raised);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+}
+
+.recovery-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  color: var(--c-strong);
+  user-select: all;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.profile-settings > .recovery-box {
+  margin-left: var(--setting-indent);
+}
+
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q4);
+  width: var(--onboarding-w);
+  padding: var(--q8);
+  border-radius: var(--r-panel);
+}
+
+.onboarding-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  color: var(--c-strong);
+}
+
+.onboarding-text {
+  margin: 0;
+  font-size: var(--fs-dense);
+  line-height: var(--lh-dense);
+  color: var(--c-secondary);
+}
+
+.onboarding-input {
+  width: 100%;
+}
+
+.onboarding-dots {
+  display: flex;
+  gap: var(--q1-5);
+}
+
+.onboarding-dots span {
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: var(--r-full);
+  background: var(--c-outline);
+}
+
+.onboarding-dots span.on {
+  background: var(--c-focus);
+}
+
+.onboarding-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--q2);
+}
+
+.onboarding-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q1);
+  padding: var(--q3);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--c-raised);
+  box-shadow: inset 0 0 0 1px var(--c-outline);
+  color: var(--c-text);
+  font: inherit;
+  font-size: var(--fs-dense);
+  text-align: left;
+  cursor: pointer;
+}
+
+.onboarding-choice span {
+  font-size: var(--fs-label);
+  color: var(--c-muted);
+}
+
+.onboarding-choice:hover {
+  background: var(--c-hover);
+}
+
+.onboarding-choice:active {
+  background: var(--c-pressed);
+}
+
+.onboarding-choice:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 1px;
+}
+
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--q2);
+  margin-top: var(--q2);
+}
+
+.onboarding-actions .grow {
+  flex: 1;
+}
+
+@media (max-width: 560px) {
+  .onboarding-choices {
+    grid-template-columns: 1fr;
+  }
+}

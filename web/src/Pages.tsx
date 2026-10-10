@@ -9,6 +9,7 @@ import { exec } from './controller'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
 import { refresh, setState, useStore } from './store'
 import { SyncSettings } from './Sync'
+import { ProfileSettings } from './Profile'
 
 interface TagInfo {
   id: number
@@ -98,13 +99,14 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
 // ---- settings ----------------------------------------------------------------------------------
 
 // The sections in Tana's order (DIFFS N23, N55), then Keybindings (ours).
-const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Sync', 'Keybindings']
+const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Profile', 'Sync', 'Keybindings']
 /** Under each section heading (N67). */
 const SUBTITLE: Record<string, string> = {
   Preferences: 'Your user preferences',
   'Date and time': 'How dates and times read',
   Keybindings: 'Your own keys for commands',
   Sync: 'Your notes on your other devices, end-to-end encrypted',
+  Profile: 'You, and your optional Bana ID',
 }
 const EMPTY_NOTE: Record<string, string> = {
   'Notifications seen': 'No notifications yet.',
@@ -204,6 +206,7 @@ export function SettingsPage({ panel }: { panel: string }) {
             ))}
           </>
         )}
+        {name === 'Profile' && <ProfileSettings />}
         {name === 'Sync' && <SyncSettings />}
         {name === 'Keybindings' && (
           <>

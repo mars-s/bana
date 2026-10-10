@@ -1,7 +1,10 @@
 # TanaCraft parity with the behaviour spec
 
-Maps every `##` section of the clean-room spec (`../tanacraft-spec/*.md`) and every screenshot to its
-status here. `cargo xtask parity` fails when a spec section or screenshot is missing from this file.
+Maps every `##` section of the clean-room spec (`../tanacraft-spec/*.md`, including the visual files
+10 to 15 and `DESIGN.md`) and every screenshot (`screens/` and `screens/visual/`) to its status in
+the web UI (`web/`, Tauri app and browser). `cargo xtask parity` fails when a spec section or a
+screenshot is missing from this file. The acceptance rounds are in `../tanacraft-spec/DIFFS.md`;
+round 8 (the first on the web UI) is answered item by item in the git log (`DIFFS N35` to `N59`).
 
 Status: **done** (implemented and tested), **partial** (works, gaps listed), **missing** (not started),
 **n/a** (notes in the spec, not behaviour).
@@ -10,9 +13,10 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 
 | | done | partial | missing | n/a |
 |---|---|---|---|---|
-| Spec sections (95 rows, spec files 00 to 09 and INDEX) | 77 | 13 | 3 | 2 |
-| Screenshots (160) | 140 | 14 | 5 | 1 |
-| Beyond the spec | 4 | | | |
+| Behaviour sections, spec files 00 to 09 and INDEX (96 rows) | 78 | 12 | 3 | 3 |
+| Visual sections, spec files 10 to 15 and DESIGN.md (75 rows) | 69 | 4 | 0 | 2 |
+| Screenshots (160 rows) | 140 | 14 | 5 | 1 |
+| Visual screenshots (54 rows) | 46 | 4 | 0 | 4 |
 
 ## `00-overview.md`
 
@@ -22,7 +26,7 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | 2. Top bar (full window width, ~44 px tall) | done | Sidebar button, back/forward, tab strip with +, then Help (a page listing every command with shortcut and id), keyboard shortcuts toggle and an Account menu (Workspaces, Settings, theme, shortcuts, Help). Credits left out (no billing). |
 | 3. Sidebar (left, ~225 px wide, slightly lighter than the panel background) | partial | Today, Supertags, Recents (each can be hidden in Settings), Create new with a square Search button, Pinned (expandable), Workspaces (one header, or every workspace with chevron and items), Manage workspaces. Missing: AI chats (out of scope). |
 | 4. Panel area | partial | Breadcrumbs (collapse long chains, content width menu), title with icon, Icon and Banner buttons on hover (banner as a colour band), tag chips, ... menu, content column, related-content side card, References. Missing: AI button, dock button. |
-| 5. Visual language | partial | Dark and light themes, tag-tinted chips, guide lines, halos, selection highlight, new search results flash green. Own palette; default egui font (no Inter, bold drawn brighter). |
+| 5. Visual language | done | Web UI: every colour, size and duration a token in `web/src/tokens.css` from DESIGN.md and spec 10; dark and light tuned separately (weight 375 / 400), Inter Variable, tag-tinted chips, guide lines, halos, selection fill behind the text, following the system appearance. |
 | 6. Main areas / pages (what each sidebar entry opens) | partial | Today, Supertags overview, Recents, Search and open, Create new, pinned, workspace items, Inbox, Help, Settings. No AI chats. |
 | 7. Native menu bar | done | macOS menu bar (muda): app menu (About, Settings, Hide, Quit with save), Edit (Undo, Redo, Select all, Find, Command line, Quick add), View (actual size, zoom in/out, sidebar, theme, content width, full screen), History (Back, Forward, Today, Recents), Options, Window (minimize, tabs, panels), Help. Every item runs a command (`MENU_BAR`, tested); only Quit takes its key from the menu so typing and the clipboard stay with the window. No updater, spellchecker toggle, local API or meeting items. Round 5: every item shows its key; Edit has Cut, Copy, Paste and Paste and match style; Window has Zoom and Bring all to front; a key the menu takes is replayed as that key (DIFFS N25). Tested. |
 | 8. Global overlays | done | Command line (Cmd+K), Search and open (Cmd+S, Cmd+T), Quick add (Cmd+E), context menus, shortcut sheet. |
@@ -163,6 +167,117 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 |---|---|---|
 | Open gaps (still not observed or not verified) | n/a | The spec team's open questions. |
 | Test data left in the demo workspace | n/a | Spec notes. |
+| Test data changed in the visual round | n/a | Spec notes. |
+
+## `10-visual-design.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Colour | done | Every surface, text, link, selection, done, AI, today and tag colour is a token in `web/src/tokens.css`, dark in `:root`, light in `[data-theme='light']`; the twelve tag hues as fg, tint and strong tint. Round 8 measured both themes equal to the unit. |
+| 2. Typography | done | Inter Variable with the optical size axis; ladder 29 / 19 / 15 / 14 / 12 / 10; weight 375 dark and 400 light; headings with `calt` and `cv05`. |
+| 3. Spacing scale | done | Multiples of 3.75 as `--q1` to `--q10`. |
+| 4. Sizes and row heights | done | Rows 28.5, table rows 31.1, header 29.9, sidebar rows 30.4, field boxes, board columns 300, week hours 45, all tokens. Measured by `measure.spec.ts` and round 8. |
+| 5. Radii | done | `--r-hair` to `--r-panel`, full circles. |
+| 6. Shadows | done | One float shadow plus a 1 px outline on floats; tooltip, chip lift and knob; nothing on the page casts one. |
+| 7. Border widths | done | 1 px hairlines, 3 px calendar bars, 2 px tag underline in table headers. |
+| 8. Icons (style summary; full list in 15) | done | Our own 16-unit stroked SVGs in `web/src/icons.tsx`, round caps, `currentColor`. |
+| 9. Bullets (exact build) | done | 5 px dot, 15 px halo for collapsed parents, tag halo with ring and dot, reference dashed ring, search magnifier, link glyph. |
+
+## `11-visual-states.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Outline rows | done | Hover expander, selected fill and ring behind the text (N39), editing, done, heading. |
+| 2. Bullets | done | Hover scale 1.4 in 75 ms, collapsed halo, tagged halo, drag source dims to 50 %. |
+| 3. Sidebar items | done | Hover fill, no highlight for Today or pinned rows (N59.2), mini rail at 35 % until hovered. |
+| 4. Buttons | done | Rest, hover, pressed, focus ring, disabled; ghost, icon, segmented and small raised tools. |
+| 5. Chips (tags) | done | Two joined parts; on hover the # part turns into a remove button and the name part rounds in 75 ms (N53). |
+| 6. Inputs | done | Page-sheet fill with a hairline ring, caret only on focus, instruction placeholders. |
+| 7. Menus | done | 210 wide, 28 tall items, 30 px text inset, shortcuts right, submenus fade in 275 ms and open left near the window edge; menus always fit the window (N38). |
+| 8. Selection toolbar | done | Floating bar above the first selected row. |
+| 9. Tabs and view tabs | done | Top-bar tab pills (drag to move), view tab strip on tag pages switching in place (N36). |
+| 10. Drag and drop | done | Drop line at the landing depth, above / below / first child of an open row, empty child line, dim source, hint and N nodes badge (N44, N45). |
+| 11. Focus | done | Focus ring on keyboard focus only; typed keys land only in a visibly focused editor (fuzz invariant, N35). |
+| 12. Transitions in states (summary; full list in 14) | done | See 14. |
+
+## `12-screens-visual.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| Shell (all screens) | done | Top bar 45, sidebar 225 (resizable, mini 45, hidden), panel inset 6, panels split evenly and resize by their gap (N51, N52). Credits and notifications dot left out (no billing). |
+| Mini rail | done | Today, Supertags, Search, Recents, Create new, Pinned and Workspaces flyouts. |
+| Day page | done | Title, day toolbar, Open tasks card 403 wide that moves under the outline in a narrow panel. No calendar sync button. |
+| Tagged node page (node with a supertag and its fields) | done | Title checkbox, tag colour wash, field boxes. |
+| Node page (plain node with fields and nesting) | done | Field rows, guides, nesting. |
+| Supertag page (tag node with views) | done | Tag square, + Create new, help and options by the title; tab strip; views in place. View title row with description: partial. |
+| Table | done | Tag-named first column with a 2 px tag underline, 1 px underlines, fitted title column (150 to 340), fields 128, resizable, header menu, + Add after the last column, sideways scroll. |
+| Board | done | Columns 300 with 30 gaps, headers 35.4, card date lines, + Add at the top of a column, Hide, unset column. Reordering inside a column: missing. |
+| Calendar month | done | As many weeks as the month needs, 3 px bars without fill, today circle, weekends lifted, undated count. |
+| Calendar week | done | Hour grid of the whole day, drag to create, move and resize. |
+| List (grouped outline) | done | Group headers with chevrons. |
+| Cards | done | 300 wide cards with 30 gaps, date line. |
+| Configure supertag | done | Second panel, colour row, folded section cards. AI and voice sections left out. |
+| Field definition page | partial | Form of label and control; title smaller than the spec's 29 px and the breadcrumb shows Schema only. |
+| Search node with query builder | done | Builder with groups, menus, Learn more and a corner close (N43). |
+| Search summary popover | partial | Search options by the title opens the query editor directly; no summary sentence or Merge filters. |
+| Search and open (Cmd+S) | done | Dialog, results with crumbs. |
+| Command line | done | 500 wide, no scrim, active item bar. |
+| Quick add | done | 630 wide, 5 px gold bar, 250 ms entry. |
+| Settings | done | Second panel, User settings, the seven sections in order plus Keybindings, checkboxes on their own lines (N55). |
+| Menus and popovers | done | Node menu at the pointer or under Options, fitted to the window (N37, N38). |
+| Toast | done | 254 wide, 5.35 s, collapses in place over 300 ms. |
+| Drag and drop | done | See 11 §10. |
+| Page with banner and icon | done | Banner picture (P01) or colour band; emoji icon. |
+| Empty state (AI chats) | n/a | AI out of scope. |
+| Templates gallery | n/a | Not built (extras). |
+| Supertags overview | done | Pinned tags as cards and tiles per workspace. |
+
+## `13-design-principles.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| 1. Density first, but with air between rows | done | 28.5 rows, 780 column. |
+| 2. Quiet chrome, loud content | done | One grey frame, page sheet, colour only on content. |
+| 3. Colour is reserved for meaning, mostly tags | done | Earned colour rule in tokens. |
+| 4. Two weights of "regular" so dark and light feel the same | done | 375 / 400. |
+| 5. Keyboard-first, mouse-friendly | done | Every action a command; round 8 pointer flows (drag, resize, calendar) added. |
+| 6. Progressive disclosure on hover | done | Expander, Icon and Banner (400 ms), chip remove, grips, Hide on board columns. |
+| 7. A clear but small typographic ladder | done | Six sizes. |
+| 8. Shapes are soft and consistent | done | Radius tokens. |
+| 9. Structure is drawn with lines and tone, not boxes | done | Guides, hairlines, raised tones. |
+| 10. Empty states and onboarding speak plainly and briefly | done | One muted sentence, no art. |
+| 11. Motion is rare and short | done | See 14. |
+
+## `14-motion.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| Instant (no animation) | done | Navigation, expand and collapse, menus, panels, command line, checkboxes change in one frame. |
+| Animated | partial | M1 to M3 sidebar (ease-in-out, back curve for mini to hidden and hidden to full), M4 and M5 submenus 275 ms, M6 and M24 modal and scrim 250 ms, M7 and M8 toast in and collapse, M9 to M12 75 ms hover touches, M13 toggle, M14 grips 150 ms, M15 Icon and Banner 400 ms delay both ways, M16 crumb tools 100 ms, M17 rail. Missing: M18 tab width, M19 card displacement, M20 side widget collapse, M21 to M23, M25 to M28. |
+| Interruption | done | Transitions (not keyframes) where the spec reverses them. |
+| Caret | done | System caret. |
+| What to build in the clone | done | The four curves are tokens (`--t-micro`, `--t-small`, `--t-modal`, `--t-submenu`, `--t-sidebar`, `--t-toast`). |
+
+## `15-asset-inventory.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| A. Icon style rules (apply to all) | done | 16-unit grid, stroke 1.35 (about 1.1 px at 14 px), round caps and joins, `currentColor`. |
+| B. Icons | done | Every icon has our own glyph: I-01 sidebar, I-02 back, I-03 forward, I-04 plus, I-05 bell, I-06 help, I-07 keyboard, I-08 coins, I-09 user, I-10 TodayIcon, I-11 hash, I-12 clock, I-13 sparkle, I-14 compose, I-15 search, I-16 chevrons, I-17 tag square, I-18 chevronLeft, I-19 text slash, I-20 width, I-21 close, I-22 face, I-23 image, I-24 more, I-25 chevrons, I-26 calendar, I-27 chevronDown, I-28 external, I-29 mic, I-30 to I-37 field types, I-38 option, I-39 list, I-40 sliders, I-41 calendarSync (generic, no brand), I-42 funnel, I-43 sort, I-44 group, I-45 field, I-46 image, I-47 link, I-48 copy, I-49 duplicate, I-50 globe, I-51 trash, I-52 check, I-53 table, I-54 cards, I-55 lanes, I-56 list, I-57 calendarView, I-58 sideMenu, I-59 tabsView, I-60 help, I-61 info, I-62 closeCircle, I-63 andGroup, I-64 play, I-65 checkCircle, I-66 search bullet, I-67 dotCircle, I-68 robot, I-69 send, I-70 chats, I-71 blocks, I-72 fieldText, I-73 pin, I-74 field types, I-75 check, I-76 noColor, I-77 conic swatch in CSS, I-78 chevrons, I-79 external, I-80 text. |
+| C. Pictures (image briefs for an image model) | partial | P01 banner generated from the brief (`banner-orbit.webp`); P03 falls back to P04, the two-tone initials avatar; P05 system emoji; P06 a generic glyph. P02 template covers not made (no templates gallery). |
+
+## `DESIGN.md`
+
+| Section | Status | Notes |
+|---|---|---|
+| Overview | done | The quiet workbench: tokens and screens follow it. |
+| Colors | done | `web/src/tokens.css`. |
+| Typography | done | Inter Variable, ladder and weights. |
+| Layout | done | Shell, panel, column and grid sizes. |
+| Elevation & Depth | done | Float shadow, flat page. |
+| Shapes | done | Radius tokens. |
+| Components | done | Buttons, chips, cards, inputs, navigation, outline row, menus. |
+| Do's and Don'ts | done | Checked in round 8. |
 
 ## Screenshots
 
@@ -337,3 +452,62 @@ Status: **done** (implemented and tested), **partial** (works, gaps listed), **m
 | CLI | done | `tanacraft-cli` inspect, view, add, export (Markdown, JSON), search, tags, run, sample, mcp. |
 | MCP | done | `tanacraft-mcp`: headless on a file, or `--connect` to a running app. |
 | Control channel | done | `tanacraft --control PORT`: JSON lines on 127.0.0.1. |
+
+## Visual screenshots (`screens/visual/`)
+
+| Screenshot | Status | Notes |
+|---|---|---|
+| `11-shell-mini-rail-dark.png` | done | Matched in the visual pass and round 8. |
+| `11-shell-mini-rail-light.png` | done | Matched in the visual pass and round 8. |
+| `12-day-page-dark.png` | done | Matched in the visual pass and round 8. |
+| `12-day-page-light.png` | done | Matched in the visual pass and round 8. |
+| `13-tagged-node-page-dark.png` | done | Matched in the visual pass and round 8. |
+| `13-tagged-node-page-light.png` | done | Matched in the visual pass and round 8. |
+| `14-node-page-fields-dark.png` | done | Matched in the visual pass and round 8. |
+| `14-node-page-fields-light.png` | done | Matched in the visual pass and round 8. |
+| `15-supertag-page-calendar-week-dark.png` | done | Matched in the visual pass and round 8. |
+| `15-supertag-page-calendar-week-light.png` | done | Matched in the visual pass and round 8. |
+| `16-calendar-month-dark.png` | done | Matched in the visual pass and round 8. |
+| `16-calendar-month-light.png` | done | Matched in the visual pass and round 8. |
+| `17-board-dark.png` | done | Matched in the visual pass and round 8. |
+| `17-board-light.png` | done | Matched in the visual pass and round 8. |
+| `18-list-grouped-dark.png` | done | Matched in the visual pass and round 8. |
+| `18-list-grouped-light.png` | done | Matched in the visual pass and round 8. |
+| `19-configure-supertag-dark.png` | done | Matched in the visual pass and round 8. |
+| `19-configure-supertag-light.png` | done | Matched in the visual pass and round 8. |
+| `20-field-config-dark.png` | partial | Form layout; title size and breadcrumb differ. |
+| `20-field-config-light.png` | partial | Form layout; title size and breadcrumb differ. |
+| `21-table-dark.png` | done | Matched in the visual pass and round 8. |
+| `21-table-light.png` | done | Matched in the visual pass and round 8. |
+| `22-menu-options-dark.png` | done | Matched in the visual pass and round 8. |
+| `22-menu-options-light.png` | done | Matched in the visual pass and round 8. |
+| `23-search-popover-dark.png` | partial | Search options opens the editor; no summary popover. |
+| `23-search-popover-light.png` | partial | Search options opens the editor; no summary popover. |
+| `24-query-builder-dark.png` | done | Matched in the visual pass and round 8. |
+| `24-query-builder-light.png` | done | Matched in the visual pass and round 8. |
+| `25-cards-dark.png` | done | Matched in the visual pass and round 8. |
+| `25-cards-light.png` | done | Matched in the visual pass and round 8. |
+| `26-command-line-dark.png` | done | Matched in the visual pass and round 8. |
+| `26-command-line-light.png` | done | Matched in the visual pass and round 8. |
+| `27-quick-add-dark.png` | done | Matched in the visual pass and round 8. |
+| `27-quick-add-light.png` | done | Matched in the visual pass and round 8. |
+| `28-search-open-dark.png` | done | Matched in the visual pass and round 8. |
+| `28-search-open-light.png` | done | Matched in the visual pass and round 8. |
+| `29-settings-dark.png` | done | Matched in the visual pass and round 8. |
+| `29-settings-light.png` | done | Matched in the visual pass and round 8. |
+| `30-empty-ai-chats-dark.png` | n/a | AI out of scope. |
+| `30-empty-ai-chats-light.png` | n/a | AI out of scope. |
+| `31-toast-dark.png` | done | Matched in the visual pass and round 8. |
+| `31-toast-light.png` | done | Matched in the visual pass and round 8. |
+| `32-drag-drop-line-dark.png` | done | Matched in the visual pass and round 8. |
+| `32-drag-drop-line-light.png` | done | Matched in the visual pass and round 8. |
+| `33-supertags-overview-dark.png` | done | Matched in the visual pass and round 8. |
+| `33-supertags-overview-light.png` | done | Matched in the visual pass and round 8. |
+| `34-bullet-context-menu-dark.png` | done | Matched in the visual pass and round 8. |
+| `34-bullet-context-menu-light.png` | done | Matched in the visual pass and round 8. |
+| `35-page-banner-icon-dark.png` | done | Matched in the visual pass and round 8. |
+| `35-page-banner-icon-light.png` | done | Matched in the visual pass and round 8. |
+| `36-templates-gallery-dark.png` | n/a | No templates gallery. |
+| `36-templates-gallery-light.png` | n/a | No templates gallery. |
+| `37-selection-hover-dark.png` | done | Matched in the visual pass and round 8. |
+| `37-selection-hover-light.png` | done | Matched in the visual pass and round 8. |

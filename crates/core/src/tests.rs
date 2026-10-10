@@ -844,3 +844,12 @@ fn components_rec_follows_part_of_at_any_depth() {
     assert!(!q.matches(&g, other));
     assert_eq!(Query::parse(&g, &q.describe(&g)).unwrap(), q);
 }
+
+#[test]
+fn tests_never_see_the_persons_data_folder() {
+    // Whatever BANA_HOME says, a test binary gets a folder of its own (agents.json, tokens).
+    let d = crate::data_dir();
+    assert!(d.starts_with(std::env::temp_dir()), "{}", d.display());
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+    assert_ne!(d, home.join(crate::PRODUCT_NAME));
+}

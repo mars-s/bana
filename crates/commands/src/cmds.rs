@@ -743,6 +743,13 @@ pub fn registry() -> Registry {
         C::new("field.create", "Create field", "Field", field_create)
             .params(r#"{"name": string, "type"?: "plain|options|options_from_tag|date|number|url|email|checkbox|user"}"#),
         C::new("field.setOptions", "Set field options", "Field", field_set_options).params(r#"{"field": name | id, "options": [string]}"#),
+        // Mirrors of another app's items (scoped agent tokens with `mirror.*` only, see agents.rs).
+        C::new("mirror.upsert", "Mirror an item", "Mirror", mirror_upsert).params(
+            r#"{"tag": name, "key": field name, "id": string, "parent": id, "name"?: string, "fields"?: {field name: string}}  (makes or updates the locked node tagged `tag` whose `key` field is `id`; touches only its name and these fields; parent: where a new one goes)"#,
+        ),
+        C::new("mirror.markGone", "Mark mirrored items gone", "Mirror", mirror_mark_gone).params(
+            r#"{"tag": name, "key": field name, "present": [string], "parent"?: id}  (sets Status to "gone" on this agent's mirror nodes whose `key` is not in `present`; parent: only its children)"#,
+        ),
         // Edit and file.
         C::new("edit.undo", "Undo", "Edit", |s, _| Ok(json!({"undone": s.graph.undo()}))).key("Mod+Z").pure(),
         C::new("edit.redo", "Redo", "Edit", |s, _| Ok(json!({"redone": s.graph.redo()}))).key("Mod+Shift+Z").pure(),
@@ -2320,6 +2327,142 @@ fn field_remove_value(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::usize(v, "index").ok_or_else(|| CmdError::Params("`index` (number) is required".into()))?;
     s.graph.set_field_at(id, field, index, None)?;
     Ok(field_json(s, id, field))
+}
+
+// ---- mirrors ------------------------------------------------------------------------------------
+
+/// The scoped agent running a mirror command, if its token allows `mirror.*`: no one else may.
+fn mirror_agent(s: &Session, id: &str) -> Result<String, CmdError> {
+    match &s.agent {
+        Some(a) if a.scoped && a.allows(id) => Ok(a.name.clone()),
+        _ => Err(CmdError::Refused { command: id.to_string(), rule: "mirror.*".into() }),
+    }
+}
+
+fn find_or_make_field(s: &mut Session, name: &str) -> Result<NodeId, CmdError> {
+    match s.graph.find_field(name) {
+        Some(f) => Ok(f),
+        None => Ok(s.graph.create_field(name.trim(), FieldType::Plain)?),
+    }
+}
+
+/// The first value of `field` on `node` as shown.
+fn shown_value(s: &Session, node: NodeId, field: NodeId) -> Option<String> {
+    s.graph.get(node)?.field_value(field).map(|x| export::display_value(&s.graph, x))
+}
+
+/// `text` is what `node` already holds in `field` (as shown, or the same value once parsed).
+fn holds(s: &Session, node: NodeId, field: NodeId, text: &str) -> bool {
+    let text = text.trim();
+    let Some(cur) = s.graph.get(node).and_then(|n| n.field_value(field)) else { return text.is_empty() };
+    export::display_value(&s.graph, cur) == text
+        || s.graph.field_def(field).and_then(|d| bana_core::FieldValue::parse(d.field_type, text).ok()).as_ref() == Some(cur)
+}
+
+/// Sets `field` on `node` from text, keeping text that does not parse as typed (as `field.set` with keep).
+fn set_mirror_field(s: &mut Session, node: NodeId, field: NodeId, text: &str) -> Result<(), CmdError> {
+    if s.graph.set_field_text(node, field, text).is_err() {
+        s.graph.set_field(node, field, Some(bana_core::FieldValue::Text(text.trim().to_string())))?;
+    }
+    Ok(())
+}
+
+/// `agent`'s mirror nodes tagged `tag` with a `key` field: locked, and last changed by it. A node the
+/// person unlocked or changed is theirs and is left alone.
+fn mirror_nodes(s: &Session, agent: &str, tag: NodeId, key: NodeId) -> Vec<NodeId> {
+    // ponytail: a scan of the tagged nodes per call; index by key if mirrors grow past thousands.
+    s.graph
+        .tagged(tag)
+        .into_iter()
+        .filter(|n| s.graph.get(*n).is_some_and(|x| x.locked && x.by.as_deref() == Some(agent) && x.field_value(key).is_some()))
+        .collect()
+}
+
+fn mirror_upsert(s: &mut Session, v: &Value) -> CmdResult {
+    let me = mirror_agent(s, "mirror.upsert")?;
+    let ext = p::req_str(v, "id")?.trim().to_string();
+    if ext.is_empty() {
+        return Err(CmdError::Params("`id` is empty".into()));
+    }
+    let key_name = p::req_str(v, "key")?.to_string();
+    let mut wanted: Vec<(String, String)> = Vec::new();
+    if let Some(m) = v.get("fields").and_then(Value::as_object) {
+        for (k, x) in m.iter().take(200) {
+            if k.trim().eq_ignore_ascii_case(key_name.trim()) {
+                return Err(CmdError::Params(format!("`fields` may not set the key field `{key_name}`")));
+            }
+            let text = match x {
+                Value::String(t) => t.clone(),
+                Value::Null => String::new(),
+                other => other.to_string(),
+            };
+            wanted.push((k.clone(), text));
+        }
+    }
+    let tag = tag_param(s, v, "tag", true)?;
+    let key = find_or_make_field(s, &key_name)?;
+    let found = mirror_nodes(s, &me, tag, key).into_iter().find(|n| shown_value(s, *n, key).as_deref() == Some(ext.as_str()));
+    let name = p::str(v, "name").map(str::trim);
+    let (node, created) = match found {
+        Some(n) => (n, false),
+        None => {
+            let parent = p::node(v, "parent")?.ok_or_else(|| CmdError::Params("`parent` is required to make a mirror node".into()))?;
+            s.graph.node(parent)?;
+            if crate::agents::in_command_node(s, parent) {
+                return Err(CmdError::Refused { command: "mirror.upsert".into(), rule: "command nodes".into() });
+            }
+            let n = s.graph.create(parent, None, name.unwrap_or(&ext))?;
+            s.graph.add_tag(n, tag)?;
+            set_mirror_field(s, n, key, &ext)?;
+            s.graph.set_locked(n, true)?;
+            (n, true)
+        }
+    };
+    // Only what differs is written, so an unchanged item makes no edit at all.
+    let mut changed: Vec<String> = Vec::new();
+    if let Some(nm) = name
+        && s.graph.name(node) != nm
+    {
+        s.graph.set_name(node, nm)?;
+        changed.push("name".into());
+    }
+    for (fname, text) in wanted {
+        let f = find_or_make_field(s, &fname)?;
+        if !holds(s, node, f, &text) {
+            set_mirror_field(s, node, f, &text)?;
+            changed.push(fname);
+        }
+    }
+    Ok(json!({"node": node.0, "created": created, "changed": changed}))
+}
+
+fn mirror_mark_gone(s: &mut Session, v: &Value) -> CmdResult {
+    let me = mirror_agent(s, "mirror.markGone")?;
+    let present: std::collections::HashSet<String> = v
+        .get("present")
+        .and_then(Value::as_array)
+        .ok_or_else(|| CmdError::Params("`present` (a list of ids) is required".into()))?
+        .iter()
+        .filter_map(|x| x.as_str().map(|t| t.trim().to_string()).or_else(|| x.as_number().map(|n| n.to_string())))
+        .collect();
+    let (Some(tag), Some(key)) = (s.graph.find_tag(p::req_str(v, "tag")?), s.graph.find_field(p::req_str(v, "key")?)) else {
+        return Ok(json!({"gone": []}));
+    };
+    let parent = p::node(v, "parent")?;
+    let status = s.graph.find_field("Status");
+    let vanished: Vec<NodeId> = mirror_nodes(s, &me, tag, key)
+        .into_iter()
+        .filter(|n| parent.is_none() || s.graph.parent(*n) == parent)
+        .filter(|n| shown_value(s, *n, key).is_none_or(|x| !present.contains(&x)))
+        .filter(|n| status.is_none_or(|f| !holds(s, *n, f, "gone")))
+        .collect();
+    if !vanished.is_empty() {
+        let status = find_or_make_field(s, "Status")?;
+        for n in &vanished {
+            set_mirror_field(s, *n, status, "gone")?;
+        }
+    }
+    Ok(json!({"gone": vanished.iter().map(|n| n.0).collect::<Vec<_>>()}))
 }
 
 fn field_remove(s: &mut Session, v: &Value) -> CmdResult {

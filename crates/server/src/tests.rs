@@ -364,3 +364,65 @@ fn assistants_over_http_mcp_meet_the_agent_policy_and_are_named() {
     let typed = bana_core::NodeId(r["result"]["id"].as_u64().unwrap());
     assert_eq!(host.session.graph.get(typed).unwrap().by, None);
 }
+
+#[test]
+fn a_scoped_agent_token_fixes_who_is_asking_and_what_it_may_do() {
+    let dir = std::env::temp_dir().join(format!("bana-http-scoped-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut h = host();
+    h.agents_file = dir.join("agents.json");
+    // agents.json loosens things for a client named "sync"; the scoped token must not get that.
+    std::fs::write(&h.agents_file, r#"{"allow": ["trash.empty"], "clients": {"sync": ["node.toggleLock"]}}"#).unwrap();
+    let tokens = dir.join(bana_commands::agents::TOKENS);
+    let scoped = bana_commands::agents::create_token(&tokens, "sync", &["mirror.*".into()]).unwrap();
+    let parent = h.session.zoom;
+    let general = "g".repeat(32);
+    let shared = http::Shared::with_token(h, general.clone());
+    let listener = http::bind(0).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let s2 = std::sync::Arc::clone(&shared);
+    std::thread::spawn(move || http::serve_on(s2, listener, std::env::temp_dir()));
+    let exec = |token: &str, command: &str, params: Value| {
+        let auth = format!("Authorization: Bearer {token}\r\nContent-Type: application/json\r\nX-Bana-Agent: claude\r\n");
+        let msg = json!([
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"clientInfo": {"name": "someone-else"}}},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": command, "params": params}}}
+        ]);
+        let (status, body) = http(port, "POST", "/mcp", &auth, &msg.to_string());
+        assert!(status.contains("200"), "{status}");
+        serde_json::from_str::<Value>(&body).unwrap()[1]["result"].clone()
+    };
+    let upsert = json!({"tag": "thing", "key": "Things ID", "id": "T-1", "parent": parent.0, "name": "Plant garlic", "fields": {"Status": "open"}});
+    // The token's name, whatever the header and clientInfo say.
+    let r = exec(&scoped, "mirror.upsert", upsert.clone());
+    assert_eq!(r["isError"], false, "{r}");
+    let n = bana_core::NodeId(r["structuredContent"]["node"].as_u64().unwrap());
+    {
+        let host = shared.host.lock().unwrap();
+        assert_eq!(host.session.graph.get(n).unwrap().by.as_deref(), Some("sync"));
+        assert!(host.session.graph.locked(n));
+    }
+    // Only its own allowances: not agents.json's (global or for its name).
+    for command in ["trash.empty", "node.toggleLock"] {
+        let r = exec(&scoped, command, json!({"node": n.0}));
+        assert!(r["content"][0]["text"].as_str().unwrap().starts_with("refused:"), "{command}: {r}");
+    }
+    // The general token keeps today's policy, and mirror.* is not for it; a client calling itself
+    // "sync" is recorded as unverified.
+    let r = exec(&general, "mirror.upsert", upsert);
+    assert!(r["content"][0]["text"].as_str().unwrap().starts_with("refused:"), "{r}");
+    let r = exec(&general, "node.add", json!({"name": "Hello"}));
+    let hello = bana_core::NodeId(r["structuredContent"]["id"].as_u64().unwrap());
+    assert_eq!(shared.host.lock().unwrap().session.graph.get(hello).unwrap().by.as_deref(), Some("claude"));
+    let auth = format!("Authorization: Bearer {general}\r\nContent-Type: application/json\r\nX-Bana-Agent: sync\r\n");
+    let msg = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "add_node", "arguments": {"name": "Spoofed"}}});
+    let (_, body) = http(port, "POST", "/mcp", &auth, &msg.to_string());
+    let spoofed = bana_core::NodeId(serde_json::from_str::<Value>(&body).unwrap()["result"]["structuredContent"]["id"].as_u64().unwrap());
+    assert_eq!(shared.host.lock().unwrap().session.graph.get(spoofed).unwrap().by.as_deref(), Some("sync (unverified)"));
+    // A scoped token opens /mcp only: the JSON API refuses it, and an unknown token gets 401.
+    let rpc = format!("Authorization: Bearer {scoped}\r\nContent-Type: application/json\r\n");
+    assert!(http(port, "POST", "/rpc", &rpc, r#"{"method":"run","params":{"command":"node.toggleLock","params":{}}}"#).0.contains("401"));
+    assert!(http(port, "POST", "/mcp", &format!("Authorization: Bearer {}\r\n", "x".repeat(64)), "{}").0.contains("401"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

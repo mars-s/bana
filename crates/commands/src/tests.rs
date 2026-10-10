@@ -1782,7 +1782,7 @@ fn view_filters_merge_into_the_search() {
 }
 
 fn as_agent(s: &mut Session, name: &str, allow: &[&str], id: &str, v: Value) -> Result<Value, crate::CmdError> {
-    s.agent = Some(crate::agents::Agent { name: name.into(), allow: allow.iter().map(|a| a.to_string()).collect() });
+    s.agent = Some(crate::agents::Agent { name: name.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped: false });
     let r = s.run(id, &v);
     s.agent = None;
     r
@@ -1838,7 +1838,10 @@ fn assistants_never_run_the_never_list_and_the_person_still_can() {
     let gw = crate::agents::Agent::load("gateway", &file);
     assert_eq!(gw.allow, vec!["node.toggleLock", "trash.*"]);
     assert_eq!(crate::agents::Agent::load("claude", &file).allow, vec!["node.toggleLock"]);
-    assert_eq!(crate::agents::Agent::load(" \u{7}", &dir.join("none.json")), crate::agents::Agent { name: "assistant".into(), allow: vec![] });
+    assert_eq!(
+        crate::agents::Agent::load(" \u{7}", &dir.join("none.json")),
+        crate::agents::Agent { name: "assistant".into(), allow: vec![], scoped: false }
+    );
     s.agent = Some(gw);
     s.run("node.toggleLock", &json!({"node": a.0})).unwrap();
     s.run("trash.empty", &json!({})).unwrap();
@@ -1912,4 +1915,161 @@ fn the_agent_notebook_template_sets_up_its_supertags_and_searches() {
     let q = bana_core::query::Query::parse(&s.graph, "BY:chatgpt").unwrap();
     assert_eq!(q.describe(&s.graph), "BY:chatgpt");
     run(&mut s, "template.install", json!({"name": "Agent notebook"}));
+}
+
+#[test]
+fn an_assistant_undoes_only_its_own_changes() {
+    let mut s = blank();
+    let a = id(&run(&mut s, "node.add", json!({"name": "Mine"})), "id");
+    run(&mut s, "node.setName", json!({"node": a.0, "name": "Mine, typed"}));
+    // The person's edit is on top: an assistant's undo (and a second assistant's) is refused.
+    let e = as_agent(&mut s, "claude", &[], "edit.undo", json!({})).unwrap_err();
+    assert_eq!(e, crate::CmdError::Refused { command: "edit.undo".into(), rule: "not its own change".into() });
+    assert_eq!(s.graph.name(a), "Mine, typed", "the person's edit survives");
+    // Its own step it may take back and put back; the person's step below stays.
+    let b = id(&as_agent(&mut s, "claude", &[], "node.add", json!({"name": "From Claude"})).unwrap(), "id");
+    assert!(as_agent(&mut s, "chatgpt", &[], "edit.undo", json!({})).is_err(), "not another assistant's");
+    as_agent(&mut s, "claude", &[], "edit.undo", json!({})).unwrap();
+    assert!(s.graph.get(b).is_none_or(|_| s.graph.in_trash(b) || s.graph.parent(b).is_none()));
+    assert!(as_agent(&mut s, "claude", &[], "edit.undo", json!({})).is_err());
+    assert_eq!(s.graph.name(a), "Mine, typed");
+    as_agent(&mut s, "claude", &[], "edit.redo", json!({})).unwrap();
+    assert_eq!(s.graph.name(b), "From Claude");
+    // The person undoes their own rename: an assistant may not redo it for them.
+    run(&mut s, "edit.undo", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.graph.name(a), "Mine");
+    assert!(as_agent(&mut s, "claude", &[], "edit.redo", json!({})).is_err());
+    assert_eq!(s.graph.name(a), "Mine");
+    // Typing by the person and a rename by an assistant on the same line are separate steps.
+    run(&mut s, "node.setName", json!({"node": a.0, "name": "Mine again"}));
+    as_agent(&mut s, "claude", &[], "node.setName", json!({"node": a.0, "name": "Claude's"})).unwrap();
+    as_agent(&mut s, "claude", &[], "edit.undo", json!({})).unwrap();
+    assert_eq!(s.graph.name(a), "Mine again");
+}
+
+#[test]
+fn scoped_agent_tokens_fix_the_name_and_the_allowances() {
+    let dir = std::env::temp_dir().join(format!("bana-agent-tokens-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let file = dir.join(crate::agents::TOKENS);
+    let t = crate::agents::create_token(&file, "mirror-sync", &["mirror.*".into()]).unwrap();
+    assert!(t.len() >= 32);
+    let a = crate::agents::Agent::from_token(&t, &file).unwrap();
+    assert_eq!(a, crate::agents::Agent { name: "mirror-sync".into(), allow: vec!["mirror.*".into()], scoped: true });
+    assert_eq!(crate::agents::Agent::scoped("mirror-sync", &file), Some(a));
+    assert!(crate::agents::Agent::from_token("nope", &file).is_none());
+    assert!(crate::agents::Agent::from_token("", &file).is_none());
+    // Making it again replaces it (the old token stops working).
+    let t2 = crate::agents::create_token(&file, "mirror-sync", &[]).unwrap();
+    assert!(crate::agents::Agent::from_token(&t, &file).is_none());
+    assert_eq!(crate::agents::Agent::from_token(&t2, &file).unwrap().allow, Vec::<String>::new());
+    #[cfg(unix)]
+    assert_eq!(std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&file).unwrap().permissions()) & 0o777, 0o600);
+    // A self-named client that takes a token's name is marked, and gets agents.json, not the token's list.
+    std::fs::write(dir.join("agents.json"), r#"{"clients": {"mirror-sync": ["trash.*"]}}"#).unwrap();
+    let fake = crate::agents::Agent::load("mirror-sync", &dir.join("agents.json"));
+    assert_eq!(fake.name, "mirror-sync (unverified)");
+    assert!(!fake.scoped);
+}
+
+#[test]
+fn mirror_upsert_keeps_locked_mirrors_in_step_without_unlocking() {
+    let mut s = blank();
+    let things = id(&run(&mut s, "node.add", json!({"name": "Things"})), "id");
+    let mirror = ["mirror.*"];
+    let up = |s: &mut Session, who: &str, allow: &[&str], scoped: bool, p: Value| {
+        s.agent = Some(crate::agents::Agent { name: who.into(), allow: allow.iter().map(|a| a.to_string()).collect(), scoped });
+        let r = s.run("mirror.upsert", &p);
+        s.agent = None;
+        r
+    };
+    let item = |title: &str, status: &str| json!({"tag": "thing", "key": "Things ID", "id": "T-1", "parent": things.0, "name": title, "fields": {"Status": status, "Project": "Garden"}});
+    // Only a scoped token that lists mirror.*: not the person, not a self-named assistant, not
+    // agents.json allowing it, not a scoped token without it.
+    assert!(s.run("mirror.upsert", &item("x", "open")).is_err());
+    assert!(up(&mut s, "sync", &mirror, false, item("x", "open")).is_err());
+    assert!(up(&mut s, "sync", &["node.*"], true, item("x", "open")).is_err());
+    assert_eq!(s.graph.children(things).len(), 0);
+    // Made: locked, tagged, keyed, by the token's name.
+    let r = up(&mut s, "sync", &mirror, true, item("Plant garlic", "open")).unwrap();
+    assert_eq!(r["created"], true);
+    let n = id(&r, "node");
+    let g = &s.graph;
+    assert!(g.locked(n) && g.parent(n) == Some(things) && g.name(n) == "Plant garlic");
+    assert_eq!(g.get(n).unwrap().by.as_deref(), Some("sync"));
+    let field = |s: &Session, name: &str| {
+        let f = s.graph.find_field(name).unwrap();
+        s.graph.get(n).unwrap().field_value(f).map(|v| bana_core::export::display_value(&s.graph, v))
+    };
+    assert_eq!(field(&s, "Things ID").as_deref(), Some("T-1"));
+    assert_eq!(field(&s, "Status").as_deref(), Some("open"));
+    // Locked to every other path: the person, an assistant, even the mirror agent's plain edits.
+    for (cmd, p) in [
+        ("node.setName", json!({"node": n.0, "name": "oops"})),
+        ("field.set", json!({"node": n.0, "field": "Status", "value": "done"})),
+        ("node.delete", json!({"node": n.0})),
+        ("node.add", json!({"name": "child", "parent": n.0})),
+    ] {
+        assert!(s.run(cmd, &p).is_err(), "{cmd} by the person");
+        assert!(as_agent(&mut s, "claude", &[], cmd, p.clone()).is_err(), "{cmd} by an assistant");
+        s.agent = Some(crate::agents::Agent { name: "sync".into(), allow: vec!["mirror.*".into()], scoped: true });
+        assert!(s.run(cmd, &p).is_err(), "{cmd} by the mirror agent");
+        s.agent = None;
+    }
+    assert!(as_agent(&mut s, "sync", &["mirror.*"], "node.toggleLock", json!({"node": n.0})).is_err());
+    // The same item again: zero edits (no undo step, nothing dirty, no new operations).
+    let path = std::env::temp_dir().join(format!("bana-mirror-{}.bana", std::process::id()));
+    s.graph.save(&path).unwrap();
+    let ops = s.graph.history_len();
+    let label = s.graph.undo_label().map(str::to_string);
+    let r = up(&mut s, "sync", &mirror, true, item("Plant garlic", "open")).unwrap();
+    assert_eq!((r["created"].clone(), r["changed"].clone()), (json!(false), json!([])));
+    assert!(!s.graph.is_dirty(), "no edit");
+    assert_eq!(s.graph.undo_label().map(str::to_string), label);
+    s.graph.save(&path).unwrap();
+    assert_eq!(s.graph.history_len(), ops, "no new operations");
+    // A change touches only that field; a child the person added (after unlocking and locking
+    // again) and a field the person set stay.
+    run(&mut s, "node.toggleLock", json!({"node": n.0}));
+    let child = id(&run(&mut s, "node.add", json!({"name": "Bring gloves", "parent": n.0})), "id");
+    run(&mut s, "node.toggleLock", json!({"node": n.0}));
+    let r = up(&mut s, "sync", &mirror, true, item("Plant garlic", "done")).unwrap();
+    assert_eq!(r["changed"], json!(["Status"]));
+    assert_eq!(id(&r, "node"), n);
+    assert_eq!(field(&s, "Status").as_deref(), Some("done"));
+    assert_eq!(s.graph.children(n), &[child]);
+    assert_eq!(s.graph.name(child), "Bring gloves");
+    // A second item, then a refresh in which the first one vanished.
+    let r2 = up(&mut s, "sync", &mirror, true, json!({"tag": "thing", "key": "Things ID", "id": "T-2", "parent": things.0, "name": "Order bulbs"}))
+        .unwrap();
+    let m = id(&r2, "node");
+    let gone = |s: &mut Session, who: &str, scoped: bool, present: Value| {
+        s.agent = Some(crate::agents::Agent { name: who.into(), allow: vec!["mirror.*".into()], scoped });
+        let r = s.run("mirror.markGone", &json!({"tag": "thing", "key": "Things ID", "present": present, "parent": things.0}));
+        s.agent = None;
+        r
+    };
+    assert!(gone(&mut s, "sync", false, json!(["T-2"])).is_err());
+    assert_eq!(gone(&mut s, "sync", true, json!(["T-2"])).unwrap()["gone"], json!([n.0]));
+    assert_eq!(field(&s, "Status").as_deref(), Some("gone"));
+    assert!(s.graph.locked(n) && s.graph.children(n) == [child], "marked, not removed");
+    // Again: nothing to do, no edit. Another token's mirrors are not its to mark.
+    s.graph.save(&path).unwrap();
+    assert_eq!(gone(&mut s, "sync", true, json!(["T-2"])).unwrap()["gone"], json!([]));
+    assert_eq!(gone(&mut s, "other", true, json!([])).unwrap()["gone"], json!([]));
+    assert!(!s.graph.is_dirty());
+    assert!(s.graph.locked(m));
+    // A node the person took over (unlocked) is left alone: the mirror makes a fresh one.
+    run(&mut s, "node.toggleLock", json!({"node": m.0}));
+    let r3 = up(&mut s, "sync", &mirror, true, json!({"tag": "thing", "key": "Things ID", "id": "T-2", "parent": things.0, "name": "Order bulbs"}))
+        .unwrap();
+    assert_eq!(r3["created"], true);
+    assert_ne!(id(&r3, "node"), m);
+    // The key field cannot be rewritten through `fields`, and a mirror never goes in a command node.
+    assert!(up(&mut s, "sync", &mirror, true, json!({"tag": "thing", "key": "Things ID", "id": "T-1", "fields": {"Things ID": "T-9"}})).is_err());
+    let cmd = id(&run(&mut s, "commandNode.create", json!({"name": "Tidy", "steps": ["tag.add {\"tag\": \"done\"}"]})), "id");
+    let e = up(&mut s, "sync", &mirror, true, json!({"tag": "thing", "key": "Things ID", "id": "T-3", "parent": cmd.0})).unwrap_err();
+    assert_eq!(e, crate::CmdError::Refused { command: "mirror.upsert".into(), rule: "command nodes".into() });
+    let _ = std::fs::remove_file(&path);
 }

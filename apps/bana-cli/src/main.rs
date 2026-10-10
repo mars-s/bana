@@ -26,6 +26,9 @@ commands:
   run --cmd 'ID={json}' ...         run commands in order, then save
   commands                          list every command (id, shortcut, params)
   sample [--out FILE]               write the sample graph
+  agent-token create NAME [--allow PATTERN]...
+                                    a scoped token for one assistant or integration (POST /mcp):
+                                    a fixed name and only these allowances (e.g. mirror.*); prints it
   mcp [--connect HOST:PORT --token T]  MCP server on stdio, on the running app that has the file
                                     open (found by its live file), else on the file
   serve [--port PORT] [--sample | --large N] [--web DIR] [--today YYYY-MM-DD]
@@ -241,6 +244,21 @@ fn run(mut args: Vec<String>) -> Result<String, String> {
             }
             g.save(&out).map_err(|e| e.to_string())?;
             Ok(format!("wrote {PRODUCT_NAME} sample graph to {}", out.display()))
+        }
+        "agent-token" => {
+            // The person only: no command writes the tokens file, and it is readable by them alone.
+            let mut allow = Vec::new();
+            while let Some(a) = take_opt(&mut args, "--allow") {
+                allow.push(a);
+            }
+            match (args.first().map(String::as_str), args.get(1)) {
+                (Some("create"), Some(name)) if args.len() == 2 && !name.starts_with('-') => {
+                    let file = bana_commands::agents::tokens_file();
+                    let token = bana_commands::agents::create_token(&file, name, &allow).map_err(|e| format!("{}: {e}", file.display()))?;
+                    Ok(token)
+                }
+                _ => Err("usage: bana agent-token create NAME [--allow PATTERN]...".into()),
+            }
         }
         "mcp" => {
             // The running app that has the file open, else the file (UC-10.11).

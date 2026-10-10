@@ -489,4 +489,24 @@ mod tests {
         assert_eq!(by.as_deref(), Some("claude-code"));
         assert_eq!(bana_core::Graph::load(&file).unwrap().get(id).unwrap().by.clone(), Some("claude-code".into()), "kept in the file");
     }
+
+    #[test]
+    fn an_assistants_undo_never_takes_back_the_persons_edit() {
+        let today = Date::new(2026, 10, 10).unwrap();
+        let mut session = Session::with_today(sample::sample(today).unwrap(), today);
+        let a = session.run("node.add", &json!({"name": "Typed by the person"})).unwrap()["id"].as_u64().unwrap();
+        let mut s = Server::new(Backend::Local(Box::new(session)));
+        let exec = |s: &mut Server, command: &str| {
+            let msg = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "execute", "arguments": {"command": command, "params": {}}}});
+            call(s, msg)["result"].clone()
+        };
+        let r = exec(&mut s, "edit.undo");
+        assert_eq!(r["isError"], true, "{r}");
+        assert!(r["content"][0]["text"].as_str().unwrap().starts_with("refused: assistants may not run `edit.undo` (rule `not its own change`)"));
+        let name = match &s.backend {
+            Backend::Local(session) => session.graph.name(bana_core::NodeId(a)).to_string(),
+            _ => String::new(),
+        };
+        assert_eq!(name, "Typed by the person");
+    }
 }

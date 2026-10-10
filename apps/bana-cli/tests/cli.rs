@@ -42,3 +42,20 @@ fn add_tag_field_export_round_trip() {
     assert!(!ok && err.contains("unknown command"));
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn agent_token_create_writes_a_scoped_token_to_the_data_folder() {
+    let dir = std::env::temp_dir().join(format!("bana-cli-agent-token-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("graph.bana");
+    let (ok, token) = cli(&f, &["agent-token", "create", "mirror-sync", "--allow", "mirror.*", "--allow", "node.toggleLock"]);
+    assert!(ok, "{token}");
+    let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("agent-tokens.json")).unwrap()).unwrap();
+    let entry = &saved["tokens"][0];
+    assert_eq!((entry["name"].as_str(), entry["token"].as_str()), (Some("mirror-sync"), Some(token.trim())));
+    assert_eq!(entry["allow"], serde_json::json!(["mirror.*", "node.toggleLock"]));
+    assert!(!cli(&f, &["agent-token", "create"]).0);
+    assert!(!cli(&f, &["agent-token", "list"]).0);
+    let _ = std::fs::remove_dir_all(&dir);
+}

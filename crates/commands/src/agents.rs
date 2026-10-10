@@ -10,6 +10,15 @@
 //! ```json
 //! { "allow": ["trash.empty"], "clients": { "my-gateway": ["node.toggleLock"] } }
 //! ```
+//!
+//! Names are what clients say they are. A **scoped agent token** (`agent-tokens.json` beside
+//! it, made by `bana agent-token create`, never by a command) fixes the name and the allow list
+//! for whoever holds it: `agents.json` does not apply to it, and a self-named client that takes
+//! a token's name is recorded as "NAME (unverified)". Only scoped tokens that list `mirror.*`
+//! may run the mirror commands.
+//!
+//! Undo and redo from an assistant take back only its own last step: when the step on top was
+//! made by someone else (the person, another assistant) they are refused.
 
 use std::path::Path;
 
@@ -40,6 +49,8 @@ pub const NEVER: &[&str] = &[
 pub struct Agent {
     pub name: String,
     pub allow: Vec<String>,
+    /// Came with a scoped agent token: the name is checked, not self-reported.
+    pub scoped: bool,
 }
 
 impl Agent {
@@ -51,8 +62,63 @@ impl Agent {
         let list = |v: &Value| v.as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
         let mut allow = list(&cfg["allow"]);
         allow.extend(list(&cfg["clients"][name.as_str()]));
-        Agent { name, allow }
+        let taken = read_tokens(&file.with_file_name(TOKENS)).iter().any(|t| t["name"].as_str() == Some(name.as_str()));
+        let name = if taken { format!("{name} (unverified)") } else { name };
+        Agent { name, allow, scoped: false }
     }
+
+    /// The scoped agent whose token is `token`, from the tokens file `file`.
+    pub fn from_token(token: &str, file: &Path) -> Option<Agent> {
+        let t = token.trim();
+        let hit = read_tokens(file).into_iter().find(|e| t.len() >= 32 && e["token"].as_str() == Some(t))?;
+        Some(from_entry(&hit))
+    }
+
+    /// The scoped agent named `name` (its token was checked at the door), from the tokens file.
+    pub fn scoped(name: &str, file: &Path) -> Option<Agent> {
+        read_tokens(file).iter().find(|e| e["name"].as_str() == Some(name)).map(from_entry)
+    }
+
+    /// Whether the person allowed this agent `id` (an id, or a `prefix.*` pattern, matches).
+    pub fn allows(&self, id: &str) -> bool {
+        self.allow.iter().any(|a| match a.strip_suffix('*') {
+            Some(prefix) => id.starts_with(prefix),
+            None => id == a,
+        })
+    }
+}
+
+/// The scoped agent tokens file, beside `agents.json` in the data folder.
+pub const TOKENS: &str = "agent-tokens.json";
+
+fn from_entry(entry: &Value) -> Agent {
+    let allow = entry["allow"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+    Agent { name: clean_name(entry["name"].as_str().unwrap_or_default()), allow, scoped: true }
+}
+
+fn read_tokens(file: &Path) -> Vec<Value> {
+    let v: Value = std::fs::read(file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(Value::Null);
+    v["tokens"].as_array().cloned().unwrap_or_default()
+}
+
+/// Makes (or replaces) the scoped agent token `name` with `allow` in the tokens file `file`
+/// (readable by this user only) and returns the new token. For the person (the CLI) only.
+pub fn create_token(file: &Path, name: &str, allow: &[String]) -> std::io::Result<String> {
+    let name = clean_name(name);
+    let token = format!("{}{}", bana_core::random_hex(), bana_core::random_hex());
+    let mut all = read_tokens(file);
+    all.retain(|e| e["name"].as_str() != Some(name.as_str()));
+    all.push(serde_json::json!({"name": name, "token": token, "allow": allow}));
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut opts, 0o600);
+    let body = serde_json::to_vec_pretty(&serde_json::json!({"tokens": all})).unwrap_or_default();
+    std::io::Write::write_all(&mut opts.open(file)?, &body)?;
+    Ok(token)
 }
 
 /// An MCP client's name as recorded: one line, no control characters, at most 64 chars.
@@ -74,10 +140,7 @@ pub fn rule(spec: &CommandSpec) -> Option<String> {
 }
 
 fn allowed(agent: &Agent, spec: &CommandSpec) -> bool {
-    agent.allow.iter().any(|a| match a.strip_suffix('*') {
-        Some(prefix) => spec.id.starts_with(prefix),
-        None => spec.id == a,
-    })
+    agent.allows(spec.id)
 }
 
 /// Refuses `spec` with `params` for `agent`: a Never rule, or a change to a command node.
@@ -87,6 +150,15 @@ pub(crate) fn check(s: &Session, agent: &Agent, spec: &CommandSpec, params: &Val
         && !allowed(agent, spec)
     {
         return Err(refuse(&r));
+    }
+    // Undo and redo take back only the agent's own last step.
+    let top = match spec.id {
+        "edit.undo" => s.graph.undo_by(),
+        "edit.redo" => s.graph.redo_by(),
+        _ => None,
+    };
+    if top.is_some_and(|by| by != Some(agent.name.as_str())) {
+        return Err(refuse("not its own change"));
     }
     if spec.mutates && !allowed(agent, spec) {
         let mut hit: Vec<NodeId> = Vec::new();
@@ -106,7 +178,7 @@ pub(crate) fn check(s: &Session, agent: &Agent, spec: &CommandSpec, params: &Val
 }
 
 /// `id` (or what it references) is a command node or one of its steps.
-fn in_command_node(s: &Session, id: NodeId) -> bool {
+pub(crate) fn in_command_node(s: &Session, id: NodeId) -> bool {
     let g = &s.graph;
     [id, g.resolve(id)]
         .into_iter()
@@ -116,4 +188,9 @@ fn in_command_node(s: &Session, id: NodeId) -> bool {
 /// The person's hand-edited opt-outs: `agents.json` in the data folder (`~/Bana`).
 pub fn config_file() -> std::path::PathBuf {
     bana_core::data_dir().join("agents.json")
+}
+
+/// The scoped agent tokens: `agent-tokens.json` in the data folder.
+pub fn tokens_file() -> std::path::PathBuf {
+    bana_core::data_dir().join(TOKENS)
 }

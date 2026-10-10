@@ -147,9 +147,14 @@ impl Host {
                     self.revs.insert(key, rev);
                 }
                 // An assistant (the MCP window): the agent policy applies and its edits carry its name.
+                // `scoped`: it came in with a scoped agent token (checked at the door, http.rs), so
+                // the name and allow list are that token's.
                 if params.get("window").and_then(Value::as_str) == Some("mcp") {
+                    use bana_commands::agents::{Agent, TOKENS};
                     let name = params.get("agent").and_then(Value::as_str).unwrap_or_default();
-                    self.session.agent = Some(bana_commands::agents::Agent::load(name, &self.agents_file));
+                    let scoped = params.get("scoped").and_then(Value::as_bool) == Some(true);
+                    let agent = scoped.then(|| Agent::scoped(name, &self.agents_file.with_file_name(TOKENS))).flatten();
+                    self.session.agent = Some(agent.unwrap_or_else(|| Agent::load(name, &self.agents_file)));
                 }
                 let r = self.session.run(id, &p);
                 self.session.agent = None;

@@ -33,8 +33,8 @@ export interface Env {
 }
 
 const SCOPE = 'notes'
-/** What a grant carries: who signed in. */
-type Identity = { github_id: string }
+/** What a grant carries: who signed in, and which assistant it was granted to (see agentFor). */
+type Identity = { github_id: string; agent?: string }
 /** MCP clients whose browser pages may call /mcp directly. */
 const CLIENT_ORIGINS = ['https://claude.ai', 'https://chatgpt.com', 'https://chat.openai.com']
 const BODY_LIMIT = 1024 * 1024
@@ -45,6 +45,23 @@ const escape = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)}
 function allowed(props: unknown, env: Env): props is Identity {
   const p = props as Partial<Identity> | undefined
   return !!p && !!env.ALLOWED_GITHUB_ID && p.github_id === env.ALLOWED_GITHUB_ID
+}
+
+/**
+ * The assistant a grant is for, from the redirect URI it was granted to (checked against the
+ * client's registration, so a client cannot claim another's name). Sent to the app as
+ * X-Bana-Agent; a header from the caller is never passed on.
+ */
+function agentFor(redirectUri: string): string {
+  let host = ''
+  try {
+    host = new URL(redirectUri).hostname
+  } catch {
+    /* not a URL */
+  }
+  if (['claude.ai', 'claude.com'].includes(host)) return 'claude.ai'
+  if (['chatgpt.com', 'chat.openai.com'].includes(host)) return 'ChatGPT'
+  return 'remote connector'
 }
 
 async function s256(verifier: string) {
@@ -134,7 +151,7 @@ async function signIn(request: Request, env: Env): Promise<Response> {
         userId: String(user.id),
         metadata: {},
         scope: [SCOPE, 'offline_access'],
-        props: { github_id: String(user.id) } satisfies Identity,
+        props: { github_id: String(user.id), agent: agentFor(resumed.request.redirectUri) } satisfies Identity,
       })
       resumed.headers.set('Location', done.redirectTo)
       return new Response(null, { status: 302, headers: resumed.headers })
@@ -158,7 +175,13 @@ async function toMac(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const body = await request.arrayBuffer()
   if (body.byteLength > BODY_LIMIT) return json({ error: 'Request too large.' }, 413)
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: 'Bearer ' + env.MAC_TOKEN }
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: 'Bearer ' + env.MAC_TOKEN,
+    // Who is asking comes from the grant, never from the caller (grants made before this: generic).
+    'X-Bana-Agent': c.props.agent ?? 'remote connector',
+  }
   const version = request.headers.get('mcp-protocol-version')
   if (version) headers['MCP-Protocol-Version'] = version
   if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {

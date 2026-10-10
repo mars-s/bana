@@ -257,7 +257,17 @@ fn connection(shared: &Arc<Shared>, stream: TcpStream, web: &Path) -> Result<(),
 /// answered as JSON; notifications only get 202. No server-sent stream (`GET` is 405), no
 /// sessions. The same tools as the stdio server, run in their own window of this engine.
 fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(), String> {
-    if req.token.as_deref() != Some(shared.token.as_str()) {
+    // The install's local token, or a scoped agent token (`bana agent-token create`): that one
+    // fixes who is asking and what it may do, whatever headers and clientInfo say.
+    let general = req.token.as_deref() == Some(shared.token.as_str());
+    let scoped = match (general, req.token.as_deref()) {
+        (false, Some(t)) => {
+            let file = shared.host.lock().map(|h| h.agents_file.with_file_name(bana_commands::agents::TOKENS)).ok();
+            file.and_then(|f| bana_commands::agents::Agent::from_token(t, &f))
+        }
+        _ => None,
+    };
+    if !general && scoped.is_none() {
         return respond_with(
             stream,
             "401 Unauthorized",
@@ -278,9 +288,18 @@ fn mcp_http(shared: &Arc<Shared>, stream: &TcpStream, req: &Request) -> Result<(
         }
     };
     let me = Arc::clone(shared);
-    let engine = move |method: &str, params: Value| me.handle(&json!({"method": method, "params": params}));
+    let is_scoped = scoped.is_some();
+    let engine = move |method: &str, mut params: Value| {
+        if is_scoped {
+            params["scoped"] = json!(true);
+        }
+        me.handle(&json!({"method": method, "params": params}))
+    };
     let mut server = bana_mcp::Server::new(bana_mcp::Backend::Engine(Box::new(engine)));
-    server.client = req.agent.clone();
+    server.client = match scoped {
+        Some(a) => Some(a.name),
+        None => req.agent.clone(),
+    };
     let replies: Vec<Value> = match &msg {
         Value::Array(all) => all.iter().take(1000).filter_map(|m| server.handle_line(&m.to_string())).collect(),
         one => server.handle_line(&one.to_string()).into_iter().collect(),

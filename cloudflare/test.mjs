@@ -40,6 +40,8 @@ for (let i = 0; i < 200 && !macToken; i++) {
 assert.ok(macToken, 'the engine made its token')
 let macUp = true
 let macCalls = 0
+/** The X-Bana-Agent header the Mac got last. */
+let macAgent = null
 
 // ---- the Worker ----
 await build({ entryPoints: ['worker.ts'], outfile: '.test-worker.mjs', bundle: true, platform: 'node', format: 'esm', external: ['cloudflare:workers'] })
@@ -65,6 +67,7 @@ const options = (bindings) =>
       if (url.href === MAC) {
         // The tunnel: the Mac's engine, or a tunnel error page when it is down.
         macCalls++
+        macAgent = req.headers.get('x-bana-agent')
         if (!macUp) return new Response('origin unreachable', { status: 530 })
         return fetch(`http://127.0.0.1:${port}/mcp`, { method: 'POST', headers: req.headers, body: await req.arrayBuffer() })
       }
@@ -99,15 +102,15 @@ async function request(path, { method = 'GET', body, headers = {}, cookie = true
 const verifier = 'TEST-pkce-verifier-that-is-long-enough-for-the-spec-0123456789'
 const challenge = createHash('sha256').update(verifier).digest('base64url')
 let clientId
-async function consent(extra = {}) {
-  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: CALLBACK, scope: 'notes offline_access', state: 'client-state', code_challenge: challenge, code_challenge_method: 'S256', resource: RESOURCE, ...extra })
+async function consent(extra = {}, client = clientId, callback = CALLBACK) {
+  const q = new URLSearchParams({ response_type: 'code', client_id: client, redirect_uri: callback, scope: 'notes offline_access', state: 'client-state', code_challenge: challenge, code_challenge_method: 'S256', resource: RESOURCE, ...extra })
   const r = await request('/authorize?' + q)
   return { r, html: await r.text() }
 }
 const handleOf = (html) => html.match(/name="handle" value="([^"]+)"/)[1]
 /** Consent, allow, and the GitHub redirect: returns the callback path GitHub would call. */
-async function toGithub() {
-  const { r, html } = await consent()
+async function toGithub(client, callback) {
+  const { r, html } = await consent({}, client, callback)
   assert.equal(r.status, 200)
   const next = await request('/authorize', { method: 'POST', body: new URLSearchParams({ handle: handleOf(html), decision: 'allow' }), headers: { Origin: ORIGIN } })
   assert.equal(next.status, 302)
@@ -117,12 +120,12 @@ async function toGithub() {
   assert.equal(gh.searchParams.get('code_challenge_method'), 'S256')
   return '/callback?' + new URLSearchParams({ code: 'TEST-code', state: gh.searchParams.get('state') })
 }
-async function signedIn() {
-  const r = await request(await toGithub())
+async function signedIn(client = clientId, callback = CALLBACK) {
+  const r = await request(await toGithub(client, callback))
   assert.equal(r.status, 302)
   const back = new URL(r.headers.get('location'))
-  assert.equal(back.origin + back.pathname, CALLBACK)
-  const t = await request('/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', client_id: clientId, code: back.searchParams.get('code'), redirect_uri: CALLBACK, code_verifier: verifier, resource: RESOURCE }) })
+  assert.equal(back.origin + back.pathname, callback)
+  const t = await request('/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', client_id: client, code: back.searchParams.get('code'), redirect_uri: callback, code_verifier: verifier, resource: RESOURCE }) })
   assert.equal(t.status, 200)
   return t.json()
 }
@@ -161,12 +164,17 @@ try {
     await t.test('end to end: the MCP SDK client works on the notes in the app on the Mac', async () => {
       const tokens = await signedIn()
       const sdk = new Client({ name: 'Test assistant', version: '1.0.0' })
-      const transport = new StreamableHTTPClientTransport(new URL(RESOURCE), { requestInit: { headers: { Authorization: 'Bearer ' + tokens.access_token } }, fetch: (url, init) => mf.dispatchFetch(url, init) })
+      // A name the caller makes up is not passed on: the app hears the grant's assistant.
+      const transport = new StreamableHTTPClientTransport(new URL(RESOURCE), { requestInit: { headers: { Authorization: 'Bearer ' + tokens.access_token, 'X-Bana-Agent': 'spoofed' } }, fetch: (url, init) => mf.dispatchFetch(url, init) })
       await sdk.connect(transport)
       const tools = (await sdk.listTools()).tools.map((x) => x.name)
       assert.ok(tools.includes('add_node') && tools.includes('export_markdown'), tools.join(','))
       const added = await sdk.callTool({ name: 'add_node', arguments: { name: 'Plant garlic from Claude', tag: 'task' } })
       assert.notEqual(added.isError, true, JSON.stringify(added))
+      assert.equal(macAgent, 'claude.ai')
+      const who = await sdk.callTool({ name: 'inspect', arguments: { node: added.structuredContent.id } })
+      assert.match(JSON.stringify(who), /claude\.ai/)
+      assert.doesNotMatch(JSON.stringify(who), /spoofed/)
       const found = await sdk.callTool({ name: 'search', arguments: { query: 'garlic from Claude' } })
       assert.match(JSON.stringify(found), /Plant garlic from Claude/)
       await sdk.close()
@@ -179,6 +187,18 @@ try {
       assert.equal((await request('/oauth/token', { method: 'POST', body: new URLSearchParams({ client_id: clientId, token: fresh, token_type_hint: 'access_token' }) })).status, 200)
       const after = await request('/mcp', { method: 'POST', body: '{"jsonrpc":"2.0","id":1,"method":"ping"}', headers: { Authorization: 'Bearer ' + fresh, 'Content-Type': 'application/json' } })
       assert.equal(after.status, 401)
+    })
+    await t.test('a ChatGPT grant is named ChatGPT at the app', async () => {
+      const chatgpt = 'https://chatgpt.com/connector_platform_oauth_redirect'
+      const reg = await request('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_name: 'claude.ai', redirect_uris: [chatgpt], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] }) })
+      assert.equal(reg.status, 201)
+      const tokens = await signedIn((await reg.json()).client_id, chatgpt)
+      const call = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_node","arguments":{"name":"From ChatGPT"}}}'
+      const r = await request('/mcp', { method: 'POST', body: call, headers: { Authorization: 'Bearer ' + tokens.access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'X-Bana-Agent': 'claude.ai' } })
+      assert.equal(r.status, 200)
+      assert.equal((await r.json()).result.isError, false)
+      // The client_name it registered and the header it sent do not matter.
+      assert.equal(macAgent, 'ChatGPT')
     })
     await t.test('when the Mac sleeps, tools answer that it is unreachable', async () => {
       const tokens = await signedIn()

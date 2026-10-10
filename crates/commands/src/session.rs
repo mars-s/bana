@@ -111,7 +111,11 @@ impl Session {
     /// A locked node (UC-06.35) refuses edits: commands that change a node (`node` in their params)
     /// or add under one (`parent`). Locking itself, folding and reading still work.
     pub fn check_lock(&self, spec: &crate::CommandSpec, params: &Value) -> Result<(), CmdError> {
-        if !spec.mutates || matches!(spec.id, "node.toggleLock" | "node.expand" | "node.collapse" | "node.toggleExpand") {
+        // The mirror commands keep their own rules: they change only the locked nodes they made.
+        if !spec.mutates
+            || spec.id.starts_with("mirror.")
+            || matches!(spec.id, "node.toggleLock" | "node.expand" | "node.collapse" | "node.toggleExpand")
+        {
             return Ok(());
         }
         let mut hit = Vec::new();
@@ -174,7 +178,7 @@ impl Session {
                     "field.set" => Some(format!("field:{:?}:{}:{}:{}", node(), params["field"], params["index"], self.command_count)),
                     _ => None,
                 };
-                self.graph.commit_keyed(spec.label, key);
+                self.graph.commit_as(spec.label, key, self.agent.as_ref().map(|a| a.name.as_str()));
             }
             Err(_) => self.graph.abort(),
         }

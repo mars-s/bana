@@ -37,7 +37,17 @@ pub fn default_graph_path() -> std::path::PathBuf {
 
 /// The app's data folder: `$BANA_HOME`, else the old variable's (see [`rename`]), else `~/Bana`.
 /// It holds the default graph and the install's local API token.
+///
+/// Inside a Rust test binary it is always a fresh folder of its own, whatever the environment
+/// says, so a person's `~/Bana` (its token, `agents.json`, agent tokens) is never read or written
+/// by tests.
 pub fn data_dir() -> std::path::PathBuf {
+    // ponytail: cargo puts every test binary (unit and integration) in `target/<profile>/deps/`
+    // and no app binary there; a binary the tests spawn (`target/debug/bana`) gets BANA_HOME.
+    let exe = std::env::current_exe().unwrap_or_default();
+    if exe.parent().and_then(|d| d.file_name()).is_some_and(|d| d == "deps") {
+        return std::env::temp_dir().join(format!("bana-test-home-{}", std::process::id()));
+    }
     for var in ["BANA_HOME", rename::OLD_HOME_VAR] {
         if let Some(d) = std::env::var_os(var).filter(|d| !d.is_empty()) {
             return std::path::PathBuf::from(d);

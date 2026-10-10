@@ -45,6 +45,8 @@ struct Step {
     nodes: PreImages,
     /// Consecutive steps with the same key merge into one (typing a word is one undo step).
     key: Option<String>,
+    /// The assistant that made the step (`None`: the person). Assistants may only undo their own.
+    by: Option<String>,
 }
 
 /// Settings saved with the graph (Settings > Date/Time and Preferences, spec 07 §8). Not undoable.
@@ -722,12 +724,19 @@ impl Graph {
 
     /// Like [`Graph::commit`], but merges into the previous step when both carry the same `key`.
     pub fn commit_keyed(&mut self, label: &str, key: Option<String>) {
+        self.commit_as(label, key, None);
+    }
+
+    /// Like [`Graph::commit_keyed`] for a step made by `by` (an assistant's name; `None`: the
+    /// person). Steps by different hands never merge.
+    pub fn commit_as(&mut self, label: &str, key: Option<String>, by: Option<&str>) {
         let Some(nodes) = self.txn.take() else { return };
         if nodes.is_empty() {
             return;
         }
         if let (Some(k), Some(last)) = (&key, self.undo.last_mut())
             && last.key.as_ref() == Some(k)
+            && last.by.as_deref() == by
             && self.redo.is_empty()
         {
             for (id, img) in nodes {
@@ -736,7 +745,7 @@ impl Graph {
             self.dirty = true;
             return;
         }
-        self.undo.push(Step { label: label.to_string(), nodes, key });
+        self.undo.push(Step { label: label.to_string(), nodes, key, by: by.map(str::to_string) });
         if self.undo.len() > MAX_UNDO {
             self.undo.remove(0);
         }
@@ -782,11 +791,22 @@ impl Graph {
         }
     }
 
+    /// Who made the step undo would take back: `None` when there is none, `Some(None)` for the
+    /// person, `Some(Some(name))` for an assistant.
+    pub fn undo_by(&self) -> Option<Option<&str>> {
+        self.undo.last().map(|s| s.by.as_deref())
+    }
+
+    /// Like [`Graph::undo_by`] for redo.
+    pub fn redo_by(&self) -> Option<Option<&str>> {
+        self.redo.last().map(|s| s.by.as_deref())
+    }
+
     pub fn undo(&mut self) -> Option<String> {
         self.commit("edit");
         let step = self.undo.pop()?;
         let back = self.apply(step.nodes);
-        self.redo.push(Step { label: step.label.clone(), nodes: back, key: None });
+        self.redo.push(Step { label: step.label.clone(), nodes: back, key: None, by: step.by });
         self.dirty = true;
         Some(step.label)
     }
@@ -794,7 +814,7 @@ impl Graph {
     pub fn redo(&mut self) -> Option<String> {
         let step = self.redo.pop()?;
         let back = self.apply(step.nodes);
-        self.undo.push(Step { label: step.label.clone(), nodes: back, key: None });
+        self.undo.push(Step { label: step.label.clone(), nodes: back, key: None, by: step.by });
         self.dirty = true;
         Some(step.label)
     }

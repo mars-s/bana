@@ -257,6 +257,8 @@ export interface Page {
   title: string
   name: string
   titleEditable: boolean
+  /** The page node's checkbox (null: none). */
+  done: boolean | null
   kind: string
   tagColor: string | null
   icon: string | null

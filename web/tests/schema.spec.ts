@@ -23,7 +23,8 @@ test('configure a supertag: colour, checkbox and a template field', async ({ app
   const tag = (await server.run('tag.create', { name: 'idea', color: 'grey' })).result
   const id = tag.tag ?? tag.id ?? tag.node
   await server.run('nav.open', { node: id })
-  await app.locator('.tag-tabs .btn', { hasText: 'Configure' }).click()
+  await app.locator('.head-actions .btn[title="Options"]').click()
+  await app.locator('.node-menu .menu-item', { hasText: 'Configure supertag' }).click()
   // It opens in a second panel to the right of the tag page (spec 03 §5).
   await expect(app.locator('.panel')).toHaveCount(2)
   await expect(app.locator('.panel').nth(1).locator('.configure')).toBeVisible()

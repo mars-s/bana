@@ -8,7 +8,7 @@ import { call } from './engine'
 import { Icon, type IconName } from './icons'
 import { type Span, charLen, rawSpans, toChars, toUtf16 } from './format'
 import { getState, openInNewPanel, refresh, setActivePanel, setState, showToast, closePanel, useStore } from './store'
-import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
+import { type EditorHandle, exec, focusLine, keyFromTitle, outlineVisible, runUiCommand, pasteInto, noteSynced, registerEditor, registerTitle, setGhost, unregisterEditor, withBarrier } from './controller'
 import { onLineText, openPicker, setPickerQuery, startFieldEdit } from './picker'
 import { QueryBuilder, ViewBody, ViewToolbar, toggleQuery } from './Views'
 import orbitBanner from './assets/banner-orbit.webp'
@@ -1161,6 +1161,17 @@ function HeadActions({ page, panel }: { page: Page; panel: string }) {
       <button className="btn icon" title="AI (not available)">
         <Icon name="sparkle" size={12} />
       </button>
+      {/* A supertag's page: + Create new and help (spec 03 §1). */}
+      {page.kind === 'tag' && (
+        <button className="btn regular" onClick={() => void exec('view.addItem', { node: page.target, name: '' }, panel)}>
+          <Icon name="plus" size={12} /> Create new
+        </button>
+      )}
+      {page.kind === 'tag' && (
+        <button className="btn icon" title="Help" onClick={() => runUiCommand('ui.help')}>
+          <Icon name="help" size={12} />
+        </button>
+      )}
       {/* A search node's page: add an item that matches, and the search options (N54). */}
       {search && (
         <button className="btn icon" title="Add an item that matches" onClick={() => void exec('view.addItem', { node: page.zoom, name: '' }, panel)}>
@@ -1371,6 +1382,8 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
       <Crumbs page={page} panel={panel} many={many} />
       <div className="scroller" ref={scroller}>
         {page.banner && <Banner banner={page.banner} />}
+        {/* A tagged page gets its first tag's colour washed behind the header (N59.23). */}
+        {page.kind !== 'tag' && page.tags.length > 0 && <div className="tag-glow" style={tagStyle(page.tags[0].color)} />}
         <div className={`page${wide ? ' with-side' : ''}${layout && layout.kind !== 'list' ? ' full' : ''}`}>
           <div className="page-main">
             <div ref={head} className="page-head">
@@ -1380,6 +1393,17 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
                 {page.kind === 'tag' && (
                   <span className="tag-square title" style={tagStyle(page.tagColor ?? 'grey')}>
                     #
+                  </span>
+                )}
+                {/* A page with a checkbox shows it before the title (N59.22). */}
+                {page.done != null && page.kind !== 'tag' && (
+                  <span
+                    className={`checkbox title-check${page.done ? ' on' : ''}`}
+                    role="checkbox"
+                    aria-checked={page.done}
+                    onClick={() => void exec('node.toggleDone', { node: page.target }, panel)}
+                  >
+                    {page.done && <Icon name="check" size={16} />}
                   </span>
                 )}
                 <TitleEditor key={page.zoom} page={page} panel={panel} />

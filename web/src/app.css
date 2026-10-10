@@ -3410,3 +3410,16 @@ kbd {
   color: var(--c-strong);
   font-weight: var(--fw-button);
 }
+
+.checkbox.title-check {
+  width: var(--title-check);
+  height: var(--title-check);
+  margin: auto var(--q2) auto 0;
+  border-radius: var(--r-md);
+}
+
+/* Page content sits above the tag colour wash. */
+.scroller > .page {
+  position: relative;
+  z-index: 1;
+}

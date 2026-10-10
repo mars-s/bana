@@ -355,6 +355,7 @@ pub fn page(s: &Session, params: &Value) -> Value {
         "title": page_title(s, zoom),
         "name": g.name(zoom),
         "titleEditable": title_editable(g, zoom),
+        "done": g.checkbox(target),
         "kind": kind_name(g, target),
         "tagColor": g.tag_def(target).map(|d| d.color.clone()),
         "icon": node.and_then(|n| n.icon.clone()),

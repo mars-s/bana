@@ -63,6 +63,7 @@
   --board-min-h: 60vh;
   --tg-hour: 45px;
   --cal-event-h: 18.8px;
+  --title-check: 27.8px;
   --tg-gutter: 50.5px;
   --tg-event-min: 22px;
   --tg-body-max: calc(100vh - 330px);

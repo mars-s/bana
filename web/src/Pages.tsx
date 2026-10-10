@@ -7,7 +7,7 @@ import { Icon } from './icons'
 import { tagStyle } from './Outline'
 import { exec } from './controller'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
-import { closeConfigure, openConfigure, refresh, setState, useStore } from './store'
+import { closeConfigure, refresh, setState, useStore } from './store'
 
 interface TagInfo {
   id: number
@@ -89,12 +89,10 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
         </button>
         </>)}
         <span className="spacer" />
-        <button className={`btn regular${configuring ? ' on' : ''}`} onClick={() => void (configuring ? closeConfigure(panel) : openConfigure(tag))}>
-          {configuring ? 'Done' : 'Configure'}
-        </button>
-        {!configuring && (
-          <button className="btn regular" onClick={() => void exec('view.addItem', { node: tag, name: '' }, panel)}>
-            <Icon name="plus" size={12} /> Create new
+        {/* Configure lives in the page's "…" menu; its panel has Done here (N59.15). */}
+        {configuring && (
+          <button className="btn regular on" onClick={() => void closeConfigure(panel)}>
+            Done
           </button>
         )}
       </div>

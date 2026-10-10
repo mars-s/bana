@@ -100,3 +100,25 @@ fn autosave_writes_without_an_explicit_save() {
     });
     assert!(written, "autosave did not write the change within 4 s");
 }
+
+/// A keystroke on a phone is a rename plus a page read: it stays well under a frame budget's worth
+/// of engine time on a 20k-node graph with a 1000-line page open (release builds are faster still).
+#[test]
+fn keystroke_cost_on_a_big_graph() {
+    let path = tmp("big");
+    let mut g = tanacraft_core::sample::large(20_000).unwrap();
+    g.save(&path).unwrap();
+    let e = Engine::open(path.display().to_string(), false, Some("2026-10-10".into())).unwrap();
+    let _ = e.run("nav.home".into(), String::new());
+    let _ = e.run("view.expandAll".into(), String::new());
+    let p = page(&e);
+    let id = p["rows"]["items"][3]["id"].as_u64().unwrap();
+    let t = std::time::Instant::now();
+    for i in 0..20 {
+        let _ = e.run("node.setName".into(), format!(r#"{{"node": {id}, "name": "typed {i}", "caret": 5}}"#));
+        let _ = e.rpc("page".into(), r#"{"count": 2000}"#.into());
+    }
+    let each = t.elapsed() / 20;
+    eprintln!("keystroke (rename + page of {} rows): {each:?}", p["rows"]["total"]);
+    assert!(each < Duration::from_millis(250), "{each:?}");
+}

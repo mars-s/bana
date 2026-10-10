@@ -53,17 +53,13 @@ Ranked by how often a Tana user would hit them in a normal week, and how much th
 1. **Sync between computers** (UC-07.06). A notes app people trust must follow them from laptop
    to desktop. The Loro store already merges copies; the network part (iroh) is next.
 2. ~~**PARENT in template and day searches** (UC-01.15, UC-03.05, UC-03.08).~~ Done: PARENT is
-   the page related content shows on, and a day stands for its date. "Tasks due this day",
-   "meetings of the day", "this person's meetings" all fail because PARENT is not bound to the
-   day page or the tagged node. One engine fix unlocks Tana's most copied dashboards.
-3. ~~**Dates typed in words** (UC-01.08b).~~ Done: `@` reads dates and ranges in words. `@tomorrow`, `@next friday`, `@Nov 21 to Nov 30` in any
-   line; today only a command inserts today's link.
+   the page related content shows on, and a day stands for its date.
+3. ~~**Dates typed in words** (UC-01.08b).~~ Done: `@` reads dates and ranges in words.
 4. ~~**Moving in from Tana and others** (UC-08.11, UC-08.10).~~ Done: Tana Paste, Notion and
-   Logseq folders, Roam JSON. Tana Paste, and Notion, Roam and
-   Logseq imports. Tana Paste matters most: it is how Tana users and AI tools write structure.
+   Logseq folders, Roam JSON.
 5. **Files on nodes** (UC-05.08). Images and PDFs dropped on a node, with previews.
-6. ~~**MCP on the running app** (UC-10.11, UC-10.01).~~ Done: MCP finds the running app through
-   the live file beside the graph and works on it live.
+6. ~~**MCP on the running app** (UC-10.11, UC-10.01).~~ Done: MCP works on the running app
+   (stdio and streamable HTTP), plus a remote connector for claude.ai and ChatGPT (docs/mcp.md).
 7. ~~**Tag a whole selection** (UC-02.15).~~ Done: # Tag and Add tag tag every selected line.
 8. ~~**Automation** (UC-02.20, UC-06.33).~~ Done: commands on events, command nodes by name in the
    command line; buttons on tags and fields remain.

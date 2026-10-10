@@ -31,11 +31,25 @@ pub struct Host {
     /// Page reads served (a health check: a front end is alive and reading).
     pub reads: u64,
     dirty_since: Option<Instant>,
+    /// Tokens of the last unload batches applied: a reloaded page waits for its own batch before
+    /// typing kept keys again (else it would type over text still on its way).
+    marks: std::collections::VecDeque<String>,
+    /// The newest `rev` of each text sent (see "run").
+    revs: HashMap<String, u64>,
 }
 
 impl Host {
     pub fn new(session: Session) -> Host {
-        Host { session, panels: HashMap::new(), active: MAIN_PANEL.to_string(), version: 1, reads: 0, dirty_since: None }
+        Host {
+            session,
+            panels: HashMap::new(),
+            active: MAIN_PANEL.to_string(),
+            version: 1,
+            reads: 0,
+            dirty_since: None,
+            marks: Default::default(),
+            revs: HashMap::new(),
+        }
     }
 
     /// Makes `panel` the session's active panel (creating it on the active page if new).
@@ -59,6 +73,18 @@ impl Host {
             "run" => {
                 let id = params.get("command").and_then(Value::as_str).unwrap_or_default();
                 let p = params.get("params").cloned().unwrap_or_else(|| json!({}));
+                // Text that arrives late (a request overtaken by the unload batch that repeats it)
+                // never types over newer text: a rename or value with an older `rev` is dropped.
+                if let (Some(rev), "node.setName" | "field.set") = (params.get("rev").and_then(Value::as_u64), id) {
+                    let key = format!("{id}:{}:{}:{}", p["node"], p["field"], p["index"]);
+                    if self.revs.get(&key).is_some_and(|r| *r > rev) {
+                        return json!({"result": {"stale": true}});
+                    }
+                    if self.revs.len() > 10_000 {
+                        self.revs.clear();
+                    }
+                    self.revs.insert(key, rev);
+                }
                 let r = self.session.run(id, &p);
                 self.version += 1;
                 self.note_change();
@@ -102,6 +128,18 @@ impl Host {
                     self.panels.remove(name);
                 }
                 json!({"ok": true})
+            }
+            "flushMark" => {
+                let token = params.get("token").and_then(Value::as_str).unwrap_or_default().chars().take(64).collect::<String>();
+                self.marks.push_back(token);
+                while self.marks.len() > 32 {
+                    self.marks.pop_front();
+                }
+                json!({"ok": true})
+            }
+            "marked" => {
+                let token = params.get("token").and_then(Value::as_str).unwrap_or_default();
+                json!({"marked": self.marks.iter().any(|m| m == token)})
             }
             "save" => match self.save() {
                 Ok(()) => json!({"ok": true}),

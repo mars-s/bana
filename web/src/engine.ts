@@ -92,7 +92,14 @@ const idleWaiters: (() => void)[] = []
 
 const isRename = (i: { method: string; params: Json }) => i.method === 'run' && i.params?.command === 'node.setName'
 
+/** Increases across reloads: the engine drops text older than what it already has. */
+let revSeq = 0
+function rev() {
+  return Date.now() * 1000 + (revSeq++ % 1000)
+}
+
 export function call(method: string, params: Json = {}): Promise<Json> {
+  if (method === 'run' && (params?.command === 'node.setName' || params?.command === 'field.set') && params.rev == null) params = { ...params, rev: rev() }
   return new Promise((resolve, reject) => {
     const last = pending[pending.length - 1]
     // Typing fast: a rename waiting behind another rename of the same line replaces it (only the
@@ -138,8 +145,38 @@ export function busy() {
 
 /** The window is going away: whatever is still waiting goes out now, then the engine saves. */
 export function flushOnUnload() {
-  const batch = pending.slice(sending ? 1 : 0).map((i) => ({ method: i.method, params: i.params }))
-  transport.flushBeacon([...batch, { method: 'save', params: {} }])
+  // The request in flight may be cut off by the unload. A rename or a field value carries the
+  // whole text, so sending it again is safe; other commands are not repeated.
+  const inFlight = sending ? pending[0] : undefined
+  const again = inFlight && (isRename(inFlight) || (inFlight.method === 'run' && inFlight.params?.command === 'field.set'))
+  const batch = pending.slice(sending && !again ? 1 : 0).map((i) => ({ method: i.method, params: i.params }))
+  // The next page waits until this batch is in (see waitForUnloadBatch).
+  const token = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+  try {
+    sessionStorage.setItem(MARK, token)
+  } catch {
+    /* storage off */
+  }
+  transport.flushBeacon([...batch, { method: 'save', params: {} }, { method: 'flushMark', params: { token } }])
+}
+
+const MARK = 'tanacraft.flushMark'
+
+/** After a reload: waits (up to 3 s) until the batch the last page sent while unloading is in. */
+export async function waitForUnloadBatch() {
+  let token: string | null = null
+  try {
+    token = sessionStorage.getItem(MARK)
+    sessionStorage.removeItem(MARK)
+  } catch {
+    return
+  }
+  if (!token) return
+  for (let i = 0; i < 60; i++) {
+    const r = await call('marked', { token }).catch(() => null)
+    if (r?.marked) return
+    await new Promise((res) => setTimeout(res, 50))
+  }
 }
 
 // ---- snapshot types ------------------------------------------------------------------------------

@@ -1287,3 +1287,15 @@ fn banners_take_a_colour_or_a_shipped_picture() {
     assert!(s.run("node.setBanner", &json!({"node": n, "color": "picture:../../etc"})).is_err());
     assert!(s.run("node.setBanner", &json!({"node": n, "color": "blue"})).is_ok());
 }
+
+#[test]
+fn sorting_a_tag_page_keeps_its_table() {
+    // DIFFS N47: the first sort or filter on a supertag page made it an outline.
+    let mut s = blank();
+    run(&mut s, "tag.create", json!({"name": "book"}));
+    let tag = s.graph.find_tag("book").unwrap();
+    assert_eq!(s.graph.view_def(tag).kind, tanacraft_core::ViewKind::Table);
+    run(&mut s, "view.sort", json!({"node": tag.0, "by": "name"}));
+    run(&mut s, "view.filter", json!({"node": tag.0, "query": "NOT DONE"}));
+    assert_eq!(s.graph.view_def(tag).kind, tanacraft_core::ViewKind::Table);
+}

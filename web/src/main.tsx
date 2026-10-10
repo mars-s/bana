@@ -5,13 +5,18 @@ import './app.css'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { start } from './store'
+import { waitForUnloadBatch } from './engine'
 import { exec, keepBufferedKeys, restoreKeptKeys, runUiCommand } from './controller'
 
 const root = document.getElementById('root')
 if (root) {
   createRoot(root).render(<App />)
   window.addEventListener('pagehide', keepBufferedKeys)
-  void start().then(restoreKeptKeys)
+  // Kept keys are typed again only once the last page's unload batch is in (it carries the text
+  // they go on from).
+  void waitForUnloadBatch()
+    .then(start)
+    .then(restoreKeptKeys)
 }
 
 // Inside the desktop app, the native menu bar sends command ids (spec 00 §7).

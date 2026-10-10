@@ -100,11 +100,17 @@ for (let seed = 1; seed <= SEEDS; seed++) {
     const { page, ids } = await pageWith(server, app, ['one'], 'Reload')
     await focus(server, app, ids[0], 3)
     const before = await pageChars(server, page)
+    const logs: string[] = []
+    app.on('console', (m) => logs.push(m.text()))
     const typed = await typeRandomly(app, pick, 10 + pick(40))
+    const mid = await pageChars(server, page)
     await app.reload()
     await expect(app.locator('.panel .title, .panel .title-input').first()).toBeVisible()
-    // Keys still waiting when the page went are typed again after the reload.
-    await expect.poll(async () => sorted(await pageChars(server, page))).toBe(sorted(before + typed))
+    // Keys still waiting when the page went are typed again after the reload (on a busy machine
+    // that can take a while: every Enter or Tab among them waits for the engine).
+    await expect
+      .poll(async () => sorted(await pageChars(server, page)), { timeout: 20_000, message: `before reload the engine had ${JSON.stringify(mid)}; ${logs.filter((l) => l.startsWith('RESTORE')).join(' ')}` })
+      .toBe(sorted(before + typed))
   })
 
   test(`killing the engine at a random point keeps what autosave wrote (seed ${seed})`, async ({ app, server }) => {

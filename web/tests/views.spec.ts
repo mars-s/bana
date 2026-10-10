@@ -159,3 +159,20 @@ test('the query builder has its menus, Learn more and a corner close button (N43
   await qb.locator('.q-close').click()
   await expect(qb).toHaveCount(0)
 })
+
+test('a tag page view tab switches the view in place; the tag header stays (N36)', async ({ app, server }) => {
+  const tags = (await server.run('graph.tags', {})).result
+  const task = tags.find((t: any) => t.name === 'task')
+  await server.run('nav.open', { node: task.id })
+  await expect(app.locator('.table')).toBeVisible()
+  await app.locator('.tag-tabs .view-tab', { hasText: 'Task board' }).click()
+  await expect(app.locator('.board')).toBeVisible()
+  await expect(app.locator('.panel .title-input')).toHaveValue('task')
+  await expect(app.locator('.tag-tabs .view-tab.active')).toHaveText('Task board')
+  await app.locator('.tag-tabs .view-tab', { hasText: 'Everything tagged' }).click()
+  await expect(app.locator('.table')).toBeVisible()
+  // Sorting keeps the table (N47).
+  await app.locator('.view-toolbar .tool[title="Sort by"]').click()
+  await app.locator('.menu.pop .menu-item').first().click()
+  await expect(app.locator('.table')).toBeVisible()
+})

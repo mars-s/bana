@@ -195,23 +195,33 @@ const KEPT = 'tanacraft.keys'
 /** The window is going away with keys still waiting: keep them for the next load. */
 export function keepBufferedKeys() {
   if (!buffer.length) return
+  // Where typing was going: a page title takes keys the engine knows nothing about.
+  const title = [...titles.values()].find((t) => document.activeElement?.closest(`[data-title-panel="${t.panel}"]`))?.panel ?? null
   try {
-    sessionStorage.setItem(KEPT, JSON.stringify(buffer))
+    sessionStorage.setItem(KEPT, JSON.stringify({ keys: buffer, title }))
   } catch {
     /* storage off: nothing more can be done in an unloading page */
   }
 }
 
-/** Keys kept by an unloading page are typed again (the engine still has the caret there). */
+/** Keys kept by an unloading page are typed again (the engine still has the caret there; a title
+ * that had the keyboard takes it back first). */
 export function restoreKeptKeys() {
+  let kept: { keys: KeyInfo[]; title: string | null } = { keys: [], title: null }
   try {
-    const kept = JSON.parse(sessionStorage.getItem(KEPT) ?? '[]') as KeyInfo[]
+    kept = JSON.parse(sessionStorage.getItem(KEPT) ?? 'null') ?? kept
     sessionStorage.removeItem(KEPT)
-    buffer.unshift(...kept)
   } catch {
     /* nothing kept */
   }
-  drainSoon()
+  if (!kept.keys?.length) return drainSoon()
+  barrier++
+  requestAnimationFrame(() => {
+    if (kept.title && !editor) titles.get(kept.title)?.focus(true)
+    buffer.unshift(...kept.keys)
+    barrier--
+    drainSoon()
+  })
 }
 
 /** Puts a key back in front: it came before everything still waiting. */

@@ -1213,6 +1213,8 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
   const focusIndex = page?.rows.focusIndex
   const focusScroll = useStore((s) => s.focusScroll)
   const viewSnap = useStore((s) => s.views[panel])
+  const tagView = useStore((s) => s.tagView[panel])
+  const subSnap = useStore((s) => s.subViews[panel])
   const special = useStore((s) => s.special[panel])
   const configureOn = useStore((s) => !!s.configure[panel])
   useEffect(() => {
@@ -1254,7 +1256,10 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
     )
   }
   const wide = page.related.length > 0
-  const vs = viewSnap && viewSnap.node === page.zoom ? viewSnap : null
+  const tagVs = viewSnap && viewSnap.node === page.zoom ? viewSnap : null
+  // A tag page's view tab shows in place under the tag header (N36).
+  const tabId = page.kind === 'tag' && tagVs && tagView != null && tagVs.tabs.some((t) => t.id === tagView) ? tagView : null
+  const vs = tabId != null && subSnap?.node === tabId ? subSnap : tagVs
   const configuring = page.kind === 'tag' && configureOn
   const fieldPage = page.kind === 'field'
   const layout = vs && vs.kind !== 'outline' && !configuring ? vs : null
@@ -1291,7 +1296,7 @@ export function Panel({ panel, many }: { panel: string; many: boolean }) {
               {page.description && <p className="page-desc">{page.description}</p>}
               {page.kind === 'day' && <DayNav panel={panel} />}
               {page.kind === 'trash' && <p className="banner-note">Deleted nodes wait here. Restore them from their menu, or empty the trash.</p>}
-              {page.kind === 'tag' && vs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={vs.tabs} active={page.zoom} />}
+              {page.kind === 'tag' && tagVs && <TagHeader panel={panel} tag={page.target} color={page.tagColor ?? 'grey'} tabs={tagVs.tabs} active={tabId ?? page.zoom} />}
               {vs && !layout && !schema && <QueryBuilder v={vs} panel={panel} />}
               {vs && !layout && !schema && vs.toolbar && <ViewToolbar v={vs} panel={panel} />}
             </div>

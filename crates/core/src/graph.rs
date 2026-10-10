@@ -1316,7 +1316,10 @@ impl Graph {
     /// The view settings of `id`, created on first change (undoable like any edit).
     pub fn view_mut(&mut self, id: NodeId) -> Result<&mut crate::view::ViewDef> {
         let id = self.resolve(id);
-        Ok(self.node_mut(id)?.view.get_or_insert_with(Default::default))
+        // Starts from what the node shows now (a supertag page shows a table), so a first sort or
+        // filter keeps the view as it is (DIFFS N47).
+        let shown = self.view_def(id);
+        Ok(self.node_mut(id)?.view.get_or_insert(shown))
     }
 
     // ---- supertags and fields -----------------------------------------------------------------

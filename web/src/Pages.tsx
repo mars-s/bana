@@ -7,7 +7,7 @@ import { Icon } from './icons'
 import { tagStyle } from './Outline'
 import { exec } from './controller'
 import { UI_COMMANDS, keyInfo, shortcut } from './keys'
-import { closeConfigure, openConfigure, setState, useStore } from './store'
+import { closeConfigure, openConfigure, refresh, setState, useStore } from './store'
 
 interface TagInfo {
   id: number
@@ -65,17 +65,22 @@ export function SupertagsPage({ panel }: { panel: string }) {
 /** The tag page's extra header: glow, "+ Create new", and its view tabs. */
 export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; tag: number; color: string; tabs: { id: number; name: string }[]; active: number }) {
   const configuring = useStore((s) => !!s.configure[panel])
+  // A view tab switches the view in place; the tag page stays open (N36).
+  const showTab = (id: number | undefined) => {
+    setState((s) => ({ tagView: { ...s.tagView, [panel]: id } }))
+    void refresh()
+  }
   return (
     <>
       <div className="tag-glow" style={tagStyle(color)} />
       <div className={`tag-tabs${configuring ? ' bare' : ''}`}>
         {/* The configure panel shows the tag's settings only, not its views (spec 03 §5). */}
         {!configuring && (<>
-        <button className={`view-tab${active === tag ? ' active' : ''}`} onClick={() => void exec('nav.open', { node: tag }, panel)}>
+        <button className={`view-tab${active === tag ? ' active' : ''}`} onClick={() => showTab(undefined)}>
           Everything tagged
         </button>
         {tabs.map((t) => (
-          <button key={t.id} className={`view-tab${active === t.id ? ' active' : ''}`} onClick={() => void exec('nav.open', { node: t.id }, panel)}>
+          <button key={t.id} className={`view-tab${active === t.id ? ' active' : ''}`} onClick={() => showTab(t.id)}>
             {t.name}
           </button>
         ))}

@@ -45,6 +45,8 @@ The Never list:
 | files on disk | `file.*` (open, save to a path, attach, read), `import.folder`, `import.file` |
 | settings and workspaces | `settings.*`, `workspace.*` |
 | command nodes and triggers | `commandNode.create`, `commandNode.on`, `commandNode.button`, `commandNode.run`, and any edit of a command node or its steps (rule `command nodes`) |
+| undoing others | `edit.undo` and `edit.redo` when the step is not the assistant's own (rule `not its own change`; `agents.json` cannot loosen this) |
+| mirrors | `mirror.*` (rule `mirror.*`), except for a scoped agent token that lists it (see Mirrors below) |
 
 Locked nodes refuse changes to their text, description, tags, fields, checkbox and new children
 from anyone, assistants included.
@@ -56,7 +58,7 @@ names the command and the rule:
 refused: assistants may not run `trash.empty` (rule `trash.empty`). The person can do it in the app, or allow it by hand in agents.json in the Bana data folder
 ```
 
-The rule is one of the ids or patterns above, `destructive` or `command nodes`.
+The rule is one of the ids or patterns above, `destructive`, `command nodes` or `not its own change`.
 
 ### The opt-out file
 
@@ -73,7 +75,67 @@ again for every assistant command, so a change applies at once.
 
 `allow` applies to every assistant; `clients` adds commands for one client name (see below). A
 pattern ending in `*` covers a prefix (`"settings.*"`). The name is what the client says it is, so
-a per-client entry trusts that client to name itself honestly; keep it for a gateway you run.
+a per-client entry trusts that client to name itself honestly; keep it for a gateway you run, or
+give that client a scoped agent token instead.
+
+### Undo and redo
+
+An assistant's `edit.undo` and `edit.redo` take back (or put back) only its own last change. Each
+undo step remembers who made it; when the step on top is yours, or another assistant's, the
+assistant is refused with rule `not its own change` and nothing changes. Your own Undo is not
+limited: it takes back whatever came last, an assistant's change included. Typing by you and an
+edit by an assistant on the same line are separate steps.
+
+### Scoped agent tokens
+
+The local token lets any tool name itself. For an assistant or integration you want pinned down,
+make it a token of its own, in Terminal (no command or assistant can do this):
+
+```sh
+bana agent-token create NAME [--allow PATTERN]...
+bana agent-token create mirror-sync --allow 'mirror.*'
+```
+
+It prints the token and keeps it in `agent-tokens.json` in the data folder (readable by you only),
+with its name and allowances. Making a token with the same name again replaces it; to revoke one,
+delete its entry from the file.
+
+A request to `POST /mcp` with `Authorization: Bearer <that token>`:
+
+- is always named `NAME`: the `X-Bana-Agent` header and `clientInfo` are ignored;
+- meets the same tiers as any assistant, loosened only by its own `--allow` patterns, not by
+  `agents.json`;
+- works on `/mcp` only (the JSON API at `/rpc` answers 401).
+
+A client on the local token that calls itself by a token's name is recorded as
+`NAME (unverified)`. Requests with the local token keep the policy above.
+
+### Mirrors of another app
+
+An integration that keeps a copy of another app's items (to-dos, events) in your notes writes
+them as **locked** mirror nodes, so neither you nor any assistant edits them by accident, and it
+refreshes them without unlocking. Two commands, for scoped tokens that list `mirror.*` only (not
+you, not the local token, not `agents.json`):
+
+```
+execute mirror.upsert {"tag": "thing", "key": "Things ID", "id": "T-1", "parent": <node id>,
+                       "name": "Plant garlic", "fields": {"Status": "open", "Project": "Garden"}}
+  -> {"node": 812, "created": true, "changed": [...]}
+execute mirror.markGone {"tag": "thing", "key": "Things ID", "present": ["T-1", "T-2"], "parent"?: <node id>}
+  -> {"gone": [813]}
+```
+
+- `mirror.upsert` finds the token's own mirror node tagged `tag` whose `key` field is `id` (locked,
+  and last changed by this token), else makes one under `parent`: named `name` (or `id`), tagged,
+  keyed, locked. It writes only the name and the `fields` given, and only what differs: an item
+  that did not change makes no edit at all (no undo step, nothing to save). Children and fields you
+  added stay. `fields` may not change the key; a mirror never goes in a command node.
+- `mirror.markGone` sets `Status` to `gone` on the token's mirror nodes for `tag` whose key is not
+  in `present` (only children of `parent`, when given). It marks, never deletes; marking twice is
+  no edit.
+- Every other path still refuses a locked node, for you and every assistant, the mirror token
+  included. To take a mirror node over, unlock it: the mirror then leaves it alone and makes a
+  fresh one on its next refresh.
 
 ## Who did it
 
@@ -81,10 +143,11 @@ Nodes an assistant makes, or whose text, description, tags, fields or checkbox i
 its name (`by` on the node, shown in `node.editLog` and `graph.inspect`). A change you make clears
 it. The name comes from:
 
-1. the `X-Bana-Agent` header on `POST /mcp` (a connector or gateway naming the assistant it passes on), else
-2. `clientInfo.name` from `initialize` (stdio keeps it for the session; over HTTP, which has no
+1. a scoped agent token's name, when the request came with one (nothing below counts then), else
+2. the `X-Bana-Agent` header on `POST /mcp` (a connector or gateway naming the assistant it passes on), else
+3. `clientInfo.name` from `initialize` (stdio keeps it for the session; over HTTP, which has no
    sessions, it counts for the request it came in), else
-3. `assistant`.
+4. `assistant`.
 
 Searches find these nodes with `BY:*` (any assistant) or `BY:claude` (one, any case), for example
 `BY:* EDITED:7`. The Agent notebook template (below) has an "Agent activity" search grouped by day.
@@ -136,7 +199,8 @@ One per install, in the data folder: `~/Bana/token` (or `$BANA_HOME/token`), rea
 you only, made the first time the app starts. Requests to `POST /rpc` and `POST /mcp` that do not
 come from the app's own pages must send `Authorization: Bearer <token>`. The API listens on
 127.0.0.1 only. To change the token, delete the file and restart the app (then set it again in the
-remote connector: `wrangler secret put MAC_TOKEN`).
+remote connector: `wrangler secret put MAC_TOKEN`). Scoped agent tokens (above) sit beside it in
+`agent-tokens.json` and open `POST /mcp` only.
 
 ## Streamable HTTP on the Mac
 
@@ -164,7 +228,10 @@ claude.ai / ChatGPT ──OAuth 2.1──▶ Cloudflare Worker ──Cloudflare 
   `ALLOWED_GITHUB_ID` gets a grant, and GitHub is asked for no scopes (a GitHub token with scopes
   is refused). The GitHub token is not kept.
 - Authorized MCP requests are passed to `MAC_MCP_URL` (the tunnel's address of `/mcp`) with the
-  local token added by the Worker; the assistant never sees it. Optional `CF_ACCESS_CLIENT_ID` and
+  local token added by the Worker; the assistant never sees it. The Worker also sets
+  `X-Bana-Agent` from the grant: `claude.ai` or `ChatGPT` by the redirect address the grant was
+  made for (checked against the client's registration), else `remote connector`. A header or
+  client name the caller sends is not passed on. Optional `CF_ACCESS_CLIENT_ID` and
   `CF_ACCESS_CLIENT_SECRET` add a Cloudflare Access service token when the tunnel's hostname is
   behind Access too.
 - The tunnel config the wizard writes passes only `/mcp` to the app; everything else is 404.

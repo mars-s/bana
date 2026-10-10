@@ -202,6 +202,9 @@ Assistants get tiers: they read and write notes, but permanent deletes, locks, f
 settings, workspaces and command nodes are refused unless you allow them by hand in
 `~/Bana/agents.json`; what an assistant changes carries its name, and the Agent notebook template
 adds supertags and searches for agent workflows (an inbox, proposals, agent activity by day).
+An assistant's undo takes back only its own changes; `bana agent-token create` gives one
+assistant or integration a token with a fixed name and its own allowances, and integrations
+with `mirror.*` keep locked copies of another app's items up to date without unlocking them.
 Everything is in [docs/mcp.md](docs/mcp.md).
 
 ## Architecture

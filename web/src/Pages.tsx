@@ -98,6 +98,12 @@ export function TagHeader({ panel, tag, color, tabs, active }: { panel: string; 
 
 // The sections in Tana's order (DIFFS N23, N55), then Keybindings (ours).
 const SECTIONS = ['Preferences', 'Notifications seen', 'Progress stats', 'Date and time', 'Move targets', 'Journaling', 'API keys', 'Keybindings']
+/** Under each section heading (N67). */
+const SUBTITLE: Record<string, string> = {
+  Preferences: 'Your user preferences',
+  'Date and time': 'How dates and times read',
+  Keybindings: 'Your own keys for commands',
+}
 const EMPTY_NOTE: Record<string, string> = {
   'Notifications seen': 'No notifications yet.',
   'Progress stats': 'Nothing to count yet.',
@@ -126,6 +132,9 @@ export function SettingsPage({ panel }: { panel: string }) {
   if (!s) return null
   const row = (label: string, help: string, control: React.ReactNode) => (
     <div className="setting">
+      <span className="setting-icon">
+        <Icon name="fieldCheck" size={12} />
+      </span>
       <div className="setting-label">{label}</div>
       <div className="setting-help">{help}</div>
       <div className="setting-control">{control}</div>
@@ -143,6 +152,7 @@ export function SettingsPage({ panel }: { panel: string }) {
       </nav>
       <div className="settings-body">
         <h2 className="section-title">{name}</h2>
+        {SUBTITLE[name] && <p className="settings-sub">{SUBTITLE[name]}</p>}
         {EMPTY_NOTE[name] && <p className="muted">{EMPTY_NOTE[name]}</p>}
         {name === 'Preferences' && (
           <>

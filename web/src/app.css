@@ -2591,9 +2591,11 @@ kbd {
   margin-top: var(--q6);
 }
 
+/* Nav box 7.5 left of the column (x 898.5), options from x 1116 (spec 12: Settings, N67). */
 .settings {
   display: flex;
-  gap: var(--q8);
+  gap: var(--q6);
+  margin-left: calc(-1 * var(--q2));
 }
 
 .settings-nav {
@@ -2623,11 +2625,25 @@ kbd {
 
 /* One option: name, description, then its control on its own line (12: Settings). */
 .setting {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--q1);
-  padding: var(--q3) 0 var(--q4);
-  border-bottom: 1px solid var(--c-divider);
+  /* A small icon at the left, the text from x 1139.3, no rules between options (N67). */
+  padding: var(--q3) 0 var(--q4) var(--setting-indent);
+}
+
+.setting-icon {
+  position: absolute;
+  left: 0;
+  top: calc(var(--q3) + 2px);
+  color: var(--c-muted);
+}
+
+.settings-sub {
+  margin: calc(-1 * var(--q2)) 0 var(--q2);
+  font-size: var(--fs-dense);
+  color: var(--c-muted);
 }
 
 .setting-control {
@@ -3849,4 +3865,9 @@ kbd {
   left: auto;
   right: 0;
   width: var(--menu-w);
+}
+
+/* The Settings title sits at y 100 (spec 12). */
+.settings-panel .page {
+  padding-top: calc(var(--page-top) - var(--q2));
 }

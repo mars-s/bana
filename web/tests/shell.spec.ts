@@ -175,3 +175,16 @@ test('Supertags page: no sidebar fill, a 600 title, Browse templates; quick add 
   await expect(input).toBeVisible()
   expect(await input.getAttribute('placeholder')).toBeNull()
 })
+
+test('Settings layout as spec 12: title y 100, nav box from x 898.5, options from x 1116 with an icon, a subtitle (N67)', async ({ app }) => {
+  await app.locator('.topbar [title="Account"]').click()
+  await app.locator('.account-menu .menu-item', { hasText: 'Settings' }).click()
+  const p = app.locator('.settings-panel')
+  await expect(p.locator('.settings-sub')).toHaveText('Your user preferences')
+  const r = async (sel: string) => (await p.locator(sel).first().boundingBox())!
+  expect(Math.abs((await r('.title')).y - 100)).toBeLessThan(1.5)
+  expect(Math.abs((await r('.settings-nav')).x - 898.5)).toBeLessThan(1.5)
+  expect(Math.abs((await r('.settings-body')).x - 1116)).toBeLessThan(1.5)
+  expect(Math.abs((await r('.setting-label')).x - 1139.3)).toBeLessThan(1.5)
+  await expect(p.locator('.setting').first().locator('.setting-icon')).toBeVisible()
+})
